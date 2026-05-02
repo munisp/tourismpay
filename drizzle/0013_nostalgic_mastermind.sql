@@ -1,0 +1,1 @@
+ALTER TABLE "loyalty_rewards" ADD COLUMN "expires_at" integer;

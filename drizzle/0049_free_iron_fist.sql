@@ -1,0 +1,1 @@
+ALTER TABLE "notification_preferences" ADD COLUMN "wishlist_expiry_alerts" boolean DEFAULT true NOT NULL;

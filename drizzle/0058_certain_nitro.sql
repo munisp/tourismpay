@@ -1,0 +1,1 @@
+ALTER TABLE "bis_investigations" ADD COLUMN "linked_entity_investigation_id" integer;

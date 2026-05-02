@@ -1,0 +1,94 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Fluvio HA — 1 SC (System Controller) + 3 SPU (Streaming Processing Units)
+# Replication factor: 3  |  Used for real-time FX rate streaming
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  fluvio-sc:
+    image: infinyon/fluvio:0.11.5
+    container_name: fluvio-sc
+    restart: unless-stopped
+    command: ./fluvio-run sc --local /fluvio/metadata
+    volumes:
+      - fluvio-sc-data:/fluvio/metadata
+    ports:
+      - "9003:9003"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9003 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  fluvio-spu-1:
+    image: infinyon/fluvio:0.11.5
+    container_name: fluvio-spu-1
+    restart: unless-stopped
+    command: >
+      ./fluvio-run spu
+      --id 5001
+      --sc-addr fluvio-sc:9003
+      --log-base-dir /fluvio/data
+      --public-server 0.0.0.0:9010
+      --private-server 0.0.0.0:9011
+    volumes:
+      - fluvio-spu-1-data:/fluvio/data
+    ports:
+      - "9010:9010"
+      - "9011:9011"
+    depends_on:
+      fluvio-sc:
+        condition: service_healthy
+
+  fluvio-spu-2:
+    image: infinyon/fluvio:0.11.5
+    container_name: fluvio-spu-2
+    restart: unless-stopped
+    command: >
+      ./fluvio-run spu
+      --id 5002
+      --sc-addr fluvio-sc:9003
+      --log-base-dir /fluvio/data
+      --public-server 0.0.0.0:9010
+      --private-server 0.0.0.0:9011
+    volumes:
+      - fluvio-spu-2-data:/fluvio/data
+    ports:
+      - "9012:9010"
+      - "9013:9011"
+    depends_on:
+      fluvio-sc:
+        condition: service_healthy
+
+  fluvio-spu-3:
+    image: infinyon/fluvio:0.11.5
+    container_name: fluvio-spu-3
+    restart: unless-stopped
+    command: >
+      ./fluvio-run spu
+      --id 5003
+      --sc-addr fluvio-sc:9003
+      --log-base-dir /fluvio/data
+      --public-server 0.0.0.0:9010
+      --private-server 0.0.0.0:9011
+    volumes:
+      - fluvio-spu-3-data:/fluvio/data
+    ports:
+      - "9014:9010"
+      - "9015:9011"
+    depends_on:
+      fluvio-sc:
+        condition: service_healthy
+
+volumes:
+  fluvio-sc-data:
+  fluvio-spu-1-data:
+  fluvio-spu-2-data:
+  fluvio-spu-3-data:
+
+networks:
+  default:
+    name: tourismpay-infra
+    external: true

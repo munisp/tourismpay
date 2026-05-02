@@ -1,0 +1,417 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# TourismPay Kubernetes HA Manifests
+# Minimum cluster: 3 worker nodes across 3 availability zones
+# ─────────────────────────────────────────────────────────────────────────────
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tourismpay
+  labels:
+    app.kubernetes.io/part-of: tourismpay
+
+---
+# ── TourismPay PWA ────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tourismpay-pwa
+  namespace: tourismpay
+  labels:
+    app: tourismpay-pwa
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: tourismpay-pwa
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: tourismpay-pwa
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - tourismpay-pwa
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: pwa
+          image: tourismpay/pwa:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: tourismpay-secrets
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: tourismpay-pwa
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tourismpay-pwa
+  namespace: tourismpay
+spec:
+  selector:
+    app: tourismpay-pwa
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: tourismpay-pwa-hpa
+  namespace: tourismpay
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: tourismpay-pwa
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# ── BIS Service ───────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bis-service
+  namespace: tourismpay
+  labels:
+    app: bis-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: bis-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: bis-service
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - bis-service
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: bis
+          image: tourismpay/bis-service:latest
+          ports:
+            - containerPort: 8084
+          envFrom:
+            - secretRef:
+                name: tourismpay-secrets
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8084
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8084
+            initialDelaySeconds: 30
+            periodSeconds: 15
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bis-service
+  namespace: tourismpay
+spec:
+  selector:
+    app: bis-service
+  ports:
+    - port: 8084
+      targetPort: 8084
+  type: ClusterIP
+
+---
+# ── PaymentSwitch Service ─────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-switch
+  namespace: tourismpay
+  labels:
+    app: payment-switch
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-switch
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: payment-switch
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - payment-switch
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: payment-switch
+          image: tourismpay/payment-switch:latest
+          ports:
+            - containerPort: 3001
+          envFrom:
+            - secretRef:
+                name: tourismpay-secrets
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3001
+            initialDelaySeconds: 30
+            periodSeconds: 15
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-switch
+  namespace: tourismpay
+spec:
+  selector:
+    app: payment-switch
+  ports:
+    - port: 3001
+      targetPort: 3001
+  type: ClusterIP
+
+---
+# ── ML/AI Python Services ─────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-fraud-service
+  namespace: tourismpay
+  labels:
+    app: ml-fraud-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ml-fraud-service
+  template:
+    metadata:
+      labels:
+        app: ml-fraud-service
+    spec:
+      containers:
+        - name: fraud-ml
+          image: tourismpay/ml-fraud:latest
+          ports:
+            - containerPort: 8001
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-fraud-service
+  namespace: tourismpay
+spec:
+  selector:
+    app: ml-fraud-service
+  ports:
+    - port: 8001
+      targetPort: 8001
+  type: ClusterIP
+
+---
+# ── Ingress ───────────────────────────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tourismpay-ingress
+  namespace: tourismpay
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - app.tourismpay.com
+        - api.tourismpay.com
+      secretName: tourismpay-tls
+  rules:
+    - host: app.tourismpay.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tourismpay-pwa
+                port:
+                  number: 3000
+    - host: api.tourismpay.com
+      http:
+        paths:
+          - path: /bis
+            pathType: Prefix
+            backend:
+              service:
+                name: bis-service
+                port:
+                  number: 8084
+          - path: /ps
+            pathType: Prefix
+            backend:
+              service:
+                name: payment-switch
+                port:
+                  number: 3001
+
+---
+# ── PodDisruptionBudgets ──────────────────────────────────────────────────────
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tourismpay-pwa-pdb
+  namespace: tourismpay
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: tourismpay-pwa
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bis-service-pdb
+  namespace: tourismpay
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: bis-service
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: payment-switch-pdb
+  namespace: tourismpay
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: payment-switch

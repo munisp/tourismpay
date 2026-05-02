@@ -1,0 +1,1 @@
+ALTER TABLE "notification_preferences" ADD COLUMN "sentiment_alert_threshold" integer;

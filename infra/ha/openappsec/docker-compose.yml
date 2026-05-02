@@ -1,0 +1,79 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# OpenAppSec HA — AI-powered WAF protecting TourismPay APIs
+# Deployed as NGINX module in front of APISIX
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  openappsec-agent-1:
+    image: openappsec/agent:1.1.0
+    container_name: openappsec-agent-1
+    restart: unless-stopped
+    privileged: true
+    environment:
+      AGENT_TOKEN: ${OPENAPPSEC_TOKEN:-dev-token}
+      REGISTRATION_SERVER: https://inext-agents.checkpoint.com
+      TUNING_HOST: https://inext-tuning.checkpoint.com
+    volumes:
+      - openappsec-1-data:/etc/cp/conf
+      - openappsec-1-logs:/var/log/nano_agent
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD-SHELL", "cp-nano-agent --status | grep -q 'running' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  openappsec-agent-2:
+    image: openappsec/agent:1.1.0
+    container_name: openappsec-agent-2
+    restart: unless-stopped
+    privileged: true
+    environment:
+      AGENT_TOKEN: ${OPENAPPSEC_TOKEN:-dev-token}
+      REGISTRATION_SERVER: https://inext-agents.checkpoint.com
+      TUNING_HOST: https://inext-tuning.checkpoint.com
+    volumes:
+      - openappsec-2-data:/etc/cp/conf
+      - openappsec-2-logs:/var/log/nano_agent
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  openappsec-nginx-1:
+    image: openappsec/nginx-attachment:1.1.0
+    container_name: openappsec-nginx-1
+    restart: unless-stopped
+    volumes:
+      - ./nginx-waf.conf:/etc/nginx/conf.d/default.conf:ro
+      - openappsec-1-data:/etc/cp/conf:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      openappsec-agent-1:
+        condition: service_healthy
+
+  openappsec-nginx-2:
+    image: openappsec/nginx-attachment:1.1.0
+    container_name: openappsec-nginx-2
+    restart: unless-stopped
+    volumes:
+      - ./nginx-waf.conf:/etc/nginx/conf.d/default.conf:ro
+      - openappsec-2-data:/etc/cp/conf:ro
+    ports:
+      - "8443:443"
+    depends_on:
+      openappsec-agent-2:
+        condition: service_healthy
+
+volumes:
+  openappsec-1-data:
+  openappsec-1-logs:
+  openappsec-2-data:
+  openappsec-2-logs:
+
+networks:
+  default:
+    name: tourismpay-infra
+    external: true

@@ -1,0 +1,1 @@
+ALTER TABLE "loyalty_accounts" ADD COLUMN "tier_protected_until" bigint;

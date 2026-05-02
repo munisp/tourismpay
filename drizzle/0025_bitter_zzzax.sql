@@ -1,0 +1,1 @@
+ALTER TABLE "bis_export_schedules" ADD COLUMN "last_export_note_count" integer;

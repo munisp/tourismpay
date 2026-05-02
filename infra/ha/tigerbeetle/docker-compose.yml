@@ -1,0 +1,83 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TigerBeetle HA — 3-replica cluster using Viewstamped Replication
+# Cluster ID: 0  |  Replicas: 3  |  Quorum: 2
+# Each replica stores a 1 GB data file on a dedicated volume.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  tigerbeetle-format:
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.15.4
+    container_name: tigerbeetle-format
+    restart: "no"
+    entrypoint: >
+      sh -c "
+        /tigerbeetle format --cluster=0 --replica=0 --replica-count=3 /data/0_0.tigerbeetle &&
+        /tigerbeetle format --cluster=0 --replica=1 --replica-count=3 /data/0_1.tigerbeetle &&
+        /tigerbeetle format --cluster=0 --replica=2 --replica-count=3 /data/0_2.tigerbeetle
+      "
+    volumes:
+      - tigerbeetle-data:/data
+
+  tigerbeetle-0:
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.15.4
+    container_name: tigerbeetle-0
+    restart: unless-stopped
+    command: >
+      start
+      --addresses=tigerbeetle-0:3000,tigerbeetle-1:3000,tigerbeetle-2:3000
+      /data/0_0.tigerbeetle
+    volumes:
+      - tigerbeetle-data:/data
+    ports:
+      - "3000:3000"
+    depends_on:
+      tigerbeetle-format:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 3000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  tigerbeetle-1:
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.15.4
+    container_name: tigerbeetle-1
+    restart: unless-stopped
+    command: >
+      start
+      --addresses=tigerbeetle-0:3000,tigerbeetle-1:3000,tigerbeetle-2:3000
+      /data/0_1.tigerbeetle
+    volumes:
+      - tigerbeetle-data:/data
+    ports:
+      - "3001:3000"
+    depends_on:
+      tigerbeetle-format:
+        condition: service_completed_successfully
+
+  tigerbeetle-2:
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.15.4
+    container_name: tigerbeetle-2
+    restart: unless-stopped
+    command: >
+      start
+      --addresses=tigerbeetle-0:3000,tigerbeetle-1:3000,tigerbeetle-2:3000
+      /data/0_2.tigerbeetle
+    volumes:
+      - tigerbeetle-data:/data
+    ports:
+      - "3002:3000"
+    depends_on:
+      tigerbeetle-format:
+        condition: service_completed_successfully
+
+volumes:
+  tigerbeetle-data:
+
+networks:
+  default:
+    name: tourismpay-infra
+    external: true

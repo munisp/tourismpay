@@ -1,0 +1,217 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Temporal HA — 3 frontend + 3 history + 3 matching + 3 worker nodes
+# Backend: Cassandra 4 (3-node ring, RF=3)
+# Visibility: Elasticsearch 8 (3-node cluster)
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-temporal-common: &temporal-common
+  image: temporalio/server:1.24.2
+  restart: unless-stopped
+  environment:
+    DB: cassandra
+    CASSANDRA_SEEDS: cassandra-1,cassandra-2,cassandra-3
+    CASSANDRA_KEYSPACE: temporal
+    CASSANDRA_VISIBILITY_KEYSPACE: temporal_visibility
+    ENABLE_ES: "true"
+    ES_SEEDS: elasticsearch-1
+    ES_VERSION: v8
+    TEMPORAL_BROADCAST_ADDRESS: "0.0.0.0"
+    NUM_HISTORY_SHARDS: "512"
+  depends_on:
+    cassandra-1:
+      condition: service_healthy
+    elasticsearch-1:
+      condition: service_healthy
+
+services:
+  # ── Cassandra ring ────────────────────────────────────────────────────────
+  cassandra-1:
+    image: cassandra:4.1
+    container_name: cassandra-1
+    restart: unless-stopped
+    environment:
+      CASSANDRA_CLUSTER_NAME: "tourismpay-temporal"
+      CASSANDRA_DC: dc1
+      CASSANDRA_RACK: rack1
+      CASSANDRA_SEEDS: cassandra-1
+      MAX_HEAP_SIZE: "1G"
+      HEAP_NEWSIZE: "256M"
+    volumes:
+      - cassandra-1-data:/var/lib/cassandra
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status | grep -q UN"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  cassandra-2:
+    image: cassandra:4.1
+    container_name: cassandra-2
+    restart: unless-stopped
+    environment:
+      CASSANDRA_CLUSTER_NAME: "tourismpay-temporal"
+      CASSANDRA_DC: dc1
+      CASSANDRA_RACK: rack2
+      CASSANDRA_SEEDS: cassandra-1
+      MAX_HEAP_SIZE: "1G"
+      HEAP_NEWSIZE: "256M"
+    volumes:
+      - cassandra-2-data:/var/lib/cassandra
+    depends_on:
+      cassandra-1:
+        condition: service_healthy
+
+  cassandra-3:
+    image: cassandra:4.1
+    container_name: cassandra-3
+    restart: unless-stopped
+    environment:
+      CASSANDRA_CLUSTER_NAME: "tourismpay-temporal"
+      CASSANDRA_DC: dc1
+      CASSANDRA_RACK: rack3
+      CASSANDRA_SEEDS: cassandra-1
+      MAX_HEAP_SIZE: "1G"
+      HEAP_NEWSIZE: "256M"
+    volumes:
+      - cassandra-3-data:/var/lib/cassandra
+    depends_on:
+      cassandra-1:
+        condition: service_healthy
+
+  # ── Elasticsearch visibility ──────────────────────────────────────────────
+  elasticsearch-1:
+    image: elasticsearch:8.13.0
+    container_name: elasticsearch-1
+    restart: unless-stopped
+    environment:
+      node.name: es-1
+      cluster.name: temporal-es
+      discovery.seed_hosts: elasticsearch-2,elasticsearch-3
+      cluster.initial_master_nodes: es-1,es-2,es-3
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+      xpack.security.enabled: "false"
+    volumes:
+      - es-1-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health?wait_for_status=yellow || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  elasticsearch-2:
+    image: elasticsearch:8.13.0
+    container_name: elasticsearch-2
+    restart: unless-stopped
+    environment:
+      node.name: es-2
+      cluster.name: temporal-es
+      discovery.seed_hosts: elasticsearch-1,elasticsearch-3
+      cluster.initial_master_nodes: es-1,es-2,es-3
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+      xpack.security.enabled: "false"
+    volumes:
+      - es-2-data:/usr/share/elasticsearch/data
+
+  elasticsearch-3:
+    image: elasticsearch:8.13.0
+    container_name: elasticsearch-3
+    restart: unless-stopped
+    environment:
+      node.name: es-3
+      cluster.name: temporal-es
+      discovery.seed_hosts: elasticsearch-1,elasticsearch-2
+      cluster.initial_master_nodes: es-1,es-2,es-3
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+      xpack.security.enabled: "false"
+    volumes:
+      - es-3-data:/usr/share/elasticsearch/data
+
+  # ── Temporal services ─────────────────────────────────────────────────────
+  temporal-frontend-1:
+    <<: *temporal-common
+    container_name: temporal-frontend-1
+    environment:
+      <<: *temporal-common
+      SERVICES: frontend
+    ports:
+      - "7233:7233"
+
+  temporal-frontend-2:
+    <<: *temporal-common
+    container_name: temporal-frontend-2
+    environment:
+      <<: *temporal-common
+      SERVICES: frontend
+    ports:
+      - "7234:7233"
+
+  temporal-history-1:
+    <<: *temporal-common
+    container_name: temporal-history-1
+    environment:
+      <<: *temporal-common
+      SERVICES: history
+
+  temporal-history-2:
+    <<: *temporal-common
+    container_name: temporal-history-2
+    environment:
+      <<: *temporal-common
+      SERVICES: history
+
+  temporal-matching-1:
+    <<: *temporal-common
+    container_name: temporal-matching-1
+    environment:
+      <<: *temporal-common
+      SERVICES: matching
+
+  temporal-matching-2:
+    <<: *temporal-common
+    container_name: temporal-matching-2
+    environment:
+      <<: *temporal-common
+      SERVICES: matching
+
+  temporal-worker-1:
+    <<: *temporal-common
+    container_name: temporal-worker-1
+    environment:
+      <<: *temporal-common
+      SERVICES: worker
+
+  temporal-worker-2:
+    <<: *temporal-common
+    container_name: temporal-worker-2
+    environment:
+      <<: *temporal-common
+      SERVICES: worker
+
+  temporal-ui:
+    image: temporalio/ui:2.26.2
+    container_name: temporal-ui
+    restart: unless-stopped
+    environment:
+      TEMPORAL_ADDRESS: temporal-frontend-1:7233
+      TEMPORAL_CORS_ORIGINS: "*"
+    ports:
+      - "8088:8080"
+    depends_on:
+      - temporal-frontend-1
+
+volumes:
+  cassandra-1-data:
+  cassandra-2-data:
+  cassandra-3-data:
+  es-1-data:
+  es-2-data:
+  es-3-data:
+
+networks:
+  default:
+    name: tourismpay-infra
+    external: true

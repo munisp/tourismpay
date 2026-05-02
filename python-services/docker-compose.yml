@@ -1,0 +1,77 @@
+version: "3.9"
+
+services:
+  bis-ai-engine:
+    build:
+      context: ./bis-ai-engine
+      dockerfile: ../Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      - SERVICE_NAME=bis-ai-engine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  fraud-ml-service:
+    build:
+      context: ./fraud-ml-service
+      dockerfile: ../Dockerfile
+    ports:
+      - "8002:8000"
+    environment:
+      - SERVICE_NAME=fraud-ml-service
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  compliance-risk-engine:
+    build:
+      context: ./compliance-risk-engine
+      dockerfile: ../Dockerfile
+    ports:
+      - "8003:8000"
+    environment:
+      - SERVICE_NAME=compliance-risk-engine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  exchange-rate-ml:
+    build:
+      context: ./exchange-rate-ml
+      dockerfile: ../Dockerfile
+    ports:
+      - "8004:8000"
+    environment:
+      - SERVICE_NAME=exchange-rate-ml
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  pdf-report-generator:
+    build:
+      context: ./pdf-report-generator
+      dockerfile: ../Dockerfile
+    ports:
+      - "8005:8000"
+    environment:
+      - SERVICE_NAME=pdf-report-generator
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

@@ -1,0 +1,1 @@
+ALTER TABLE "bis_investigations" ADD COLUMN "linked_transaction_id" varchar(100);

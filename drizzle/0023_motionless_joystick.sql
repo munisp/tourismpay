@@ -1,0 +1,1 @@
+ALTER TABLE "loyalty_accounts" ADD COLUMN "leaderboard_opt_out" boolean DEFAULT false NOT NULL;

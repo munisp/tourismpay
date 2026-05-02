@@ -1,0 +1,205 @@
+use crate::{Condition, ConditionOp, Policy, PolicyEffect, SubjectMatcher};
+use chrono::Utc;
+
+pub fn default_tourism_policies() -> Vec<Policy> {
+    let now = Utc::now().to_rfc3339();
+    vec![
+        // Admin full access
+        Policy {
+            id: "pol-admin-full".into(),
+            name: "Admin Full Access".into(),
+            description: "Administrators have unrestricted platform access".into(),
+            effect: PolicyEffect::Allow,
+            subjects: vec![SubjectMatcher { subject_type: "role".into(), value: "admin".into() }],
+            resources: vec!["*".into()],
+            actions: vec!["*".into()],
+            conditions: vec![],
+            priority: 1000,
+            enabled: true,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        },
+        // Tourist wallet access
+        Policy {
+            id: "pol-tourist-wallet".into(),
+            name: "Tourist Wallet Access".into(),
+            description: "Tourists can view and manage their own wallet".into(),
+            effect: PolicyEffect::Allow,
+            subjects: vec![SubjectMatcher { subject_type: "role".into(), value: "tourist".into() }],
+            resources: vec!["wallet:own".into(), "wallet:topup".into(), "wallet:transfer".into()],
+            actions: vec!["read".into(), "create".into(), "update".into()],
+            conditions: vec![],
+            priority: 100,
+            enabled: true,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        },
+        // Tourist payment limits
+        Policy {
+            id: "pol-tourist-payment-limit".into(),
+            name: "Tourist Payment Limit".into(),
+            description: "Tourist payments above $1000 require biometric verification".into(),
+            effect: PolicyEffect::Deny,
+            subjects: vec![SubjectMatcher { subject_type: "role".into(), value: "tourist".into() }],
+            resources: vec!["payment:*".into()],
+            actions: vec!["create".into()],
+            conditions: vec![
+                Condition {
+                    field: "amount_usd".into(),
+                    operator: ConditionOp::GreaterThan,
+                    value: serde_json::json!(1000),
+                },
+                Condition {
+                    field: "biometric_verified".into(),
+                    operator: ConditionOp::Equals,
+                    value: serde_json::json!(false),
+                },
+            ],
+            priority: 200,
+            enabled: true,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        },
+        // Merchant access
+        Policy {
+            id: "pol-merchant-operations".into(),
+            name: "Merchant Operations".into(),
+            description: "Merchants can manage their products, bookings, and view revenue".into(),
+            effect: PolicyEffect::Allow,
+            subjects: vec![SubjectMatcher { subject_type: "role".into(), value: "merchant".into() }],
+            resources: vec![
+                "products:own".into(), "bookings:own".into(), "revenue:own".into(),
+                "staff:own".into(), "qr_codes:own".into(), "payouts:own".into(),
+            ],
+            actions: vec!["read".into(), "create".into(), "update".into(), "delete".into()],
+            conditions: vec![],
+            priority: 100,
+            enabled: true,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        },
+        // Compliance officer access
+        Policy {
+            id: "pol-compliance-kyb".into(),
+            name: "Compliance KYB Review".into(),
+            description: "Compliance officers can review and approve KYB applications".into(),
+            effect: PolicyEffect::Allow,
+            subjects: vec![SubjectMatcher { subject_type: "role".into(), value: "compliance_officer".into() }],
+            resources: vec!["kyb:*".into(), "bis:*".into(), "audit_logs:*".into(), "fraud:*".into()],
+            actions: vec!["read".into(), "update".into(), "approve".into(), "reject".into()],
+            conditions: vec![],
+            priority: 150,
+            enabled: true,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        },
+        // Settlement officer
+        Policy {
+            id: "pol-settlement-ops".into(),
+            name: "Settlement Operations".into(),
+            description: "Settlement officers manage settlement cycles and ledger operations".into(),
+            effect: PolicyEffect::Allow,
+            subjects: vec![SubjectMatcher { subject_type: "role".into(), value: "settlement_officer".into() }],
+            resources: vec!["settlement:*".into(), "ledger:*".into(), "payout:*".into()],
+            actions: vec!["read".into(), "create".into(), "update".into(), "execute".into()],
+            conditions: vec![],
+            priority: 150,
+            enabled: true,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        },
+        // NOC operator
+        Policy {
+            id: "pol-noc-monitoring".into(),
+            name: "NOC Monitoring".into(),
+            description: "NOC operators can view system health, service availability, and kill switches".into(),
+            effect: PolicyEffect::Allow,
+            subjects: vec![SubjectMatcher { subject_type: "role".into(), value: "noc_operator".into() }],
+            resources: vec!["noc:*".into(), "service_health:*".into(), "kill_switch:*".into(), "ha:*".into()],
+            actions: vec!["read".into(), "update".into(), "toggle".into()],
+            conditions: vec![],
+            priority: 150,
+            enabled: true,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        },
+        // Geo-fence: restrict certain operations to Africa
+        Policy {
+            id: "pol-africa-geofence".into(),
+            name: "Africa Geo-Fence".into(),
+            description: "Africa-specific remittance corridors restricted to African IP ranges".into(),
+            effect: PolicyEffect::Deny,
+            subjects: vec![SubjectMatcher { subject_type: "role".into(), value: "*".into() }],
+            resources: vec!["remittance:africa_corridor".into()],
+            actions: vec!["create".into()],
+            conditions: vec![
+                Condition {
+                    field: "geo_region".into(),
+                    operator: ConditionOp::NotIn,
+                    value: serde_json::json!(["AF", "africa"]),
+                },
+            ],
+            priority: 300,
+            enabled: true,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        },
+        // Rate limiting policy
+        Policy {
+            id: "pol-api-rate-limit".into(),
+            name: "API Rate Limit".into(),
+            description: "Deny API requests exceeding rate limit thresholds".into(),
+            effect: PolicyEffect::Deny,
+            subjects: vec![SubjectMatcher { subject_type: "role".into(), value: "*".into() }],
+            resources: vec!["api:*".into()],
+            actions: vec!["*".into()],
+            conditions: vec![
+                Condition {
+                    field: "requests_per_minute".into(),
+                    operator: ConditionOp::GreaterThan,
+                    value: serde_json::json!(100),
+                },
+            ],
+            priority: 500,
+            enabled: true,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        },
+        // Time-based access for BIS analyst
+        Policy {
+            id: "pol-bis-business-hours".into(),
+            name: "BIS Analyst Business Hours".into(),
+            description: "BIS analysts can only process inspections during business hours".into(),
+            effect: PolicyEffect::Deny,
+            subjects: vec![SubjectMatcher { subject_type: "role".into(), value: "bis_analyst".into() }],
+            resources: vec!["bis:process".into(), "bis:approve".into()],
+            actions: vec!["update".into(), "execute".into()],
+            conditions: vec![
+                Condition {
+                    field: "current_hour".into(),
+                    operator: ConditionOp::NotIn,
+                    value: serde_json::json!([8,9,10,11,12,13,14,15,16,17]),
+                },
+            ],
+            priority: 250,
+            enabled: true,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        },
+        // Deny all by default (lowest priority)
+        Policy {
+            id: "pol-default-deny".into(),
+            name: "Default Deny".into(),
+            description: "Deny all access by default unless explicitly allowed".into(),
+            effect: PolicyEffect::Deny,
+            subjects: vec![SubjectMatcher { subject_type: "role".into(), value: "*".into() }],
+            resources: vec!["*".into()],
+            actions: vec!["*".into()],
+            conditions: vec![],
+            priority: 0,
+            enabled: true,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+        },
+    ]
+}

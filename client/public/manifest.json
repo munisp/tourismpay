@@ -1,0 +1,57 @@
+{
+  "name": "TourismPay — Africa Intelligence Platform",
+  "short_name": "TourismPay",
+  "description": "Multi-country tourism payment platform with KYB onboarding, background investigation service, and AI-powered fraud detection across Africa.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D1117",
+  "theme_color": "#00FF88",
+  "orientation": "portrait-primary",
+  "categories": ["finance", "business", "travel"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New BIS Investigation",
+      "short_name": "BIS",
+      "description": "Start a new background investigation",
+      "url": "/bis/new",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "KYB Onboarding",
+      "short_name": "KYB",
+      "description": "Onboard a new establishment",
+      "url": "/africa/kyb",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Fraud Monitor",
+      "short_name": "Fraud",
+      "description": "View live fraud alerts",
+      "url": "/security/fraud",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-dashboard.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "TourismPay Dashboard"
+    }
+  ]
+}

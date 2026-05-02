@@ -1,0 +1,1 @@
+ALTER TABLE "biometric_enrollments" ADD COLUMN "expires_at" integer;

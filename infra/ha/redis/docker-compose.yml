@@ -1,0 +1,137 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Redis HA — 1 primary + 2 replicas + 3 Sentinel nodes
+# Sentinel quorum: 2  |  Auto-failover in < 10 s
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  redis-primary:
+    image: redis:7.2-alpine
+    container_name: redis-primary
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-tourismpay-redis-secret}
+      --masterauth ${REDIS_PASSWORD:-tourismpay-redis-secret}
+      --save 60 1000
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-primary-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-tourismpay-redis-secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-replica-1:
+    image: redis:7.2-alpine
+    container_name: redis-replica-1
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-tourismpay-redis-secret}
+      --masterauth ${REDIS_PASSWORD:-tourismpay-redis-secret}
+      --replicaof redis-primary 6379
+      --replica-read-only yes
+      --save 60 1000
+      --appendonly yes
+    volumes:
+      - redis-replica-1-data:/data
+    depends_on:
+      redis-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-tourismpay-redis-secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-replica-2:
+    image: redis:7.2-alpine
+    container_name: redis-replica-2
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:-tourismpay-redis-secret}
+      --masterauth ${REDIS_PASSWORD:-tourismpay-redis-secret}
+      --replicaof redis-primary 6379
+      --replica-read-only yes
+      --save 60 1000
+      --appendonly yes
+    volumes:
+      - redis-replica-2-data:/data
+    depends_on:
+      redis-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-tourismpay-redis-secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-sentinel-1:
+    image: redis:7.2-alpine
+    container_name: redis-sentinel-1
+    restart: unless-stopped
+    command: >
+      sh -c "echo 'sentinel monitor mymaster redis-primary 6379 2' > /tmp/sentinel.conf &&
+             echo 'sentinel auth-pass mymaster ${REDIS_PASSWORD:-tourismpay-redis-secret}' >> /tmp/sentinel.conf &&
+             echo 'sentinel down-after-milliseconds mymaster 5000' >> /tmp/sentinel.conf &&
+             echo 'sentinel failover-timeout mymaster 10000' >> /tmp/sentinel.conf &&
+             echo 'sentinel parallel-syncs mymaster 1' >> /tmp/sentinel.conf &&
+             redis-sentinel /tmp/sentinel.conf"
+    ports:
+      - "26379:26379"
+    depends_on:
+      redis-primary:
+        condition: service_healthy
+
+  redis-sentinel-2:
+    image: redis:7.2-alpine
+    container_name: redis-sentinel-2
+    restart: unless-stopped
+    command: >
+      sh -c "echo 'sentinel monitor mymaster redis-primary 6379 2' > /tmp/sentinel.conf &&
+             echo 'sentinel auth-pass mymaster ${REDIS_PASSWORD:-tourismpay-redis-secret}' >> /tmp/sentinel.conf &&
+             echo 'sentinel down-after-milliseconds mymaster 5000' >> /tmp/sentinel.conf &&
+             echo 'sentinel failover-timeout mymaster 10000' >> /tmp/sentinel.conf &&
+             echo 'sentinel parallel-syncs mymaster 1' >> /tmp/sentinel.conf &&
+             redis-sentinel /tmp/sentinel.conf"
+    ports:
+      - "26380:26379"
+    depends_on:
+      redis-primary:
+        condition: service_healthy
+
+  redis-sentinel-3:
+    image: redis:7.2-alpine
+    container_name: redis-sentinel-3
+    restart: unless-stopped
+    command: >
+      sh -c "echo 'sentinel monitor mymaster redis-primary 6379 2' > /tmp/sentinel.conf &&
+             echo 'sentinel auth-pass mymaster ${REDIS_PASSWORD:-tourismpay-redis-secret}' >> /tmp/sentinel.conf &&
+             echo 'sentinel down-after-milliseconds mymaster 5000' >> /tmp/sentinel.conf &&
+             echo 'sentinel failover-timeout mymaster 10000' >> /tmp/sentinel.conf &&
+             echo 'sentinel parallel-syncs mymaster 1' >> /tmp/sentinel.conf &&
+             redis-sentinel /tmp/sentinel.conf"
+    ports:
+      - "26381:26379"
+    depends_on:
+      redis-primary:
+        condition: service_healthy
+
+volumes:
+  redis-primary-data:
+  redis-replica-1-data:
+  redis-replica-2-data:
+
+networks:
+  default:
+    name: tourismpay-infra
+    external: true

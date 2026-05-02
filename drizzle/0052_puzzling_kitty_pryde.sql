@@ -1,0 +1,1 @@
+ALTER TABLE "tourist_deal_redemptions" ADD COLUMN "review_prompted_at" timestamp;

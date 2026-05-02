@@ -1,0 +1,1 @@
+ALTER TABLE "tourist_deal_wishlists" ADD COLUMN "alerted_at" timestamp;

@@ -1,0 +1,1 @@
+ALTER TABLE "loyalty_rewards" ALTER COLUMN "expires_at" SET DATA TYPE bigint;

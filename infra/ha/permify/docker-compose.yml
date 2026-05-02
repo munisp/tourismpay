@@ -1,0 +1,81 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Permify HA — 2 API nodes + PostgreSQL backend + Redis cache
+# Fine-grained authorization for TourismPay RBAC
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  permify-db:
+    image: postgres:16-alpine
+    container_name: permify-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: permify
+      POSTGRES_USER: permify
+      POSTGRES_PASSWORD: ${PERMIFY_DB_PASSWORD:-permify-db-secret}
+    volumes:
+      - permify-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U permify"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  permify-1:
+    image: ghcr.io/permify/permify:v0.9.6
+    container_name: permify-1
+    restart: unless-stopped
+    command: serve
+    environment:
+      PERMIFY_DATABASE_ENGINE: postgres
+      PERMIFY_DATABASE_URI: postgres://permify:${PERMIFY_DB_PASSWORD:-permify-db-secret}@permify-db:5432/permify?sslmode=disable
+      PERMIFY_DATABASE_MAX_OPEN_CONNECTIONS: "20"
+      PERMIFY_DATABASE_MAX_IDLE_CONNECTIONS: "5"
+      PERMIFY_CACHE_NUMBER_OF_COUNTERS: "10000"
+      PERMIFY_CACHE_MAX_COST: "1000"
+      PERMIFY_SERVER_GRPC_PORT: "3478"
+      PERMIFY_SERVER_HTTP_PORT: "3476"
+      PERMIFY_LOG_LEVEL: info
+    ports:
+      - "3476:3476"
+      - "3478:3478"
+    depends_on:
+      permify-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3476/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  permify-2:
+    image: ghcr.io/permify/permify:v0.9.6
+    container_name: permify-2
+    restart: unless-stopped
+    command: serve
+    environment:
+      PERMIFY_DATABASE_ENGINE: postgres
+      PERMIFY_DATABASE_URI: postgres://permify:${PERMIFY_DB_PASSWORD:-permify-db-secret}@permify-db:5432/permify?sslmode=disable
+      PERMIFY_DATABASE_MAX_OPEN_CONNECTIONS: "20"
+      PERMIFY_DATABASE_MAX_IDLE_CONNECTIONS: "5"
+      PERMIFY_CACHE_NUMBER_OF_COUNTERS: "10000"
+      PERMIFY_CACHE_MAX_COST: "1000"
+      PERMIFY_SERVER_GRPC_PORT: "3478"
+      PERMIFY_SERVER_HTTP_PORT: "3476"
+      PERMIFY_LOG_LEVEL: info
+    ports:
+      - "3477:3476"
+      - "3479:3478"
+    depends_on:
+      permify-db:
+        condition: service_healthy
+
+volumes:
+  permify-db-data:
+
+networks:
+  default:
+    name: tourismpay-infra
+    external: true
