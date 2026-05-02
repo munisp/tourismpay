@@ -208,18 +208,101 @@ async function startServer() {
       try {
         const { sdk } = await import("./sdk");
         const dbModule = await import("../db");
-        // Upsert the demo tourist user into the DB so the app can load their profile
+        const { getDb } = dbModule;
+        const { users } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
         await dbModule.upsertUser({
           openId: "demo_tourist_001",
           name: "Amara Diallo",
           email: "amara.diallo@demo.tourismpay.com",
           loginMethod: "demo",
           lastSignedIn: new Date(),
+          role: "tourist" as any,
         });
+        const db = await getDb();
+        if (db) {
+          await db
+            .update(users)
+            .set({ onboardingCompleted: true, role: "tourist", updatedAt: new Date() })
+            .where(eq(users.openId, "demo_tourist_001"));
+        }
         const token = await sdk.createSessionToken("demo_tourist_001", { name: "Amara Diallo" });
         res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; SameSite=Lax`);
-        const redirect = (_req as any).query?.redirect || "/tourist/onboarding";
+        const redirect = (_req as any).query?.redirect || "/";
         res.redirect(302, redirect as string);
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    // DEV ONLY: unified demo login — supports ?role=admin|tourist|merchant
+    app.get("/api/demo-login", async (_req, res) => {
+      try {
+        const { sdk } = await import("./sdk");
+        const dbModule = await import("../db");
+        const { getDb } = dbModule;
+        const { users, establishments } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+
+        const requestedRole = ((_req as any).query?.role as string) || "tourist";
+        const redirect = (_req as any).query?.redirect as string;
+
+        const roleConfigs: Record<string, { openId: string; name: string; email: string; role: string; defaultRedirect: string }> = {
+          admin: { openId: "demo_admin_001", name: "Admin User", email: "admin@demo.tourismpay.com", role: "admin", defaultRedirect: "/" },
+          tourist: { openId: "demo_tourist_001", name: "Amara Diallo", email: "amara.diallo@demo.tourismpay.com", role: "tourist", defaultRedirect: "/" },
+          merchant: { openId: "demo_merchant_001", name: "Kofi Mensah", email: "kofi.mensah@demo.tourismpay.com", role: "merchant", defaultRedirect: "/merchant/revenue" },
+          compliance_officer: { openId: "demo_compliance_001", name: "Fatima Osei", email: "fatima.osei@demo.tourismpay.com", role: "compliance_officer", defaultRedirect: "/compliance" },
+          settlement_officer: { openId: "demo_settlement_001", name: "Kwame Asante", email: "kwame.asante@demo.tourismpay.com", role: "settlement_officer", defaultRedirect: "/settlement" },
+          noc_operator: { openId: "demo_noc_001", name: "Chidera Nwosu", email: "chidera.nwosu@demo.tourismpay.com", role: "noc_operator", defaultRedirect: "/paymentswitch/noc" },
+          bis_analyst: { openId: "demo_bis_001", name: "Yemi Adebayo", email: "yemi.adebayo@demo.tourismpay.com", role: "bis_analyst", defaultRedirect: "/bis" },
+        };
+
+        const config = roleConfigs[requestedRole] || roleConfigs.tourist;
+        await dbModule.upsertUser({
+          openId: config.openId,
+          name: config.name,
+          email: config.email,
+          loginMethod: "demo",
+          lastSignedIn: new Date(),
+          role: config.role as any,
+        });
+
+        const db = await getDb();
+        if (db) {
+          await db
+            .update(users)
+            .set({ onboardingCompleted: true, role: config.role as any, updatedAt: new Date() })
+            .where(eq(users.openId, config.openId));
+
+          // For merchant, ensure an establishment exists
+          if (config.role === "merchant") {
+            const merchantUser = await db.select().from(users).where(eq(users.openId, config.openId)).limit(1);
+            const merchantId = merchantUser[0]?.id;
+            if (merchantId) {
+              const existing = await db.select().from(establishments).where(eq(establishments.ownerId, merchantId)).limit(1);
+              if (existing.length === 0) {
+                await db.insert(establishments).values({
+                  name: "Serengeti Safari Experience",
+                  type: "tour_operator",
+                  country: "TZ",
+                  city: "Arusha",
+                  address: "123 Safari Road, Arusha, Tanzania",
+                  latitude: "-3.3869",
+                  longitude: "36.6830",
+                  currency: "TZS",
+                  kybStatus: "approved" as any,
+                  ownerId: merchantId,
+                  contactPhone: "+255 27 250 1234",
+                  contactEmail: "info@serengetisafari.tz",
+                });
+              }
+            }
+          }
+        }
+
+        const token = await sdk.createSessionToken(config.openId, { name: config.name });
+        res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; SameSite=Lax`);
+        res.redirect(302, redirect || config.defaultRedirect);
       } catch (e: any) {
         res.status(500).json({ error: e.message });
       }

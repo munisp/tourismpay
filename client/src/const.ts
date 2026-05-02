@@ -7,7 +7,7 @@ export const getLoginUrl = () => {
 
   // In dev mode without OAuth configured, use demo login
   if (!oauthPortalUrl) {
-    return `${window.location.origin}/api/demo-login?role=admin`;
+    return `${window.location.origin}/api/demo-login?role=tourist`;
   }
 
   const redirectUri = `${window.location.origin}/api/oauth/callback`;

@@ -37,10 +37,19 @@
         });
       }
     </script>
-    <script
-      defer
-      src="%VITE_ANALYTICS_ENDPOINT%/umami"
-      data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
+    <script>
+      (function() {
+        var endpoint = "%VITE_ANALYTICS_ENDPOINT%";
+        var websiteId = "%VITE_ANALYTICS_WEBSITE_ID%";
+        if (endpoint && !endpoint.includes("VITE_") && websiteId && !websiteId.includes("VITE_")) {
+          var s = document.createElement("script");
+          s.defer = true;
+          s.src = endpoint + "/umami";
+          s.setAttribute("data-website-id", websiteId);
+          document.body.appendChild(s);
+        }
+      })();
+    </script>
   </body>
 
 </html>
