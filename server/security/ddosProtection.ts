@@ -101,6 +101,12 @@ function getEndpointTier(path: string): string {
 }
 
 export function ddosProtectionMiddleware(req: Request, res: Response, next: NextFunction): void {
+  // Skip rate limiting in development mode
+  if (process.env.NODE_ENV === "development") {
+    next();
+    return;
+  }
+
   const ip = getClientIp(req);
   const now = Date.now();
   const record = getIpRecord(ip);
