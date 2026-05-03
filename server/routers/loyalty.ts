@@ -1,4 +1,5 @@
 import { z } from "zod";
+import crypto from "crypto";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { getDb, createUserNotification, createAuditLog } from "../db";
 import { TRPCError } from "@trpc/server";
@@ -902,7 +903,7 @@ export const loyaltyRouter = router({
       .limit(1);
     if (existing) return { code: existing.code, referralId: existing.id };
     // Generate a unique 8-char alphanumeric code
-    const code = `TP${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const code = `TP${crypto.randomUUID().replace(/-/g, "").substring(0, 6).toUpperCase()}`;
     const [created] = await db
       .insert(loyaltyReferrals)
       .values({

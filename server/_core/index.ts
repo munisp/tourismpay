@@ -56,22 +56,47 @@ async function startServer() {
   // Stripe webhook MUST be registered before express.json() for raw body access
   registerStripeWebhook(app);
 
+  // ─── Structured Logging ─────────────────────────────────────────────────────
+  const { requestLoggerMiddleware } = await import("./logger");
+  app.use(requestLoggerMiddleware);
+
   // ─── Security Middleware (applied before body parsing) ─────────────────────
   const { ddosProtectionMiddleware, securityHeadersMiddleware } = await import("../security/ddosProtection");
   const { pbacMiddleware } = await import("../security/pbacMiddleware");
+  const { rateLimiterMiddleware } = await import("../security/rateLimiter");
   app.use(securityHeadersMiddleware);
   app.use(ddosProtectionMiddleware);
+  app.use(rateLimiterMiddleware);
 
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
+  // Cookie parser (required for CSRF double-submit cookie pattern)
+  const cookieParser = await import("cookie");
+
   // Input sanitization (after body parsing)
   const { inputSanitizerMiddleware } = await import("../security/inputSanitizer");
   app.use(inputSanitizerMiddleware);
 
+  // CSRF protection (after body parsing, before tRPC)
+  const { csrfMiddleware } = await import("../security/csrf");
+  app.use(csrfMiddleware);
+
   // PBAC enforcement (after auth context is set by tRPC)
   app.use("/api/trpc", pbacMiddleware);
+
+  // ─── Health Check Endpoint ─────────────────────────────────────────────────
+  app.get("/api/health", async (_req, res) => {
+    try {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      const dbStatus = db ? "connected" : "disconnected";
+      res.json({ status: "ok", timestamp: new Date().toISOString(), db: dbStatus, uptime: process.uptime() });
+    } catch {
+      res.status(503).json({ status: "degraded", timestamp: new Date().toISOString(), db: "error" });
+    }
+  });
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
 

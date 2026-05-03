@@ -6,6 +6,7 @@
  *  - /api/sse/bis          → BIS investigation status updates
  *  - /api/sse/settlements  → Settlement batch status changes
  */
+import crypto from "crypto";
 import type { Express, Request, Response } from "express";
 import { getFraudAlerts, getSocAlerts, getBisInvestigations } from "./db";
 import { getDb } from "./db";
@@ -24,7 +25,7 @@ type SSEClient = {
 const clients = new Map<string, SSEClient>();
 
 function generateClientId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return `${Date.now()}-${crypto.randomUUID().replace(/-/g, "").slice(0, 7)}`;
 }
 
 function sendToClient(client: SSEClient, event: string, data: unknown): void {

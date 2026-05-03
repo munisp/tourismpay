@@ -15,6 +15,7 @@
  */
 
 import { z } from "zod";
+import crypto from "crypto";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import {
@@ -49,7 +50,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function randomCode(len = 8) {
-  return Math.random().toString(36).substring(2, 2 + len).toUpperCase();
+  return crypto.randomUUID().replace(/-/g, "").substring(0, len).toUpperCase();
 }
 
 async function requireDb() {
@@ -1157,7 +1158,7 @@ Current date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
       // Generate a cryptographically random token
       const token = [
         ctx.user.id.toString().padStart(8, "0"),
-        Math.random().toString(36).substring(2, 10).toUpperCase(),
+        crypto.randomUUID().replace(/-/g, "").substring(0, 8).toUpperCase(),
         Date.now().toString(36).toUpperCase(),
       ].join("-");
       const expiresAt = Date.now() + 30 * 60 * 1000; // 30 minutes

@@ -1,6 +1,21 @@
+// JWT secret must be set via environment variable in production.
+// Fail loudly if missing in production rather than using a default.
+function resolveJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (secret && secret.length >= 32) return secret;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "FATAL: JWT_SECRET must be set to a cryptographically random string (>= 32 chars) in production. " +
+      "Generate one with: node -e \"console.log(require('crypto').randomBytes(64).toString('hex'))\""
+    );
+  }
+  // Dev-only fallback — never used in production
+  return "tourismpay-dev-jwt-secret-key-2026-do-not-use-in-prod";
+}
+
 export const ENV = {
   appId: process.env.VITE_APP_ID ?? "",
-  cookieSecret: process.env.JWT_SECRET ?? "",
+  cookieSecret: resolveJwtSecret(),
   // LOCAL_DATABASE_URL takes precedence over the platform-injected DATABASE_URL
   // so we can use a local PostgreSQL instance instead of TiDB Cloud.
   databaseUrl: process.env.LOCAL_DATABASE_URL ?? process.env.DATABASE_URL ?? "",

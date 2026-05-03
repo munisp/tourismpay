@@ -2177,3 +2177,19 @@ export const serviceAvailability = pgTable(
 );
 export type ServiceAvailability = typeof serviceAvailability.$inferSelect;
 export type InsertServiceAvailability = typeof serviceAvailability.$inferInsert;
+
+// ─── Verification Codes ──────────────────────────────────────────────────────
+export const verificationCodes = pgTable("verification_codes", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  type: text("type").notNull(), // "email" | "phone"
+  target: text("target").notNull(), // email address or phone number
+  code: text("code").notNull(),
+  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  verified: boolean("verified").notNull().default(false),
+  verifiedAt: bigint("verified_at", { mode: "number" }),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+});
+export type VerificationCode = typeof verificationCodes.$inferSelect;
+export type InsertVerificationCode = typeof verificationCodes.$inferInsert;

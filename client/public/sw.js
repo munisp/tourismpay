@@ -1,33 +1,49 @@
 /* =============================================================================
-   TOURISMPAY SERVICE WORKER — Offline Support, Caching & Background Sync
-   - Cache-first for static assets
-   - Network-first for API calls
-   - Offline fallback for navigation
-   - Background Sync for queued payments (payment-queue-sync)
+   TOURISMPAY SERVICE WORKER v5.0 — Workbox-style Caching & Background Sync
+   
+   Strategies:
+   - CacheFirst: static assets (JS, CSS, images, fonts) with 30-day expiry
+   - NetworkFirst: API calls with 5-second timeout fallback to cache
+   - StaleWhileRevalidate: HTML pages
+   - Background Sync: queued payments (payment-queue-sync)
+   
+   Versioned precaching with automatic cleanup of stale caches.
    ============================================================================= */
 
-const CACHE_NAME = "tourismpay-v4.0";
-const STATIC_ASSETS = [
+const CACHE_VERSION = "v5.0";
+const STATIC_CACHE = `tourismpay-static-${CACHE_VERSION}`;
+const API_CACHE = `tourismpay-api-${CACHE_VERSION}`;
+const IMAGE_CACHE = `tourismpay-images-${CACHE_VERSION}`;
+const FONT_CACHE = `tourismpay-fonts-${CACHE_VERSION}`;
+const ALL_CACHES = [STATIC_CACHE, API_CACHE, IMAGE_CACHE, FONT_CACHE];
+
+const PRECACHE_URLS = [
   "/",
   "/index.html",
   "/manifest.json",
 ];
 
-// ─── IndexedDB helpers (duplicated from hook — SW has no module imports) ──────
+// Cache size limits
+const MAX_API_ENTRIES = 100;
+const MAX_IMAGE_ENTRIES = 200;
+const MAX_STATIC_ENTRIES = 300;
+const API_CACHE_MAX_AGE_S = 300;      // 5 minutes
+const STATIC_CACHE_MAX_AGE_S = 2592000; // 30 days
+const IMAGE_CACHE_MAX_AGE_S = 604800;   // 7 days
+
+// ─── IndexedDB helpers (SW has no module imports) ────────────────────────────
 
 const DB_NAME = "tourismpay-offline";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "payment-queue";
 
-function openDb() {
+function openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result;
+    req.onupgradeneeded = () => {
+      const db = req.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
-        store.createIndex("status", "status", { unique: false });
-        store.createIndex("queuedAt", "queuedAt", { unique: false });
+        db.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -35,225 +51,298 @@ function openDb() {
   });
 }
 
-async function getAllQueued() {
-  const db = await openDb();
+async function getQueuedPayments() {
+  const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
-    const req = tx.objectStore(STORE_NAME).getAll();
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.getAll();
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
 }
 
-async function putQueued(payment) {
-  const db = await openDb();
+async function removeQueuedPayment(id) {
+  const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
-    const req = tx.objectStore(STORE_NAME).put(payment);
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.delete(id);
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });
 }
 
-async function deleteQueued(id) {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const req = tx.objectStore(STORE_NAME).delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
+// ─── Cache Management Helpers ────────────────────────────────────────────────
+
+function isExpired(response, maxAgeSeconds) {
+  const dateHeader = response.headers.get("sw-cache-timestamp") || response.headers.get("date");
+  if (!dateHeader) return false;
+  const cachedAt = new Date(dateHeader).getTime();
+  return Date.now() - cachedAt > maxAgeSeconds * 1000;
+}
+
+function addTimestamp(response) {
+  const headers = new Headers(response.headers);
+  headers.set("sw-cache-timestamp", new Date().toISOString());
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
   });
 }
 
-// ─── Install ──────────────────────────────────────────────────────────────────
-
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
-  );
-  self.skipWaiting();
-});
-
-// ─── Activate ─────────────────────────────────────────────────────────────────
-
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
-});
-
-// ─── Fetch ────────────────────────────────────────────────────────────────────
-
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  const url = new URL(request.url);
-
-  // Skip non-GET and cross-origin
-  if (request.method !== "GET" || url.origin !== self.location.origin) return;
-
-  // Navigation requests — serve app shell
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request).catch(() => caches.match("/index.html"))
-    );
-    return;
-  }
-
-  // Static assets — cache first
-  if (url.pathname.match(/\.(js|css|png|jpg|webp|svg|woff2|ico)$/)) {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          return response;
-        });
-      })
-    );
-    return;
-  }
-
-  // Default: network with cache fallback
-  event.respondWith(
-    fetch(request).catch(() => caches.match(request))
-  );
-});
-
-// ─── Background Sync — Payment Queue ─────────────────────────────────────────
-
-self.addEventListener("sync", (event) => {
-  if (event.tag === "payment-queue-sync") {
-    event.waitUntil(replayQueuedPayments());
-  }
-});
-
-async function replayQueuedPayments() {
-  let payments;
-  try {
-    payments = await getAllQueued();
-  } catch {
-    return;
-  }
-
-  const pending = payments.filter(
-    (p) => p.status === "pending" || p.status === "retrying"
-  );
-
-  if (pending.length === 0) return;
-
-  for (const payment of pending) {
-    try {
-      // Update status
-      await putQueued({ ...payment, status: "retrying", attempts: payment.attempts + 1 });
-
-      // Call the tRPC pay endpoint directly via fetch
-      const response = await fetch("/api/trpc/qrPayment.pay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          json: {
-            token: payment.token,
-            amountUsd: payment.amountUsd,
-            currency: payment.currency,
-          },
-        }),
-      });
-
-      if (response.ok) {
-        await deleteQueued(payment.id);
-        // Notify the open clients that a payment was replayed
-        const allClients = await self.clients.matchAll({ type: "window" });
-        for (const client of allClients) {
-          client.postMessage({
-            type: "PAYMENT_REPLAYED",
-            paymentId: payment.id,
-            amountUsd: payment.amountUsd,
-            currency: payment.currency,
-          });
-        }
-      } else {
-        const errorText = await response.text().catch(() => "");
-        const isUnrecoverable =
-          errorText.includes("expired") ||
-          errorText.includes("already used") ||
-          errorText.includes("invalid");
-
-        if (isUnrecoverable || payment.attempts >= 3) {
-          await putQueued({ ...payment, status: "failed", lastError: errorText });
-        } else {
-          await putQueued({ ...payment, status: "pending", lastError: errorText });
-        }
-      }
-    } catch (err) {
-      // Network still offline — leave as pending for next sync
-      await putQueued({ ...payment, status: "pending", lastError: err?.message ?? "Network error" });
+async function trimCache(cacheName, maxEntries) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  if (keys.length > maxEntries) {
+    for (let i = 0; i < keys.length - maxEntries; i++) {
+      await cache.delete(keys[i]);
     }
   }
 }
 
-// ─── Push Notifications ───────────────────────────────────────────────────────
+// ─── Routing Helpers ─────────────────────────────────────────────────────────
 
-self.addEventListener("push", (event) => {
-  let data = {};
+function isStaticAsset(url) {
+  return /\.(js|css|woff2?|ttf|otf|eot)(\?.*)?$/.test(url.pathname);
+}
+
+function isImageAsset(url) {
+  return /\.(png|jpe?g|gif|webp|avif|svg|ico)(\?.*)?$/.test(url.pathname);
+}
+
+function isApiRequest(url) {
+  return url.pathname.startsWith("/api/");
+}
+
+function isNavigationRequest(request) {
+  return request.mode === "navigate";
+}
+
+// ─── CacheFirst Strategy (static assets) ────────────────────────────────────
+
+async function cacheFirst(request, cacheName, maxAge) {
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
+  
+  if (cached && !isExpired(cached, maxAge)) {
+    return cached;
+  }
+
   try {
-    data = event.data?.json() ?? {};
+    const response = await fetch(request);
+    if (response.ok) {
+      const cloned = addTimestamp(response.clone());
+      cache.put(request, cloned);
+    }
+    return response;
   } catch {
-    data = { title: "TourismPay Alert", body: event.data?.text() ?? "" };
+    if (cached) return cached;
+    return new Response("Offline", { status: 503 });
   }
+}
 
-  const options = {
-    body: data.body || "New alert from TourismPay",
-    icon: "/icons/pwa-192.png",
-    badge: "/icons/pwa-192.png",
-    tag: data.tag || "tourismpay-notification",
-    data: { url: data.url || "/" },
-    actions: [
-      { action: "view", title: "View" },
-      { action: "dismiss", title: "Dismiss" },
-    ],
-    requireInteraction: false,
-    vibrate: [200, 100, 200],
-  };
+// ─── NetworkFirst Strategy (API calls) ──────────────────────────────────────
 
+async function networkFirst(request, cacheName, timeoutMs = 5000) {
+  const cache = await caches.open(cacheName);
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
+    const response = await fetch(request, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    if (response.ok && request.method === "GET") {
+      const cloned = addTimestamp(response.clone());
+      cache.put(request, cloned);
+    }
+    return response;
+  } catch {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    
+    return new Response(JSON.stringify({ error: "You appear to be offline" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
+// ─── StaleWhileRevalidate Strategy (HTML pages) ─────────────────────────────
+
+async function staleWhileRevalidate(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
+
+  const fetchPromise = fetch(request)
+    .then((response) => {
+      if (response.ok) {
+        cache.put(request, addTimestamp(response.clone()));
+      }
+      return response;
+    })
+    .catch(() => null);
+
+  return cached || (await fetchPromise) || new Response("Offline", { status: 503 });
+}
+
+// ─── Install Event ──────────────────────────────────────────────────────────
+
+self.addEventListener("install", (event) => {
   event.waitUntil(
-    self.registration.showNotification(data.title || "TourismPay Alert", options)
+    caches.open(STATIC_CACHE).then((cache) => {
+      console.log("[SW] Precaching static assets");
+      return cache.addAll(PRECACHE_URLS);
+    })
   );
+  self.skipWaiting();
 });
 
-// ─── Notification Click ───────────────────────────────────────────────────────
+// ─── Activate Event (cleanup old caches) ────────────────────────────────────
 
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  if (event.action === "view" || !event.action) {
-    const url = event.notification.data?.url || "/";
-    event.waitUntil(
-      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-        // Focus existing window if open
-        for (const client of clientList) {
-          if (client.url.includes(self.location.origin) && "focus" in client) {
-            client.navigate(url);
-            return client.focus();
-          }
-        }
-        // Otherwise open a new window
-        return self.clients.openWindow(url);
-      })
-    );
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames
+          .filter((name) => name.startsWith("tourismpay-") && !ALL_CACHES.includes(name))
+          .map((name) => {
+            console.log("[SW] Deleting old cache:", name);
+            return caches.delete(name);
+          })
+      );
+    })
+  );
+  self.clients.claim();
+});
+
+// ─── Fetch Event (routing) ──────────────────────────────────────────────────
+
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+  
+  // Skip non-GET for caching (except background sync handles POSTs)
+  if (event.request.method !== "GET") return;
+
+  // Skip SSE and WebSocket
+  if (url.pathname.startsWith("/api/sse") || url.pathname.startsWith("/api/ws")) return;
+
+  // API requests → NetworkFirst with 5s timeout
+  if (isApiRequest(url)) {
+    event.respondWith(networkFirst(event.request, API_CACHE, 5000));
+    return;
+  }
+
+  // Images → CacheFirst with 7-day expiry
+  if (isImageAsset(url)) {
+    event.respondWith(cacheFirst(event.request, IMAGE_CACHE, IMAGE_CACHE_MAX_AGE_S));
+    return;
+  }
+
+  // Static assets (JS/CSS/fonts) → CacheFirst with 30-day expiry
+  if (isStaticAsset(url)) {
+    const cacheName = /\.(woff2?|ttf|otf|eot)/.test(url.pathname) ? FONT_CACHE : STATIC_CACHE;
+    event.respondWith(cacheFirst(event.request, cacheName, STATIC_CACHE_MAX_AGE_S));
+    return;
+  }
+
+  // Navigation (HTML pages) → StaleWhileRevalidate
+  if (isNavigationRequest(event.request)) {
+    event.respondWith(staleWhileRevalidate(event.request, STATIC_CACHE));
+    return;
+  }
+
+  // Default: network with cache fallback
+  event.respondWith(networkFirst(event.request, STATIC_CACHE, 3000));
+});
+
+// ─── Background Sync (payment queue) ────────────────────────────────────────
+
+self.addEventListener("sync", (event) => {
+  if (event.tag === "payment-queue-sync") {
+    event.waitUntil(syncPaymentQueue());
   }
 });
 
-// ─── Message from client ──────────────────────────────────────────────────────
+async function syncPaymentQueue() {
+  try {
+    const items = await getQueuedPayments();
+    console.log(`[SW] Syncing ${items.length} queued payments`);
+
+    for (const item of items) {
+      try {
+        const res = await fetch("/api/trpc/qrPayment.processPayment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item.payload),
+        });
+        if (res.ok) {
+          await removeQueuedPayment(item.id);
+          console.log(`[SW] Synced payment ${item.id}`);
+        }
+      } catch (err) {
+        console.warn(`[SW] Failed to sync payment ${item.id}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error("[SW] Payment sync failed:", err);
+  }
+}
+
+// ─── Periodic Cache Cleanup ─────────────────────────────────────────────────
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
-  if (event.data?.type === "REPLAY_QUEUE") {
-    replayQueuedPayments();
+  if (event.data?.type === "TRIM_CACHES") {
+    trimCache(API_CACHE, MAX_API_ENTRIES);
+    trimCache(IMAGE_CACHE, MAX_IMAGE_ENTRIES);
+    trimCache(STATIC_CACHE, MAX_STATIC_ENTRIES);
   }
+});
+
+// ─── Push Notifications ─────────────────────────────────────────────────────
+
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  try {
+    const data = event.data.json();
+    event.waitUntil(
+      self.registration.showNotification(data.title || "TourismPay", {
+        body: data.body || "",
+        icon: data.icon || "/icons/icon-192.png",
+        badge: data.badge || "/icons/badge-72.png",
+        tag: data.tag || "tourismpay-notification",
+        data: data.data || {},
+        actions: data.actions || [],
+      })
+    );
+  } catch {
+    // Not JSON — display as text
+    event.waitUntil(
+      self.registration.showNotification("TourismPay", {
+        body: event.data.text(),
+        icon: "/icons/icon-192.png",
+      })
+    );
+  }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window" }).then((clients) => {
+      for (const client of clients) {
+        if (client.url.includes(targetUrl) && "focus" in client) {
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(targetUrl);
+    })
+  );
 });

@@ -38,11 +38,14 @@ export async function getDb() {
     try {
       const dbUrl = ENV.databaseUrl;
       const sslRequired = dbUrl.includes("sslmode=require") || dbUrl.includes("ssl=true") || (!dbUrl.includes("localhost") && !dbUrl.includes("127.0.0.1"));
+      const isProduction = process.env.NODE_ENV === "production";
       _client = postgres(dbUrl, {
-        max: 10,
-        idle_timeout: 30,
+        max: isProduction ? 20 : 10,
+        idle_timeout: isProduction ? 60 : 30,
         connect_timeout: 10,
+        max_lifetime: isProduction ? 1800 : undefined, // 30min max connection lifetime in prod
         ssl: sslRequired ? { rejectUnauthorized: false } : false,
+        onnotice: () => {}, // Suppress notice messages
       });
       _db = drizzle(_client);
     } catch (error) {

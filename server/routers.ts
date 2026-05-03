@@ -58,6 +58,7 @@ import { emailPreviewRouter } from "./routers/emailPreview";
 import { nocDashboardRouter } from "./routers/nocDashboard";
 import { offlineResilienceRouter } from "./resilience/offlineResilience";
 import { middlewareHubRouter } from "./middleware/middlewareHub";
+import { verificationRouter } from "./routers/verification";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -79,7 +80,7 @@ import {
   psNotificationRouter,
   accountRecoveryRouter,
   psAdminRouter,
-} from "./routers/psStubs";
+} from "./routers/ps";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -180,6 +181,7 @@ export const appRouter = router({
   emailPreview: emailPreviewRouter,
   offlineResilience: offlineResilienceRouter,
   middlewareHub: middlewareHubRouter,
+  verification: verificationRouter,
 });
 
 export type AppRouter = typeof appRouter;
