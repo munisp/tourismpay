@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "TourismPay",
+    "slug": "tourismpay",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a2e"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tourismpay.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "TourismPay uses the camera for QR code scanning and identity verification.",
+        "NSFaceIDUsageDescription": "TourismPay uses Face ID for secure authentication.",
+        "NSLocationWhenInUseUsageDescription": "TourismPay uses location for nearby merchant discovery."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a1a2e"
+      },
+      "package": "com.tourismpay.app",
+      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION", "USE_BIOMETRIC", "USE_FINGERPRINT"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-camera",
+      "expo-local-authentication",
+      "expo-secure-store"
+    ]
+  }
+}
