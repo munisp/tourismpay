@@ -3,8 +3,12 @@
  *
  * Integrates with the Rust PBAC engine for fine-grained access control.
  * Falls back to role-based checks if the PBAC engine is unavailable.
+ *
+ * Implemented as a tRPC middleware (not Express middleware) so that
+ * it runs AFTER authentication and has access to ctx.user.
  */
-import type { Request, Response, NextFunction } from "express";
+import { TRPCError } from "@trpc/server";
+import { withCircuitBreaker } from "../middleware/circuitBreaker";
 
 const PBAC_ENGINE_URL = process.env.PBAC_ENGINE_URL || "http://localhost:8090";
 
@@ -71,17 +75,14 @@ const ROUTE_RESOURCE_MAP: Record<string, { resource: string; action: string }> =
 };
 
 function resolveResource(method: string, path: string): { resource: string; action: string } {
-  // Try exact match first
   const key = `${method}:${path}`;
   if (ROUTE_RESOURCE_MAP[key]) return ROUTE_RESOURCE_MAP[key];
 
-  // Try prefix match
   for (const [pattern, mapping] of Object.entries(ROUTE_RESOURCE_MAP)) {
     const [m, p] = pattern.split(":");
     if (m === method && path.startsWith(p)) return mapping;
   }
 
-  // Default
   return { resource: `api:${path}`, action: method.toLowerCase() === "get" ? "read" : "write" };
 }
 
@@ -94,30 +95,31 @@ async function checkPbac(
   context?: Record<string, unknown>
 ): Promise<PbacDecision> {
   try {
-    const response = await fetch(`${PBAC_ENGINE_URL}/api/v1/access/check`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        subject: {
-          id: String(user.id),
-          roles: [user.role],
-          attributes: { email: user.email },
-        },
-        resource,
-        action,
-        context: context || {},
-      }),
-      signal: AbortSignal.timeout(2000),
+    return await withCircuitBreaker("pbac-engine", async () => {
+      const response = await fetch(`${PBAC_ENGINE_URL}/api/v1/access/check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: {
+            id: String(user.id),
+            roles: [user.role],
+            attributes: { email: user.email },
+          },
+          resource,
+          action,
+          context: context || {},
+        }),
+        signal: AbortSignal.timeout(2000),
+      });
+
+      if (response.ok) {
+        return await response.json() as PbacDecision;
+      }
+      throw new Error(`PBAC engine returned ${response.status}`);
     });
-
-    if (response.ok) {
-      return await response.json() as PbacDecision;
-    }
   } catch {
-    // PBAC engine unavailable — fall back to role-based
+    return fallbackRoleCheck(user, resource, action);
   }
-
-  return fallbackRoleCheck(user, resource, action);
 }
 
 function fallbackRoleCheck(
@@ -167,10 +169,54 @@ function fallbackRoleCheck(
   };
 }
 
-// ─── Express Middleware ──────────────────────────────────────────────────────
+// ─── tRPC Middleware Factory ─────────────────────────────────────────────────
+
+/**
+ * Creates a tRPC middleware that enforces PBAC.
+ * This runs AFTER auth, so ctx.user is available.
+ */
+export function createPbacMiddleware(t: any) {
+  return t.middleware(async (opts: any) => {
+    const { ctx, next, path } = opts;
+    const user = ctx.user;
+
+    if (!user) {
+      return next();
+    }
+
+    // Determine the HTTP method from the tRPC procedure type
+    const method = opts.type === "mutation" ? "POST" : "GET";
+    const apiPath = `/api/trpc/${path}`;
+    const { resource, action } = resolveResource(method, apiPath);
+
+    const decision = await checkPbac(user, resource, action, {
+      ip: ctx.req?.ip,
+      user_agent: ctx.req?.headers?.["user-agent"],
+      timestamp: Date.now(),
+    });
+
+    if (!decision.allowed) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Access denied: ${decision.reason}`,
+      });
+    }
+
+    // Attach audit ID for downstream logging
+    return next({
+      ctx: {
+        ...ctx,
+        pbacAuditId: decision.audit_id,
+      },
+    });
+  });
+}
+
+// ─── Legacy Express Middleware (kept for non-tRPC routes) ─────────────────────
+
+import type { Request, Response, NextFunction } from "express";
 
 export function pbacMiddleware(req: Request, res: Response, next: NextFunction): void {
-  // Skip for public routes
   const publicPaths = ["/health", "/api/demo-login", "/api/auth/login", "/api/system"];
   if (publicPaths.some((p) => req.path.startsWith(p))) {
     next();

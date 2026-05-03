@@ -56,6 +56,19 @@ export async function getDb() {
   return _db;
 }
 
+/** Close the database connection pool (used during graceful shutdown). */
+export async function closeDb(): Promise<void> {
+  if (_client) {
+    try {
+      await _client.end();
+      _client = null;
+      _db = null;
+    } catch (err) {
+      console.warn("[Database] Error closing connection pool:", err);
+    }
+  }
+}
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 export async function upsertUser(user: InsertUser): Promise<void> {

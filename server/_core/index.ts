@@ -2,6 +2,8 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import cookieParser from "cookie-parser";
+import compression from "compression";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerSSERoutes } from "../sse";
@@ -30,6 +32,9 @@ import { startReviewPromptJob } from "../jobs/reviewPromptJob";
 import { startSentimentAlertJob } from "../jobs/sentimentAlertJob";
 import { startLeaderboardSnapshotJob } from "../jobs/leaderboardSnapshotJob";
 import { startOnboardingNudgeJob } from "../jobs/onboardingNudgeJob";
+import { logger } from "./logger";
+import { startBatchFlusher, stopBatchFlusher } from "../middleware/opensearchIndexer";
+import { startStreamFlusher, stopStreamFlusher } from "../middleware/fluvioLakehouse";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -56,37 +61,93 @@ async function startServer() {
   // Stripe webhook MUST be registered before express.json() for raw body access
   registerStripeWebhook(app);
 
+  // ─── Response Compression ──────────────────────────────────────────────────
+  app.use(compression({ threshold: 1024 }));
+
   // ─── Structured Logging ─────────────────────────────────────────────────────
   const { requestLoggerMiddleware } = await import("./logger");
   app.use(requestLoggerMiddleware);
 
-  // ─── Security Middleware (applied before body parsing) ─────────────────────
-  const { ddosProtectionMiddleware, securityHeadersMiddleware } = await import("../security/ddosProtection");
-  const { pbacMiddleware } = await import("../security/pbacMiddleware");
-  const { rateLimiterMiddleware } = await import("../security/rateLimiter");
+  // ─── Security Headers & CORS ───────────────────────────────────────────────
+  const { ddosProtectionMiddleware, securityHeadersMiddleware, corsHardeningMiddleware } = await import("../security/ddosProtection");
   app.use(securityHeadersMiddleware);
+  app.use(corsHardeningMiddleware);
+
+  // ─── DDoS Protection (content inspection always, rate limiting in prod) ────
   app.use(ddosProtectionMiddleware);
+
+  // ─── Rate Limiting (unified, single layer) ─────────────────────────────────
+  const { rateLimiterMiddleware } = await import("../security/rateLimiter");
   app.use(rateLimiterMiddleware);
 
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // ─── Cookie Parser (required for CSRF double-submit pattern) ───────────────
+  app.use(cookieParser());
 
-  // Cookie parser (required for CSRF double-submit cookie pattern)
-  const cookieParser = await import("cookie");
+  // ─── Body Parsing (default 1MB, override per-route for uploads) ────────────
+  app.use("/api/trpc/kybDocuments", express.json({ limit: "50mb" }));
+  app.use("/api/trpc/kybApplication", express.json({ limit: "10mb" }));
+  app.use("/api/trpc/touristOnboarding", express.json({ limit: "10mb" }));
+  app.use("/api/stripe-webhook", express.json({ limit: "5mb" }));
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ limit: "1mb", extended: true }));
 
-  // Input sanitization (after body parsing)
+  // ─── Input Sanitization (after body parsing) ───────────────────────────────
   const { inputSanitizerMiddleware } = await import("../security/inputSanitizer");
   app.use(inputSanitizerMiddleware);
 
-  // CSRF protection (after body parsing, before tRPC)
+  // ─── CSRF Protection (after cookie parser + body parsing, before tRPC) ─────
   const { csrfMiddleware } = await import("../security/csrf");
   app.use(csrfMiddleware);
 
-  // PBAC enforcement (after auth context is set by tRPC)
-  app.use("/api/trpc", pbacMiddleware);
+  // ─── ETag Support for API Responses ────────────────────────────────────────
+  app.set("etag", "strong");
 
-  // ─── Health Check Endpoint ─────────────────────────────────────────────────
+  // ─── Health Check Endpoints (liveness / readiness / startup) ───────────────
+  app.get("/api/health/live", (_req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString(), uptime: process.uptime() });
+  });
+
+  app.get("/api/health/ready", async (_req, res) => {
+    try {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      const dbOk = !!db;
+      const { getCacheStats } = await import("../middleware/redisClient");
+      const cacheStats = getCacheStats();
+      const { getCircuitBreakerStats } = await import("../middleware/circuitBreaker");
+      const circuits = getCircuitBreakerStats();
+
+      const criticalServicesUp = dbOk;
+      const openCircuits = Object.entries(circuits).filter(([, s]) => s.state === "open").map(([n]) => n);
+
+      res.status(criticalServicesUp ? 200 : 503).json({
+        status: criticalServicesUp ? "ready" : "not_ready",
+        timestamp: new Date().toISOString(),
+        db: dbOk ? "connected" : "disconnected",
+        cache: cacheStats.strategy,
+        openCircuits,
+        uptime: process.uptime(),
+      });
+    } catch {
+      res.status(503).json({ status: "not_ready", timestamp: new Date().toISOString(), db: "error" });
+    }
+  });
+
+  app.get("/api/health/startup", async (_req, res) => {
+    try {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      res.status(db ? 200 : 503).json({
+        status: db ? "started" : "starting",
+        timestamp: new Date().toISOString(),
+        db: db ? "connected" : "pending",
+      });
+    } catch {
+      res.status(503).json({ status: "starting", timestamp: new Date().toISOString() });
+    }
+  });
+
+  // Backward-compatible combined health endpoint
   app.get("/api/health", async (_req, res) => {
     try {
       const { getDb } = await import("../db");
@@ -358,8 +419,12 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
+  // ─── Start middleware background services ────────────────────────────────
+  startBatchFlusher();
+  startStreamFlusher();
+
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+    logger.info(`Server running on http://localhost:${port}/`);
     // Start BIS investigation auto-advance background job
     startBisAutoAdvanceJob(60_000);
     // Start biometric enrollment expiry background job (runs every 6 hours)
@@ -403,6 +468,55 @@ async function startServer() {
     // Start onboarding nudge job (runs every 24 hours, notifies merchants with score < 60% after 7+ days)
     startOnboardingNudgeJob();
   });
+
+  // ─── Graceful Shutdown ───────────────────────────────────────────────────
+  const backgroundJobs: ReturnType<typeof setInterval>[] = [];
+
+  async function gracefulShutdown(signal: string) {
+    logger.info(`Received ${signal}, starting graceful shutdown...`);
+
+    // 1. Stop accepting new connections
+    server.close(() => {
+      logger.info("HTTP server closed");
+    });
+
+    // 2. Stop background job timers
+    for (const job of backgroundJobs) {
+      clearInterval(job);
+    }
+
+    // 3. Stop middleware services
+    stopBatchFlusher();
+    stopStreamFlusher();
+
+    // 4. Wait for in-flight requests (max 10s)
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        logger.warn("Graceful shutdown timeout, forcing exit");
+        resolve();
+      }, 10_000);
+
+      server.on("close", () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+
+    // 5. Close database connection pool
+    try {
+      const { closeDb } = await import("../db");
+      if (closeDb) await closeDb();
+      logger.info("Database connections closed");
+    } catch {
+      // db module may not export closeDb yet
+    }
+
+    logger.info("Graceful shutdown complete");
+    process.exit(0);
+  }
+
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 }
 
 startServer().catch(console.error);

@@ -101,19 +101,14 @@ function getEndpointTier(path: string): string {
 }
 
 export function ddosProtectionMiddleware(req: Request, res: Response, next: NextFunction): void {
-  // Skip rate limiting in development mode
-  if (process.env.NODE_ENV === "development") {
-    next();
-    return;
-  }
-
+  const isDev = process.env.NODE_ENV === "development" && !process.env.ENABLE_DDOS_PROTECTION;
   const ip = getClientIp(req);
   const now = Date.now();
   const record = getIpRecord(ip);
   globalStats.totalRequests++;
   record.totalRequests++;
 
-  // Layer 1: Check if IP is blocked
+  // Layer 1: Check if IP is blocked (always enforced)
   if (record.blocked) {
     if (now < record.blockedUntil) {
       record.totalBlocked++;
@@ -129,54 +124,52 @@ export function ddosProtectionMiddleware(req: Request, res: Response, next: Next
     record.suspiciousScore = Math.max(0, record.suspiciousScore - 5);
   }
 
-  // Layer 2: URL and header size checks
+  // Layer 2: URL and header size checks (always enforced)
   if ((req.url?.length || 0) > CONFIG.maxUrlLength) {
     blockIp(record, now, "URL too long");
     res.status(414).json({ error: "URI too long", code: "URI_TOO_LONG" });
     return;
   }
 
-  // Layer 3: Rate limiting (sliding window)
-  const tier = getEndpointTier(req.path);
-  const limits = CONFIG.rateLimitTiers[tier] || CONFIG.rateLimitTiers.default;
+  // Layer 3: Rate limiting — skipped in dev (handled by rateLimiter.ts)
+  if (!isDev) {
+    const tier = getEndpointTier(req.path);
+    const limits = CONFIG.rateLimitTiers[tier] || CONFIG.rateLimitTiers.default;
+    const oneMinuteAgo = now - 60_000;
+    record.timestamps = record.timestamps.filter((t) => t > oneMinuteAgo);
 
-  // Clean old timestamps
-  const oneMinuteAgo = now - 60_000;
-  record.timestamps = record.timestamps.filter((t) => t > oneMinuteAgo);
+    const oneSecondAgo = now - 1000;
+    const recentSecond = record.timestamps.filter((t) => t > oneSecondAgo).length;
+    if (recentSecond >= limits.perSecond) {
+      record.suspiciousScore += 2;
+      if (record.suspiciousScore > 10) {
+        blockIp(record, now, "Burst rate exceeded");
+        globalStats.totalBlocked++;
+        res.status(429).json({
+          error: "Rate limit exceeded",
+          retryAfter: 1,
+          code: "BURST_LIMIT",
+        });
+        return;
+      }
+    }
 
-  // Check per-second burst
-  const oneSecondAgo = now - 1000;
-  const recentSecond = record.timestamps.filter((t) => t > oneSecondAgo).length;
-  if (recentSecond >= limits.perSecond) {
-    record.suspiciousScore += 2;
-    if (record.suspiciousScore > 10) {
-      blockIp(record, now, "Burst rate exceeded");
+    if (record.timestamps.length >= limits.perMinute) {
+      record.suspiciousScore += 3;
+      blockIp(record, now, "Minute rate exceeded");
       globalStats.totalBlocked++;
       res.status(429).json({
         error: "Rate limit exceeded",
-        retryAfter: 1,
-        code: "BURST_LIMIT",
+        retryAfter: 60,
+        code: "RATE_LIMITED",
       });
       return;
     }
   }
 
-  // Check per-minute
-  if (record.timestamps.length >= limits.perMinute) {
-    record.suspiciousScore += 3;
-    blockIp(record, now, "Minute rate exceeded");
-    globalStats.totalBlocked++;
-    res.status(429).json({
-      error: "Rate limit exceeded",
-      retryAfter: 60,
-      code: "RATE_LIMITED",
-    });
-    return;
-  }
-
   record.timestamps.push(now);
 
-  // Layer 4: Content inspection (for POST/PUT/PATCH)
+  // Layer 4: Content inspection (always enforced — for POST/PUT/PATCH)
   if (["POST", "PUT", "PATCH"].includes(req.method)) {
     const contentLength = parseInt(req.headers["content-length"] || "0", 10);
     if (contentLength > CONFIG.maxPayloadBytes) {
@@ -186,7 +179,7 @@ export function ddosProtectionMiddleware(req: Request, res: Response, next: Next
     }
   }
 
-  // Layer 5: Suspicious pattern detection in URL and query
+  // Layer 5: Suspicious pattern detection in URL and query (always enforced)
   const fullUrl = req.url || "";
   for (const pattern of CONFIG.suspiciousPatterns) {
     if (pattern.test(fullUrl)) {
@@ -200,7 +193,7 @@ export function ddosProtectionMiddleware(req: Request, res: Response, next: Next
     }
   }
 
-  // Layer 6: Anti-ransomware file extension check
+  // Layer 6: Anti-ransomware file extension check (always enforced)
   if (req.path) {
     const lowerPath = req.path.toLowerCase();
     for (const ext of CONFIG.ransomwareExtensions) {
@@ -212,11 +205,6 @@ export function ddosProtectionMiddleware(req: Request, res: Response, next: Next
       }
     }
   }
-
-  // Set security headers
-  res.setHeader("X-RateLimit-Limit", limits.perMinute);
-  res.setHeader("X-RateLimit-Remaining", Math.max(0, limits.perMinute - record.timestamps.length));
-  res.setHeader("X-RateLimit-Reset", Math.ceil((oneMinuteAgo + 60_000) / 1000));
 
   next();
 }

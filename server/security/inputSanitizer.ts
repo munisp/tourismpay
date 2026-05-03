@@ -79,10 +79,30 @@ function checkForMaliciousInput(obj: any, path = ""): string | null {
   return null;
 }
 
+// Routes where SQL-keyword detection is relaxed (to avoid false positives
+// on legitimate business content like BIS investigation notes, compliance
+// reports, and developer portal documentation).
+const TRUSTED_ROUTE_PREFIXES = [
+  "/api/trpc/bis.",
+  "/api/trpc/compliance.",
+  "/api/trpc/audit.",
+  "/api/trpc/admin.",
+  "/api/trpc/middlewareHub.",
+  "/api/trpc/devPortal.",
+];
+
+function isTrustedRoute(path: string): boolean {
+  return TRUSTED_ROUTE_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
 export function inputSanitizerMiddleware(req: Request, res: Response, next: NextFunction): void {
-  // Check query params
+  const trusted = isTrustedRoute(req.path);
+
+  // Check query params (always check XSS, skip SQL on trusted routes)
   if (req.query) {
-    const queryCheck = checkForMaliciousInput(req.query, "query");
+    const queryCheck = trusted
+      ? checkForXssOnly(req.query, "query")
+      : checkForMaliciousInput(req.query, "query");
     if (queryCheck) {
       res.status(400).json({ error: "Invalid input", code: "MALICIOUS_INPUT" });
       return;
@@ -91,7 +111,9 @@ export function inputSanitizerMiddleware(req: Request, res: Response, next: Next
 
   // Check body (for JSON payloads)
   if (req.body && typeof req.body === "object") {
-    const bodyCheck = checkForMaliciousInput(req.body, "body");
+    const bodyCheck = trusted
+      ? checkForXssOnly(req.body, "body")
+      : checkForMaliciousInput(req.body, "body");
     if (bodyCheck) {
       res.status(400).json({ error: "Invalid input", code: "MALICIOUS_INPUT" });
       return;
@@ -99,6 +121,27 @@ export function inputSanitizerMiddleware(req: Request, res: Response, next: Next
   }
 
   next();
+}
+
+function checkForXssOnly(obj: any, path = ""): string | null {
+  if (typeof obj === "string") {
+    for (const pattern of XSS_PATTERNS) {
+      if (pattern.test(obj)) return `${path}: XSS pattern detected`;
+    }
+  }
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      const result = checkForXssOnly(obj[i], `${path}[${i}]`);
+      if (result) return result;
+    }
+  }
+  if (obj && typeof obj === "object") {
+    for (const [key, value] of Object.entries(obj)) {
+      const result = checkForXssOnly(value, `${path}.${key}`);
+      if (result) return result;
+    }
+  }
+  return null;
 }
 
 export { sanitizeString, deepSanitize, isMalicious };

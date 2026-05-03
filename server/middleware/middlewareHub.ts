@@ -18,6 +18,12 @@
  */
 import { z } from "zod";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
+import { getCircuitBreakerStats, resetCircuit } from "./circuitBreaker";
+import { serviceFetch } from "./serviceFetch";
+import { getKafkaProducerStats } from "./kafkaProducer";
+import { getCacheStats } from "./redisClient";
+import { getIndexerStats } from "./opensearchIndexer";
+import { getFluvioLakehouseStats } from "./fluvioLakehouse";
 
 // ─── Service Configuration ──────────────────────────────────────────────────
 
@@ -408,4 +414,37 @@ export const middlewareHubRouter = router({
       halfOpenRequests: 3,
     },
   })),
+
+  // Circuit breaker status for all downstream services
+  circuitBreakerStatus: adminProcedure.query(() => {
+    return getCircuitBreakerStats();
+  }),
+
+  // Reset a specific circuit breaker (admin recovery action)
+  resetCircuitBreaker: adminProcedure
+    .input(z.object({ serviceName: z.string() }))
+    .mutation(({ input }) => {
+      resetCircuit(input.serviceName);
+      return { reset: true, serviceName: input.serviceName };
+    }),
+
+  // Kafka producer stats
+  kafkaProducerStats: adminProcedure.query(() => {
+    return getKafkaProducerStats();
+  }),
+
+  // Redis/cache stats
+  cacheStatus: adminProcedure.query(() => {
+    return getCacheStats();
+  }),
+
+  // OpenSearch indexer stats
+  indexerStats: adminProcedure.query(() => {
+    return getIndexerStats();
+  }),
+
+  // Fluvio/Lakehouse pipeline stats
+  pipelineStats: adminProcedure.query(() => {
+    return getFluvioLakehouseStats();
+  }),
 });

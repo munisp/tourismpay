@@ -1,30 +1,18 @@
 /**
- * Express Rate Limiter — first-line defense at the application layer.
+ * Express Rate Limiter — unified rate limiting layer.
  *
  * Provides per-IP rate limiting for different endpoint categories:
- * - Auth endpoints: 10 req/min (brute force protection)
+ * - Auth endpoints: 15 req/min (brute force protection)
+ * - Demo login: 10 req/min
  * - Payment mutations: 30 req/min
- * - General API: 100 req/min
+ * - General API: 120 req/min
  * - Static assets: unlimited
+ *
+ * Uses Redis-backed counters when available (via cacheIncr), with
+ * in-memory Map fallback for single-instance deployments.
  */
 import type { Request, Response, NextFunction } from "express";
-
-interface RateBucket {
-  count: number;
-  resetAt: number;
-}
-
-const buckets = new Map<string, RateBucket>();
-
-// Cleanup stale buckets every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  const keysToDelete: string[] = [];
-  buckets.forEach((bucket, key) => {
-    if (bucket.resetAt < now) keysToDelete.push(key);
-  });
-  keysToDelete.forEach(key => buckets.delete(key));
-}, 300_000);
+import { cacheIncr } from "../middleware/redisClient";
 
 interface RateLimitConfig {
   windowMs: number;
@@ -63,27 +51,27 @@ export function rateLimiterMiddleware(req: Request, res: Response, next: NextFun
 
   const ip = getClientIp(req);
   const { windowMs, maxRequests } = getLimit(req.path);
-  const key = `${ip}:${req.path.split("/").slice(0, 4).join("/")}`;
-  const now = Date.now();
+  const windowSeconds = Math.ceil(windowMs / 1000);
+  const routeKey = req.path.split("/").slice(0, 4).join("/");
+  const key = `ratelimit:${ip}:${routeKey}`;
 
-  let bucket = buckets.get(key);
-  if (!bucket || bucket.resetAt < now) {
-    bucket = { count: 0, resetAt: now + windowMs };
-    buckets.set(key, bucket);
-  }
+  // Use Redis-backed atomic increment (falls back to in-memory)
+  cacheIncr(key, windowSeconds)
+    .then((count) => {
+      res.setHeader("X-RateLimit-Limit", maxRequests);
+      res.setHeader("X-RateLimit-Remaining", Math.max(0, maxRequests - count));
+      res.setHeader("X-RateLimit-Reset", Math.ceil((Date.now() + windowMs) / 1000));
 
-  bucket.count++;
+      if (count > maxRequests) {
+        res.setHeader("Retry-After", windowSeconds);
+        res.status(429).json({ error: "Too many requests. Please try again later." });
+        return;
+      }
 
-  // Set rate limit headers
-  res.setHeader("X-RateLimit-Limit", maxRequests);
-  res.setHeader("X-RateLimit-Remaining", Math.max(0, maxRequests - bucket.count));
-  res.setHeader("X-RateLimit-Reset", Math.ceil(bucket.resetAt / 1000));
-
-  if (bucket.count > maxRequests) {
-    res.setHeader("Retry-After", Math.ceil((bucket.resetAt - now) / 1000));
-    res.status(429).json({ error: "Too many requests. Please try again later." });
-    return;
-  }
-
-  next();
+      next();
+    })
+    .catch(() => {
+      // On cache error, allow the request through
+      next();
+    });
 }

@@ -2,6 +2,7 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import { createPbacMiddleware } from "../security/pbacMiddleware";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -9,6 +10,9 @@ const t = initTRPC.context<TrpcContext>().create({
 
 export const router = t.router;
 export const publicProcedure = t.procedure;
+
+// PBAC middleware — enforces policy-based access control after auth
+const pbacEnforce = createPbacMiddleware(t);
 
 const requireUser = t.middleware(async opts => {
   const { ctx, next } = opts;
@@ -25,7 +29,8 @@ const requireUser = t.middleware(async opts => {
   });
 });
 
-export const protectedProcedure = t.procedure.use(requireUser);
+// Protected procedures run auth → PBAC in sequence
+export const protectedProcedure = t.procedure.use(requireUser).use(pbacEnforce);
 
 // admin only
 export const adminProcedure = t.procedure.use(
