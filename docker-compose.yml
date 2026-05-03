@@ -56,6 +56,22 @@ services:
       KAFKA_BROKER_URL: kafka:9092
       KEYCLOAK_URL: http://keycloak:8080
       OPENSEARCH_URL: http://opensearch:9200
+      # Go middleware services
+      KAFKA_PROCESSOR_URL: http://kafka-processor:8100
+      TEMPORAL_WORKER_URL: http://temporal-worker:8101
+      KEYCLOAK_ADMIN_URL: http://keycloak-admin:8102
+      PERMIFY_PROXY_URL: http://permify-proxy:8103
+      APISIX_ADMIN_SERVICE_URL: http://apisix-admin:8104
+      OPENAPPSEC_WAF_URL: http://openappsec-waf:8105
+      DAPR_GATEWAY_URL: http://dapr-gateway:8106
+      MOJALOOP_HUB_URL: http://mojaloop-hub:8107
+      # Rust middleware services
+      REDIS_CACHE_URL: http://redis-cache:8110
+      TIGERBEETLE_LEDGER_URL: http://tigerbeetle-ledger:8111
+      FLUVIO_STREAM_URL: http://fluvio-stream:8112
+      # Python middleware services
+      OPENSEARCH_ANALYTICS_URL: http://opensearch-analytics:8120
+      LAKEHOUSE_ANALYTICS_URL: http://lakehouse-analytics:8121
     depends_on:
       postgres:
         condition: service_healthy
@@ -129,6 +145,201 @@ services:
     environment:
       PORT: "8093"
       RUST_LOG: info
+
+  # ─── Go Middleware Services ────────────────────────────────────────────────
+  kafka-processor:
+    build:
+      context: ./go-middleware/kafka-processor
+      dockerfile: Dockerfile
+    ports:
+      - "8100:8100"
+    environment:
+      PORT: "8100"
+      KAFKA_BROKERS: kafka:9092
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8100/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  temporal-worker:
+    build:
+      context: ./go-middleware/temporal-worker
+      dockerfile: Dockerfile
+    ports:
+      - "8101:8101"
+    environment:
+      PORT: "8101"
+      TEMPORAL_HOST: temporal:7233
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8101/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  keycloak-admin:
+    build:
+      context: ./go-middleware/keycloak-admin
+      dockerfile: Dockerfile
+    ports:
+      - "8102:8102"
+    environment:
+      PORT: "8102"
+      KEYCLOAK_URL: http://keycloak:8080
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8102/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  permify-proxy:
+    build:
+      context: ./go-middleware/permify-proxy
+      dockerfile: Dockerfile
+    ports:
+      - "8103:8103"
+    environment:
+      PORT: "8103"
+      PERMIFY_URL: http://localhost:3476
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8103/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  apisix-admin:
+    build:
+      context: ./go-middleware/apisix-admin
+      dockerfile: Dockerfile
+    ports:
+      - "8104:8104"
+    environment:
+      PORT: "8104"
+      APISIX_ADMIN_URL: http://apisix:9180
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8104/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  openappsec-waf:
+    build:
+      context: ./go-middleware/openappsec-waf
+      dockerfile: Dockerfile
+    ports:
+      - "8105:8105"
+    environment:
+      PORT: "8105"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8105/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  dapr-gateway:
+    build:
+      context: ./go-middleware/dapr-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8106:8106"
+    environment:
+      PORT: "8106"
+      DAPR_HTTP_URL: http://localhost:3500
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8106/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  mojaloop-hub:
+    build:
+      context: ./go-middleware/mojaloop-hub
+      dockerfile: Dockerfile
+    ports:
+      - "8107:8107"
+    environment:
+      PORT: "8107"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8107/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ─── Rust Middleware Services ──────────────────────────────────────────────
+  redis-cache:
+    build:
+      context: ./rust-services/redis-cache
+      dockerfile: Dockerfile
+    ports:
+      - "8110:8110"
+    environment:
+      PORT: "8110"
+      RUST_LOG: info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8110/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  tigerbeetle-ledger:
+    build:
+      context: ./rust-services/tigerbeetle-ledger
+      dockerfile: Dockerfile
+    ports:
+      - "8111:8111"
+    environment:
+      PORT: "8111"
+      RUST_LOG: info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8111/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  fluvio-stream:
+    build:
+      context: ./rust-services/fluvio-stream
+      dockerfile: Dockerfile
+    ports:
+      - "8112:8112"
+    environment:
+      PORT: "8112"
+      RUST_LOG: info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8112/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ─── Python Middleware Services ────────────────────────────────────────────
+  opensearch-analytics:
+    build:
+      context: ./python-services/opensearch-analytics
+      dockerfile: Dockerfile
+    ports:
+      - "8120:8120"
+    environment:
+      PORT: "8120"
+      OPENSEARCH_URL: http://opensearch:9200
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8120/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  lakehouse-analytics:
+    build:
+      context: ./python-services/lakehouse-analytics
+      dockerfile: Dockerfile
+    ports:
+      - "8121:8121"
+    environment:
+      PORT: "8121"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8121/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
   # ─── Middleware Infrastructure ──────────────────────────────────────────────
   zookeeper:
