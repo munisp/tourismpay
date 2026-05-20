@@ -84,25 +84,28 @@ async function seed() {
   for (const user of tourists.slice(0, 2)) {
     const txTypes = ["deposit", "withdrawal", "transfer", "payment", "refund"] as const;
     for (let i = 0; i < 10; i++) {
+      const fromCur = currencies[i % currencies.length];
+      const toCur = currencies[(i + 1) % currencies.length];
       await db.insert(schema.walletTransactions).values({
         userId: user.id,
         type: txTypes[i % txTypes.length],
         amount: String(Math.floor(Math.random() * 500) + 10),
-        currency: currencies[i % currencies.length],
+        fromCurrency: fromCur,
+        toCurrency: toCur,
         status: "completed",
-        description: `Demo transaction #${i + 1}`,
-        referenceId: crypto.randomUUID(),
+        reference: `demo-tx-${crypto.randomUUID().slice(0, 8)}`,
+        note: `Demo transaction #${i + 1}`,
       }).onConflictDoNothing();
     }
   }
 
   // ─── 6. Loyalty Accounts ────────────────────────────────────
   console.log("[seed] 6/30 Loyalty Accounts...");
-  const tiers = ["bronze", "silver", "gold", "platinum"] as const;
+  const tiers = ["BRONZE", "SILVER", "GOLD", "PLATINUM"] as const;
   for (let i = 0; i < tourists.length; i++) {
     await db.insert(schema.loyaltyAccounts).values({
-      userId: tourists[i].id,
-      points: Math.floor(Math.random() * 10000),
+      userId: String(tourists[i].id),
+      pointsBalance: Math.floor(Math.random() * 10000),
       tier: tiers[i % tiers.length],
       lifetimePoints: Math.floor(Math.random() * 50000),
     }).onConflictDoNothing();
@@ -113,25 +116,26 @@ async function seed() {
   for (const user of tourists.slice(0, 2)) {
     for (let i = 0; i < 5; i++) {
       await db.insert(schema.loyaltyTransactions).values({
-        userId: user.id,
+        userId: String(user.id),
         type: i % 2 === 0 ? "earn" : "redeem",
         points: Math.floor(Math.random() * 500) + 10,
         description: i % 2 === 0 ? "Purchase reward" : "Reward redemption",
-        referenceType: "transaction",
+        referenceId: `ref-${crypto.randomUUID().slice(0, 8)}`,
       }).onConflictDoNothing();
     }
   }
 
   // ─── 8. Fraud Alerts ────────────────────────────────────────
   console.log("[seed] 8/30 Fraud Alerts...");
-  const fraudTypes = ["suspicious_transaction", "account_takeover", "identity_fraud", "velocity_check"] as const;
   for (let i = 0; i < 5; i++) {
     await db.insert(schema.fraudAlerts).values({
-      userId: tourists[i % tourists.length].id,
-      alertType: fraudTypes[i % fraudTypes.length],
-      severity: (["low", "medium", "high", "critical"] as const)[i % 4],
+      alertId: `FA-2026-${String(i + 1).padStart(5, "0")}`,
+      severity: (["low", "medium", "high", "critical", "info"] as const)[i % 5],
       description: `Automated fraud detection alert #${i + 1}`,
-      status: (["open", "investigating", "resolved", "dismissed"] as const)[i % 4],
+      status: (["open", "investigating", "resolved", "false_positive"] as const)[i % 4],
+      ruleTriggered: ["velocity_check", "geo_anomaly", "amount_threshold", "account_takeover", "identity_mismatch"][i % 5],
+      amount: String(Math.floor(Math.random() * 5000) + 100),
+      currency: currencies[i % currencies.length],
     }).onConflictDoNothing();
   }
 
@@ -140,23 +144,33 @@ async function seed() {
   const actions = ["user.login", "kyb.submit", "payment.send", "admin.user_update", "settlement.process"];
   for (let i = 0; i < 20; i++) {
     await db.insert(schema.auditLogs).values({
-      userId: users[i % users.length].id,
+      actorId: users[i % users.length].id,
+      actorName: users[i % users.length].name ?? "System",
       action: actions[i % actions.length],
-      details: JSON.stringify({ ip: `192.168.1.${i + 1}`, userAgent: "TourismPay/1.0" }),
+      entityType: ["user", "kyb_application", "wallet_transaction", "user", "settlement"][i % 5],
+      entityId: String(i + 1),
+      description: `Audit: ${actions[i % actions.length]}`,
       ipAddress: `192.168.1.${i + 1}`,
     }).onConflictDoNothing();
   }
 
   // ─── 10. BIS Investigations ─────────────────────────────────
   console.log("[seed] 10/30 BIS Investigations...");
-  const kybApps = await db.select().from(schema.kybApplications);
-  for (const app of kybApps) {
+  for (let i = 0; i < establishments.length; i++) {
+    const est = establishments[i];
     await db.insert(schema.bisInvestigations).values({
-      kybApplicationId: app.id,
+      referenceId: `BIS-2026-${String(i + 1).padStart(4, "0")}`,
+      establishmentId: est.id,
+      requestedBy: admin?.id,
+      subjectType: "entity",
+      subjectFullName: est.name,
+      subjectCountry: est.country,
+      tier: "standard",
       status: "completed",
       riskScore: Math.floor(Math.random() * 30),
       riskLevel: "low",
-      modules: JSON.stringify(["identity", "criminal", "financial", "sanctions", "aml"]),
+      moduleResults: { identity: "pass", criminal: "pass", financial: "pass", sanctions: "pass", aml: "pass" },
+      consentObtained: true,
     }).onConflictDoNothing();
   }
 
@@ -165,23 +179,26 @@ async function seed() {
   for (const user of users) {
     await db.insert(schema.notificationPreferences).values({
       userId: user.id,
-      emailEnabled: true,
-      pushEnabled: true,
-      smsEnabled: user.role === "merchant",
+      bisEnabled: true,
+      kybEnabled: true,
+      fraudEnabled: true,
+      socEnabled: true,
+      systemEnabled: true,
+      reportEnabled: true,
     }).onConflictDoNothing();
   }
 
   // ─── 12. User Notifications ─────────────────────────────────
   console.log("[seed] 12/30 User Notifications...");
-  const notifTypes = ["payment_received", "kyb_update", "security_alert", "promotion", "system"] as const;
+  const notifCategories = ["kyb", "bis", "fraud", "soc", "system"] as const;
   for (const user of users.slice(0, 5)) {
     for (let i = 0; i < 3; i++) {
       await db.insert(schema.userNotifications).values({
         userId: user.id,
-        type: notifTypes[i % notifTypes.length],
+        category: notifCategories[i % notifCategories.length],
         title: `Notification ${i + 1}`,
-        message: `Demo notification for ${user.name}`,
-        read: i === 0,
+        content: `Demo notification for ${user.name}`,
+        isRead: i === 0,
       }).onConflictDoNothing();
     }
   }
@@ -210,9 +227,10 @@ async function seed() {
       await db.insert(schema.qrPaymentTokens).values({
         establishmentId: est.id,
         token: crypto.randomUUID(),
-        amount: String(Math.floor(Math.random() * 100) + 5),
+        amountUsd: String(Math.floor(Math.random() * 100) + 5),
         currency: est.currency,
-        active: true,
+        status: "pending",
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       }).onConflictDoNothing();
     }
   }
@@ -221,11 +239,13 @@ async function seed() {
   console.log("[seed] 15/30 Staff Invites...");
   for (const est of establishments.slice(0, 2)) {
     await db.insert(schema.staffInvites).values({
+      token: crypto.randomUUID(),
       establishmentId: est.id,
+      inviterUserId: est.ownerId!,
       email: `staff@${est.contactEmail?.split("@")[1] ?? "example.com"}`,
       role: "cashier",
       status: "accepted",
-      invitedBy: est.ownerId!,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     }).onConflictDoNothing();
   }
 
@@ -234,58 +254,73 @@ async function seed() {
   const pairs = [["USD", "NGN", "1550.00"], ["USD", "KES", "153.50"], ["USD", "GHS", "15.20"], ["EUR", "NGN", "1680.00"], ["GBP", "KES", "195.00"]];
   for (const [from, to, rate] of pairs) {
     await db.insert(schema.exchangeRateOverrides).values({
-      fromCurrency: from, toCurrency: to, overrideRate: rate, reason: "Market adjustment", createdBy: admin?.id ?? 1,
+      baseCurrency: from, targetCurrency: to, rate, reason: "Market adjustment", createdByUserId: admin?.id ?? 1,
     }).onConflictDoNothing();
   }
 
   // ─── 17. Remittances ────────────────────────────────────────
   console.log("[seed] 17/30 Remittances...");
+  const remitCurrencies = ["USD", "NGN", "KES", "GHS", "TZS", "UGX", "ZAR", "USDC"] as const;
   for (let i = 0; i < 8; i++) {
     await db.insert(schema.remittances).values({
-      senderId: tourists[i % tourists.length].id,
+      id: `RMT-2026-${String(i + 1).padStart(6, "0")}`,
+      userId: tourists[i % tourists.length].id,
       senderCurrency: "USD",
       senderAmount: String(Math.floor(Math.random() * 500) + 50),
-      recipientCurrency: currencies[(i + 1) % currencies.length],
+      recipientCurrency: remitCurrencies[(i + 1) % remitCurrencies.length],
       recipientAmount: String(Math.floor(Math.random() * 50000) + 5000),
       exchangeRate: String(Math.random() * 1000 + 100),
       fee: String(Math.floor(Math.random() * 10) + 1),
       status: (["pending", "processing", "completed", "completed"] as const)[i % 4],
+      deliveryOption: (["bank_transfer", "mobile_money", "agent_cash", "wallet"] as const)[i % 4],
       recipientPhone: `+254${700000000 + i}`,
       recipientName: `Recipient ${i + 1}`,
-      corridor: `USD-${currencies[(i + 1) % currencies.length]}`,
     }).onConflictDoNothing();
   }
 
   // ─── 18. Payment Switch (PS) data ──────────────────────────
   console.log("[seed] 18/30 PaymentSwitch Participants...");
-  const participants = ["Central Bank of Kenya", "Safaricom M-Pesa", "Equity Bank", "KCB Bank", "Co-op Bank"];
-  for (const p of participants) {
+  const participantData = [
+    { name: "Central Bank of Kenya", type: "bank" as const },
+    { name: "Safaricom M-Pesa", type: "mobile_money" as const },
+    { name: "Equity Bank", type: "bank" as const },
+    { name: "KCB Bank", type: "bank" as const },
+    { name: "Co-op Bank", type: "bank" as const },
+  ];
+  for (const p of participantData) {
     await db.insert(schema.psParticipants).values({
-      name: p,
-      type: "bank",
+      id: `psp-${p.name.toLowerCase().replace(/\s/g, "-")}`,
+      name: p.name,
+      type: p.type,
       status: "active",
-      fspId: `fsp-${p.toLowerCase().replace(/\s/g, "-")}`,
+      mojaloopFspId: `fsp-${p.name.toLowerCase().replace(/\s/g, "-")}`,
     }).onConflictDoNothing();
   }
 
   // ─── 19. PS Settlements ─────────────────────────────────────
   console.log("[seed] 19/30 PS Settlements...");
+  const psParticipantIds = participantData.map(p => `psp-${p.name.toLowerCase().replace(/\s/g, "-")}`);
   for (let i = 0; i < 5; i++) {
     await db.insert(schema.psSettlements).values({
-      participantId: i + 1,
-      amount: String(Math.floor(Math.random() * 100000) + 10000),
+      id: `STL-2026-${String(i + 1).padStart(6, "0")}`,
+      batchId: `BATCH-2026-${String(i + 1).padStart(3, "0")}`,
+      participantId: psParticipantIds[i % psParticipantIds.length],
+      totalAmount: String(Math.floor(Math.random() * 100000) + 10000),
       currency: "KES",
-      status: (["pending", "settled", "settled", "failed"] as const)[i % 4],
-      settlementWindowId: `SW-2026-${String(i + 1).padStart(3, "0")}`,
+      transactionCount: Math.floor(Math.random() * 100) + 10,
+      status: (["pending", "completed", "completed", "failed"] as const)[i % 4],
+      mojaloopWindowId: `SW-2026-${String(i + 1).padStart(3, "0")}`,
     }).onConflictDoNothing();
   }
 
   // ─── 20. PS Webhooks ────────────────────────────────────────
   console.log("[seed] 20/30 PS Webhooks...");
   await db.insert(schema.psWebhooks).values({
-    url: "https://merchant.example.com/webhooks/payments",
-    events: JSON.stringify(["payment.completed", "settlement.completed", "refund.initiated"]),
-    active: true,
+    webhookId: `WH-${crypto.randomUUID().slice(0, 8)}`,
+    name: "Merchant Payment Notifications",
+    endpoint: "https://merchant.example.com/webhooks/payments",
+    events: "remittance.completed,settlement.completed,refund.initiated",
+    isActive: true,
     secret: crypto.randomUUID(),
   }).onConflictDoNothing();
 
@@ -295,7 +330,7 @@ async function seed() {
     await db.insert(schema.touristProfiles).values({
       userId: t.id,
       homeCountry: ["US", "JP", "GB"][tourists.indexOf(t) % 3],
-      preferredCurrency: ["USD", "JPY", "GBP"][tourists.indexOf(t) % 3],
+      homeCurrency: ["USD", "JPY", "GBP"][tourists.indexOf(t) % 3],
       preferredLanguage: ["en", "ja", "en"][tourists.indexOf(t) % 3],
     }).onConflictDoNothing();
   }
@@ -303,9 +338,9 @@ async function seed() {
   // ─── 22. Tourist Itineraries ────────────────────────────────
   console.log("[seed] 22/30 Tourist Itineraries...");
   const itineraries = [
-    { userId: tourists[0]?.id, name: "East Africa Safari", destination: "Kenya/Tanzania", startDate: "2026-06-01", endDate: "2026-06-14" },
-    { userId: tourists[1]?.id, name: "West Africa Culture Tour", destination: "Ghana/Nigeria", startDate: "2026-07-15", endDate: "2026-07-28" },
-    { userId: tourists[0]?.id, name: "Cape Town Weekend", destination: "South Africa", startDate: "2026-08-01", endDate: "2026-08-04" },
+    { userId: tourists[0]?.id, title: "East Africa Safari", destination: "Kenya/Tanzania", startDate: new Date("2026-06-01"), endDate: new Date("2026-06-14") },
+    { userId: tourists[1]?.id, title: "West Africa Culture Tour", destination: "Ghana/Nigeria", startDate: new Date("2026-07-15"), endDate: new Date("2026-07-28") },
+    { userId: tourists[0]?.id, title: "Cape Town Weekend", destination: "South Africa", startDate: new Date("2026-08-01"), endDate: new Date("2026-08-04") },
   ];
   for (const it of itineraries) {
     if (it.userId) await db.insert(schema.touristItineraries).values(it).onConflictDoNothing();
@@ -314,13 +349,17 @@ async function seed() {
   // ─── 23. Tourist Bookings ───────────────────────────────────
   console.log("[seed] 23/30 Tourist Bookings...");
   for (let i = 0; i < 6; i++) {
+    const est = establishments[i % establishments.length];
     await db.insert(schema.touristBookings).values({
-      touristId: tourists[i % tourists.length].id,
-      establishmentId: establishments[i % establishments.length].id,
+      userId: tourists[i % tourists.length].id,
+      establishmentId: est.id,
+      serviceName: `${est.name} Experience Package`,
+      serviceType: ["tour", "dining", "accommodation", "activity"][i % 4],
       status: (["confirmed", "pending", "completed", "cancelled"] as const)[i % 4],
-      totalAmount: String(Math.floor(Math.random() * 300) + 50),
-      currency: establishments[i % establishments.length].currency,
-      bookingDate: `2026-0${(i % 9) + 1}-${String(10 + i).padStart(2, "0")}`,
+      priceUsd: String(Math.floor(Math.random() * 300) + 50),
+      currency: est.currency,
+      bookingDate: new Date(`2026-0${(i % 9) + 1}-${String(10 + i).padStart(2, "0")}`),
+      bookingDateStr: `2026-0${(i % 9) + 1}-${String(10 + i).padStart(2, "0")}`,
     }).onConflictDoNothing();
   }
 
@@ -328,7 +367,7 @@ async function seed() {
   console.log("[seed] 24/30 Tourist Reviews...");
   for (let i = 0; i < 4; i++) {
     await db.insert(schema.touristReviews).values({
-      touristId: tourists[i % tourists.length].id,
+      userId: tourists[i % tourists.length].id,
       establishmentId: establishments[i % establishments.length].id,
       rating: Math.floor(Math.random() * 2) + 4,
       title: `Great experience at ${establishments[i % establishments.length].name}`,
@@ -340,25 +379,24 @@ async function seed() {
   console.log("[seed] 25/30 Merchant Payout Schedules...");
   for (const est of establishments.slice(0, 3)) {
     await db.insert(schema.merchantPayoutSchedules).values({
-      establishmentId: est.id,
+      merchantId: est.ownerId!,
       frequency: "weekly",
-      nextPayoutDate: "2026-05-09",
-      minimumAmount: "50.00",
-      currency: est.currency,
-      bankAccountLast4: String(1000 + Math.floor(Math.random() * 9000)),
+      preferredDay: 1,
+      isActive: true,
+      nextRunAt: new Date("2026-05-09"),
     }).onConflictDoNothing();
   }
 
   // ─── 26. NOC Events ─────────────────────────────────────────
   console.log("[seed] 26/30 NOC Events...");
-  const nocTypes = ["service_degradation", "high_latency", "error_spike", "capacity_warning"] as const;
+  const nocTypes = ["kill_switch_activated", "kill_switch_deactivated", "participant_suspended", "participant_restored", "rate_limit_breach", "fraud_alert", "system_alert", "settlement_failed"] as const;
   for (let i = 0; i < 8; i++) {
     await db.insert(schema.nocEvents).values({
       type: nocTypes[i % nocTypes.length],
       severity: (["low", "medium", "high", "critical"] as const)[i % 4],
-      service: ["payment-gateway", "settlement", "kyb-service", "fraud-ml"][i % 4],
-      message: `NOC event: ${nocTypes[i % nocTypes.length]} detected`,
-      resolved: i < 4,
+      title: `NOC: ${nocTypes[i % nocTypes.length].replace(/_/g, " ")}`,
+      description: `NOC event: ${nocTypes[i % nocTypes.length]} detected in ${["payment-gateway", "settlement", "kyb-service", "fraud-ml"][i % 4]}`,
+      resolvedAt: i < 4 ? Date.now() : undefined,
     }).onConflictDoNothing();
   }
 
@@ -366,13 +404,12 @@ async function seed() {
   console.log("[seed] 27/30 Carbon Offsets...");
   for (const t of tourists.slice(0, 2)) {
     await db.insert(schema.carbonOffsets).values({
-      userId: t.id,
-      offsetKg: String(Math.floor(Math.random() * 500) + 50),
-      source: "flight",
-      cost: String(Math.floor(Math.random() * 50) + 5),
-      currency: "USD",
-      provider: "TourismPay Green",
-      certificateId: crypto.randomUUID(),
+      userId: String(t.id),
+      amount: String(Math.floor(Math.random() * 500) + 50),
+      projectName: "TourismPay Green Reforestation",
+      projectCountry: "KE",
+      costUsd: String(Math.floor(Math.random() * 50) + 5),
+      certificateUrl: `https://certs.tourismpay.com/${crypto.randomUUID()}`,
     }).onConflictDoNothing();
   }
 
@@ -380,13 +417,10 @@ async function seed() {
   console.log("[seed] 28/30 Trusted Devices...");
   for (const u of users.slice(0, 5)) {
     await db.insert(schema.trustedDevices).values({
-      userId: u.id,
+      userId: String(u.id),
       deviceFingerprint: crypto.randomUUID(),
       deviceName: "iPhone 15 Pro",
-      browser: "Safari",
-      os: "iOS 18",
-      trusted: true,
-      lastUsed: new Date(),
+      deviceType: "mobile",
     }).onConflictDoNothing();
   }
 
@@ -394,12 +428,12 @@ async function seed() {
   console.log("[seed] 29/30 Rate Alerts...");
   for (const t of tourists.slice(0, 2)) {
     await db.insert(schema.rateAlerts).values({
-      userId: t.id,
-      fromCurrency: "USD",
-      toCurrency: "NGN",
+      userId: String(t.id),
+      baseCurrency: "USD",
+      targetCurrency: "NGN",
       targetRate: "1600.00",
-      direction: "above",
-      active: true,
+      condition: "above",
+      status: "active",
     }).onConflictDoNothing();
   }
 
