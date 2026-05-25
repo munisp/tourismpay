@@ -28,6 +28,7 @@ import {
   type InsertUserNotification,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { onFraudAlertCreated, onBisInvestigationUpdated } from "./middleware/lakehouseBridge";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _client: ReturnType<typeof postgres> | null = null;
@@ -262,6 +263,14 @@ export async function createBisInvestigation(data: Omit<InsertBisInvestigation, 
     .insert(bisInvestigations)
     .values({ ...data, referenceId: generateBisRef() })
     .returning();
+  onBisInvestigationUpdated({
+    reference_id: result[0].referenceId,
+    subject_type: result[0].subjectType,
+    country: result[0].subjectCountry ?? undefined,
+    risk_level: result[0].riskLevel ?? undefined,
+    risk_score: result[0].riskScore ?? undefined,
+    status: result[0].status,
+  });
   return result[0];
 }
 
@@ -335,6 +344,15 @@ export async function createFraudAlert(data: InsertFraudAlert) {
   if (!db) throw new Error("Database not available");
   const alertData = { ...data, alertId: data.alertId || generateAlertId("FRD") };
   const result = await db.insert(fraudAlerts).values(alertData).returning();
+  onFraudAlertCreated({
+    alert_id: result[0].alertId,
+    transaction_id: result[0].transactionId ?? undefined,
+    severity: result[0].severity,
+    amount: result[0].amount ? Number(result[0].amount) : 0,
+    country: result[0].country ?? undefined,
+    gnn_score: result[0].gnnScore ? Number(result[0].gnnScore) : 0,
+    rule_triggered: result[0].ruleTriggered ?? undefined,
+  });
   return result[0];
 }
 

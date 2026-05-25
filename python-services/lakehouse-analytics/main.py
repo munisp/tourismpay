@@ -1,475 +1,657 @@
 """TourismPay Lakehouse Analytics Service (Python)
 
-Data lakehouse analytics engine providing materialized views, ETL pipelines,
-and OLAP queries for the TourismPay platform. Processes streaming data from
-Fluvio and batch data from PostgreSQL.
+Data lakehouse analytics engine backed by the ML feature store (Parquet/Delta Lake).
+Provides:
+  - Table browsing and schema introspection
+  - SQL-like query execution over Parquet files via PyArrow/DuckDB
+  - Materialized view computation and caching
+  - Streaming data ingest from Fluvio/Kafka
+  - ETL pipeline management
+  - Integration with ML feature store for training data
+
+Port: 8121 (configurable via PORT env var)
 """
 
-import os
 import json
+import os
+import sys
 import time
 import uuid
-import statistics
+import threading
+import traceback
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-import threading
 
+import numpy as np
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 # ─── Configuration ───────────────────────────────────────────────────────────
 
 PORT = int(os.getenv("PORT", "8121"))
+LAKEHOUSE_DATA_DIR = os.getenv("LAKEHOUSE_DATA_DIR", "./lakehouse_data")
+FEATURE_STORE_DIR = os.path.join(LAKEHOUSE_DATA_DIR, "feature_store")
+INGEST_BUFFER_DIR = os.path.join(LAKEHOUSE_DATA_DIR, "ingest_buffer")
+ML_MODEL_DIR = os.getenv("ML_MODEL_DIR", "./ml/saved_models")
 
-# ─── Data Models ─────────────────────────────────────────────────────────────
-
-tables: dict[str, dict] = {}
-materialized_views: dict[str, dict] = {}
-etl_pipelines: dict[str, dict] = {}
-query_history: list[dict] = []
-stats = {
-    "totalTables": 0,
-    "totalRows": 0,
-    "totalViews": 0,
-    "totalQueries": 0,
-    "totalPipelines": 0,
-    "storageBytes": 0,
-    "avgQueryTimeMs": 0.0,
-}
-lock = threading.Lock()
+# Ensure directories exist
+for d in [LAKEHOUSE_DATA_DIR, FEATURE_STORE_DIR, INGEST_BUFFER_DIR]:
+    os.makedirs(d, exist_ok=True)
 
 
-def init_lakehouse():
-    """Initialize the lakehouse with tables, views, and pipelines."""
+# ─── DuckDB-like Query Engine (PyArrow-based) ───────────────────────────────
 
-    # ─── Tables (Delta Lake format simulation) ───────────────────────────
-    tables["fact_transactions"] = {
-        "schema": {
-            "columns": [
-                {"name": "transaction_id", "type": "string", "nullable": False},
-                {"name": "amount", "type": "decimal(18,2)", "nullable": False},
-                {"name": "currency", "type": "string", "nullable": False},
-                {"name": "merchant_id", "type": "string", "nullable": False},
-                {"name": "tourist_id", "type": "string", "nullable": True},
-                {"name": "payment_method", "type": "string", "nullable": False},
-                {"name": "status", "type": "string", "nullable": False},
-                {"name": "country", "type": "string", "nullable": False},
-                {"name": "created_at", "type": "timestamp", "nullable": False},
-                {"name": "settled_at", "type": "timestamp", "nullable": True},
-                {"name": "fee_amount", "type": "decimal(18,2)", "nullable": True},
-                {"name": "exchange_rate", "type": "decimal(18,6)", "nullable": True},
-            ],
-            "partitionBy": ["country", "created_at"],
-        },
-        "rows": [
-            {"transaction_id": "tx-001", "amount": 150.00, "currency": "USD", "merchant_id": "m-001", "tourist_id": "t-001", "payment_method": "card", "status": "completed", "country": "KE", "created_at": "2026-05-01", "fee_amount": 4.50, "exchange_rate": 1.0},
-            {"transaction_id": "tx-002", "amount": 5500.00, "currency": "KES", "merchant_id": "m-002", "tourist_id": "t-002", "payment_method": "mpesa", "status": "completed", "country": "KE", "created_at": "2026-05-01", "fee_amount": 55.00, "exchange_rate": 152.30},
-            {"transaction_id": "tx-003", "amount": 320.00, "currency": "USD", "merchant_id": "m-003", "tourist_id": "t-003", "payment_method": "card", "status": "completed", "country": "TZ", "created_at": "2026-05-01", "fee_amount": 9.60, "exchange_rate": 1.0},
-            {"transaction_id": "tx-004", "amount": 75.00, "currency": "GHS", "merchant_id": "m-004", "tourist_id": "t-001", "payment_method": "wallet", "status": "completed", "country": "GH", "created_at": "2026-05-01", "fee_amount": 1.50, "exchange_rate": 15.20},
-            {"transaction_id": "tx-005", "amount": 85000.00, "currency": "NGN", "merchant_id": "m-005", "tourist_id": "t-004", "payment_method": "card", "status": "completed", "country": "NG", "created_at": "2026-05-01", "fee_amount": 2550.00, "exchange_rate": 1550.00},
-            {"transaction_id": "tx-006", "amount": 210.00, "currency": "USD", "merchant_id": "m-001", "tourist_id": "t-005", "payment_method": "card", "status": "completed", "country": "KE", "created_at": "2026-04-30", "fee_amount": 6.30, "exchange_rate": 1.0},
-            {"transaction_id": "tx-007", "amount": 180.00, "currency": "USD", "merchant_id": "m-003", "tourist_id": "t-006", "payment_method": "wallet", "status": "completed", "country": "TZ", "created_at": "2026-04-30", "fee_amount": 5.40, "exchange_rate": 1.0},
-        ],
-        "metadata": {"format": "delta", "version": 3, "numFiles": 7, "sizeBytes": 4200},
-    }
-
-    tables["dim_merchants"] = {
-        "schema": {
-            "columns": [
-                {"name": "merchant_id", "type": "string", "nullable": False},
-                {"name": "name", "type": "string", "nullable": False},
-                {"name": "category", "type": "string", "nullable": False},
-                {"name": "country", "type": "string", "nullable": False},
-                {"name": "city", "type": "string", "nullable": False},
-                {"name": "onboarded_at", "type": "date", "nullable": False},
-                {"name": "status", "type": "string", "nullable": False},
-                {"name": "tier", "type": "string", "nullable": False},
-            ],
-        },
-        "rows": [
-            {"merchant_id": "m-001", "name": "Safari Lodge Nairobi", "category": "accommodation", "country": "KE", "city": "Nairobi", "onboarded_at": "2025-06-15", "status": "active", "tier": "gold"},
-            {"merchant_id": "m-002", "name": "Mama Oliech Restaurant", "category": "restaurant", "country": "KE", "city": "Nairobi", "onboarded_at": "2025-08-01", "status": "active", "tier": "silver"},
-            {"merchant_id": "m-003", "name": "Zanzibar Beach Resort", "category": "resort", "country": "TZ", "city": "Zanzibar", "onboarded_at": "2025-09-10", "status": "active", "tier": "gold"},
-            {"merchant_id": "m-004", "name": "Accra Art Gallery", "category": "retail", "country": "GH", "city": "Accra", "onboarded_at": "2025-10-20", "status": "active", "tier": "bronze"},
-            {"merchant_id": "m-005", "name": "Lagos Tour Operators", "category": "tours", "country": "NG", "city": "Lagos", "onboarded_at": "2025-11-05", "status": "active", "tier": "silver"},
-        ],
-        "metadata": {"format": "delta", "version": 1, "numFiles": 5, "sizeBytes": 1800},
-    }
-
-    tables["dim_countries"] = {
-        "schema": {
-            "columns": [
-                {"name": "code", "type": "string", "nullable": False},
-                {"name": "name", "type": "string", "nullable": False},
-                {"name": "currency", "type": "string", "nullable": False},
-                {"name": "region", "type": "string", "nullable": False},
-            ],
-        },
-        "rows": [
-            {"code": "KE", "name": "Kenya", "currency": "KES", "region": "East Africa"},
-            {"code": "TZ", "name": "Tanzania", "currency": "TZS", "region": "East Africa"},
-            {"code": "UG", "name": "Uganda", "currency": "UGX", "region": "East Africa"},
-            {"code": "GH", "name": "Ghana", "currency": "GHS", "region": "West Africa"},
-            {"code": "NG", "name": "Nigeria", "currency": "NGN", "region": "West Africa"},
-            {"code": "ZA", "name": "South Africa", "currency": "ZAR", "region": "Southern Africa"},
-            {"code": "RW", "name": "Rwanda", "currency": "RWF", "region": "East Africa"},
-            {"code": "ET", "name": "Ethiopia", "currency": "ETB", "region": "East Africa"},
-        ],
-        "metadata": {"format": "delta", "version": 1, "numFiles": 1, "sizeBytes": 600},
-    }
-
-    # ─── Materialized Views ──────────────────────────────────────────────
-    materialized_views["mv_daily_revenue"] = {
-        "query": "SELECT country, currency, DATE(created_at) as date, SUM(amount) as total, COUNT(*) as txn_count FROM fact_transactions GROUP BY country, currency, date",
-        "refresh_interval": "15min",
-        "last_refreshed": datetime.utcnow().isoformat() + "Z",
-        "data": [
-            {"country": "KE", "currency": "USD", "date": "2026-05-01", "total": 150.00, "txn_count": 1},
-            {"country": "KE", "currency": "KES", "date": "2026-05-01", "total": 5500.00, "txn_count": 1},
-            {"country": "TZ", "currency": "USD", "date": "2026-05-01", "total": 320.00, "txn_count": 1},
-            {"country": "GH", "currency": "GHS", "date": "2026-05-01", "total": 75.00, "txn_count": 1},
-            {"country": "NG", "currency": "NGN", "date": "2026-05-01", "total": 85000.00, "txn_count": 1},
-            {"country": "KE", "currency": "USD", "date": "2026-04-30", "total": 210.00, "txn_count": 1},
-            {"country": "TZ", "currency": "USD", "date": "2026-04-30", "total": 180.00, "txn_count": 1},
-        ],
-    }
-
-    materialized_views["mv_merchant_performance"] = {
-        "query": "SELECT m.merchant_id, m.name, m.category, m.country, COUNT(t.transaction_id) as txn_count, SUM(t.amount) as total_revenue, AVG(t.amount) as avg_txn FROM fact_transactions t JOIN dim_merchants m ON t.merchant_id = m.merchant_id GROUP BY m.merchant_id",
-        "refresh_interval": "1h",
-        "last_refreshed": datetime.utcnow().isoformat() + "Z",
-        "data": [
-            {"merchant_id": "m-001", "name": "Safari Lodge Nairobi", "category": "accommodation", "country": "KE", "txn_count": 2, "total_revenue": 360.00, "avg_txn": 180.00},
-            {"merchant_id": "m-002", "name": "Mama Oliech Restaurant", "category": "restaurant", "country": "KE", "txn_count": 1, "total_revenue": 5500.00, "avg_txn": 5500.00},
-            {"merchant_id": "m-003", "name": "Zanzibar Beach Resort", "category": "resort", "country": "TZ", "txn_count": 2, "total_revenue": 500.00, "avg_txn": 250.00},
-            {"merchant_id": "m-004", "name": "Accra Art Gallery", "category": "retail", "country": "GH", "txn_count": 1, "total_revenue": 75.00, "avg_txn": 75.00},
-            {"merchant_id": "m-005", "name": "Lagos Tour Operators", "category": "tours", "country": "NG", "txn_count": 1, "total_revenue": 85000.00, "avg_txn": 85000.00},
-        ],
-    }
-
-    materialized_views["mv_country_analytics"] = {
-        "query": "SELECT c.code, c.name, c.region, COUNT(t.transaction_id) as txn_count, COUNT(DISTINCT t.merchant_id) as merchant_count, SUM(t.fee_amount) as total_fees FROM fact_transactions t JOIN dim_countries c ON t.country = c.code GROUP BY c.code",
-        "refresh_interval": "30min",
-        "last_refreshed": datetime.utcnow().isoformat() + "Z",
-        "data": [
-            {"code": "KE", "name": "Kenya", "region": "East Africa", "txn_count": 3, "merchant_count": 2, "total_fees": 65.80},
-            {"code": "TZ", "name": "Tanzania", "region": "East Africa", "txn_count": 2, "merchant_count": 1, "total_fees": 15.00},
-            {"code": "GH", "name": "Ghana", "region": "West Africa", "txn_count": 1, "merchant_count": 1, "total_fees": 1.50},
-            {"code": "NG", "name": "Nigeria", "region": "West Africa", "txn_count": 1, "merchant_count": 1, "total_fees": 2550.00},
-        ],
-    }
-
-    materialized_views["mv_payment_method_breakdown"] = {
-        "query": "SELECT payment_method, COUNT(*) as count, SUM(amount) as total, AVG(amount) as avg_amount FROM fact_transactions GROUP BY payment_method",
-        "refresh_interval": "15min",
-        "last_refreshed": datetime.utcnow().isoformat() + "Z",
-        "data": [
-            {"payment_method": "card", "count": 4, "total": 85555.00, "avg_amount": 21388.75},
-            {"payment_method": "mpesa", "count": 1, "total": 5500.00, "avg_amount": 5500.00},
-            {"payment_method": "wallet", "count": 2, "total": 255.00, "avg_amount": 127.50},
-        ],
-    }
-
-    materialized_views["mv_fee_analysis"] = {
-        "query": "SELECT country, payment_method, SUM(fee_amount) as total_fees, AVG(fee_amount/amount * 100) as avg_fee_pct FROM fact_transactions GROUP BY country, payment_method",
-        "refresh_interval": "1h",
-        "last_refreshed": datetime.utcnow().isoformat() + "Z",
-        "data": [
-            {"country": "KE", "payment_method": "card", "total_fees": 10.80, "avg_fee_pct": 3.0},
-            {"country": "KE", "payment_method": "mpesa", "total_fees": 55.00, "avg_fee_pct": 1.0},
-            {"country": "TZ", "payment_method": "card", "total_fees": 9.60, "avg_fee_pct": 3.0},
-            {"country": "TZ", "payment_method": "wallet", "total_fees": 5.40, "avg_fee_pct": 3.0},
-            {"country": "GH", "payment_method": "wallet", "total_fees": 1.50, "avg_fee_pct": 2.0},
-            {"country": "NG", "payment_method": "card", "total_fees": 2550.00, "avg_fee_pct": 3.0},
-        ],
-    }
-
-    # ─── ETL Pipelines ───────────────────────────────────────────────────
-    etl_pipelines["postgres-to-lakehouse"] = {
-        "source": "postgresql://ndsep_user@localhost:5432/ndsep_db",
-        "target": "fact_transactions",
-        "schedule": "*/15 * * * *",
-        "status": "active",
-        "lastRun": datetime.utcnow().isoformat() + "Z",
-        "rowsProcessed": 7,
-        "avgDurationMs": 1200,
-    }
-
-    etl_pipelines["fluvio-stream-ingest"] = {
-        "source": "fluvio://transactions",
-        "target": "fact_transactions",
-        "schedule": "continuous",
-        "status": "active",
-        "lastRun": datetime.utcnow().isoformat() + "Z",
-        "rowsProcessed": 0,
-        "avgDurationMs": 50,
-    }
-
-    etl_pipelines["merchant-dimension-sync"] = {
-        "source": "postgresql://ndsep_user@localhost:5432/ndsep_db",
-        "target": "dim_merchants",
-        "schedule": "0 */6 * * *",
-        "status": "active",
-        "lastRun": datetime.utcnow().isoformat() + "Z",
-        "rowsProcessed": 5,
-        "avgDurationMs": 800,
-    }
-
-    stats["totalTables"] = len(tables)
-    stats["totalRows"] = sum(len(t["rows"]) for t in tables.values())
-    stats["totalViews"] = len(materialized_views)
-    stats["totalPipelines"] = len(etl_pipelines)
-    stats["storageBytes"] = sum(t["metadata"]["sizeBytes"] for t in tables.values())
+_HAS_DUCKDB = False
+try:
+    import duckdb
+    _HAS_DUCKDB = True
+except ImportError:
+    pass
 
 
-# ─── Query Engine ────────────────────────────────────────────────────────────
+class LakehouseEngine:
+    """
+    Parquet-backed analytics engine.
+    Uses DuckDB for SQL if available, falls back to pandas operations.
+    """
 
-def execute_query(query_str: str) -> dict:
-    """Simple SQL-like query execution on lakehouse tables."""
-    start = time.time()
-    query_lower = query_str.strip().lower()
+    def __init__(self, data_dir: str):
+        self.data_dir = Path(data_dir)
+        self.cache: dict[str, dict] = {}
+        self.ingest_buffer: list[dict] = []
+        self.lock = threading.Lock()
+        self.query_history: list[dict] = []
+        self.stats = {
+            "totalQueries": 0,
+            "avgQueryTimeMs": 0.0,
+            "totalIngestRecords": 0,
+        }
+        self._materialized_views: dict[str, dict] = {}
+        self._etl_pipelines: dict[str, dict] = {}
 
-    # Parse simple SELECT queries
-    if query_lower.startswith("select"):
-        # Try to extract table name
+        if _HAS_DUCKDB:
+            self.conn = duckdb.connect(":memory:")
+        else:
+            self.conn = None
+
+        self._register_tables()
+        self._setup_materialized_views()
+        self._setup_etl_pipelines()
+
+    def _register_tables(self) -> None:
+        """Scan feature store directory and register Parquet tables."""
+        feature_store = self.data_dir / "feature_store"
+        if not feature_store.exists():
+            return
+
+        for table_dir in feature_store.iterdir():
+            if not table_dir.is_dir():
+                continue
+            parquet_files = list(table_dir.rglob("*.parquet"))
+            if not parquet_files:
+                continue
+
+            table_name = table_dir.name
+            try:
+                df = pd.concat([pd.read_parquet(f) for f in parquet_files], ignore_index=True)
+                self.cache[table_name] = {
+                    "df": df,
+                    "path": str(table_dir),
+                    "files": len(parquet_files),
+                    "loaded_at": datetime.utcnow().isoformat(),
+                }
+
+                if self.conn:
+                    self.conn.register(table_name, df)
+
+            except Exception as e:
+                print(f"Warning: Failed to load table {table_name}: {e}")
+
+        # Also scan training data
+        training_dir = self.data_dir / "training_data"
+        if training_dir.exists():
+            for model_dir in training_dir.iterdir():
+                if not model_dir.is_dir():
+                    continue
+                parquet_files = list(model_dir.rglob("*.parquet"))
+                if not parquet_files:
+                    continue
+                table_name = f"training_{model_dir.name}"
+                try:
+                    df = pd.concat([pd.read_parquet(f) for f in parquet_files], ignore_index=True)
+                    self.cache[table_name] = {
+                        "df": df,
+                        "path": str(model_dir),
+                        "files": len(parquet_files),
+                        "loaded_at": datetime.utcnow().isoformat(),
+                    }
+                    if self.conn:
+                        self.conn.register(table_name, df)
+                except Exception:
+                    pass
+
+    def _setup_materialized_views(self) -> None:
+        """Set up materialized views computed from real data."""
+        self._materialized_views = {}
+
+        # MV: Daily revenue by country
+        if "fraud_transactions" in self.cache:
+            df = self.cache["fraud_transactions"]["df"]
+            if "country" in df.columns and "amount" in df.columns:
+                try:
+                    if "created_at" in df.columns:
+                        df["_date"] = pd.to_datetime(df["created_at"], errors="coerce").dt.date
+                    else:
+                        df["_date"] = datetime.utcnow().date()
+
+                    mv = df.groupby(["country", "_date"]).agg(
+                        total=("amount", "sum"),
+                        txn_count=("amount", "count"),
+                    ).reset_index()
+                    mv.columns = ["country", "date", "total", "txn_count"]
+
+                    self._materialized_views["mv_daily_revenue"] = {
+                        "query": "SELECT country, date, SUM(amount), COUNT(*) FROM fraud_transactions GROUP BY country, date",
+                        "refresh_interval": "15min",
+                        "last_refreshed": datetime.utcnow().isoformat() + "Z",
+                        "data": mv.to_dict("records"),
+                        "rows": len(mv),
+                    }
+                except Exception:
+                    pass
+
+        # MV: Risk distribution from BIS entities
+        if "bis_entities" in self.cache:
+            df = self.cache["bis_entities"]["df"]
+            if "risk_label" in df.columns:
+                risk_dist = df["risk_label"].value_counts().to_dict()
+                labels = {0: "low", 1: "medium", 2: "high", 3: "critical"}
+                self._materialized_views["mv_risk_distribution"] = {
+                    "query": "SELECT risk_label, COUNT(*) FROM bis_entities GROUP BY risk_label",
+                    "refresh_interval": "1h",
+                    "last_refreshed": datetime.utcnow().isoformat() + "Z",
+                    "data": [{"risk_label": labels.get(k, str(k)), "count": int(v)} for k, v in risk_dist.items()],
+                    "rows": len(risk_dist),
+                }
+
+        # MV: FX rate summary by corridor
+        if "fx_rates" in self.cache:
+            df = self.cache["fx_rates"]["df"]
+            if "corridor" in df.columns and "rate" in df.columns:
+                fx_summary = df.groupby("corridor").agg(
+                    latest_rate=("rate", "last"),
+                    min_rate=("rate", "min"),
+                    max_rate=("rate", "max"),
+                    avg_rate=("rate", "mean"),
+                    observations=("rate", "count"),
+                ).reset_index()
+                self._materialized_views["mv_fx_summary"] = {
+                    "query": "SELECT corridor, LAST(rate), MIN(rate), MAX(rate), AVG(rate) FROM fx_rates GROUP BY corridor",
+                    "refresh_interval": "10min",
+                    "last_refreshed": datetime.utcnow().isoformat() + "Z",
+                    "data": fx_summary.to_dict("records"),
+                    "rows": len(fx_summary),
+                }
+
+        # MV: Graph fraud summary
+        if "graph_nodes" in self.cache:
+            df = self.cache["graph_nodes"]["df"]
+            if "is_fraud" in df.columns:
+                summary = {
+                    "total_nodes": len(df),
+                    "fraud_nodes": int(df["is_fraud"].sum()),
+                    "fraud_rate": round(float(df["is_fraud"].mean()), 4),
+                    "avg_in_degree": round(float(df.get("in_degree", pd.Series([0])).mean()), 2),
+                    "avg_out_degree": round(float(df.get("out_degree", pd.Series([0])).mean()), 2),
+                }
+                self._materialized_views["mv_graph_fraud_summary"] = {
+                    "query": "SELECT COUNT(*), SUM(is_fraud), AVG(in_degree), AVG(out_degree) FROM graph_nodes",
+                    "refresh_interval": "1h",
+                    "last_refreshed": datetime.utcnow().isoformat() + "Z",
+                    "data": [summary],
+                    "rows": 1,
+                }
+
+    def _setup_etl_pipelines(self) -> None:
+        self._etl_pipelines = {
+            "postgres-to-lakehouse": {
+                "source": "postgresql://ndsep_user@localhost:5432/ndsep_db",
+                "target": "fraud_transactions",
+                "schedule": "*/15 * * * *",
+                "status": "active",
+                "lastRun": datetime.utcnow().isoformat() + "Z",
+                "rowsProcessed": sum(c["df"].shape[0] for c in self.cache.values() if "df" in c),
+                "avgDurationMs": 1200,
+            },
+            "fluvio-stream-ingest": {
+                "source": "fluvio://tourismpay.transactions",
+                "target": "fraud_transactions",
+                "schedule": "continuous",
+                "status": "active",
+                "lastRun": datetime.utcnow().isoformat() + "Z",
+                "rowsProcessed": self.stats["totalIngestRecords"],
+                "avgDurationMs": 50,
+            },
+            "feature-materialization": {
+                "source": "lakehouse://feature_store/*",
+                "target": "materialized_views",
+                "schedule": "*/30 * * * *",
+                "status": "active",
+                "lastRun": datetime.utcnow().isoformat() + "Z",
+                "rowsProcessed": sum(mv.get("rows", 0) for mv in self._materialized_views.values()),
+                "avgDurationMs": 500,
+            },
+        }
+
+    def execute_query(self, query_str: str) -> dict:
+        """Execute SQL query using DuckDB or fall back to pandas."""
+        start = time.time()
+
+        try:
+            if self.conn and _HAS_DUCKDB:
+                result = self.conn.execute(query_str)
+                columns = [desc[0] for desc in result.description]
+                rows = [dict(zip(columns, row)) for row in result.fetchall()]
+            else:
+                rows = self._pandas_query(query_str)
+                columns = list(rows[0].keys()) if rows else []
+
+            elapsed_ms = (time.time() - start) * 1000
+
+            with self.lock:
+                self.stats["totalQueries"] += 1
+                prev = self.stats["avgQueryTimeMs"]
+                n = self.stats["totalQueries"]
+                self.stats["avgQueryTimeMs"] = (prev * (n - 1) + elapsed_ms) / n
+                self.query_history.append({
+                    "query": query_str,
+                    "rowsReturned": len(rows),
+                    "durationMs": round(elapsed_ms, 2),
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                })
+                if len(self.query_history) > 100:
+                    del self.query_history[:len(self.query_history) - 100]
+
+            return {
+                "columns": columns,
+                "rows": rows,
+                "rowCount": len(rows),
+                "took": round(elapsed_ms, 2),
+                "engine": "duckdb" if self.conn else "pandas",
+            }
+        except Exception as e:
+            elapsed_ms = (time.time() - start) * 1000
+            return {
+                "error": str(e),
+                "took": round(elapsed_ms, 2),
+                "engine": "duckdb" if self.conn else "pandas",
+            }
+
+    def _pandas_query(self, query_str: str) -> list[dict]:
+        """Simple SQL-like query execution using pandas (fallback when no DuckDB)."""
+        q = query_str.strip().lower()
+
+        # Find table name
         table_name = None
-        for tname in tables:
-            if tname in query_lower:
+        for tname in self.cache:
+            if tname in q:
                 table_name = tname
                 break
 
         if not table_name:
-            return {"error": "Table not found in query"}
+            return []
 
-        rows = tables[table_name]["rows"]
+        df = self.cache[table_name]["df"].copy()
 
-        # Handle WHERE clause
-        if "where" in query_lower:
-            where_idx = query_lower.index("where")
-            where_clause = query_str[where_idx + 6:].strip()
-            # Simple equality filter: column = 'value'
-            if "=" in where_clause:
-                parts = where_clause.split("=", 1)
+        # WHERE clause
+        if "where" in q:
+            where_idx = q.index("where")
+            remainder = query_str[where_idx + 6:].strip()
+            # Handle simple equality: column = 'value'
+            if "=" in remainder and "group" not in remainder.lower().split("=")[0]:
+                parts = remainder.split("=", 1)
                 col = parts[0].strip().strip("'\"")
-                val = parts[1].strip().strip("'\"").rstrip(";")
-                rows = [r for r in rows if str(r.get(col, "")) == val]
+                val = parts[1].strip().strip("'\"").split()[0].rstrip(";")
+                if col in df.columns:
+                    df = df[df[col].astype(str) == val]
 
-        # Handle GROUP BY with aggregations
-        if "group by" in query_lower:
-            gb_idx = query_lower.index("group by")
-            gb_col = query_str[gb_idx + 9:].strip().split(",")[0].strip().rstrip(";")
-            groups: dict[str, list] = {}
-            for row in rows:
-                key = str(row.get(gb_col, "unknown"))
-                if key not in groups:
-                    groups[key] = []
-                groups[key].append(row)
+        # GROUP BY with aggregations
+        if "group by" in q:
+            gb_idx = q.index("group by")
+            gb_part = query_str[gb_idx + 9:].strip().split(";")[0].split("limit")[0].strip()
+            gb_cols = [c.strip() for c in gb_part.split(",")]
+            gb_cols = [c for c in gb_cols if c in df.columns]
+            if gb_cols:
+                numeric = df.select_dtypes(include=[np.number]).columns.tolist()
+                numeric = [c for c in numeric if c not in gb_cols]
+                agg_funcs: dict[str, list[str]] = {}
+                for c in numeric:
+                    agg_funcs[c] = []
+                    if "sum" in q:
+                        agg_funcs[c].append("sum")
+                    if "avg" in q or "mean" in q:
+                        agg_funcs[c].append("mean")
+                    if "count" in q:
+                        agg_funcs[c].append("count")
+                    if not agg_funcs[c]:
+                        agg_funcs[c] = ["sum", "count"]
 
-            result_rows = []
-            for key, group_rows in groups.items():
-                result_row = {gb_col: key, "count": len(group_rows)}
-                # Detect SUM/AVG in select
-                if "sum(" in query_lower:
-                    for col in tables[table_name]["schema"]["columns"]:
-                        if col["type"].startswith("decimal") or col["type"] == "float":
-                            result_row[f"sum_{col['name']}"] = sum(r.get(col["name"], 0) for r in group_rows if isinstance(r.get(col["name"]), (int, float)))
-                if "avg(" in query_lower:
-                    for col in tables[table_name]["schema"]["columns"]:
-                        if col["type"].startswith("decimal") or col["type"] == "float":
-                            vals = [r[col["name"]] for r in group_rows if col["name"] in r and isinstance(r[col["name"]], (int, float))]
-                            result_row[f"avg_{col['name']}"] = statistics.mean(vals) if vals else 0
-                result_rows.append(result_row)
-            rows = result_rows
+                result = df.groupby(gb_cols).agg(agg_funcs).reset_index()
+                result.columns = [f"{a}_{b}" if b else a for a, b in result.columns]
+                return result.head(100).to_dict("records")
 
-        # Handle LIMIT
+        # LIMIT
         limit = 100
-        if "limit" in query_lower:
-            limit_idx = query_lower.index("limit")
+        if "limit" in q:
             try:
+                limit_idx = q.index("limit")
                 limit = int(query_str[limit_idx + 6:].strip().split()[0].rstrip(";"))
             except (ValueError, IndexError):
                 pass
-        rows = rows[:limit]
 
-        elapsed_ms = (time.time() - start) * 1000
+        return df.head(limit).to_dict("records")
 
-        with lock:
-            stats["totalQueries"] += 1
-            stats["avgQueryTimeMs"] = (
-                (stats["avgQueryTimeMs"] * (stats["totalQueries"] - 1) + elapsed_ms)
-                / stats["totalQueries"]
-            )
-            query_history.append({
-                "query": query_str,
-                "table": table_name,
-                "rowsReturned": len(rows),
-                "durationMs": round(elapsed_ms, 2),
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-            })
-            if len(query_history) > 100:
-                del query_history[:len(query_history) - 100]
+    def ingest_records(self, records: list[dict]) -> dict:
+        """Ingest streaming records from Fluvio/Kafka."""
+        ingested = 0
+        by_topic: dict[str, list] = {}
 
-        return {
-            "columns": list(rows[0].keys()) if rows else [],
-            "rows": rows,
-            "rowCount": len(rows),
-            "took": round(elapsed_ms, 2),
+        for record in records:
+            topic = record.get("topic", "unknown")
+            value = record.get("value", record)
+            if topic not in by_topic:
+                by_topic[topic] = []
+            by_topic[topic].append(value)
+            ingested += 1
+
+        # Write to ingest buffer as Parquet
+        for topic, values in by_topic.items():
+            try:
+                df = pd.DataFrame(values)
+                safe_topic = topic.replace(".", "_").replace("/", "_")
+                buf_dir = os.path.join(INGEST_BUFFER_DIR, safe_topic)
+                os.makedirs(buf_dir, exist_ok=True)
+                ts = int(time.time() * 1000)
+                df.to_parquet(os.path.join(buf_dir, f"batch-{ts}.parquet"), index=False)
+            except Exception as e:
+                print(f"Ingest error for topic {topic}: {e}")
+
+        with self.lock:
+            self.stats["totalIngestRecords"] += ingested
+
+        return {"ingested": ingested, "topics": list(by_topic.keys())}
+
+    def refresh_table(self, table_name: str) -> dict:
+        """Reload a table from disk."""
+        table_dir = self.data_dir / "feature_store" / table_name
+        if not table_dir.exists():
+            return {"error": f"Table {table_name} not found"}
+
+        parquet_files = list(table_dir.rglob("*.parquet"))
+        if not parquet_files:
+            return {"error": f"No parquet files in {table_name}"}
+
+        df = pd.concat([pd.read_parquet(f) for f in parquet_files], ignore_index=True)
+        self.cache[table_name] = {
+            "df": df,
+            "path": str(table_dir),
+            "files": len(parquet_files),
+            "loaded_at": datetime.utcnow().isoformat(),
         }
-    else:
-        return {"error": "Only SELECT queries are supported"}
+        if self.conn:
+            self.conn.unregister(table_name)
+            self.conn.register(table_name, df)
+
+        self._setup_materialized_views()
+        return {"table": table_name, "rows": len(df), "files": len(parquet_files)}
+
+    def get_table_info(self, table_name: str) -> dict | None:
+        if table_name not in self.cache:
+            return None
+        entry = self.cache[table_name]
+        df = entry["df"]
+        return {
+            "name": table_name,
+            "rowCount": len(df),
+            "columns": [{"name": c, "dtype": str(df[c].dtype)} for c in df.columns],
+            "sizeBytes": df.memory_usage(deep=True).sum(),
+            "files": entry.get("files", 0),
+            "loadedAt": entry.get("loaded_at"),
+            "path": entry.get("path"),
+        }
+
+    def get_all_tables(self) -> list[dict]:
+        result = []
+        for name in sorted(self.cache.keys()):
+            info = self.get_table_info(name)
+            if info:
+                result.append(info)
+        return result
+
+    def get_stats(self) -> dict:
+        total_rows = sum(c["df"].shape[0] for c in self.cache.values())
+        total_bytes = sum(c["df"].memory_usage(deep=True).sum() for c in self.cache.values())
+        return {
+            "totalTables": len(self.cache),
+            "totalRows": total_rows,
+            "totalViews": len(self._materialized_views),
+            "totalPipelines": len(self._etl_pipelines),
+            "storageBytes": int(total_bytes),
+            "storageMB": round(total_bytes / 1e6, 2),
+            "totalQueries": self.stats["totalQueries"],
+            "avgQueryTimeMs": round(self.stats["avgQueryTimeMs"], 2),
+            "totalIngestRecords": self.stats["totalIngestRecords"],
+            "engine": "duckdb" if _HAS_DUCKDB else "pandas",
+        }
+
+
+# ─── Global Engine Instance ─────────────────────────────────────────────────
+
+engine = LakehouseEngine(LAKEHOUSE_DATA_DIR)
 
 
 # ─── HTTP Handler ────────────────────────────────────────────────────────────
 
 class LakehouseHandler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass  # Suppress default logging
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        params = parse_qs(parsed.query)
 
         if path == "/health":
-            self._json_response(200, {
+            self._json(200, {
                 "status": "healthy",
                 "service": "TourismPay Lakehouse Analytics (Python)",
-                "version": "1.0.0",
-                "tables": len(tables),
-                "views": len(materialized_views),
-                "pipelines": len(etl_pipelines),
+                "version": "2.0.0",
+                "tables": len(engine.cache),
+                "views": len(engine._materialized_views),
+                "pipelines": len(engine._etl_pipelines),
+                "engine": "duckdb" if _HAS_DUCKDB else "pyarrow+pandas",
+                "dataDir": LAKEHOUSE_DATA_DIR,
                 "timestamp": datetime.utcnow().isoformat() + "Z",
             })
+
+        elif path == "/api/v1/stats":
+            self._json(200, engine.get_stats())
+
         elif path == "/api/v1/tables":
-            result = []
-            for name, table in tables.items():
-                result.append({
-                    "name": name,
-                    "rowCount": len(table["rows"]),
-                    "schema": table["schema"],
-                    "metadata": table["metadata"],
-                })
-            self._json_response(200, {"tables": result, "total": len(result)})
-        elif path.startswith("/api/v1/tables/") and "/rows" not in path:
+            self._json(200, {"tables": engine.get_all_tables(), "total": len(engine.cache)})
+
+        elif path.startswith("/api/v1/tables/") and "/rows" not in path and "/schema" not in path:
             table_name = path.split("/")[4]
-            if table_name in tables:
-                t = tables[table_name]
-                self._json_response(200, {
-                    "name": table_name,
-                    "rowCount": len(t["rows"]),
-                    "schema": t["schema"],
-                    "metadata": t["metadata"],
-                })
+            info = engine.get_table_info(table_name)
+            if info:
+                self._json(200, info)
             else:
-                self._json_response(404, {"error": "table not found"})
+                self._json(404, {"error": f"Table '{table_name}' not found"})
+
         elif path.startswith("/api/v1/tables/") and "/rows" in path:
             table_name = path.split("/")[4]
-            params = parse_qs(parsed.query)
             limit = int(params.get("limit", ["50"])[0])
             offset = int(params.get("offset", ["0"])[0])
-            if table_name in tables:
-                rows = tables[table_name]["rows"][offset:offset + limit]
-                self._json_response(200, {"rows": rows, "total": len(tables[table_name]["rows"])})
+            filters_param = params.get("filter", [])
+
+            if table_name not in engine.cache:
+                self._json(404, {"error": "Table not found"})
+                return
+
+            df = engine.cache[table_name]["df"]
+
+            # Apply filters: filter=col:value
+            for f in filters_param:
+                if ":" in f:
+                    col, val = f.split(":", 1)
+                    if col in df.columns:
+                        df = df[df[col].astype(str) == val]
+
+            rows = df.iloc[offset:offset + limit]
+            self._json(200, {
+                "table": table_name,
+                "rows": rows.to_dict("records"),
+                "total": len(df),
+                "offset": offset,
+                "limit": limit,
+            })
+
+        elif path.startswith("/api/v1/tables/") and "/schema" in path:
+            table_name = path.split("/")[4]
+            if table_name in engine.cache:
+                df = engine.cache[table_name]["df"]
+                schema = [{"name": c, "dtype": str(df[c].dtype), "nullCount": int(df[c].isna().sum()),
+                           "uniqueCount": int(df[c].nunique())} for c in df.columns]
+                self._json(200, {"table": table_name, "schema": schema})
             else:
-                self._json_response(404, {"error": "table not found"})
+                self._json(404, {"error": "Table not found"})
+
         elif path == "/api/v1/views":
-            result = []
-            for name, view in materialized_views.items():
-                result.append({
+            views = []
+            for name, mv in engine._materialized_views.items():
+                views.append({
                     "name": name,
-                    "query": view["query"],
-                    "refreshInterval": view["refresh_interval"],
-                    "lastRefreshed": view["last_refreshed"],
-                    "rowCount": len(view["data"]),
+                    "query": mv["query"],
+                    "refreshInterval": mv["refresh_interval"],
+                    "lastRefreshed": mv["last_refreshed"],
+                    "rows": mv.get("rows", len(mv.get("data", []))),
                 })
-            self._json_response(200, {"views": result, "total": len(result)})
+            self._json(200, {"views": views, "total": len(views)})
+
         elif path.startswith("/api/v1/views/"):
             view_name = path.split("/")[4]
-            if view_name in materialized_views:
-                self._json_response(200, materialized_views[view_name])
+            if view_name in engine._materialized_views:
+                self._json(200, engine._materialized_views[view_name])
             else:
-                self._json_response(404, {"error": "view not found"})
+                self._json(404, {"error": f"View '{view_name}' not found"})
+
         elif path == "/api/v1/pipelines":
-            self._json_response(200, {"pipelines": list(etl_pipelines.values()), "total": len(etl_pipelines)})
-        elif path == "/api/v1/stats":
-            self._json_response(200, stats)
+            self._json(200, {"pipelines": list(engine._etl_pipelines.values()), "total": len(engine._etl_pipelines)})
+
         elif path == "/api/v1/query-history":
-            self._json_response(200, {"queries": query_history, "total": len(query_history)})
+            self._json(200, {"history": engine.query_history[-20:], "total": len(engine.query_history)})
+
+        elif path == "/api/v1/lineage":
+            domain = params.get("domain", [""])[0]
+            lineage_dir = Path(LAKEHOUSE_DATA_DIR) / "lineage"
+            if domain:
+                lineage_file = lineage_dir / f"{domain}.jsonl"
+                if lineage_file.exists():
+                    lines = lineage_file.read_text().strip().split("\n")
+                    entries = [json.loads(l) for l in lines[-20:]]
+                    self._json(200, {"domain": domain, "lineage": entries})
+                else:
+                    self._json(200, {"domain": domain, "lineage": []})
+            else:
+                lineage_files = list(lineage_dir.glob("*.jsonl")) if lineage_dir.exists() else []
+                self._json(200, {"domains": [f.stem for f in lineage_files]})
+
         else:
-            self._json_response(404, {"error": "not found"})
+            self._json(404, {"error": "Not found", "path": path})
 
     def do_POST(self):
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = json.loads(self.rfile.read(content_length)) if content_length > 0 else {}
-
         parsed = urlparse(self.path)
         path = parsed.path
+        body = self._read_body()
 
         if path == "/api/v1/query":
-            query_str = body.get("query", "")
+            query_str = body.get("query") or body.get("sql", "")
             if not query_str:
-                self._json_response(400, {"error": "query is required"})
+                self._json(400, {"error": "Missing 'query' field"})
                 return
-            result = execute_query(query_str)
-            self._json_response(200, result)
+            result = engine.execute_query(query_str)
+            self._json(200, result)
 
         elif path == "/api/v1/ingest":
-            table_name = body.get("table", "")
-            rows = body.get("rows", [])
-            if table_name not in tables:
-                self._json_response(404, {"error": f"table '{table_name}' not found"})
+            records = body.get("records", [])
+            if not records:
+                self._json(400, {"error": "Missing 'records' field"})
                 return
-            with lock:
-                tables[table_name]["rows"].extend(rows)
-                stats["totalRows"] += len(rows)
-            self._json_response(201, {"ingested": len(rows), "table": table_name})
+            result = engine.ingest_records(records)
+            self._json(200, result)
+
+        elif path.startswith("/api/v1/tables/") and "/refresh" in path:
+            table_name = path.split("/")[4]
+            result = engine.refresh_table(table_name)
+            self._json(200, result)
 
         elif path == "/api/v1/views/refresh":
-            view_name = body.get("view", "")
-            if view_name not in materialized_views:
-                self._json_response(404, {"error": "view not found"})
-                return
-            with lock:
-                materialized_views[view_name]["last_refreshed"] = datetime.utcnow().isoformat() + "Z"
-            self._json_response(200, {"status": "refreshed", "view": view_name})
-
-        elif path == "/api/v1/pipelines/trigger":
-            pipeline_name = body.get("pipeline", "")
-            if pipeline_name not in etl_pipelines:
-                self._json_response(404, {"error": "pipeline not found"})
-                return
-            with lock:
-                etl_pipelines[pipeline_name]["lastRun"] = datetime.utcnow().isoformat() + "Z"
-            self._json_response(200, {"status": "triggered", "pipeline": pipeline_name})
+            engine._setup_materialized_views()
+            self._json(200, {"refreshed": len(engine._materialized_views), "views": list(engine._materialized_views.keys())})
 
         else:
-            self._json_response(404, {"error": "not found"})
+            self._json(404, {"error": "Not found", "path": path})
+
+    def _read_body(self) -> dict:
+        content_length = int(self.headers.get("Content-Length", 0))
+        if content_length == 0:
+            return {}
+        try:
+            raw = self.rfile.read(content_length)
+            return json.loads(raw)
+        except Exception:
+            return {}
+
+    def _json(self, status: int, data: Any) -> None:
+        payload = json.dumps(data, default=str).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(payload)
 
     def do_OPTIONS(self):
         self.send_response(200)
-        self._set_cors_headers()
-        self.end_headers()
-
-    def _json_response(self, status: int, data: Any):
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self._set_cors_headers()
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode())
-
-    def _set_cors_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-Id")
-
-    def log_message(self, format, *args):
-        pass
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
 
 # ─── Main ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    init_lakehouse()
+    print(f"TourismPay Lakehouse Analytics Service v2.0.0")
+    print(f"  Data dir: {LAKEHOUSE_DATA_DIR}")
+    print(f"  Tables loaded: {len(engine.cache)}")
+    for name in sorted(engine.cache.keys()):
+        info = engine.get_table_info(name)
+        if info:
+            print(f"    {name}: {info['rowCount']} rows, {info['files']} files")
+    print(f"  Materialized views: {len(engine._materialized_views)}")
+    print(f"  Engine: {'duckdb' if _HAS_DUCKDB else 'pyarrow+pandas'}")
+    print(f"  Port: {PORT}")
+    print()
+
     server = HTTPServer(("0.0.0.0", PORT), LakehouseHandler)
-    print(f"[Lakehouse Analytics] Starting on port {PORT}")
-    print(f"[Lakehouse Analytics] {len(tables)} tables, {len(materialized_views)} views, {len(etl_pipelines)} pipelines")
     try:
+        print(f"Lakehouse Analytics listening on http://0.0.0.0:{PORT}")
         server.serve_forever()
     except KeyboardInterrupt:
-        server.shutdown()
+        print("\nShutting down...")
+        server.server_close()

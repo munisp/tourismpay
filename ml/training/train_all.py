@@ -238,6 +238,22 @@ def main():
     start = time.time()
     results = []
 
+    # Initialize lakehouse feature store
+    lakehouse_dir = output_dir.parent / "lakehouse_data"
+    try:
+        from ml.lakehouse.feature_store import (
+            FeatureStore,
+            materialize_fraud_features,
+            materialize_bis_features,
+            materialize_fx_features,
+            materialize_graph_features,
+        )
+        feature_store = FeatureStore(str(lakehouse_dir))
+        logger.info(f"Lakehouse feature store initialized at {lakehouse_dir}")
+    except Exception as e:
+        feature_store = None
+        logger.warning(f"Lakehouse not available, skipping feature materialization: {e}")
+
     # 1. Fraud XGBoost
     try:
         r = train_fraud_xgb(output_dir)
@@ -275,6 +291,42 @@ def main():
     except Exception as e:
         logger.error(f"BIS LightGBM training failed: {e}")
         results.append({"model": "bis_risk_lgbm", "error": str(e)})
+
+    # ── Lakehouse Feature Materialization ──────────────────────────
+    if feature_store:
+        logger.info("=" * 60)
+        logger.info("MATERIALIZING FEATURES TO LAKEHOUSE")
+        logger.info("=" * 60)
+        try:
+            from ml.data_generators.fraud_data import generate_fraud_dataset
+            from ml.data_generators.bis_data import generate_bis_dataset
+            from ml.data_generators.fx_data import generate_fx_dataset
+
+            # Materialize fraud features
+            fraud_df = generate_fraud_dataset(n_samples=100_000, fraud_rate=0.03)
+            materialized_fraud = materialize_fraud_features(feature_store, fraud_df)
+            feature_store.write_training_data("fraud", materialized_fraud, split="train")
+            logger.info(f"  fraud_transactions: {len(materialized_fraud)} rows materialized")
+
+            # Materialize BIS features
+            bis_df = generate_bis_dataset(n_samples=20_000)
+            materialized_bis = materialize_bis_features(feature_store, bis_df)
+            feature_store.write_training_data("bis", materialized_bis, split="train")
+            logger.info(f"  bis_entities: {len(materialized_bis)} rows materialized")
+
+            # Materialize FX features
+            fx_df = generate_fx_dataset(n_hours=2160)
+            materialized_fx = materialize_fx_features(feature_store, fx_df)
+            logger.info(f"  fx_rates: {len(materialized_fx)} rows materialized")
+
+            # Materialize graph features from fraud data
+            graph_data = materialize_graph_features(feature_store, fraud_df)
+            logger.info(f"  graph: {len(graph_data.get('edges', []))} edges, {len(graph_data.get('nodes', []))} nodes")
+
+            stats = feature_store.get_stats()
+            logger.info(f"  Lakehouse stats: {stats['total_rows']} total rows across {len(stats['domains'])} domains, {stats['total_size_mb']:.1f} MB")
+        except Exception as e:
+            logger.warning(f"Feature materialization failed: {e}")
 
     elapsed = time.time() - start
     logger.info("=" * 60)

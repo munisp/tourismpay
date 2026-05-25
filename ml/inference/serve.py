@@ -358,6 +358,65 @@ async def reload_models():
     return {"reloaded": loaded, "total": len(loaded)}
 
 
+@app.get("/api/v1/ml/lakehouse/stats")
+async def lakehouse_stats():
+    """Get lakehouse feature store stats."""
+    try:
+        from ml.lakehouse.feature_store import FeatureStore
+        lakehouse_dir = os.environ.get("LAKEHOUSE_DATA_DIR", str(Path(MODEL_DIR).parent / "lakehouse_data"))
+        store = FeatureStore(lakehouse_dir)
+        stats = store.get_stats()
+        return {"status": "ok", **stats}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@app.get("/api/v1/ml/lakehouse/lineage/{domain}")
+async def lakehouse_lineage(domain: str):
+    """Get data lineage for a lakehouse domain."""
+    try:
+        from ml.lakehouse.feature_store import FeatureStore
+        lakehouse_dir = os.environ.get("LAKEHOUSE_DATA_DIR", str(Path(MODEL_DIR).parent / "lakehouse_data"))
+        store = FeatureStore(lakehouse_dir)
+        lineage = store.get_lineage(domain)
+        return {"domain": domain, "lineage": lineage}
+    except Exception as e:
+        return {"domain": domain, "error": str(e)}
+
+
+@app.post("/api/v1/ml/lakehouse/materialize")
+async def trigger_materialization():
+    """Trigger feature materialization from platform data."""
+    try:
+        from ml.lakehouse.feature_store import (
+            FeatureStore, materialize_fraud_features, materialize_bis_features, materialize_fx_features,
+        )
+        from ml.data_generators.fraud_data import generate_fraud_dataset
+        from ml.data_generators.bis_data import generate_bis_dataset
+        from ml.data_generators.fx_data import generate_fx_dataset
+
+        lakehouse_dir = os.environ.get("LAKEHOUSE_DATA_DIR", str(Path(MODEL_DIR).parent / "lakehouse_data"))
+        store = FeatureStore(lakehouse_dir)
+
+        results = {}
+        fraud_df = generate_fraud_dataset(n_samples=10_000, fraud_rate=0.03)
+        m = materialize_fraud_features(store, fraud_df)
+        results["fraud_transactions"] = len(m)
+
+        bis_df = generate_bis_dataset(n_samples=5_000)
+        m = materialize_bis_features(store, bis_df)
+        results["bis_entities"] = len(m)
+
+        fx_df = generate_fx_dataset(n_hours=168)
+        m = materialize_fx_features(store, fx_df)
+        results["fx_rates"] = len(m)
+
+        return {"status": "ok", "materialized": results, "stats": store.get_stats()}
+    except Exception as e:
+        logger.error(f"Materialization failed: {e}")
+        raise HTTPException(500, f"Materialization failed: {e}")
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("ML_INFERENCE_PORT", "8200"))

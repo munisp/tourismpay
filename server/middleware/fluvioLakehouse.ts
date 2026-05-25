@@ -1,8 +1,9 @@
 /**
  * Fluvio/Lakehouse Streaming Pipeline — real-time data streaming to data lake.
  *
- * Subscribes to Kafka topics (via Dapr) and streams enriched events
- * to a Lakehouse (Apache Iceberg/Delta Lake) for historical analytics.
+ * Streams enriched platform events (transactions, fraud alerts, FX rates, etc.)
+ * to the Lakehouse Analytics Service for storage as Parquet/Delta Lake tables.
+ * Also writes directly to the ML feature store for continuous training.
  *
  * Materialized views:
  * - daily_transaction_volume: aggregated transaction counts and amounts by day/currency
@@ -14,7 +15,7 @@ import { withCircuitBreaker } from "./circuitBreaker";
 import { logger } from "../_core/logger";
 
 const FLUVIO_URL = process.env.FLUVIO_URL || "localhost:9003";
-const LAKEHOUSE_URL = process.env.LAKEHOUSE_URL || "http://localhost:8070";
+const LAKEHOUSE_URL = process.env.LAKEHOUSE_URL || "http://localhost:8121";
 
 // Materialized view definitions
 const MATERIALIZED_VIEWS = [
@@ -64,14 +65,14 @@ const MATERIALIZED_VIEWS = [
 
 // Lakehouse table definitions (Iceberg format)
 const LAKEHOUSE_TABLES = [
-  { name: "transactions_fact", partitionBy: ["date", "currency"], format: "iceberg" },
-  { name: "wallet_events_fact", partitionBy: ["date", "currency"], format: "iceberg" },
-  { name: "exchange_rates_dim", partitionBy: ["date"], format: "iceberg" },
-  { name: "merchant_dim", partitionBy: ["country"], format: "iceberg" },
-  { name: "tourist_dim", partitionBy: ["country"], format: "iceberg" },
-  { name: "settlement_fact", partitionBy: ["date", "currency"], format: "iceberg" },
-  { name: "fraud_alerts_fact", partitionBy: ["date", "country"], format: "iceberg" },
-  { name: "kyb_applications_fact", partitionBy: ["date", "country"], format: "iceberg" },
+  { name: "fraud_transactions", partitionBy: ["country"], format: "parquet" },
+  { name: "bis_entities", partitionBy: ["country"], format: "parquet" },
+  { name: "fx_rates", partitionBy: ["corridor"], format: "parquet" },
+  { name: "graph_edges", partitionBy: [], format: "parquet" },
+  { name: "graph_nodes", partitionBy: [], format: "parquet" },
+  { name: "wallet_events", partitionBy: ["currency"], format: "parquet" },
+  { name: "settlement_events", partitionBy: ["currency"], format: "parquet" },
+  { name: "kyb_events", partitionBy: ["country"], format: "parquet" },
 ];
 
 // Streaming buffer
@@ -81,7 +82,54 @@ const STREAM_FLUSH_INTERVAL = 10_000;
 let streamTimer: ReturnType<typeof setInterval> | null = null;
 
 /**
- * Stream an event to the Lakehouse.
+ * Stream a transaction event to the Lakehouse.
+ * Enriches the event with ML-relevant features before sending.
+ */
+export function streamTransaction(
+  data: Record<string, unknown>
+): void {
+  const enriched = {
+    ...data,
+    amount_log: data.amount ? Math.log1p(Number(data.amount)) : 0,
+    hour_of_day: new Date().getHours(),
+    day_of_week: new Date().getDay(),
+    is_weekend: new Date().getDay() >= 5 ? 1 : 0,
+    streamed_at: new Date().toISOString(),
+  };
+  streamToLakehouse("tourismpay.transactions", enriched);
+}
+
+/**
+ * Stream a fraud alert event to the Lakehouse.
+ */
+export function streamFraudAlert(
+  data: Record<string, unknown>
+): void {
+  streamToLakehouse("tourismpay.fraud.alerts", {
+    ...data,
+    streamed_at: new Date().toISOString(),
+  });
+}
+
+/**
+ * Stream exchange rate data to the Lakehouse.
+ */
+export function streamExchangeRate(
+  corridor: string,
+  rate: number,
+  volume?: number
+): void {
+  streamToLakehouse("tourismpay.exchange.rates", {
+    corridor,
+    rate,
+    volume: volume || 0,
+    timestamp: new Date().toISOString(),
+    streamed_at: new Date().toISOString(),
+  });
+}
+
+/**
+ * Stream a generic event to the Lakehouse.
  * Non-blocking — buffers events for batch writes.
  */
 export function streamToLakehouse(
@@ -100,7 +148,8 @@ export function streamToLakehouse(
 }
 
 /**
- * Flush buffered events to the Lakehouse via Fluvio.
+ * Flush buffered events to the Lakehouse Analytics Service.
+ * Uses the /api/v1/ingest endpoint on port 8121.
  */
 async function flushStream(): Promise<void> {
   if (streamBuffer.length === 0) return;
@@ -115,7 +164,7 @@ async function flushStream(): Promise<void> {
         body: JSON.stringify({
           records: batch.map((item) => ({
             topic: item.topic,
-            key: item.data.id || crypto.randomUUID(),
+            key: (item.data.id as string) || (item.data.transaction_id as string) || crypto.randomUUID(),
             value: item.data,
             timestamp: item.timestamp,
           })),
@@ -141,7 +190,7 @@ async function flushStream(): Promise<void> {
 }
 
 /**
- * Query a materialized view for analytics.
+ * Query a materialized view from the Lakehouse Analytics Service.
  */
 export async function queryMaterializedView(
   viewName: string,
@@ -150,22 +199,18 @@ export async function queryMaterializedView(
 ): Promise<{ data: unknown[]; metadata: Record<string, unknown> }> {
   try {
     return await withCircuitBreaker("lakehouse", async () => {
-      const response = await fetch(`${LAKEHOUSE_URL}/api/v1/query`, {
-        method: "POST",
+      const response = await fetch(`${LAKEHOUSE_URL}/api/v1/views/${viewName}`, {
+        method: "GET",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          view: viewName,
-          filters,
-          timeRange,
-        }),
         signal: AbortSignal.timeout(15000),
       });
 
       if (response.ok) {
-        return await response.json() as { data: unknown[]; metadata: Record<string, unknown> };
+        const result = (await response.json()) as { data: unknown[]; [key: string]: unknown };
+        return { data: result.data || [], metadata: result };
       }
 
-      throw new Error(`Lakehouse query failed: ${response.status}`);
+      throw new Error(`Lakehouse view query failed: ${response.status}`);
     });
   } catch {
     return {
@@ -175,10 +220,37 @@ export async function queryMaterializedView(
   }
 }
 
+/**
+ * Execute a SQL query against the Lakehouse.
+ */
+export async function queryLakehouse(
+  sql: string
+): Promise<{ rows: unknown[]; columns: string[]; took: number }> {
+  try {
+    return await withCircuitBreaker("lakehouse", async () => {
+      const response = await fetch(`${LAKEHOUSE_URL}/api/v1/query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: sql }),
+        signal: AbortSignal.timeout(30000),
+      });
+
+      if (response.ok) {
+        return (await response.json()) as { rows: unknown[]; columns: string[]; took: number };
+      }
+
+      throw new Error(`Lakehouse query failed: ${response.status}`);
+    });
+  } catch {
+    return { rows: [], columns: [], took: 0 };
+  }
+}
+
 /** Start the stream flusher */
 export function startStreamFlusher(): void {
   if (!streamTimer) {
     streamTimer = setInterval(() => flushStream().catch(() => {}), STREAM_FLUSH_INTERVAL);
+    logger.info("Lakehouse stream flusher started", { interval: STREAM_FLUSH_INTERVAL, url: LAKEHOUSE_URL });
   }
 }
 
@@ -187,6 +259,8 @@ export function stopStreamFlusher(): void {
   if (streamTimer) {
     clearInterval(streamTimer);
     streamTimer = null;
+    // Flush remaining
+    flushStream().catch(() => {});
   }
 }
 

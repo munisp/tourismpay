@@ -11,6 +11,7 @@ import { _highValueTokens } from "./biometric";
 import { HIGH_VALUE_TX_THRESHOLD_USD } from "../../shared/const";
 import { checkAndAutoFlag } from "./bisIntegration";
 import { stripe } from "../_core/stripe";
+import { onTransactionCreated, onWalletEvent } from "../middleware/lakehouseBridge";
 
 // USD exchange rates for high-value threshold check (approximate)
 const APPROX_USD_RATES: Record<string, number> = {
@@ -290,6 +291,8 @@ export const walletRouter = router({
         completedAt: Date.now(),
         createdAt: Date.now(),
       });
+      onTransactionCreated({ transaction_id: txId, user_id: ctx.user.id, amount: input.amount, currency: input.currency, payment_method: "wallet", status: "completed" });
+      onWalletEvent({ wallet_id: bal.id, user_id: ctx.user.id, event_type: "send", amount: input.amount, currency: input.currency });
       await createAuditLog({
         actorId: ctx.user.id,
         actorName: ctx.user.name || String(ctx.user.id),

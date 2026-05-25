@@ -313,37 +313,116 @@ class ContinuousTrainingPipeline:
         return version if promoted else None
 
     def run_cycle(self) -> Dict[str, Any]:
-        """Run one continuous training cycle."""
+        """
+        Run one continuous training cycle.
+        Reads from the feature store (lakehouse), checks drift, and retrains if needed.
+        Falls back to training_data directory for legacy data layout.
+        """
+        from ml.lakehouse.feature_store import (
+            FeatureStore,
+            materialize_fraud_features,
+            materialize_bis_features,
+        )
+
         cycle_results = {"timestamp": datetime.utcnow().isoformat(), "models": {}}
 
-        # Load latest data from lakehouse
-        fraud_data_path = self.lakehouse_path / "training_data" / "fraud"
-        bis_data_path = self.lakehouse_path / "training_data" / "bis"
+        # Initialize feature store
+        feature_store = FeatureStore(str(self.lakehouse_path))
 
-        if fraud_data_path.exists():
-            parquet_files = list(fraud_data_path.glob("*.parquet"))
-            if parquet_files:
-                fraud_df = pd.concat([pd.read_parquet(f) for f in parquet_files])
-                check = self.check_should_retrain("fraud_xgb", fraud_df)
-                if check["should_retrain"]:
-                    version = self.retrain_fraud_model(fraud_df)
-                    cycle_results["models"]["fraud_xgb"] = {
-                        "retrained": True,
-                        "reasons": check["reasons"],
-                        "promoted": version is not None,
-                    }
+        # ── Fraud Model ─────────────────────────────────────────────────
+        # Try reading from feature store first (materialized features)
+        fraud_df = feature_store.read_features("fraud_transactions")
 
-        if bis_data_path.exists():
-            parquet_files = list(bis_data_path.glob("*.parquet"))
-            if parquet_files:
-                bis_df = pd.concat([pd.read_parquet(f) for f in parquet_files])
-                check = self.check_should_retrain("bis_risk_lgbm", bis_df)
-                if check["should_retrain"]:
-                    version = self.retrain_bis_model(bis_df)
-                    cycle_results["models"]["bis_risk_lgbm"] = {
-                        "retrained": True,
-                        "reasons": check["reasons"],
-                        "promoted": version is not None,
-                    }
+        if fraud_df.empty:
+            # Fall back to training data directory
+            fraud_data_path = self.lakehouse_path / "training_data" / "fraud"
+            if fraud_data_path.exists():
+                parquet_files = list(fraud_data_path.rglob("*.parquet"))
+                if parquet_files:
+                    fraud_df = pd.concat([pd.read_parquet(f) for f in parquet_files])
+
+        # Also check ingest buffer for new streaming data
+        ingest_path = self.lakehouse_path / "ingest_buffer" / "tourismpay_transactions"
+        if ingest_path.exists():
+            ingest_files = list(ingest_path.glob("*.parquet"))
+            if ingest_files:
+                ingest_df = pd.concat([pd.read_parquet(f) for f in ingest_files])
+                # Materialize features from raw ingest data
+                materialized = materialize_fraud_features(feature_store, ingest_df)
+                if fraud_df.empty:
+                    fraud_df = materialized
+                else:
+                    fraud_df = pd.concat([fraud_df, materialized], ignore_index=True)
+                # Clean up processed ingest files
+                for f in ingest_files:
+                    f.unlink()
+
+        if not fraud_df.empty:
+            check = self.check_should_retrain("fraud_xgb", fraud_df)
+            if check["should_retrain"]:
+                # Write training snapshot to lakehouse
+                feature_store.write_training_data("fraud", fraud_df, split="train")
+                version = self.retrain_fraud_model(fraud_df)
+                cycle_results["models"]["fraud_xgb"] = {
+                    "retrained": True,
+                    "reasons": check["reasons"],
+                    "promoted": version is not None,
+                    "training_rows": len(fraud_df),
+                }
+            else:
+                cycle_results["models"]["fraud_xgb"] = {
+                    "retrained": False,
+                    "reasons": ["no_drift_detected"],
+                    "data_rows": len(fraud_df),
+                }
+
+        # ── BIS Risk Model ──────────────────────────────────────────────
+        bis_df = feature_store.read_features("bis_entities")
+
+        if bis_df.empty:
+            bis_data_path = self.lakehouse_path / "training_data" / "bis"
+            if bis_data_path.exists():
+                parquet_files = list(bis_data_path.rglob("*.parquet"))
+                if parquet_files:
+                    bis_df = pd.concat([pd.read_parquet(f) for f in parquet_files])
+
+        # Check BIS ingest buffer
+        bis_ingest = self.lakehouse_path / "ingest_buffer" / "tourismpay_bis_events"
+        if bis_ingest.exists():
+            ingest_files = list(bis_ingest.glob("*.parquet"))
+            if ingest_files:
+                ingest_df = pd.concat([pd.read_parquet(f) for f in ingest_files])
+                materialized = materialize_bis_features(feature_store, ingest_df)
+                if bis_df.empty:
+                    bis_df = materialized
+                else:
+                    bis_df = pd.concat([bis_df, materialized], ignore_index=True)
+                for f in ingest_files:
+                    f.unlink()
+
+        if not bis_df.empty:
+            check = self.check_should_retrain("bis_risk_lgbm", bis_df)
+            if check["should_retrain"]:
+                feature_store.write_training_data("bis", bis_df, split="train")
+                version = self.retrain_bis_model(bis_df)
+                cycle_results["models"]["bis_risk_lgbm"] = {
+                    "retrained": True,
+                    "reasons": check["reasons"],
+                    "promoted": version is not None,
+                    "training_rows": len(bis_df),
+                }
+            else:
+                cycle_results["models"]["bis_risk_lgbm"] = {
+                    "retrained": False,
+                    "reasons": ["no_drift_detected"],
+                    "data_rows": len(bis_df),
+                }
+
+        # Write cycle results to lineage
+        lineage_file = self.lakehouse_path / "lineage" / "continuous_training.jsonl"
+        lineage_file.parent.mkdir(parents=True, exist_ok=True)
+        import json as _json
+        with open(lineage_file, "a") as f:
+            f.write(_json.dumps(cycle_results, default=str) + "\n")
 
         return cycle_results
