@@ -1,0 +1,82 @@
+{
+  "timestamp": "2026-05-25T13:26:12Z",
+  "elapsed_seconds": 2288.6932010650635,
+  "results": [
+    {
+      "model": "fraud_xgb",
+      "metrics": {
+        "auc_roc": 0.9999999999999999,
+        "auc_pr": 1.0,
+        "optimal_threshold": 0.07263004779815674
+      },
+      "path": "ml/saved_models/fraud_xgb"
+    },
+    {
+      "model": "gnn_fraud",
+      "metrics": {
+        "accuracy": 0.2786666750907898,
+        "auc_roc": 0.7623323902078977,
+        "auc_pr": 0.06692819873944908,
+        "precision": 0.01818181818181818,
+        "recall": 0.9090909090909091,
+        "f1": 0.035650623885918
+      },
+      "path": "ml/saved_models/gnn_fraud"
+    },
+    {
+      "model": "fx_transformer",
+      "metrics": {
+        "best_val_loss": Infinity
+      },
+      "path": "ml/saved_models/fx_transformer"
+    },
+    {
+      "model": "bis_risk_lgbm",
+      "metrics": {
+        "auc_roc_weighted": 0.8997428112100034,
+        "f1_weighted": 0.8008278723821228,
+        "f1_macro": 0.4422290279184866,
+        "classification_report": {
+          "low": {
+            "precision": 0.8529287821323219,
+            "recall": 0.8514934791754312,
+            "f1-score": 0.8522105263157894,
+            "support": 2377.0
+          },
+          "medium": {
+            "precision": 0.7414965986394558,
+            "recall": 0.7725515463917526,
+            "f1-score": 0.7567055853581571,
+            "support": 1552.0
+          },
+          "high": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 51.0
+          },
+          "critical": {
+            "precision": 0.4,
+            "recall": 0.1,
+            "f1-score": 0.16,
+            "support": 20.0
+          },
+          "accuracy": 0.80625,
+          "macro avg": {
+            "precision": 0.49860634519294444,
+            "recall": 0.43101125639179594,
+            "f1-score": 0.4422290279184866,
+            "support": 4000.0
+          },
+          "weighted avg": {
+            "precision": 0.7965536090542412,
+            "recall": 0.80625,
+            "f1-score": 0.8008278723821228,
+            "support": 4000.0
+          }
+        }
+      },
+      "path": "ml/saved_models/bis_risk_lgbm"
+    }
+  ]
+}

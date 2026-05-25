@@ -424,8 +424,45 @@ services:
         condition: service_healthy
     profiles: ["middleware"]
 
+  # ─── ML Inference Service ──────────────────────────────────────────────────
+  ml-inference:
+    build:
+      context: .
+      dockerfile: ml/Dockerfile
+    ports:
+      - "8200:8200"
+    environment:
+      ML_MODEL_DIR: /app/ml/saved_models
+      ML_INFERENCE_PORT: "8200"
+    volumes:
+      - ./ml/saved_models:/app/ml/saved_models
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8200/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    profiles: ["ml"]
+
+  neo4j:
+    image: neo4j:5-community
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/tourismpay-neo4j-2026
+      NEO4J_PLUGINS: '["graph-data-science"]'
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD", "neo4j", "status"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    profiles: ["ml"]
+
 volumes:
   postgres_data:
   redis_data:
   opensearch_data:
   tigerbeetle_data:
+  neo4j_data:
