@@ -43,8 +43,16 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
+        // Read CSRF token from cookie for POST mutations
+        const csrfMatch = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
+        const csrfToken = csrfMatch ? csrfMatch[1] : "";
+        const headers = new Headers(init?.headers);
+        if (csrfToken) {
+          headers.set("x-csrf-token", csrfToken);
+        }
         return globalThis.fetch(input, {
           ...(init ?? {}),
+          headers,
           credentials: "include",
         });
       },
