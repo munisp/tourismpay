@@ -72,6 +72,29 @@ const ROUTE_RESOURCE_MAP: Record<string, { resource: string; action: string }> =
   // Remittance
   "POST:/api/remittance": { resource: "remittance:transfer", action: "create" },
   "GET:/api/remittance": { resource: "remittance:history", action: "read" },
+
+  // tRPC - Tourist services
+  "POST:/api/trpc/copilot.chat": { resource: "tourist:copilot", action: "write" },
+  "GET:/api/trpc/copilot.chat": { resource: "tourist:copilot", action: "read" },
+  "GET:/api/trpc/arTourism.list": { resource: "tourist:ar", action: "read" },
+  "GET:/api/trpc/arTourism.nearby": { resource: "tourist:ar", action: "read" },
+  "GET:/api/trpc/identity.myDid": { resource: "tourist:identity", action: "read" },
+  "POST:/api/trpc/identity.createDid": { resource: "tourist:identity", action: "write" },
+  "GET:/api/trpc/identity.resolve": { resource: "tourist:identity", action: "read" },
+  "POST:/api/trpc/identity.issueCredential": { resource: "tourist:identity", action: "write" },
+  "GET:/api/trpc/identity.myCredentials": { resource: "tourist:identity", action: "read" },
+  "POST:/api/trpc/identity.verifyPresentation": { resource: "tourist:identity", action: "write" },
+  "GET:/api/trpc/mapLocation.config": { resource: "tourist:map", action: "read" },
+  "GET:/api/trpc/mapLocation.geocode": { resource: "tourist:map", action: "read" },
+  "GET:/api/trpc/mapLocation.reverseGeocode": { resource: "tourist:map", action: "read" },
+  "GET:/api/trpc/mapLocation.directions": { resource: "tourist:map", action: "read" },
+  "GET:/api/trpc/paymentRails.providers": { resource: "payment:providers", action: "read" },
+  "POST:/api/trpc/paymentRails.initiate": { resource: "payment:create", action: "create" },
+  "GET:/api/trpc/paymentRails.verify": { resource: "payment:verify", action: "read" },
+
+  // tRPC - Middleware health (accessible by all authenticated users)
+  "GET:/api/trpc/middlewareHub.healthCheck": { resource: "service_health:read", action: "read" },
+  "GET:/api/trpc/middlewareHub.serviceMesh": { resource: "service_health:read", action: "read" },
 };
 
 function resolveResource(method: string, path: string): { resource: string; action: string } {
@@ -137,7 +160,8 @@ function fallbackRoleCheck(
       resource.startsWith("payment:") ||
       resource.startsWith("booking:") ||
       resource.includes("own") ||
-      resource.startsWith("tourist:");
+      resource.startsWith("tourist:") ||
+      resource.startsWith("service_health:");
   } else if (role === "merchant") {
     allowed = resource.includes("own") ||
       resource.startsWith("products:") ||
