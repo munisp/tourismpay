@@ -59,6 +59,9 @@ import { nocDashboardRouter } from "./routers/nocDashboard";
 import { offlineResilienceRouter } from "./resilience/offlineResilience";
 import { middlewareHubRouter } from "./middleware/middlewareHub";
 import { verificationRouter } from "./routers/verification";
+import { paymentRailsRouter } from "./routers/paymentRails";
+import { mapLocationRouter } from "./routers/mapLocation";
+import { arTourismRouter } from "./integrations/arTourism";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -182,6 +185,9 @@ export const appRouter = router({
   offlineResilience: offlineResilienceRouter,
   middlewareHub: middlewareHubRouter,
   verification: verificationRouter,
+  paymentRails: paymentRailsRouter,
+  mapLocation: mapLocationRouter,
+  arTourism: arTourismRouter,
 });
 
 export type AppRouter = typeof appRouter;

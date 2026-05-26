@@ -1,15 +1,21 @@
 /**
- * Decentralised Identity (DID) + Verifiable Credentials router
+ * Decentralised Identity (DID) + Verifiable Credentials router.
+ *
+ * Uses W3C DID Core compliant resolution and Ed25519 key pairs.
+ * Supports: did:tourismpay, did:web, did:key methods.
  */
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { didDocuments, verifiableCredentials } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
-
-function generateDid(userId: string | number): string {
-  return `did:tourismpay:${String(userId)}-${Date.now().toString(36)}`;
-}
+import {
+  createDidTourismPay,
+  resolveDid,
+  issueCredential,
+  verifyCredential,
+  type DIDDocument,
+} from "../integrations/didResolver";
 
 export const identityRouter = router({
   // Get the user's DID document (or null if not yet created)
@@ -23,34 +29,31 @@ export const identityRouter = router({
     return row ?? null;
   }),
 
-  // Create a new DID for the user
+  // Create a new DID with real Ed25519 key pair (W3C DID Core compliant)
   createDid: protectedProcedure.mutation(async ({ ctx }) => {
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
-    const did = generateDid(ctx.user.id);
-    const doc = {
-      "@context": ["https://www.w3.org/ns/did/v1"],
-      id: did,
-      verificationMethod: [
-        {
-          id: `${did}#key-1`,
-          type: "JsonWebKey2020",
-          controller: did,
-        },
-      ],
-      authentication: [`${did}#key-1`],
-    };
+
+    const { didDocument, keyPair } = createDidTourismPay(String(ctx.user.id));
     const [row] = await db
       .insert(didDocuments)
       .values({
         userId: String(ctx.user.id),
-        did,
-        didDocument: JSON.stringify(doc),
+        did: didDocument.id,
+        didDocument: JSON.stringify(didDocument),
       })
       .onConflictDoNothing()
       .returning();
     return row;
   }),
+
+  // Resolve any DID (did:web, did:key, did:tourismpay)
+  resolve: protectedProcedure
+    .input(z.object({ did: z.string().startsWith("did:") }))
+    .query(async ({ input }) => {
+      const doc = await resolveDid(input.did);
+      return doc;
+    }),
 
   // List verifiable credentials for the user
   listCredentials: protectedProcedure.query(async ({ ctx }) => {

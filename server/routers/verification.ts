@@ -86,14 +86,19 @@ export const verificationRouter = router({
         verified: false,
       });
 
-      // In production, send via SMTP / SMS provider.
-      // In development, log the code for testing.
-      if (process.env.NODE_ENV === "development") {
-        logger.info(`[Verification] Code for ${input.type}: ${code}`, { userId: ctx.user.id });
+      // Send verification code via real provider (falls back to console in dev)
+      const { sendVerificationEmail, sendVerificationSms } = await import("../integrations/emailSms");
+      if (input.type === "email") {
+        const result = await sendVerificationEmail(input.target, code);
+        logger.info(`[Verification] Email ${result.success ? "sent" : "failed"}`, {
+          userId: ctx.user.id, provider: result.provider, messageId: result.messageId,
+        });
+      } else {
+        const result = await sendVerificationSms(input.target, code);
+        logger.info(`[Verification] SMS ${result.success ? "sent" : "failed"}`, {
+          userId: ctx.user.id, provider: result.provider, messageId: result.messageId,
+        });
       }
-
-      // TODO: Wire up SMTP sending via ../core/email.ts for email type
-      // TODO: Wire up SMS provider (e.g. Twilio, Africa's Talking) for phone type
 
       return {
         sent: true,

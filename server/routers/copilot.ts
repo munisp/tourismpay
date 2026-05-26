@@ -36,6 +36,16 @@ async function generateWithFallback(
   const ollamaResult = await callOllama(prompt, systemPrompt);
   if (ollamaResult) return ollamaResult;
 
+  // Try real LLM providers (OpenAI / Anthropic)
+  try {
+    const { chat } = await import("../integrations/llmCopilot");
+    const result = await chat([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: prompt },
+    ]);
+    if (result.provider !== "fallback") return result.message;
+  } catch { /* continue to built-in fallback */ }
+
   // Fall back to built-in LLM (Manus Forge)
   const result = await invokeLLM({
     messages: [
