@@ -5,9 +5,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ndsep_user
-      POSTGRES_PASSWORD: ndsep_secure_2026
-      POSTGRES_DB: ndsep_db
+      POSTGRES_USER: ${POSTGRES_USER:-ndsep_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ndsep_secure_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-ndsep_db}
     ports:
       - "5432:5432"
     volumes:
@@ -41,9 +41,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      DATABASE_URL: postgresql://ndsep_user:ndsep_secure_2026@postgres:5432/ndsep_db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ndsep_user}:${POSTGRES_PASSWORD:-ndsep_secure_2026}@postgres:5432/${POSTGRES_DB:-ndsep_db}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-production-jwt-secret-min-32-characters-long}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-default-internal-key}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
       STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-pk_test_placeholder}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
@@ -88,7 +89,8 @@ services:
     environment:
       PORT: "8081"
       TIGERBEETLE_ADDR: tigerbeetle:3000
-      DATABASE_URL: postgresql://ndsep_user:ndsep_secure_2026@postgres:5432/ndsep_db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ndsep_user}:${POSTGRES_PASSWORD:-ndsep_secure_2026}@postgres:5432/${POSTGRES_DB:-ndsep_db}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-default-internal-key}
 
   # ─── Python ML Services ────────────────────────────────────────────────────
   python-ml:
@@ -102,7 +104,7 @@ services:
       - "8004:8004"
       - "8005:8005"
     environment:
-      DATABASE_URL: postgresql://ndsep_user:ndsep_secure_2026@postgres:5432/ndsep_db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ndsep_user}:${POSTGRES_PASSWORD:-ndsep_secure_2026}@postgres:5432/${POSTGRES_DB:-ndsep_db}
       REDIS_URL: redis://redis:6379
 
   # ─── Rust Services ─────────────────────────────────────────────────────────
@@ -373,9 +375,9 @@ services:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/ndsep_db
-      KC_DB_USERNAME: ndsep_user
-      KC_DB_PASSWORD: ndsep_secure_2026
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-ndsep_db}
+      KC_DB_USERNAME: ${POSTGRES_USER:-ndsep_user}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-ndsep_secure_2026}
     command: start-dev
     depends_on:
       postgres:
@@ -419,8 +421,8 @@ services:
     environment:
       DB: postgresql
       DB_PORT: 5432
-      POSTGRES_USER: ndsep_user
-      POSTGRES_PWD: ndsep_secure_2026
+      POSTGRES_USER: ${POSTGRES_USER:-ndsep_user}
+      POSTGRES_PWD: ${POSTGRES_PASSWORD:-ndsep_secure_2026}
       POSTGRES_SEEDS: postgres
     depends_on:
       postgres:

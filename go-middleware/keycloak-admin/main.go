@@ -12,6 +12,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func envOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 // ─── Models ─────────────────────────────────────────────────────────────────
 
 type Realm struct {
@@ -148,8 +155,8 @@ var (
 		},
 	}
 	idProviders = []IdentityProvider{
-		{Alias: "google", DisplayName: "Google", ProviderID: "google", Enabled: true, Config: map[string]string{"clientId": "placeholder", "clientSecret": "placeholder"}},
-		{Alias: "apple", DisplayName: "Apple", ProviderID: "apple", Enabled: true, Config: map[string]string{"clientId": "placeholder", "teamId": "placeholder"}},
+		{Alias: "google", DisplayName: "Google", ProviderID: "google", Enabled: true, Config: map[string]string{"clientId": envOrDefault("GOOGLE_CLIENT_ID", ""), "clientSecret": envOrDefault("GOOGLE_CLIENT_SECRET", "")}},
+		{Alias: "apple", DisplayName: "Apple", ProviderID: "apple", Enabled: true, Config: map[string]string{"clientId": envOrDefault("APPLE_CLIENT_ID", ""), "teamId": envOrDefault("APPLE_TEAM_ID", "")}},
 		{Alias: "mpesa", DisplayName: "M-Pesa", ProviderID: "oidc", Enabled: true, Config: map[string]string{"authorizationUrl": "https://sandbox.safaricom.co.ke/oauth/v1/authorize"}},
 	}
 	sessions []Session

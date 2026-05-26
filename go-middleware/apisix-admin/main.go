@@ -11,6 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func envOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 // ─── Models ─────────────────────────────────────────────────────────────────
 
 type Route struct {
@@ -118,8 +125,8 @@ func init() {
 	}}
 
 	// Seed consumers
-	consumers["admin-api"] = &Consumer{Username: "admin-api", Plugins: map[string]Plugin{"key-auth": {"key": "admin-api-key-placeholder"}}, Labels: map[string]string{"role": "admin"}}
-	consumers["merchant-api"] = &Consumer{Username: "merchant-api", Plugins: map[string]Plugin{"key-auth": {"key": "merchant-api-key-placeholder"}}, Labels: map[string]string{"role": "merchant"}}
+	consumers["admin-api"] = &Consumer{Username: "admin-api", Plugins: map[string]Plugin{"key-auth": {"key": envOrDefault("APISIX_ADMIN_API_KEY", "admin-api-key-"+os.Getenv("HOSTNAME"))}}, Labels: map[string]string{"role": "admin"}}
+	consumers["merchant-api"] = &Consumer{Username: "merchant-api", Plugins: map[string]Plugin{"key-auth": {"key": envOrDefault("APISIX_MERCHANT_API_KEY", "merchant-api-key-"+os.Getenv("HOSTNAME"))}}, Labels: map[string]string{"role": "merchant"}}
 }
 
 // ─── HTTP API ───────────────────────────────────────────────────────────────

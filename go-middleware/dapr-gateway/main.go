@@ -12,6 +12,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func envOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 // ─── Models ─────────────────────────────────────────────────────────────────
 
 type DaprApp struct {
@@ -82,11 +89,11 @@ var (
 	}
 	secretStores = map[string]map[string]string{
 		"local-secrets": {
-			"jwt-secret":      "placeholder",
-			"stripe-key":      "placeholder",
-			"db-password":     "placeholder",
-			"redis-password":  "placeholder",
-			"kafka-password":  "placeholder",
+			"jwt-secret":      envOrDefault("JWT_SECRET", "change-me-in-production"),
+			"stripe-key":      envOrDefault("STRIPE_SECRET_KEY", ""),
+			"db-password":     envOrDefault("DB_PASSWORD", ""),
+			"redis-password":  envOrDefault("REDIS_PASSWORD", ""),
+			"kafka-password":  envOrDefault("KAFKA_PASSWORD", ""),
 		},
 	}
 	daprStats = struct {

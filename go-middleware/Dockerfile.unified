@@ -1,0 +1,23 @@
+FROM golang:1.22-alpine AS builder
+RUN apk add --no-cache git
+WORKDIR /app
+
+# Copy all middleware services
+COPY kafka-processor/ kafka-processor/
+COPY temporal-worker/ temporal-worker/
+COPY keycloak-admin/ keycloak-admin/
+COPY permify-proxy/ permify-proxy/
+COPY apisix-admin/ apisix-admin/
+COPY openappsec-waf/ openappsec-waf/
+COPY dapr-gateway/ dapr-gateway/
+COPY mojaloop-hub/ mojaloop-hub/
+COPY unified/ unified/
+
+WORKDIR /app/unified
+RUN go mod download && CGO_ENABLED=0 go build -o /go-middleware .
+
+FROM alpine:3.19
+RUN apk add --no-cache ca-certificates wget
+COPY --from=builder /go-middleware /usr/local/bin/go-middleware
+EXPOSE 8100
+CMD ["go-middleware"]

@@ -1,21 +1,38 @@
 /**
- * Service Fetch — wrapper around fetch() that propagates request IDs
- * and integrates with the circuit breaker for downstream service calls.
+ * Service Fetch — production-grade HTTP client for inter-service communication.
  *
- * Usage:
- *   const data = await serviceFetch("pbac-engine", url, { method: "POST", ... }, req);
+ * Features:
+ * - Circuit breaker protection
+ * - Exponential backoff retries (configurable)
+ * - Request ID propagation
+ * - JWT token forwarding
+ * - Timeout enforcement
+ * - Structured logging
  */
 import type { Request } from "express";
 import { withCircuitBreaker } from "./circuitBreaker";
+import { logger } from "../_core/logger";
 
 interface ServiceFetchOptions extends RequestInit {
   timeoutMs?: number;
+  retries?: number;
+  retryDelayMs?: number;
+  retryBackoffMultiplier?: number;
+  retryOn?: number[];
+}
+
+const DEFAULT_RETRY_ON = [502, 503, 504, 408, 429];
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
  * Fetch a downstream service with:
- * - X-Request-Id propagation from the incoming request
  * - Circuit breaker protection
+ * - Exponential backoff retries
+ * - X-Request-Id propagation
+ * - JWT token forwarding
  * - Configurable timeout (default 5s)
  */
 export async function serviceFetch<T = unknown>(
@@ -24,17 +41,34 @@ export async function serviceFetch<T = unknown>(
   options: ServiceFetchOptions = {},
   req?: Request
 ): Promise<{ data: T; status: number; ok: boolean } | { data: null; status: number; ok: boolean }> {
-  const { timeoutMs = 5000, ...fetchOptions } = options;
+  const {
+    timeoutMs = 5000,
+    retries = 2,
+    retryDelayMs = 500,
+    retryBackoffMultiplier = 2,
+    retryOn = DEFAULT_RETRY_ON,
+    ...fetchOptions
+  } = options;
 
   const headers = new Headers(fetchOptions.headers);
 
-  // Propagate request ID from incoming request
-  const requestId = req ? (req as any).requestId : undefined;
+  const requestId = req ? (req as unknown as Record<string, unknown>).requestId as string : undefined;
   if (requestId) {
     headers.set("X-Request-Id", requestId);
   }
 
-  // Set content type if not already set
+  // Forward JWT for authenticated inter-service calls
+  const authHeader = req?.headers?.authorization;
+  if (authHeader && !headers.has("Authorization")) {
+    headers.set("Authorization", authHeader);
+  }
+
+  // Forward internal service key
+  const serviceKey = process.env.INTERNAL_SERVICE_KEY;
+  if (serviceKey) {
+    headers.set("X-Service-Key", serviceKey);
+  }
+
   if (!headers.has("Content-Type") && fetchOptions.body) {
     headers.set("Content-Type", "application/json");
   }
@@ -42,21 +76,51 @@ export async function serviceFetch<T = unknown>(
   return withCircuitBreaker(
     serviceName,
     async () => {
-      const response = await fetch(url, {
-        ...fetchOptions,
-        headers,
-        signal: AbortSignal.timeout(timeoutMs),
-      });
+      let lastError: Error | null = null;
 
-      const data = response.headers.get("content-type")?.includes("application/json")
-        ? await response.json() as T
-        : await response.text() as unknown as T;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        if (attempt > 0) {
+          const delay = retryDelayMs * Math.pow(retryBackoffMultiplier, attempt - 1);
+          const jitter = delay * 0.2 * Math.random();
+          logger.debug(`Retrying ${serviceName}`, { attempt, delay: delay + jitter, url });
+          await sleep(delay + jitter);
+        }
 
-      if (!response.ok) {
-        throw new ServiceError(serviceName, response.status, String(data));
+        try {
+          const start = Date.now();
+          const response = await fetch(url, {
+            ...fetchOptions,
+            headers,
+            signal: AbortSignal.timeout(timeoutMs),
+          });
+          const latencyMs = Date.now() - start;
+
+          if (!response.ok && retryOn.includes(response.status) && attempt < retries) {
+            logger.warn(`${serviceName} returned ${response.status}, retrying`, { attempt, latencyMs });
+            continue;
+          }
+
+          const data = response.headers.get("content-type")?.includes("application/json")
+            ? await response.json() as T
+            : await response.text() as unknown as T;
+
+          if (!response.ok) {
+            throw new ServiceError(serviceName, response.status, String(data));
+          }
+
+          if (attempt > 0) {
+            logger.info(`${serviceName} succeeded after ${attempt + 1} attempts`, { latencyMs });
+          }
+
+          return { data, status: response.status, ok: response.ok };
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          if (err instanceof ServiceError) throw err;
+          if (attempt === retries) break;
+        }
       }
 
-      return { data, status: response.status, ok: response.ok };
+      throw lastError ?? new Error(`${serviceName} request failed`);
     },
     () => ({ data: null as unknown as T, status: 503, ok: false as boolean })
   );
