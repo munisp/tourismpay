@@ -26,17 +26,7 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     if (auth.isAuthenticated) {
-      final role = auth.userRole;
-      switch (role) {
-        case 'admin':
-          Navigator.pushReplacementNamed(context, '/admin/dashboard');
-          break;
-        case 'merchant':
-          Navigator.pushReplacementNamed(context, '/merchant/dashboard');
-          break;
-        default:
-          Navigator.pushReplacementNamed(context, '/tourist/dashboard');
-      }
+      Navigator.pushReplacementNamed(context, '/home');
     } else {
       Navigator.pushReplacementNamed(context, '/login');
     }

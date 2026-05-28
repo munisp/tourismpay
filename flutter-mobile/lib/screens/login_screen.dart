@@ -19,16 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     setState(() => _isLoading = false);
     if (success) {
-      switch (role) {
-        case 'admin':
-          Navigator.pushReplacementNamed(context, '/admin/dashboard');
-          break;
-        case 'merchant':
-          Navigator.pushReplacementNamed(context, '/merchant/dashboard');
-          break;
-        default:
-          Navigator.pushReplacementNamed(context, '/tourist/dashboard');
-      }
+      Navigator.pushReplacementNamed(context, '/home');
     }
   }
 
