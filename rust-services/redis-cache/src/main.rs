@@ -231,15 +231,29 @@ async fn cache_set(body: web::Json<SetRequest>, data: web::Data<AppState>) -> Ht
     };
     cache.insert(req.key.clone(), entry);
 
-    // Evict if over 10000 keys
-    if cache.len() > 10000 {
-        let oldest_key = cache.iter()
-            .min_by_key(|(_, v)| v.access_count)
-            .map(|(k, _)| k.clone());
-        if let Some(key) = oldest_key {
-            cache.remove(&key);
-            stats.eviction_count += 1;
+    // LRU Eviction — enforce max 50,000 keys or 256MB memory
+    let max_keys: usize = std::env::var("REDIS_MAX_KEYS").ok()
+        .and_then(|v| v.parse().ok()).unwrap_or(50_000);
+    let max_memory: usize = std::env::var("REDIS_MAX_MEMORY_MB").ok()
+        .and_then(|v| v.parse().ok()).unwrap_or(256) * 1024 * 1024;
+
+    let total_memory: usize = cache.values().map(|e| e.size_bytes + e.key.len() + 64).sum();
+
+    if cache.len() > max_keys || total_memory > max_memory {
+        // Evict LRU entries (lowest access_count, then oldest created_at)
+        let mut entries: Vec<(String, u64, u64)> = cache.iter()
+            .map(|(k, v)| (k.clone(), v.access_count, v.created_at))
+            .collect();
+        entries.sort_by(|a, b| a.1.cmp(&b.1).then(a.2.cmp(&b.2)));
+
+        // Evict 10% of entries or until under limits
+        let target = std::cmp::max(cache.len() / 10, 1);
+        let mut evicted = 0;
+        for (key, _, _) in entries.iter().take(target) {
+            cache.remove(key);
+            evicted += 1;
         }
+        stats.eviction_count += evicted;
     }
 
     HttpResponse::Created().json(serde_json::json!({"status": "ok", "key": req.key}))
@@ -468,6 +482,26 @@ async fn main() -> std::io::Result<()> {
         .unwrap_or(8110);
 
     let state = web::Data::new(AppState::new());
+
+    // Background TTL expiry sweep — runs every 10 seconds, removes expired keys
+    let bg_state = state.clone();
+    actix_web::rt::spawn(async move {
+        let mut interval = actix_web::rt::time::interval(Duration::from_secs(10));
+        loop {
+            interval.tick().await;
+            let mut cache = bg_state.cache.lock().unwrap();
+            let mut stats = bg_state.stats.lock().unwrap();
+            let now = now_secs();
+            let expired_keys: Vec<String> = cache.iter()
+                .filter(|(_, v)| v.expires_at.map_or(false, |exp| now > exp))
+                .map(|(k, _)| k.clone())
+                .collect();
+            for key in &expired_keys {
+                cache.remove(key);
+            }
+            stats.expired_count += expired_keys.len() as u64;
+        }
+    });
 
     log::info!("Redis Cache service starting on port {}", port);
 

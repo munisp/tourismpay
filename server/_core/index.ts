@@ -99,6 +99,10 @@ async function startServer() {
   const { csrfMiddleware } = await import("../security/csrf");
   app.use(csrfMiddleware);
 
+  // ─── HTTP Cache Headers ──────────────────────────────────────────────────────
+  const { httpCacheHeaders } = await import("../middleware/cacheLayer");
+  app.use(httpCacheHeaders);
+
   // ─── ETag Support for API Responses ────────────────────────────────────────
   app.set("etag", "strong");
 
@@ -145,6 +149,23 @@ async function startServer() {
     } catch {
       res.status(503).json({ status: "starting", timestamp: new Date().toISOString() });
     }
+  });
+
+  // ─── Cache Stats Endpoint ──────────────────────────────────────────────────
+  app.get("/api/cache/stats", async (_req, res) => {
+    const { getFullCacheStats } = await import("../middleware/cacheLayer");
+    res.json(getFullCacheStats());
+  });
+
+  app.post("/api/cache/invalidate", async (req, res) => {
+    const { invalidateByTags } = await import("../middleware/cacheLayer");
+    const tags = req.body?.tags;
+    if (!Array.isArray(tags)) {
+      res.status(400).json({ error: "tags array required" });
+      return;
+    }
+    const count = await invalidateByTags(tags);
+    res.json({ invalidated: count, tags });
   });
 
   // Backward-compatible combined health endpoint
@@ -467,6 +488,14 @@ async function startServer() {
     startLeaderboardSnapshotJob();
     // Start onboarding nudge job (runs every 24 hours, notifies merchants with score < 60% after 7+ days)
     startOnboardingNudgeJob();
+
+    // ─── Cache Warming (populate hot caches on startup) ─────────────────────
+    import("../middleware/cacheWarmTargets").then(({ registerCacheWarmTargets }) => {
+      registerCacheWarmTargets();
+      return import("../middleware/cacheLayer");
+    }).then(({ warmCache }) => {
+      warmCache().catch(() => {});
+    }).catch(() => {});
   });
 
   // ─── Graceful Shutdown ───────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
 import { createPbacMiddleware } from "../security/pbacMiddleware";
+import { createCacheMiddleware } from "../middleware/cacheLayer";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -10,6 +11,9 @@ const t = initTRPC.context<TrpcContext>().create({
 
 export const router = t.router;
 export const publicProcedure = t.procedure;
+
+// Cache middleware — applied to all procedures, only caches configured query routes
+const cacheMiddleware = createCacheMiddleware(t);
 
 // PBAC middleware — enforces policy-based access control after auth
 const pbacEnforce = createPbacMiddleware(t);
@@ -29,8 +33,8 @@ const requireUser = t.middleware(async opts => {
   });
 });
 
-// Protected procedures run auth → PBAC in sequence
-export const protectedProcedure = t.procedure.use(requireUser).use(pbacEnforce);
+// Protected procedures run auth → PBAC → cache in sequence
+export const protectedProcedure = t.procedure.use(requireUser).use(pbacEnforce).use(cacheMiddleware);
 
 // admin only
 export const adminProcedure = t.procedure.use(
