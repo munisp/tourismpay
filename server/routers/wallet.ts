@@ -12,6 +12,7 @@ import { HIGH_VALUE_TX_THRESHOLD_USD } from "../../shared/const";
 import { checkAndAutoFlag } from "./bisIntegration";
 import { stripe } from "../_core/stripe";
 import { onTransactionCreated, onWalletEvent } from "../middleware/lakehouseBridge";
+import { fireAndForget, logger } from "../_core/logger";
 
 // USD exchange rates for high-value threshold check (approximate)
 const APPROX_USD_RATES: Record<string, number> = {
@@ -247,7 +248,7 @@ export const walletRouter = router({
                 `Your limit resets at ${resetLabel}.`,
               actionUrl: "/wallet",
               actionLabel: "View Spending Limits",
-            }).catch(() => {});
+            }).catch((err) => { logger.warn("Failed to create spending limit notification", { error: String(err) }); });
             throw new TRPCError({
               code: "FORBIDDEN",
               message: `${periodLabel} spending limit of ${limitAmt.toFixed(2)} ${input.currency} exceeded. ` +
@@ -325,7 +326,7 @@ export const walletRouter = router({
         currency: input.currency,
         amount: input.amount,
         counterparty: input.counterparty,
-      }).catch(() => {});
+      }).catch((err) => { logger.warn("Wallet audit event failed", { error: String(err) }); });
       return { success: true, txId, fee };
     }),
 
@@ -468,7 +469,7 @@ export const walletRouter = router({
         currency: input.fromCurrency,
         amount: input.amount,
         counterparty: input.counterparty,
-      }).catch(() => {});
+      }).catch((err) => { logger.warn("Wallet FX audit event failed", { error: String(err) }); });
       return {
         success: true,
         txId,

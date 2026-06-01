@@ -94,15 +94,48 @@ async function produceViaGoProcessor(event: KafkaEvent): Promise<boolean> {
   return res.ok;
 }
 
-// ─── In-Memory Fallback ──────────────────────────────────────────────────────
+// ─── Persistent Fallback (Redis + In-Memory) ─────────────────────────────────
 
 const inMemoryEvents: KafkaEvent[] = [];
 const MAX_MEMORY_EVENTS = 10000;
+const REDIS_KAFKA_BUFFER_KEY = "kafka:buffer";
 
-function produceInMemory(event: KafkaEvent): boolean {
-  inMemoryEvents.push({ ...event, timestamp: Date.now() });
+async function produceInMemory(event: KafkaEvent): Promise<boolean> {
+  const stamped = { ...event, timestamp: Date.now() };
+  inMemoryEvents.push(stamped);
   if (inMemoryEvents.length > MAX_MEMORY_EVENTS) inMemoryEvents.shift();
+  // Persist to Redis so events survive restarts
+  try {
+    const { cacheGet, cacheSet } = await import("../middleware/redisClient");
+    const existing = await cacheGet(REDIS_KAFKA_BUFFER_KEY);
+    const buffer: KafkaEvent[] = existing ? JSON.parse(existing) : [];
+    buffer.push(stamped);
+    if (buffer.length > MAX_MEMORY_EVENTS) buffer.splice(0, buffer.length - MAX_MEMORY_EVENTS);
+    await cacheSet(REDIS_KAFKA_BUFFER_KEY, JSON.stringify(buffer), 86400); // 24h TTL
+  } catch {
+    logger.debug("[Kafka] Redis buffer persist failed, using in-memory only");
+  }
   return true;
+}
+
+/** Restore buffered events from Redis on startup */
+export async function restoreBufferedEvents(): Promise<number> {
+  try {
+    const { cacheGet, cacheDel } = await import("../middleware/redisClient");
+    const data = await cacheGet(REDIS_KAFKA_BUFFER_KEY);
+    if (!data) return 0;
+    const events: KafkaEvent[] = JSON.parse(data);
+    for (const e of events) {
+      if (!inMemoryEvents.find(m => m.timestamp === e.timestamp && m.topic === e.topic)) {
+        inMemoryEvents.push(e);
+      }
+    }
+    await cacheDel(REDIS_KAFKA_BUFFER_KEY);
+    logger.info(`[Kafka] Restored ${events.length} buffered events from Redis`);
+    return events.length;
+  } catch {
+    return 0;
+  }
 }
 
 // ─── Public API ──────────────────────────────────────────────────────────────
@@ -124,9 +157,9 @@ export async function produce(event: KafkaEvent): Promise<{ success: boolean; vi
     } catch { /* fall through */ }
   }
 
-  // In-memory fallback
-  produceInMemory(event);
-  logger.warn("[Kafka] Both REST proxy and Go processor unavailable, stored in memory", { topic: event.topic });
+  // Persistent fallback (Redis + in-memory)
+  await produceInMemory(event);
+  logger.warn("[Kafka] Both REST proxy and Go processor unavailable, stored in persistent buffer", { topic: event.topic });
   return { success: true, via: "in-memory" };
 }
 

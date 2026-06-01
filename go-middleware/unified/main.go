@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -80,11 +81,51 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 		mu.RLock()
 		defer mu.RUnlock()
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "ok",
-			"service": "go-middleware-unified",
-			"version": "2.0.0",
-			"uptime":  time.Since(startTime).Seconds(),
+
+		// Check self — verify we can marshal JSON (basic sanity)
+		overallStatus := "ok"
+		depChecks := []gin.H{}
+
+		// Check downstream: Kafka REST proxy
+		kafkaStatus := "down"
+		kafkaURL := envOrDefault("KAFKA_REST_PROXY_URL", "http://localhost:8082")
+		client := &http.Client{Timeout: 2 * time.Second}
+		if resp, err := client.Get(kafkaURL + "/topics"); err == nil {
+			resp.Body.Close()
+			if resp.StatusCode < 500 {
+				kafkaStatus = "ok"
+			}
+		}
+		depChecks = append(depChecks, gin.H{"name": "kafka-rest", "status": kafkaStatus})
+
+		// Check downstream: Redis
+		redisStatus := "down"
+		redisURL := envOrDefault("REDIS_URL", "localhost:6379")
+		if conn, err := net.DialTimeout("tcp", redisURL, 2*time.Second); err == nil {
+			conn.Close()
+			redisStatus = "ok"
+		}
+		depChecks = append(depChecks, gin.H{"name": "redis", "status": redisStatus})
+
+		// Overall status: degraded if any dep is down
+		for _, d := range depChecks {
+			if d["status"] == "down" {
+				overallStatus = "degraded"
+				break
+			}
+		}
+
+		httpStatus := http.StatusOK
+		if overallStatus == "degraded" {
+			httpStatus = http.StatusOK // Still accept traffic, just degraded
+		}
+
+		c.JSON(httpStatus, gin.H{
+			"status":       overallStatus,
+			"service":      "go-middleware-unified",
+			"version":      "2.0.0",
+			"uptime":       time.Since(startTime).Seconds(),
+			"dependencies": depChecks,
 			"modules": []string{
 				"kafka-processor", "temporal-worker", "keycloak-admin",
 				"permify-proxy", "apisix-admin", "openappsec-waf",

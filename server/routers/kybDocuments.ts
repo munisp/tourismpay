@@ -16,6 +16,7 @@ import {
 import { notifyOwner } from "../_core/notification";
 import { storagePut } from "../storage";
 import { createAuditLog } from "../db";
+import { logger } from "../_core/logger";
 
 // Allowed MIME types for KYB document uploads
 const ALLOWED_MIME_TYPES = [
@@ -187,7 +188,7 @@ export const kybDocumentsRouter = router({
       await notifyOwner({
         title: `KYB Document ${action}`,
         content: `Document #${doc.id} (${doc.documentType.replace(/_/g, " ")}) has been ${action.toLowerCase()} by admin ${ctx.user.name ?? ctx.user.email ?? "Unknown"}.${input.reviewNotes ? `\n\nReview Notes: ${input.reviewNotes}` : ""}`,
-      }).catch(() => {});
+      }).catch((err) => { logger.warn("KYB document review notification failed", { error: String(err) }); });
 
       // Write audit log
       await createAuditLog({
@@ -200,7 +201,7 @@ export const kybDocumentsRouter = router({
         description: `Document "${doc.documentType.replace(/_/g, " ")}" (${doc.fileName}) ${action.toLowerCase()} by ${ctx.user.name ?? ctx.user.email ?? "admin"}.${input.reviewNotes ? ` Notes: ${input.reviewNotes}` : ""}`,
         before: { status: "pending" },
         after: { status: input.status, reviewNotes: input.reviewNotes },
-      }).catch(() => {});
+      }).catch((err) => { logger.warn("KYB document audit log failed", { error: String(err), docId: doc.id }); });
 
       return doc;
     }),
@@ -279,7 +280,7 @@ export const kybDocumentsRouter = router({
       await notifyOwner({
         title: `KYB Documents Bulk ${action.charAt(0).toUpperCase() + action.slice(1)}`,
         content: `Admin ${ctx.user.name ?? ctx.user.email ?? "Unknown"} has ${action} ${updated.length} KYB document(s).${input.reviewNotes ? `\n\nNotes: ${input.reviewNotes}` : ""}`,
-      }).catch(() => {});
+      }).catch((err) => { logger.warn("KYB bulk review notification failed", { error: String(err) }); });
 
       // Write audit log for bulk action
       await createAuditLog({
@@ -292,7 +293,7 @@ export const kybDocumentsRouter = router({
         description: `Bulk ${action}: ${updated.length} document(s) by ${ctx.user.name ?? ctx.user.email ?? "admin"}.${input.reviewNotes ? ` Notes: ${input.reviewNotes}` : ""}`,
         before: { status: "pending", count: input.documentIds.length },
         after: { status: input.status, count: updated.length },
-      }).catch(() => {});
+      }).catch((err) => { logger.warn("KYB bulk audit log failed", { error: String(err) }); });
 
       return { updated: updated.length, status: input.status };
     }),

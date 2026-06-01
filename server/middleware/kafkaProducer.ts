@@ -103,7 +103,9 @@ export function emitEvent(
   data: Record<string, unknown>,
   metadata?: Record<string, string>
 ): void {
-  publishEvent(topic, eventType, data, metadata).catch(() => {});
+  publishEvent(topic, eventType, data, metadata).catch((err) => {
+    logger.warn("[Kafka] emitEvent failed", { topic, eventType, error: err instanceof Error ? err.message : String(err) });
+  });
 }
 
 /** Get producer stats */

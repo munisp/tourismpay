@@ -126,8 +126,27 @@ const DEFAULT_SLA_HOURS: Record<string, number> = {
   high: 24,
   critical: 8,
 };
-// In-memory SLA config (persisted per-process; for production use a DB table)
+// SLA config persisted to Redis with in-memory fallback
 let slaConfig: Record<string, number> = { ...DEFAULT_SLA_HOURS };
+const REDIS_SLA_KEY = "bis:sla_config";
+
+async function loadSlaConfig(): Promise<void> {
+  try {
+    const { cacheGet } = await import("../middleware/redisClient");
+    const cached = await cacheGet(REDIS_SLA_KEY);
+    if (cached) slaConfig = { ...DEFAULT_SLA_HOURS, ...JSON.parse(cached) };
+  } catch { /* use defaults */ }
+}
+
+async function persistSlaConfig(): Promise<void> {
+  try {
+    const { cacheSet } = await import("../middleware/redisClient");
+    await cacheSet(REDIS_SLA_KEY, JSON.stringify(slaConfig), 0);
+  } catch { /* in-memory only */ }
+}
+
+// Load on module init
+loadSlaConfig().catch(() => {});
 
 
 

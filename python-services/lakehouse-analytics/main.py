@@ -466,13 +466,30 @@ class LakehouseHandler(BaseHTTPRequestHandler):
         params = parse_qs(parsed.query)
 
         if path == "/health":
+            deps = []
+            overall = "healthy"
+
+            # Check data directory
+            data_ok = os.path.isdir(LAKEHOUSE_DATA_DIR)
+            deps.append({"name": "data_dir", "status": "ok" if data_ok else "down", "path": LAKEHOUSE_DATA_DIR})
+            if not data_ok:
+                overall = "degraded"
+
+            # Check DuckDB availability
+            deps.append({"name": "duckdb", "status": "ok" if _HAS_DUCKDB else "unavailable"})
+
+            # Check table count (0 tables = not ready)
+            table_count = len(engine.cache)
+            deps.append({"name": "tables", "status": "ok" if table_count > 0 else "empty", "count": table_count})
+
             self._json(200, {
-                "status": "healthy",
+                "status": overall,
                 "service": "TourismPay Lakehouse Analytics (Python)",
                 "version": "2.0.0",
-                "tables": len(engine.cache),
+                "tables": table_count,
                 "views": len(engine._materialized_views),
                 "pipelines": len(engine._etl_pipelines),
+                "dependencies": deps,
                 "engine": "duckdb" if _HAS_DUCKDB else "pyarrow+pandas",
                 "dataDir": LAKEHOUSE_DATA_DIR,
                 "timestamp": datetime.utcnow().isoformat() + "Z",

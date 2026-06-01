@@ -144,3 +144,13 @@ redis_data/
 
 # Screenshots (dev only)
 screenshots/
+*.png
+test-*.md
+
+# Session artifacts (audit reports, manifests, patches)
+AUDIT_REPORT_*.md
+CHANGE_MANIFEST*.md
+COMPREHENSIVE_AUDIT_ARCHIVE*.md
+todo.md
+ideas.md
+patch_*.py

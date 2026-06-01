@@ -171,11 +171,23 @@ impl AppState {
 
 async fn health(data: web::Data<AppState>) -> HttpResponse {
     let cache = data.cache.lock().unwrap();
+    let stats = data.stats.lock().unwrap();
+    let key_count = cache.len();
+    let status = if key_count > 0 { "healthy" } else { "ok" };
     HttpResponse::Ok().json(serde_json::json!({
-        "status": "healthy",
+        "status": status,
         "service": "TourismPay Redis Cache (Rust)",
         "version": "1.0.0",
-        "keys": cache.len(),
+        "keys": key_count,
+        "dependencies": [{
+            "name": "cache_store",
+            "status": "ok",
+            "keys": key_count,
+            "total_ops": stats.total_ops,
+            "hit_ratio": if stats.total_ops > 0 {
+                (stats.cache_hits as f64 / stats.total_ops as f64 * 100.0).round()
+            } else { 0.0 }
+        }],
         "uptimeSeconds": data.start_time.elapsed().as_secs(),
         "timestamp": chrono::Utc::now().to_rfc3339()
     }))

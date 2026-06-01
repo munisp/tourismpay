@@ -194,11 +194,22 @@ async def health():
         if (Path(MODEL_DIR) / name).exists():
             available_models.append(name)
 
+    status = "ok"
+    deps = []
+    deps.append({"name": "model_dir", "status": "ok" if model_dir_exists else "down"})
+    deps.append({"name": "models", "status": "ok" if len(available_models) == 4 else "degraded", "loaded": len(models_loaded), "available": len(available_models)})
+
+    if not model_dir_exists:
+        status = "down"
+    elif len(available_models) < 4:
+        status = "degraded"
+
     return {
-        "status": "ok",
+        "status": status,
         "service": "ml-inference",
         "models_loaded": models_loaded,
         "models_available": available_models,
+        "dependencies": deps,
         "model_dir": MODEL_DIR,
         "model_dir_exists": model_dir_exists,
     }

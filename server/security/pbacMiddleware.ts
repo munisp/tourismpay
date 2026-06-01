@@ -273,7 +273,11 @@ export function pbacMiddleware(req: Request, res: Response, next: NextFunction):
         code: "PBAC_DENIED",
       });
     }
-  }).catch(() => {
+  }).catch((err) => {
+    const { logger } = require("../_core/logger");
+    logger.warn("PBAC middleware error, allowing request (fail-open)", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     next();
   });
 }

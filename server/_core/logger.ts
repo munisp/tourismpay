@@ -95,4 +95,16 @@ export function requestLoggerMiddleware(req: Request, res: Response, next: NextF
   next();
 }
 
+/**
+ * Fire-and-forget promise handler that logs errors instead of silently swallowing them.
+ * Use this instead of `.catch(() => {})` for non-critical async operations.
+ */
+export function fireAndForget(promise: Promise<unknown>, context: string): void {
+  promise.catch((err) => {
+    logger.warn(`[fire-and-forget] ${context}`, {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
+}
+
 export default logger;

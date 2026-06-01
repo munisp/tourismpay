@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -269,13 +270,29 @@ func main() {
 	router.Use(corsMiddleware())
 
 	router.GET("/health", func(c *gin.Context) {
+		status := "healthy"
+		deps := []gin.H{}
+
+		// Check Kafka broker TCP connectivity
+		kafkaOk := "down"
+		conn, err := net.DialTimeout("tcp", cfg.BrokerURL, 2*time.Second)
+		if err == nil {
+			conn.Close()
+			kafkaOk = "ok"
+		}
+		deps = append(deps, gin.H{"name": "kafka-broker", "status": kafkaOk, "address": cfg.BrokerURL})
+		if kafkaOk == "down" {
+			status = "degraded"
+		}
+
 		c.JSON(http.StatusOK, gin.H{
-			"status":    "healthy",
-			"service":   "TourismPay Kafka Processor (Go)",
-			"version":   "1.0.0",
-			"broker":    cfg.BrokerURL,
-			"topics":    cfg.Topics,
-			"timestamp": time.Now().UTC().Format(time.RFC3339),
+			"status":       status,
+			"service":      "TourismPay Kafka Processor (Go)",
+			"version":      "1.0.0",
+			"broker":       cfg.BrokerURL,
+			"topics":       cfg.Topics,
+			"dependencies": deps,
+			"timestamp":    time.Now().UTC().Format(time.RFC3339),
 		})
 	})
 

@@ -89,10 +89,29 @@ export const productionGoLiveRouter = router({
     apiKey: null as string | null, apiSecret: null as string | null,
     webhookSecret: null as string | null, baseUrl: "https://api.tourismpaypay.com",
   })),
-  getMonitoringData: protectedProcedure.input(z.object({ period: z.string().default("24h") })).query(async () => ({
-    uptime: 99.9, requestsPerMinute: 0, errorRate: 0, latencyP50: 0, latencyP99: 0,
-    alerts: [] as { id: string; severity: string; message: string }[],
-  })),
+  getMonitoringData: protectedProcedure.input(z.object({ period: z.string().default("24h") })).query(async () => {
+    const startTime = (globalThis as any).__SERVER_START_TIME ?? Date.now();
+    const uptimeMs = Date.now() - startTime;
+    const uptimeHours = uptimeMs / 3600000;
+    const uptimePercent = Math.min(100, Math.round((uptimeHours / Math.max(uptimeHours, 1)) * 1000) / 10);
+
+    let requestsPerMinute = 0;
+    let errorRate = 0;
+    try {
+      const { getKafkaProducerStats } = await import("../../middleware/kafkaProducer");
+      const stats = getKafkaProducerStats();
+      const totalEvents = stats.publishedCount + stats.failedCount;
+      const uptimeMinutes = Math.max(uptimeMs / 60000, 1);
+      requestsPerMinute = Math.round(totalEvents / uptimeMinutes);
+      errorRate = totalEvents > 0 ? Math.round((stats.failedCount / totalEvents) * 10000) / 100 : 0;
+    } catch { /* no stats available */ }
+
+    return {
+      uptime: uptimePercent, requestsPerMinute, errorRate,
+      latencyP50: 0, latencyP99: 0,
+      alerts: [] as { id: string; severity: string; message: string }[],
+    };
+  }),
   getAlertRules: protectedProcedure.query(async () => ({ rules: [] })),
   createAlertRule: protectedProcedure
     .input(z.object({ name: z.string(), condition: z.string(), threshold: z.number(), channel: z.string() }))

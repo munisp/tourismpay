@@ -55,10 +55,45 @@ async function checkRustService(): Promise<boolean> {
   return rustServiceAvailable;
 }
 
-// ─── In-Memory Ledger ────────────────────────────────────────────────────────
+// ─── Persistent Ledger Fallback (Redis + In-Memory) ──────────────────────────
 
 const memAccounts = new Map<string, Account>();
 const memTransfers: Transfer[] = [];
+const REDIS_TB_ACCOUNTS_KEY = "tb:accounts";
+const REDIS_TB_TRANSFERS_KEY = "tb:transfers";
+
+async function persistLedgerState(): Promise<void> {
+  try {
+    const { cacheSet } = await import("../middleware/redisClient");
+    const accounts = Object.fromEntries(memAccounts);
+    await cacheSet(REDIS_TB_ACCOUNTS_KEY, JSON.stringify(accounts), 86400);
+    await cacheSet(REDIS_TB_TRANSFERS_KEY, JSON.stringify(memTransfers.slice(-5000)), 86400);
+  } catch {
+    logger.debug("[TigerBeetle] Redis persist failed, using in-memory only");
+  }
+}
+
+export async function restoreLedgerState(): Promise<{ accounts: number; transfers: number }> {
+  try {
+    const { cacheGet } = await import("../middleware/redisClient");
+    const accountData = await cacheGet(REDIS_TB_ACCOUNTS_KEY);
+    if (accountData) {
+      const parsed = JSON.parse(accountData) as Record<string, Account>;
+      for (const [id, acc] of Object.entries(parsed)) memAccounts.set(id, acc);
+    }
+    const transferData = await cacheGet(REDIS_TB_TRANSFERS_KEY);
+    if (transferData) {
+      const parsed = JSON.parse(transferData) as Transfer[];
+      for (const t of parsed) {
+        if (!memTransfers.find(m => m.id === t.id)) memTransfers.push(t);
+      }
+    }
+    logger.info(`[TigerBeetle] Restored ${memAccounts.size} accounts, ${memTransfers.length} transfers from Redis`);
+    return { accounts: memAccounts.size, transfers: memTransfers.length };
+  } catch {
+    return { accounts: 0, transfers: 0 };
+  }
+}
 
 // ─── Rust TigerBeetle Service API ────────────────────────────────────────────
 
@@ -119,8 +154,9 @@ export async function createAccount(params: {
     } catch { /* fall through */ }
   }
 
-  // In-memory
+  // In-memory with Redis persistence
   memAccounts.set(account.id, account);
+  persistLedgerState().catch(() => {});
   return { account, via: "in-memory" };
 }
 
@@ -151,12 +187,13 @@ export async function createTransfer(params: {
     } catch { /* fall through */ }
   }
 
-  // In-memory: update account balances
+  // In-memory with Redis persistence: update account balances
   const debit = memAccounts.get(params.debitAccountId);
   const credit = memAccounts.get(params.creditAccountId);
   if (debit) debit.debitsPosted += params.amount;
   if (credit) credit.creditsPosted += params.amount;
   memTransfers.push(transfer);
+  persistLedgerState().catch(() => {});
   return { transfer, via: "in-memory" };
 }
 
