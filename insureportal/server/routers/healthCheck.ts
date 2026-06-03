@@ -4,6 +4,8 @@ import { router, publicProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
 
+const SERVICE_HOST = process.env.SERVICE_DISCOVERY_HOST || "localhost";
+
 export const healthCheckRouter = router({
   status: publicProcedure.query(async () => {
     const checks: Record<
@@ -83,7 +85,7 @@ export const healthCheckRouter = router({
     for (const svc of goServices) {
       try {
         const start = Date.now();
-        const resp = await fetch(`http://localhost:${svc.port}/health`, {
+        const resp = await fetch(`http://${SERVICE_HOST}:${svc.port}/health`, {
           signal: AbortSignal.timeout(2000),
         });
         checks[`go:${svc.name}`] = resp.ok
@@ -104,7 +106,7 @@ export const healthCheckRouter = router({
     for (const svc of pyServices) {
       try {
         const start = Date.now();
-        const resp = await fetch(`http://localhost:${svc.port}/health`, {
+        const resp = await fetch(`http://${SERVICE_HOST}:${svc.port}/health`, {
           signal: AbortSignal.timeout(2000),
         });
         checks[`py:${svc.name}`] = resp.ok
@@ -123,7 +125,7 @@ export const healthCheckRouter = router({
     for (const svc of rustServices) {
       try {
         const start = Date.now();
-        const resp = await fetch(`http://localhost:${svc.port}/health`, {
+        const resp = await fetch(`http://${SERVICE_HOST}:${svc.port}/health`, {
           signal: AbortSignal.timeout(2000),
         });
         checks[`rust:${svc.name}`] = resp.ok
@@ -172,7 +174,7 @@ export const healthCheckRouter = router({
     for (const svc of allServices) {
       try {
         const start = Date.now();
-        const resp = await fetch(`http://localhost:${svc.port}/health`, {
+        const resp = await fetch(`http://${SERVICE_HOST}:${svc.port}/health`, {
           signal: AbortSignal.timeout(2000),
         });
         services.push({
