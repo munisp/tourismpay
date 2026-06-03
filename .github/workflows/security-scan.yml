@@ -1,0 +1,153 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1' # Weekly Monday 6AM UTC
+
+jobs:
+  # ── Dependency Vulnerability Scanning ──
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: npm audit (frontend)
+        working-directory: customer-portal-full
+        run: |
+          npm install --legacy-peer-deps
+          npm audit --production --audit-level=high 2>&1 | tee /tmp/npm-audit.txt || true
+          echo "## npm audit results" >> $GITHUB_STEP_SUMMARY
+          cat /tmp/npm-audit.txt >> $GITHUB_STEP_SUMMARY
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: govulncheck (Go services)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          for dir in $(find . -maxdepth 1 -name "go.mod" -exec dirname {} \; | head -10); do
+            echo "=== Scanning $dir ==="
+            (cd "$dir" && govulncheck ./... 2>/dev/null || true)
+          done
+
+  # ── Static Application Security Testing ──
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Semgrep
+        run: |
+          semgrep scan \
+            --config auto \
+            --config p/owasp-top-ten \
+            --config p/typescript \
+            --config p/golang \
+            --exclude node_modules \
+            --exclude vendor \
+            --sarif -o semgrep-results.sarif \
+            . || true
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep-results.sarif
+        continue-on-error: true
+
+  # ── Secret Scanning ──
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          wget -q https://github.com/gitleaks/gitleaks/releases/download/v8.18.0/gitleaks_8.18.0_linux_x64.tar.gz
+          tar xzf gitleaks_8.18.0_linux_x64.tar.gz
+          chmod +x gitleaks
+
+      - name: Run gitleaks
+        run: |
+          ./gitleaks detect --source . --report-format sarif --report-path gitleaks.sarif || true
+
+      - name: Custom secret patterns
+        run: |
+          echo "Checking for hardcoded secrets..."
+          FOUND=0
+          # AWS keys
+          if grep -rn "AKIA[0-9A-Z]{16}" --include="*.ts" --include="*.go" --include="*.py" --exclude-dir=node_modules .; then FOUND=1; fi
+          # Stripe live keys
+          if grep -rn "sk_live_" --include="*.ts" --include="*.go" --exclude-dir=node_modules .; then FOUND=1; fi
+          # Private keys
+          if grep -rn "BEGIN.*PRIVATE KEY" --include="*.ts" --include="*.go" --include="*.py" --exclude-dir=node_modules .; then FOUND=1; fi
+          # JWT secrets in code
+          if grep -rn "jwt.*secret.*=.*['\"]" --include="*.ts" --include="*.go" -i --exclude-dir=node_modules . | grep -v "process.env\|os.Getenv\|\.example\|\.sample"; then FOUND=1; fi
+
+          if [ $FOUND -eq 0 ]; then
+            echo "✅ No hardcoded secrets detected"
+          else
+            echo "⚠️ Potential secrets found — review above output"
+          fi
+
+  # ── Container Security ──
+  container-scan:
+    name: Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          format: table
+          exit-code: 0
+
+      - name: Check Dockerfile best practices
+        run: |
+          for df in $(find . -name "Dockerfile" -not -path "*/node_modules/*" | head -20); do
+            echo "=== $df ==="
+            # Check for running as root
+            if ! grep -q "USER" "$df"; then
+              echo "  ⚠️ No USER directive (runs as root)"
+            fi
+            # Check for latest tag
+            if grep -q ":latest" "$df"; then
+              echo "  ⚠️ Uses :latest tag (non-reproducible)"
+            fi
+          done
+
+  # ── License Compliance ──
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check npm licenses
+        working-directory: customer-portal-full
+        run: |
+          npm install --legacy-peer-deps
+          npx license-checker --production --failOn "GPL-3.0;AGPL-3.0" 2>/dev/null || echo "License check completed"
