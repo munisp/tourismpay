@@ -1,161 +1,217 @@
-# Deployment Guide
-
-## Environments
-
-| Environment | Purpose | Infrastructure |
-|-------------|---------|---------------|
-| Development | Local dev | Docker Compose (middleware only) |
-| Staging | Integration testing | Docker Compose (full stack) |
-| Production | Live traffic | Kubernetes + Helm |
+# InsurePortal Deployment Guide
 
 ## Prerequisites
 
-- Kubernetes 1.28+
-- Helm 3.14+
+- Kubernetes cluster (1.28+) or Docker Compose for staging
+- Helm 3.x
 - kubectl configured with cluster access
-- Container registry with built images
-- DNS configured for ingress domains
+- Container registry access (ghcr.io/munisp/insureportal)
 
-## Production Deployment
-
-### 1. Create Namespace and Secrets
+## Staging Deployment (Docker Compose)
 
 ```bash
-kubectl create namespace ngapp
+cd insureportal/infrastructure/deploy/staging
 
+# Copy and configure environment
+cp .env.staging .env
+# Edit .env with your values
+
+# Start all services
+docker compose up -d
+
+# Verify
+docker compose ps
+curl http://localhost:5002/api/health
+```
+
+The staging stack includes: PostgreSQL, Redis, Kafka, Keycloak, Temporal, OpenSearch.
+
+## Production Deployment (Kubernetes + Helm)
+
+### 1. Namespace Setup
+
+```bash
+kubectl create namespace insureportal
+kubectl config set-context --current --namespace=insureportal
+```
+
+### 2. Create Secrets
+
+```bash
 # Database credentials
-kubectl create secret generic ngapp-db-credentials \
-  --from-literal=url="postgres://ngapp:PASSWORD@db-host:5432/ngapp?sslmode=require" \
-  -n ngapp
+kubectl create secret generic insureportal-db-credentials \
+  --from-literal=username=insureportal \
+  --from-literal=password=$DB_PASSWORD \
+  --from-literal=host=$DB_HOST
 
 # Redis credentials
-kubectl create secret generic ngapp-redis-credentials \
-  --from-literal=url="redis://:PASSWORD@redis-host:6379" \
-  -n ngapp
+kubectl create secret generic insureportal-redis-credentials \
+  --from-literal=password=$REDIS_PASSWORD \
+  --from-literal=host=$REDIS_HOST
 
-# Keycloak admin
-kubectl create secret generic ngapp-keycloak-credentials \
-  --from-literal=admin-password="KEYCLOAK_ADMIN_PASSWORD" \
-  -n ngapp
+# Kafka credentials
+kubectl create secret generic insureportal-kafka-credentials \
+  --from-literal=username=$KAFKA_USER \
+  --from-literal=password=$KAFKA_PASSWORD
 
-# Grafana admin
-kubectl create secret generic ngapp-grafana-credentials \
-  --from-literal=admin-password="GRAFANA_ADMIN_PASSWORD" \
-  -n ngapp
+# Keycloak credentials
+kubectl create secret generic insureportal-keycloak-credentials \
+  --from-literal=client-id=$KEYCLOAK_CLIENT_ID \
+  --from-literal=client-secret=$KEYCLOAK_CLIENT_SECRET
 ```
 
-### 2. Install Monitoring Stack
+### 3. Deploy with Helm
 
 ```bash
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
+cd insureportal/infrastructure/helm/insurance-platform
 
-helm install monitoring prometheus-community/kube-prometheus-stack \
-  -f monitoring/prometheus-values.yaml \
-  -n observability --create-namespace
+# Install
+helm install insureportal . \
+  -f values-production.yaml \
+  --set image.tag=$IMAGE_TAG \
+  --set postgresql.external.host=$DB_HOST \
+  --set redis.external.host=$REDIS_HOST \
+  --set kafka.external.brokers=$KAFKA_BROKERS \
+  --set keycloak.external.url=$KEYCLOAK_URL
+
+# Upgrade
+helm upgrade insureportal . \
+  -f values-production.yaml \
+  --set image.tag=$NEW_IMAGE_TAG
 ```
 
-### 3. Deploy OpenTelemetry Collector
+### 4. Verify
 
 ```bash
-kubectl apply -f monitoring/otel-collector.yaml
+kubectl get pods -l app=insureportal
+kubectl get svc
+curl https://insureportal.ng/api/health
 ```
 
-### 4. Install NGApp Platform
+## Blue-Green Deployment
+
+InsurePortal supports blue-green deployments via Helm:
 
 ```bash
-helm install ngapp helm/ngapp-platform/ \
-  -f helm/ngapp-platform/values.yaml \
-  --set global.domain=your-domain.com \
-  --set global.imageRegistry=your-registry.com \
-  -n ngapp
+# Deploy green (new version)
+helm install insureportal-green . \
+  -f values-production.yaml \
+  --set image.tag=$NEW_TAG \
+  --set service.name=insureportal-green
+
+# Verify green is healthy
+kubectl exec -it $(kubectl get pod -l version=green -o name | head -1) \
+  -- curl localhost:5002/api/health
+
+# Switch traffic (update ingress)
+kubectl patch ingress insureportal \
+  -p '{"spec":{"rules":[{"host":"insureportal.ng","http":{"paths":[{"path":"/","pathType":"Prefix","backend":{"service":{"name":"insureportal-green","port":{"number":5002}}}}]}}]}}'
+
+# Verify in production
+curl https://insureportal.ng/api/health
+
+# Remove old blue
+helm uninstall insureportal-blue
 ```
 
-### 5. Verify Deployment
+## Canary Deployment
+
+For gradual rollouts, use APISIX traffic splitting:
 
 ```bash
-# Check all pods are running
-kubectl get pods -n ngapp
+# Deploy canary with 10% traffic
+helm install insureportal-canary . \
+  -f values-production.yaml \
+  --set image.tag=$CANARY_TAG \
+  --set replicaCount=1
 
-# Check services
-kubectl get svc -n ngapp
+# Configure APISIX traffic split
+curl http://apisix-admin:9180/apisix/admin/routes/insureportal \
+  -X PUT -d '{
+    "uri": "/*",
+    "upstream": {
+      "type": "roundrobin",
+      "nodes": {
+        "insureportal-stable:5002": 90,
+        "insureportal-canary:5002": 10
+      }
+    }
+  }'
 
-# Check ingress
-kubectl get ingress -n ngapp
-
-# Run health checks
-for svc in $(kubectl get svc -n ngapp -o jsonpath='{.items[*].metadata.name}'); do
-  echo "$svc: $(kubectl exec -n ngapp deploy/$svc -- wget -qO- http://localhost:8080/health 2>/dev/null || echo 'N/A')"
-done
+# Monitor canary metrics in Grafana
+# If healthy, increase to 50%, then 100%
+# If errors spike, roll back by removing canary upstream
 ```
 
-### 6. Seed Database
+## Monitoring Stack
 
 ```bash
-kubectl run seed --rm -it --image=node:20-alpine \
-  --env="DATABASE_URL=postgres://..." \
-  -n ngapp -- sh -c "npm install && node server/seed-comprehensive.mjs"
+cd insureportal/infrastructure/monitoring
+
+# Deploy Prometheus + Grafana
+docker compose -f docker-compose.monitoring.yml up -d
+
+# Grafana: http://localhost:3000 (admin/admin)
+# Prometheus: http://localhost:9090
+# Alertmanager: http://localhost:9093
 ```
 
-## Scaling
-
-### Manual Scaling
+## Log Aggregation
 
 ```bash
-# Scale a specific service
-kubectl scale deployment claims-adjudication-engine --replicas=5 -n ngapp
+cd insureportal/infrastructure/logging
+
+# Deploy OpenSearch + Fluentd
+docker compose -f docker-compose.logging.yml up -d
+
+# OpenSearch Dashboards: http://localhost:5601
+# Fluentd receives logs on port 24224
 ```
 
-### Autoscaling (HPA)
+## Database Migrations
 
-All services have HPA configured by default:
-- Min: 2 replicas
-- Max: 8 replicas
-- Target CPU: 75%
+```bash
+cd insureportal
 
-Override per service in `values.yaml`:
-```yaml
-services:
-  ussd-gateway:
-    replicaCount: 4
-    autoscaling:
-      maxReplicas: 20
-      targetCPUUtilizationPercentage: 60
+# Generate migration from schema changes
+npx drizzle-kit generate
+
+# Apply migrations
+npx drizzle-kit migrate
+
+# Seed data (development/staging only)
+node server/seed-comprehensive.mjs
 ```
 
 ## Rollback
 
 ```bash
-# View release history
-helm history ngapp -n ngapp
+# Helm rollback
+helm rollback insureportal [REVISION]
 
-# Rollback to previous version
-helm rollback ngapp 1 -n ngapp
+# Check history
+helm history insureportal
+
+# Database rollback (if needed)
+# Migrations are forward-only; restore from backup if needed
 ```
 
-## Disaster Recovery
+## Health Checks
 
-The `disaster-recovery-module` service handles automated failover:
-- Monitors all service health endpoints every 30s
-- Triggers Temporal workflow on 3 consecutive failures
-- Failover workflow: drain traffic → promote replica → verify → switch DNS
-- RTO target: 15 minutes
-- RPO target: 1 hour (Postgres WAL shipping)
+| Endpoint | Port | Description |
+|----------|------|-------------|
+| `/api/health` | 5002 | Main application health |
+| `/health` | 8090-8099 | Individual Go services |
+| `/metrics` | 9464 | Prometheus metrics |
+| `/ready` | 5002 | Kubernetes readiness |
 
-## Monitoring
+## Environment Variables
 
-### Grafana Dashboards
-- **NGApp Platform Overview** — Request rate, error rate, latency P99
-- **Claims Pipeline** — Submitted/approved/rejected/escalated rates
-- **Database Health** — Connection pool, query latency, replication lag
-- **Kafka Health** — Consumer lag, throughput, partition status
+See [.env.example](../.env.example) for the complete list of 317 environment variables.
 
-### Alerts
-| Alert | Severity | Condition |
-|-------|----------|-----------|
-| ServiceDown | Critical | Service unreachable for 5m |
-| HighErrorRate | Warning | >5% error rate for 5m |
-| HighLatency | Warning | P99 >2s for 5m |
-| PodCrashLooping | Critical | Restart rate >0 for 5m |
-| DBPoolExhausted | Critical | 0 available connections for 2m |
-| HighMemoryUsage | Warning | >90% memory limit for 5m |
+Key categories:
+- Database: `DATABASE_URL`, `REDIS_URL`
+- Auth: `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`
+- Messaging: `KAFKA_BROKERS`, `KAFKA_CLIENT_ID`
+- Observability: `OTEL_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`
+- Services: `SERVICE_DISCOVERY_HOST` (configures all service URLs)

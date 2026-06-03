@@ -6,7 +6,7 @@
  *  2. Scan QR codes via device camera using jsQR (works offline — no cloud OCR)
  *  3. Persist generated QR codes in IndexedDB so they survive page reloads
  *  4. Sync IndexedDB-persisted QR codes to the server when connectivity is restored
- *  5. Parse InsurePortal QR payload format: 54LINK:{ref}:{amount}:{agentCode}
+ *  5. Parse InsurePortal QR payload format: INSUREPORTAL:{ref}:{amount}:{agentCode}
  *
  * Offline strategy:
  *  - QR generation: fully offline — canvas rendering is pure client-side
@@ -30,7 +30,7 @@ export interface OfflineQRRecord {
   amount: number;
   agentCode: string;
   label: string;
-  payload: string; // 54LINK:{ref}:{amount}:{agentCode}
+  payload: string; // INSUREPORTAL:{ref}:{amount}:{agentCode}
   createdAt: string;
   synced: boolean;
 }
@@ -137,8 +137,8 @@ export interface ParsedQRPayload {
 }
 
 export function parseQRPayload(raw: string): ParsedQRPayload {
-  // InsurePortal format: 54LINK:{ref}:{amount}:{agentCode}
-  if (raw.startsWith("54LINK:")) {
+  // InsurePortal format: INSUREPORTAL:{ref}:{amount}:{agentCode}
+  if (raw.startsWith("INSUREPORTAL:")) {
     const parts = raw.split(":");
     if (parts.length >= 4) {
       const amount = parseFloat(parts[2]);
@@ -177,7 +177,7 @@ export function buildInsurePortalQRPayload(
   amount: number,
   agentCode: string
 ): string {
-  return `54LINK:${ref}:${amount}:${agentCode}`;
+  return `INSUREPORTAL:${ref}:${amount}:${agentCode}`;
 }
 
 // ── Camera QR scanner ─────────────────────────────────────────────────────────

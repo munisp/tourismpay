@@ -125,7 +125,7 @@ Generate keys with: `npx web-push generate-vapid-keys`
 | `CBN_SINGLE_TX_LIMIT_TIER3` | `200000`    | Tier 3 single tx limit (NGN)  |
 | `CBN_CTR_THRESHOLD`         | `5000000`   | CTR reporting threshold (NGN) |
 | `CBN_SAR_THRESHOLD`         | `10000000`  | SAR reporting threshold (NGN) |
-| `CBN_INSTITUTION_CODE`      | `54LINK001` | CBN institution code          |
+| `CBN_INSTITUTION_CODE`      | `INSURE001` | NAICOM institution code       |
 
 ## Float Management
 

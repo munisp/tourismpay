@@ -439,7 +439,7 @@ export const fraudRouter = router({
           name: "Time of Day: Transactions 11 PM – 5 AM",
           category: "time_of_day" as const,
           description:
-            "Flags transactions processed between 23:00 and 05:00 WAT. Agency banking fraud peaks in late-night hours.",
+            "Flags transactions processed between 23:00 and 05:00 WAT. Insurance fraud activity peaks in late-night hours.",
           threshold: "0.6500",
           windowSeconds: null,
           maxCount: null,

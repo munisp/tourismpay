@@ -710,7 +710,7 @@ export function DisputesAdminTab() {
                   48-hour SLA deadline
                 </p>
                 <p className="text-xs text-slate-400">
-                  CBN agency banking requires resolution within 48 hours. Filter
+                  NAICOM guidelines require resolution within 48 hours. Filter
                   by "Open" to prioritise.
                 </p>
               </div>

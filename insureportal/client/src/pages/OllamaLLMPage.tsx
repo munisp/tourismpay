@@ -126,7 +126,7 @@ export default function OllamaLLMPage() {
             <CardContent className="space-y-4">
               <div className="flex gap-2">
                 <Input
-                  placeholder="Ask about agency banking, fraud patterns, CBN regulations..."
+                  placeholder="Ask about insurance claims, fraud patterns, NAICOM regulations..."
                   value={chatInput}
                   onChange={e => setChatInput(e.target.value)}
                 />

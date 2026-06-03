@@ -76,7 +76,7 @@ export const printer = {
       </head>
       <body>
         <div class="center">
-          <div class="logo">54LINK</div>
+          <div class="logo">InsurePortal</div>
           <div>Insurance Management Platform</div>
           <div class="divider"></div>
         </div>

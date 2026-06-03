@@ -11,7 +11,7 @@ const API_SPEC = {
     title: "InsurePortal Insurance Platform API",
     version: "1.0.0",
     description:
-      "Comprehensive API for agency banking operations including KYC/KYB, transactions, settlements, and compliance.",
+      "Comprehensive API for insurance operations including KYC/KYB, policy management, claims processing, and NAICOM compliance.",
     contact: { name: "InsurePortal Engineering", email: "engineering@insureportal.ng" },
     license: { name: "Proprietary" },
   },

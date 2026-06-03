@@ -26,7 +26,7 @@ import { getAgentFromCookie } from "../middleware/agentAuth";
 import { agents, loyaltyHistory } from "../../drizzle/schema";
 import { eq, desc, asc, sql, gte, and, ilike, isNull } from "drizzle-orm";
 
-// ─── Tier thresholds (CBN-aligned agency banking tiers) ──────────────────────
+// ─── Tier thresholds (NAICOM-aligned insurance agent tiers) ──────────────────
 const TIER_THRESHOLDS = {
   Bronze: 0,
   Silver: 5000,
@@ -106,7 +106,7 @@ const REWARD_CATALOG = [
   },
   {
     id: "RWD-007",
-    name: "POS Terminal Upgrade",
+    name: "Premium Portal Upgrade",
     category: "hardware",
     pointsCost: 25000,
     description: "Upgrade to PAX A920 MAX terminal",

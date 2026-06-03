@@ -17,7 +17,7 @@ const SECTIONS = [
   },
   {
     title: "2. Data Controller Information",
-    content: `InsurePortal Limited is the data controller for personal data processed through this platform. Our registered address is: 1, Broad Street, Lagos Island, Lagos State, Nigeria. Data Protection Officer: dpo@insureportal.ng | +234 (0) 800 54LINK.`,
+    content: `InsurePortal Limited is the data controller for personal data processed through this platform. Our registered address is: 1, Broad Street, Lagos Island, Lagos State, Nigeria. Data Protection Officer: dpo@insureportal.ng | +234 (0) 800 INSURE.`,
   },
   {
     title: "3. Categories of Personal Data Collected",
@@ -25,7 +25,7 @@ const SECTIONS = [
   },
   {
     title: "4. Legal Basis for Processing",
-    content: `We process personal data on the following legal bases under the NDPR and NDPA:\n\n• Contractual Necessity: Processing required to fulfil our agency banking agreement with you.\n• Legal Obligation: Compliance with CBN regulations, FIRS requirements, NFIU reporting obligations, and anti-money laundering (AML) laws.\n• Legitimate Interests: Fraud detection, security monitoring, platform improvement, and risk management.\n• Consent: Where you have provided explicit consent, such as for marketing communications or optional biometric verification.`,
+    content: `We process personal data on the following legal bases under the NDPR and NDPA:\n\n• Contractual Necessity: Processing required to fulfil our insurance service agreement with you.\n• Legal Obligation: Compliance with CBN regulations, FIRS requirements, NFIU reporting obligations, and anti-money laundering (AML) laws.\n• Legitimate Interests: Fraud detection, security monitoring, platform improvement, and risk management.\n• Consent: Where you have provided explicit consent, such as for marketing communications or optional biometric verification.`,
   },
   {
     title: "5. How We Use Your Data",
@@ -65,7 +65,7 @@ const SECTIONS = [
   },
   {
     title: "14. Contact Us",
-    content: `For privacy-related enquiries, data rights requests, or to report a data breach:\n\nData Protection Officer: dpo@insureportal.ng\nPrivacy Team: privacy@insureportal.ng\nPhone: +234 (0) 800 54LINK (548465)\nAddress: 1, Broad Street, Lagos Island, Lagos State, Nigeria\n\nYou also have the right to lodge a complaint with the Nigeria Data Protection Commission (NDPC) at ndpc.gov.ng.`,
+    content: `For privacy-related enquiries, data rights requests, or to report a data breach:\n\nData Protection Officer: dpo@insureportal.ng\nPrivacy Team: privacy@insureportal.ng\nPhone: +234 (0) 800 INSURE (467873)\nAddress: 1, Broad Street, Lagos Island, Lagos State, Nigeria\n\nYou also have the right to lodge a complaint with the Nigeria Data Protection Commission (NDPC) at ndpc.gov.ng.`,
   },
 ];
 

@@ -4,7 +4,7 @@
  *
  * Sections:
  * 1. Getting Started
- * 2. POS Terminal Operations
+ * 2. Policy & Claims Operations
  * 3. Agent Management
  * 4. Transaction Processing
  * 5. Fraud Detection & Prevention
@@ -88,7 +88,7 @@ const guideSections: GuideSection[] = [
         id: "overview",
         title: "Platform Overview",
         content:
-          "The InsurePortal Agent Banking Platform is a comprehensive POS (Point of Sale) system designed for agent banking operations in Nigeria. It enables agents to process financial transactions including cash-in, cash-out, transfers, bill payments, and airtime purchases on behalf of customers.\n\nThe platform includes multiple portals for different user roles: Agent Portal for field agents, Customer Portal for end-users, Merchant Portal for business partners, Developer Portal for API integrations, and Admin/Supervisor dashboards for management oversight.",
+          "InsurePortal is a comprehensive insurance technology platform designed for insurance operations in Nigeria. It enables agents to process policy sales, claims submissions, premium collections, and renewals on behalf of policyholders.\n\nThe platform includes multiple portals for different user roles: Agent Portal for field agents, Customer Portal for policyholders, Underwriter Portal for risk assessment, Developer Portal for API integrations, and Admin/Supervisor dashboards for management oversight.",
         tags: ["introduction", "overview", "platform"],
       },
       {
@@ -129,150 +129,150 @@ const guideSections: GuideSection[] = [
         id: "navigation",
         title: "Navigating the Platform",
         content:
-          "The platform uses a sidebar navigation organized into logical groups. Use the sidebar to access different features. The top header shows your notification bell and profile menu. On mobile, tap the hamburger menu to reveal the sidebar.\n\nKey navigation areas:\n- Core: POS Terminal and Platform Hub\n- Portals: Agent, Customer, Merchant, Developer\n- Administration: Admin Panel, Supervisor Dashboard\n- Operations: Transactions, Settlements, Commissions\n- Monitoring: System Health, Fraud Detection, Analytics",
+          "The platform uses a sidebar navigation organized into logical groups. Use the sidebar to access different features. The top header shows your notification bell and profile menu. On mobile, tap the hamburger menu to reveal the sidebar.\n\nKey navigation areas:\n- Core: Insurance Dashboard and Platform Hub\n- Portals: Agent, Customer, Underwriter, Developer\n- Administration: Admin Panel, Supervisor Dashboard\n- Operations: Policies, Claims, Commissions\n- Monitoring: System Health, Fraud Detection, Analytics",
         tags: ["navigation", "sidebar", "menu"],
       },
       {
         id: "keyboard-shortcuts",
         title: "Keyboard Shortcuts",
         content:
-          "Power users can navigate faster using keyboard shortcuts:\n\n- Ctrl+K / Cmd+K: Open global search\n- Ctrl+/: Show keyboard shortcuts help\n- Ctrl+H: Go to home/POS Terminal\n- Ctrl+N: Open notification center\n- Escape: Close any open modal or panel",
+          "Power users can navigate faster using keyboard shortcuts:\n\n- Ctrl+K / Cmd+K: Open global search\n- Ctrl+/: Show keyboard shortcuts help\n- Ctrl+H: Go to home/Insurance Dashboard\n- Ctrl+N: Open notification center\n- Escape: Close any open modal or panel",
         tags: ["keyboard", "shortcuts", "productivity"],
       },
     ],
   },
   {
     id: "pos-terminal",
-    title: "POS Terminal Operations",
+    title: "Policy & Claims Operations",
     icon: Smartphone,
-    description: "Process transactions on the POS terminal",
+    description: "Manage policies, claims, and premium collections",
     subsections: [
       {
-        id: "cash-in",
-        title: "Cash-In (Deposits)",
+        id: "new-policy",
+        title: "New Policy Issuance",
         content:
-          "Cash-in allows customers to deposit money into their accounts through your POS terminal.",
+          "Issue new insurance policies for customers. Supports motor, life, health, property, marine, and agriculture lines.",
         steps: [
           {
-            title: "Select Cash-In",
-            description: "From the POS Terminal, tap the Cash-In button",
+            title: "Select Policy Type",
+            description: "From the Dashboard, choose the insurance product line",
           },
           {
             title: "Enter Customer Details",
-            description: "Enter the customer's account number or phone number",
+            description: "Enter the policyholder's name, BVN/NIN, and contact details",
           },
           {
-            title: "Enter Amount",
-            description: "Type the deposit amount in Naira (₦)",
+            title: "Risk Assessment",
+            description: "Complete the risk questionnaire for underwriting",
           },
           {
-            title: "Collect Cash",
-            description: "Collect the physical cash from the customer",
+            title: "Premium Calculation",
+            description: "System calculates premium based on risk profile and coverage",
           },
           {
-            title: "Confirm Transaction",
+            title: "Confirm & Issue",
             description:
-              "Review details and confirm. A receipt will be generated.",
+              "Review details, collect premium, and issue the policy certificate.",
           },
         ],
         relatedPage: "/",
-        tags: ["cash-in", "deposit", "transaction"],
+        tags: ["policy", "issuance", "new-business"],
       },
       {
-        id: "cash-out",
-        title: "Cash-Out (Withdrawals)",
+        id: "claims-submission",
+        title: "Claims Submission",
         content:
-          "Cash-out enables customers to withdraw money from their accounts. Ensure you have sufficient float balance before processing.",
+          "Submit and track insurance claims. Ensure all supporting documentation is uploaded for faster processing.",
         steps: [
           {
-            title: "Select Cash-Out",
-            description: "From the POS Terminal, tap the Cash-Out button",
+            title: "Initiate Claim",
+            description: "From the Claims dashboard, tap Submit New Claim",
           },
           {
-            title: "Enter Customer Details",
-            description: "Enter the customer's account number or phone number",
+            title: "Select Policy",
+            description: "Choose the active policy for the claim",
           },
           {
-            title: "Enter Amount",
+            title: "Enter Claim Details",
             description:
-              "Type the withdrawal amount. Check your float balance first.",
+              "Describe the incident, date of loss, and estimated amount.",
           },
           {
-            title: "Customer Authorization",
+            title: "Upload Documents",
             description:
-              "Customer must authorize the transaction via their bank",
+              "Attach supporting evidence (photos, police report, medical records)",
           },
           {
-            title: "Dispense Cash",
+            title: "Submit for Review",
             description:
-              "Once confirmed, hand the cash to the customer and print receipt",
+              "Submit the claim. You'll receive a tracking reference number.",
           },
         ],
         relatedPage: "/",
-        tags: ["cash-out", "withdrawal", "transaction"],
+        tags: ["claims", "submission", "loss"],
       },
       {
-        id: "transfers",
-        title: "Fund Transfers",
+        id: "renewals",
+        title: "Policy Renewals",
         content:
-          "Process bank-to-bank transfers for customers. Supports both intra-bank and inter-bank transfers via NIBSS.",
+          "Renew expiring policies before lapse. The system sends automated reminders 30, 14, and 7 days before expiry.",
         steps: [
           {
-            title: "Select Transfer",
-            description: "Tap the Transfer button on the POS Terminal",
+            title: "View Expiring Policies",
+            description: "Check the Renewals dashboard for upcoming expirations",
           },
           {
-            title: "Enter Source Account",
-            description: "Enter the sender's account details",
+            title: "Review Coverage",
+            description: "Confirm or adjust coverage and sum insured",
           },
           {
-            title: "Enter Destination",
-            description: "Enter the recipient's bank and account number",
+            title: "Recalculate Premium",
+            description: "System recalculates premium with updated risk factors",
           },
           {
-            title: "Enter Amount",
-            description: "Specify the transfer amount and narration",
+            title: "Collect Premium",
+            description: "Process premium payment via bank transfer or card",
           },
           {
-            title: "Confirm & Process",
+            title: "Confirm Renewal",
             description:
-              "Review and confirm. Inter-bank transfers may take a few minutes.",
+              "Issue renewed policy certificate with updated validity dates.",
           },
         ],
         relatedPage: "/",
-        tags: ["transfer", "bank", "nibss"],
+        tags: ["renewal", "expiry", "premium"],
       },
       {
-        id: "bill-payments",
-        title: "Bill Payments & Airtime",
+        id: "premium-collection",
+        title: "Premium Collection",
         content:
-          "Pay bills (electricity, cable TV, internet) and purchase airtime/data for customers. All major billers and telcos are supported.",
+          "Collect premiums from policyholders. Supports bank transfer, card payment, and mobile money.",
         steps: [
           {
-            title: "Select Bill Payment or Airtime",
-            description: "Choose the appropriate option from the POS Terminal",
+            title: "Select Premium Collection",
+            description: "Choose the appropriate payment channel",
           },
           {
-            title: "Select Provider",
+            title: "Select Policy",
             description:
-              "Choose the biller (DSTV, PHCN, etc.) or telco (MTN, Airtel, Glo, 9mobile)",
-          },
-          {
-            title: "Enter Details",
-            description: "Enter the customer's meter/decoder/phone number",
-          },
-          {
-            title: "Enter Amount",
-            description: "Specify the payment amount or select a data plan",
+              "Choose the policy and verify the outstanding premium amount",
           },
           {
             title: "Process Payment",
+            description: "Enter payment details and amount",
+          },
+          {
+            title: "Generate Receipt",
+            description: "System generates an official premium receipt",
+          },
+          {
+            title: "Confirm Collection",
             description:
-              "Confirm and process. Token/PIN will be displayed for utility payments.",
+              "Receipt is sent to policyholder via SMS and email.",
           },
         ],
         relatedPage: "/",
-        tags: ["bills", "airtime", "data", "utility"],
+        tags: ["premium", "collection", "payment"],
       },
     ],
   },
@@ -302,7 +302,7 @@ const guideSections: GuideSection[] = [
         id: "float-management",
         title: "Float Management",
         content:
-          "Float is the working capital agents use to process transactions. Monitor your float balance on the POS Terminal dashboard. Request top-ups from the Agent Portal when running low.\n\nBest practices:\n- Maintain at least 20% of your daily average as buffer\n- Request top-ups before your balance drops below ₦50,000\n- Reconcile your float daily against transaction records\n- Report any discrepancies immediately to your supervisor",
+          "Float is the working capital agents use to settle premium collections. Monitor your float balance on the Agent Dashboard. Request top-ups from the Agent Portal when running low.\n\nBest practices:\n- Maintain at least 20% of your daily average as buffer\n- Request top-ups before your balance drops below ₦50,000\n- Reconcile your float daily against premium collection records\n- Report any discrepancies immediately to your supervisor",
         relatedPage: "/agent",
         tags: ["float", "balance", "top-up"],
       },
@@ -467,7 +467,7 @@ const guideSections: GuideSection[] = [
         id: "contact-support",
         title: "Contacting Support",
         content:
-          "If you can't resolve an issue:\n\n1. Use the AI Chat Widget (bottom-right corner) for instant help\n2. Check the Live Chat page for human agent support\n3. Email: support@insureportal.ng\n4. Phone: +234-800-54LINK (0800-545465)\n5. WhatsApp: +234-901-234-5678\n\nSupport hours: Monday-Saturday, 7:00 AM - 10:00 PM WAT\nEmergency support (fraud, system outages): 24/7",
+          "If you can't resolve an issue:\n\n1. Use the AI Chat Widget (bottom-right corner) for instant help\n2. Check the Live Chat page for human agent support\n3. Email: support@insureportal.ng\n4. Phone: +234-800-INSURE (0800-467873)\n5. WhatsApp: +234-901-234-5678\n\nSupport hours: Monday-Saturday, 7:00 AM - 10:00 PM WAT\nEmergency support (fraud, system outages): 24/7",
         tags: ["support", "contact", "help"],
       },
     ],

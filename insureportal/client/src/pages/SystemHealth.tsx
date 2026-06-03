@@ -3,7 +3,7 @@
  *
  * Real-time infrastructure health dashboard. Polls /api/health every 15 seconds
  * and displays the status of all critical services: database, Keycloak, TigerBeetle,
- * Temporal, Kafka, Vault, Redis, and the POS shell itself.
+ * Temporal, Kafka, Vault, Redis, and the insurance platform services.
  */
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";

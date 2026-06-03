@@ -188,8 +188,8 @@ export default function Home() {
         <div className="text-center mb-16">
           <h2 className="text-3xl font-bold mb-4">Enterprise-Grade Features</h2>
           <p className="text-gray-400 max-w-2xl mx-auto">
-            Built for the unique challenges of Nigerian agency banking —
-            unreliable networks, regulatory compliance, and massive scale.
+            Built for the unique challenges of Nigerian insurance —
+            NAICOM compliance, claims processing, and underwriting at scale.
           </p>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -248,8 +248,8 @@ export default function Home() {
             Ready to Transform Your Agent Network?
           </h2>
           <p className="text-gray-400 max-w-xl mx-auto mb-8">
-            Join thousands of financial institutions using InsurePortal to power their
-            agency banking operations.
+            Join leading insurance companies using InsurePortal to power their
+            insurance operations.
           </p>
           <Button
             size="lg"
