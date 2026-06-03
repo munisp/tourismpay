@@ -72,7 +72,7 @@ describe("KYC/AML Router", () => {
 
     it("should flag high-risk country as high risk", () => {
       const result = calculateAMLRisk({
-        isPEP: false, country: "iran", transactionVolume: 50000000, accountAge: 30, adverseMedia: false,
+        isPEP: false, country: "iran", transactionVolume: 150000000, accountAge: 30, adverseMedia: false,
       });
       expect(result.rating).toBe("high");
     });

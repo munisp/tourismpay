@@ -36,7 +36,7 @@ describe("Underwriting Engine Router", () => {
       // BMI (health insurance)
       if (applicant.bmi && applicant.bmi > 35) riskScore += 2;
 
-      if (riskScore <= 5) return "preferred";
+      if (riskScore <= 4) return "preferred";
       if (riskScore <= 8) return "standard";
       if (riskScore <= 12) return "substandard";
       return "declined";
