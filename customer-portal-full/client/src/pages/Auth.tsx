@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Mail, Lock, User, Phone, Eye, EyeOff, ArrowRight, CheckCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Shield, Mail, Lock, User, Phone, Eye, EyeOff, ArrowRight, CheckCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { Link, useLocation, useSearch } from "wouter";
+import { trpc } from "@/lib/trpc";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -14,6 +16,9 @@ export default function Auth() {
   const params = new URLSearchParams(searchString);
   const redirectUrl = params.get("redirect") || "/dashboard";
   const productId = params.get("product");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [kycWarning, setKycWarning] = useState<{ show: boolean; level: number; steps: string[] }>({ show: false, level: 0, steps: [] });
 
   const [formData, setFormData] = useState({
     email: "",
@@ -23,16 +28,85 @@ export default function Auth() {
     phone: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const loginMutation = trpc.auth.login.useMutation();
+  const signupMutation = trpc.auth.signup.useMutation();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In production, this would call the authentication API
-    // For demo, redirect new users to onboarding, existing users to their destination
-    if (isLogin) {
-      // Existing user - go to dashboard or redirect URL
-      setLocation(redirectUrl);
-    } else {
-      // New user - go to onboarding wizard first
-      setLocation("/onboarding");
+    setError(null);
+    setKycWarning({ show: false, level: 0, steps: [] });
+    setLoading(true);
+
+    try {
+      if (isLogin) {
+        const result = await loginMutation.mutateAsync({
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (result?.error) {
+          setError(result.error);
+          setLoading(false);
+          return;
+        }
+
+        // Store token
+        if (result?.token) {
+          localStorage.setItem("insureportal-token", result.token);
+          localStorage.setItem("insureportal-user", JSON.stringify(result));
+        }
+
+        // Check KYC gate
+        if (result?.requiresKyc) {
+          setKycWarning({
+            show: true,
+            level: result.kycLevel || 0,
+            steps: result.kycRemainingSteps || [],
+          });
+          // After 3 seconds, redirect to KYC page
+          setTimeout(() => setLocation("/kyc"), 3000);
+        } else {
+          setLocation(redirectUrl);
+        }
+      } else {
+        // Validate passwords match
+        if (formData.password !== formData.confirmPassword) {
+          setError("Passwords do not match");
+          setLoading(false);
+          return;
+        }
+
+        const result = await signupMutation.mutateAsync({
+          email: formData.email,
+          password: formData.password,
+          fullName: formData.fullName,
+          phone: formData.phone,
+        });
+
+        if (result?.error) {
+          setError(result.error);
+          setLoading(false);
+          return;
+        }
+
+        // Store token
+        if (result?.token) {
+          localStorage.setItem("insureportal-token", result.token);
+          localStorage.setItem("insureportal-user", JSON.stringify(result));
+        }
+
+        // New users always go to KYC/onboarding
+        setKycWarning({
+          show: true,
+          level: 0,
+          steps: result?.kycRemainingSteps || ["bvn", "nin", "phone", "address", "id_document", "facial_match"],
+        });
+        setTimeout(() => setLocation("/kyc"), 3000);
+      }
+    } catch (err: any) {
+      setError(err?.message || "An error occurred. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -70,6 +144,31 @@ export default function Auth() {
             </Card>
           )}
 
+          {/* KYC Warning */}
+          {kycWarning.show && (
+            <Card className="mb-6 bg-amber-50 border-amber-200">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-800">KYC Verification Required</p>
+                    <p className="text-sm text-amber-700 mt-1">
+                      Your KYC level is {kycWarning.level}. You need to complete verification before accessing platform features.
+                    </p>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {kycWarning.steps.map((step) => (
+                        <Badge key={step} variant="outline" className="text-xs bg-amber-100 border-amber-300">
+                          {step.replace("_", " ")}
+                        </Badge>
+                      ))}
+                    </div>
+                    <p className="text-xs text-amber-600 mt-2">Redirecting to KYC verification...</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Auth Card */}
           <Card className="shadow-2xl">
             <CardHeader className="text-center pb-2">
@@ -83,6 +182,14 @@ export default function Auth() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {/* Error Message */}
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                  {error}
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Registration Fields */}
                 {!isLogin && (
@@ -195,10 +302,28 @@ export default function Auth() {
                 )}
 
                 {/* Submit Button */}
-                <Button type="submit" className="w-full" size="lg">
-                  {isLogin ? "Sign In" : "Create Account"}
-                  <ArrowRight className="h-4 w-4 ml-2" />
+                <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {isLogin ? "Signing In..." : "Creating Account..."}
+                    </>
+                  ) : (
+                    <>
+                      {isLogin ? "Sign In" : "Create Account"}
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </>
+                  )}
                 </Button>
+
+                {/* Demo Login Hint */}
+                {isLogin && (
+                  <div className="text-center">
+                    <p className="text-xs text-gray-400">
+                      Demo: demo@insureportal.ng / demo123
+                    </p>
+                  </div>
+                )}
 
                 {/* Terms (Registration only) */}
                 {!isLogin && (
@@ -217,7 +342,7 @@ export default function Auth() {
                   {isLogin ? "Don't have an account?" : "Already have an account?"}
                   <button
                     type="button"
-                    onClick={() => setIsLogin(!isLogin)}
+                    onClick={() => { setIsLogin(!isLogin); setError(null); }}
                     className="ml-2 text-blue-600 font-medium hover:underline"
                   >
                     {isLogin ? "Sign Up" : "Sign In"}
@@ -245,11 +370,38 @@ export default function Auth() {
               </div>
               <div className="flex flex-col items-center gap-2">
                 <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                  <ArrowRight className="h-5 w-5" />
+                  <User className="h-5 w-5" />
                 </div>
-                <span>Fast Processing</span>
+                <span>KYC Verified</span>
               </div>
             </div>
+          </div>
+
+          {/* KYC Tier Info */}
+          <div className="mt-6 text-white">
+            <Card className="bg-white/5 backdrop-blur-lg border-white/10">
+              <CardContent className="p-4">
+                <p className="text-sm font-medium text-blue-200 mb-3">KYC Verification Tiers</p>
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-red-500/20 text-red-200 border-red-400/30 text-[10px]">Tier 0</Badge>
+                    <span className="text-blue-100">No access — complete BVN + NIN verification</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-yellow-500/20 text-yellow-200 border-yellow-400/30 text-[10px]">Tier 1</Badge>
+                    <span className="text-blue-100">Basic — purchase policies, file claims, make payments</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-blue-500/20 text-blue-200 border-blue-400/30 text-[10px]">Tier 2</Badge>
+                    <span className="text-blue-100">Enhanced — high-value policies, international coverage</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-green-500/20 text-green-200 border-green-400/30 text-[10px]">Tier 3</Badge>
+                    <span className="text-blue-100">Full — reinsurance access, broker API, commercial policies</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
