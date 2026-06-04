@@ -3,7 +3,9 @@ const path = require('path');
 const crypto = require('crypto');
 const { Pool } = require('pg');
 
+const compression = require('compression');
 const app = express();
+app.use(compression()); // Gzip responses for faster transfer
 app.use(express.json({ limit: '10mb' }));
 const PORT = process.env.PORT || 5002;
 const DIST = path.join(__dirname, 'dist', 'public');
@@ -22,13 +24,55 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
 });
 
-// Verify DB connection on startup
-pool.query('SELECT NOW()').then(() => {
+// Verify DB connection on startup + ensure auth tables exist
+pool.query('SELECT NOW()').then(async () => {
   console.log('✓ PostgreSQL connected');
+  // Create auth-related tables if not exist
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS password_resets (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id),
+      token VARCHAR(10) NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS "totpSecret" VARCHAR(64);
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS "totpEnabled" BOOLEAN DEFAULT false;
+  `).catch(() => {});
+  // Pre-warm connection pool (avoids first-query latency)
+  const warmups = Array.from({ length: 5 }, () => pool.query('SELECT 1'));
+  await Promise.all(warmups);
+  console.log('✓ Connection pool pre-warmed (5 connections)');
 }).catch(err => {
   console.error('✗ PostgreSQL connection failed:', err.message);
   console.log('  Falling back to static data for routes without DB backing');
 });
+
+// TOTP helper: compute current and previous 6-digit codes from Base32 secret
+function computeTOTP(secret) {
+  const base32Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  // Decode base32 to bytes
+  let bits = '';
+  for (const c of secret.toUpperCase()) {
+    const val = base32Chars.indexOf(c);
+    if (val >= 0) bits += val.toString(2).padStart(5, '0');
+  }
+  const keyBytes = Buffer.alloc(Math.floor(bits.length / 8));
+  for (let i = 0; i < keyBytes.length; i++) {
+    keyBytes[i] = parseInt(bits.slice(i * 8, (i + 1) * 8), 2);
+  }
+  function generateCode(counter) {
+    const counterBuf = Buffer.alloc(8);
+    counterBuf.writeUInt32BE(Math.floor(counter / 0x100000000), 0);
+    counterBuf.writeUInt32BE(counter >>> 0, 4);
+    const hmac = crypto.createHmac('sha1', keyBytes).update(counterBuf).digest();
+    const offset = hmac[hmac.length - 1] & 0x0f;
+    const code = ((hmac[offset] & 0x7f) << 24 | hmac[offset + 1] << 16 | hmac[offset + 2] << 8 | hmac[offset + 3]) % 1000000;
+    return String(code).padStart(6, '0');
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const currentCounter = Math.floor(now / 30);
+  return { current: generateCode(currentCounter), previous: generateCode(currentCounter - 1) };
+}
 
 // Helper: run query safely, return fallback on error
 async function q(sql, params = [], fallback = []) {
@@ -1142,12 +1186,12 @@ const ROUTE_HANDLERS = {
 
   // ─── Mutations & Missing Query Routes ───
 
-  // Auth — real login with DB user lookup + password hash check + KYC gate
+  // Auth — real login with DB user lookup + password hash check + KYC gate + 2FA
   'auth.login': async (input) => {
     const { email, password } = input || {};
     if (!email || !password) return { error: 'Email and password required' };
     // Look up user in DB
-    const user = await q1('SELECT id, email, name, role, "displayName", "passwordHash" FROM users WHERE email=$1', [email]);
+    const user = await q1('SELECT id, email, name, role, "displayName", "passwordHash", "totpEnabled" FROM users WHERE email=$1', [email]);
     if (!user?.id) {
       // Demo fallback — allows existing demo flow to keep working
       if (email === 'demo@insureportal.ng' && password === 'demo123') {
@@ -1161,6 +1205,10 @@ const ROUTE_HANDLERS = {
     const hash = crypto.createHash('sha256').update(password).digest('hex');
     if (user.passwordHash && user.passwordHash !== hash) {
       return { error: 'Invalid email or password' };
+    }
+    // Check if 2FA is enabled — require code validation before issuing token
+    if (user.totpEnabled) {
+      return { requires2FA: true, email: user.email, message: 'Please enter your 2FA code' };
     }
     // Generate session token
     const token = crypto.randomBytes(32).toString('hex');
@@ -1200,9 +1248,79 @@ const ROUTE_HANDLERS = {
     sessions.set(token, sessionUser);
     return { ...sessionUser, token, requiresKyc: true, kycRemainingSteps: ['bvn', 'nin', 'phone', 'address', 'id_document', 'facial_match'] };
   },
-  'auth.logout': (input) => {
-    if (input?.token) sessions.delete(input.token);
-    return Promise.resolve({ success: true });
+  'auth.logout': async (input) => {
+    const authHeader = input?._headers?.authorization;
+    const token = input?.token || (authHeader ? authHeader.replace('Bearer ', '') : null);
+    if (token) sessions.delete(token);
+    return { success: true, message: 'Logged out successfully' };
+  },
+  'auth.resetPassword': async (input) => {
+    const { email } = input || {};
+    if (!email) return { error: 'Email is required' };
+    const user = await q1('SELECT id, email, name FROM users WHERE email=$1', [email]);
+    if (!user?.id) return { success: true, message: 'If an account exists with that email, a reset link has been sent.' };
+    // Generate reset token (6-digit OTP for simplicity)
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+    await q(`INSERT INTO password_resets (user_id, token, expires_at, created_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT (user_id) DO UPDATE SET token=$2, expires_at=$3, created_at=NOW()`, [user.id, otp, expiry]);
+    // In production: send email/SMS with OTP. For demo, return it.
+    return { success: true, message: 'If an account exists with that email, a reset link has been sent.', _demo_otp: otp };
+  },
+  'auth.confirmResetPassword': async (input) => {
+    const { email, otp, newPassword } = input || {};
+    if (!email || !otp || !newPassword) return { error: 'Email, OTP, and new password are required' };
+    if (newPassword.length < 6) return { error: 'Password must be at least 6 characters' };
+    const user = await q1('SELECT id FROM users WHERE email=$1', [email]);
+    if (!user?.id) return { error: 'Invalid reset request' };
+    const reset = await q1('SELECT token, expires_at FROM password_resets WHERE user_id=$1', [user.id]);
+    if (!reset?.token || reset.token !== otp) return { error: 'Invalid or expired OTP' };
+    if (new Date(reset.expires_at) < new Date()) return { error: 'OTP has expired. Please request a new one.' };
+    const hash = crypto.createHash('sha256').update(newPassword).digest('hex');
+    await q('UPDATE users SET "passwordHash"=$1, "updatedAt"=NOW() WHERE id=$2', [hash, user.id]);
+    await q('DELETE FROM password_resets WHERE user_id=$1', [user.id]);
+    return { success: true, message: 'Password reset successfully. You can now log in.' };
+  },
+  'auth.setup2FA': async (input) => {
+    const { userId } = input || {};
+    if (!userId) return { error: 'User ID required' };
+    // Generate TOTP secret (Base32 encoded)
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let secret = '';
+    for (let i = 0; i < 32; i++) secret += chars[Math.floor(Math.random() * chars.length)];
+    await q(`UPDATE users SET "totpSecret"=$1, "totpEnabled"=false, "updatedAt"=NOW() WHERE id=$2`, [secret, userId]);
+    const otpauthUrl = `otpauth://totp/InsurePortal:${userId}?secret=${secret}&issuer=InsurePortal&digits=6&period=30`;
+    return { success: true, secret, otpauthUrl, message: 'Scan the QR code with your authenticator app, then verify with a code.' };
+  },
+  'auth.verify2FA': async (input) => {
+    const { userId, code } = input || {};
+    if (!userId || !code) return { error: 'User ID and code required' };
+    const user = await q1('SELECT "totpSecret" FROM users WHERE id=$1', [userId]);
+    if (!user?.totpSecret) return { error: '2FA not set up' };
+    // TOTP verification: compute expected code for current 30s window
+    const totp = computeTOTP(user.totpSecret);
+    if (code !== totp.current && code !== totp.previous) return { error: 'Invalid verification code' };
+    await q('UPDATE users SET "totpEnabled"=true, "updatedAt"=NOW() WHERE id=$1', [userId]);
+    return { success: true, message: '2FA enabled successfully' };
+  },
+  'auth.validate2FA': async (input) => {
+    const { email, code } = input || {};
+    if (!email || !code) return { error: 'Email and code required' };
+    const user = await q1('SELECT id, "totpSecret", "totpEnabled" FROM users WHERE email=$1', [email]);
+    if (!user?.totpEnabled) return { error: '2FA not enabled for this account' };
+    const totp = computeTOTP(user.totpSecret);
+    if (code !== totp.current && code !== totp.previous) return { error: 'Invalid 2FA code' };
+    return { success: true, validated: true };
+  },
+  'auth.changePassword': async (input) => {
+    const { userId, currentPassword, newPassword } = input || {};
+    if (!userId || !currentPassword || !newPassword) return { error: 'All fields required' };
+    if (newPassword.length < 6) return { error: 'New password must be at least 6 characters' };
+    const user = await q1('SELECT "passwordHash" FROM users WHERE id=$1', [userId]);
+    const currentHash = crypto.createHash('sha256').update(currentPassword).digest('hex');
+    if (user?.passwordHash && user.passwordHash !== currentHash) return { error: 'Current password is incorrect' };
+    const newHash = crypto.createHash('sha256').update(newPassword).digest('hex');
+    await q('UPDATE users SET "passwordHash"=$1, "updatedAt"=NOW() WHERE id=$2', [newHash, userId]);
+    return { success: true, message: 'Password changed successfully' };
   },
 
   // AB Testing
@@ -2467,14 +2585,47 @@ app.get('/api/auth/logout', (req, res) => {
   res.redirect('/');
 });
 
-// Database-backed tRPC handler
+// Build route lookup Map for O(1) access (replaces O(n) prefix scan)
+const ROUTE_MAP = new Map(Object.entries(ROUTE_HANDLERS));
+
+// Database-backed tRPC handler (optimized: Map lookup, parallel execution, no superjson overhead)
 app.all('/api/trpc/*', async (req, res) => {
   const batch = req.query.batch === '1';
-  const inputRaw = req.query.input || (req.body ? JSON.stringify(req.body) : null);
   const routeName = req.params[0];
+  const routes = routeName ? routeName.split(',') : [];
 
+  // Fast-path: single non-batch query (most common case for mutations)
+  if (!batch && routes.length === 1) {
+    const route = routes[0];
+    let input = {};
+    if (req.method === 'POST' && req.body) {
+      input = req.body?.['0']?.json || req.body?.json || req.body || {};
+    } else if (req.query.input) {
+      try { const p = JSON.parse(req.query.input); input = p?.['0']?.json || p?.json || p || {}; } catch (e) {}
+    }
+    if (route === 'auth.me') {
+      const authHeader = req.headers?.authorization;
+      const token = authHeader?.replace('Bearer ', '') || input?.token;
+      if (token && sessions.has(token)) return res.json([{ result: { data: { json: sessions.get(token) } } }]);
+      return res.json([{ result: { data: { json: DEMO_USER } } }]);
+    }
+    const handler = ROUTE_MAP.get(route);
+    if (handler) {
+      try {
+        const data = await handler(input);
+        return res.json([{ result: { data: { json: data } } }]);
+      } catch (err) {
+        console.error(`Route error [${route}]:`, err.message);
+        return res.json([{ result: { data: { json: [] } } }]);
+      }
+    }
+    return res.json([{ result: { data: { json: [] } } }]);
+  }
+
+  // Batch path
   let keys = ['0'];
   let parsedInput = {};
+  const inputRaw = req.query.input || (req.body ? JSON.stringify(req.body) : null);
   if (batch && inputRaw) {
     try {
       parsedInput = typeof inputRaw === 'string' ? JSON.parse(inputRaw) : inputRaw;
@@ -2482,42 +2633,33 @@ app.all('/api/trpc/*', async (req, res) => {
     } catch (e) {}
   }
 
-  const routes = routeName ? routeName.split(',') : [];
-
   const results = await Promise.all(keys.map(async (key, i) => {
     const route = routes[i] || routes[0] || '';
     const input = parsedInput[key]?.json || parsedInput[key] || {};
 
     if (route === 'auth.me') {
-      // Check for session token in authorization header or input
       const authHeader = req.headers?.authorization;
       const token = authHeader?.replace('Bearer ', '') || input?.token;
-      if (token && sessions.has(token)) {
-        return { result: { data: { json: sessions.get(token) } } };
-      }
-      // Fallback: return demo user for backward compatibility
+      if (token && sessions.has(token)) return { result: { data: { json: sessions.get(token) } } };
       return { result: { data: { json: DEMO_USER } } };
     }
 
     try {
-      // Exact match
-      if (ROUTE_HANDLERS[route]) {
-        const data = await ROUTE_HANDLERS[route](input);
+      const handler = ROUTE_MAP.get(route);
+      if (handler) {
+        const data = await handler(input);
         return { result: { data: { json: data } } };
       }
-
-      // Prefix match
-      for (const [handlerKey, handler] of Object.entries(ROUTE_HANDLERS)) {
+      // Fallback: prefix match (only for backward compat, rarely hit)
+      for (const [handlerKey, h] of ROUTE_MAP) {
         if (route.startsWith(handlerKey) || handlerKey.startsWith(route)) {
-          const data = await handler(input);
+          const data = await h(input);
           return { result: { data: { json: data } } };
         }
       }
-
-      // Unknown route — return empty array
       return { result: { data: { json: [] } } };
     } catch (err) {
-      console.error(`Error handling route ${route}:`, err.message);
+      console.error(`Route error [${route}]:`, err.message);
       return { result: { data: { json: [] } } };
     }
   }));

@@ -810,7 +810,7 @@ function UnifiedLayoutContent({ children }: { children: ReactNode }) {
                 <span>Preferences</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive">
+              <DropdownMenuItem onClick={() => { localStorage.removeItem('insureportal-token'); localStorage.removeItem('insureportal-user'); setLocation('/auth?action=logout'); }} className="cursor-pointer text-destructive focus:text-destructive">
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Sign out</span>
               </DropdownMenuItem>
