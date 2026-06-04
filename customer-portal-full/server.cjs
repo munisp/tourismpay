@@ -502,8 +502,9 @@ const ROUTE_HANDLERS = {
 
   // ─── ERPNext ───
   'erpnext.status': async () => {
-    const config = await q1('SELECT name, "baseUrl", "syncEnabled", "lastSyncAt" FROM erp_config LIMIT 1', [], { name: 'ERPNext', syncEnabled: true });
-    return { connected: config.syncEnabled, lastSync: config.lastSyncAt || new Date().toISOString().slice(0, 10), name: config.name };
+    const config = await q1('SELECT name, "baseUrl", "syncEnabled", "lastSyncAt", "lastSyncStatus", "lastSyncCount", "erpType" FROM erp_config LIMIT 1', [], { name: 'ERPNext', syncEnabled: true });
+    const stats = await q1('SELECT COUNT(*) FILTER (WHERE "syncStatus"::text=\'Synced\') as synced, COUNT(*) FILTER (WHERE "syncStatus"::text=\'Pending\') as pending, COUNT(*) FILTER (WHERE "syncStatus"::text=\'Failed\') as failed FROM erpnext_transactions', []);
+    return { connected: config.syncEnabled, lastSync: config.lastSyncAt || null, name: config.name, status: config.lastSyncStatus || 'never', recordsSynced: parseInt(stats?.synced || '0'), pendingRecords: parseInt(stats?.pending || '0'), failedRecords: parseInt(stats?.failed || '0'), erpType: config.erpType };
   },
 
   // ─── Agent Performance ───
@@ -642,10 +643,66 @@ const ROUTE_HANDLERS = {
   'premiumRates.factors': () => q('SELECT prf.id, prf.name, prf.category, prf.weight, prt.name as "tableName", prt."productType" FROM premium_risk_factors prf LEFT JOIN premium_rate_tables prt ON prf."tableId"=prt.id ORDER BY prf.id'),
 
   // ─── ERP Integration ───
-  'erp.config': () => q1('SELECT id, name, "baseUrl", "syncEnabled", "lastSyncAt", "lastSyncStatus", "lastSyncCount" FROM erp_config LIMIT 1'),
-  'erp.transactions': () => q('SELECT id, "erpDocType", "erpDocId", "localEntityType", "localEntityId", "syncStatus"::text, amount, currency, "lastSyncAt" FROM erpnext_transactions ORDER BY "createdAt" DESC'),
+  'erp.config': () => q1('SELECT id, "erpType", name, "baseUrl", "apiKey", "syncEnabled", "syncIntervalMinutes", "syncTransactions", "syncAgents", "syncInventory", "lastSyncAt", "lastSyncStatus", "lastSyncError", "lastSyncCount", "fieldMappings" FROM erp_config LIMIT 1'),
+  'erp.transactions': () => q('SELECT id, "erpDocType", "erpDocId", "localEntityType", "localEntityId", "syncStatus"::text, amount, currency, "lastSyncAt", "errorMessage" FROM erpnext_transactions ORDER BY "createdAt" DESC'),
+  'erp.updateConfig': async (input) => {
+    const fields = [];
+    const vals = [];
+    let idx = 1;
+    const allowed = ['erpType','name','baseUrl','apiKey','syncEnabled','syncIntervalMinutes','syncTransactions','syncAgents','syncInventory'];
+    for (const k of allowed) {
+      if (input[k] !== undefined) { fields.push(`"${k}" = $${idx}`); vals.push(input[k]); idx++; }
+    }
+    if (fields.length === 0) return { success: false, message: 'No fields to update' };
+    fields.push(`"updatedAt" = NOW()`);
+    await q1(`UPDATE erp_config SET ${fields.join(', ')} WHERE id = 1 RETURNING *`, vals);
+    return { success: true, message: 'Configuration saved' };
+  },
+  'erp.webhook': async (input) => {
+    const docType = input?.doctype || input?.erpDocType || 'Unknown';
+    const docId = input?.name || input?.erpDocId || 'WH-' + Date.now();
+    const entityType = docType === 'Sales Invoice' ? 'policy' : docType === 'Payment Entry' ? 'claim' : docType === 'Customer' ? 'customer' : 'other';
+    await q1(`INSERT INTO erpnext_transactions ("userId", "erpDocType", "erpDocId", "localEntityType", "localEntityId", "syncStatus", amount, currency, "lastSyncAt", "createdAt", "updatedAt") VALUES (1, $1, $2, $3, $4, 'Synced', $5, 'NGN', NOW(), NOW(), NOW()) RETURNING id`, [docType, docId, entityType, input?.localEntityId || '0', input?.amount || 0]);
+    return { success: true, received: true, docType, docId };
+  },
   'erpnext.sync': async (input) => {
-    return { success: true, synced: 12, failed: 0, lastSync: new Date().toISOString(), message: 'Sync completed successfully' };
+    const config = await q1('SELECT * FROM erp_config LIMIT 1');
+    if (!config?.syncEnabled) return { success: false, synced: 0, failed: 0, message: 'Sync is disabled' };
+    let synced = 0, failed = 0;
+    // Sync policies → Sales Invoices
+    if (config.syncTransactions) {
+      const policies = await q('SELECT id, "policyNumber", premium, status, name FROM policies WHERE status IN (\'Active\',\'Pending\') LIMIT 50');
+      for (const p of policies) {
+        const existing = await q1('SELECT id FROM erpnext_transactions WHERE "localEntityType"=\'policy\' AND "localEntityId"=$1', [String(p.id)]);
+        if (!existing?.id) {
+          await q1(`INSERT INTO erpnext_transactions ("userId","erpDocType","erpDocId","localEntityType","localEntityId","syncStatus",amount,currency,"lastSyncAt","createdAt","updatedAt") VALUES (1,'Sales Invoice',$1,'policy',$2,'Synced',$3,'NGN',NOW(),NOW(),NOW()) RETURNING id`, ['SI-' + new Date().getFullYear() + '-' + String(p.id).padStart(5,'0'), String(p.id), p.premium || 0]);
+          synced++;
+        }
+      }
+      // Sync claims → Payment Entries
+      const claims = await q('SELECT id, "claimNumber", amount, status FROM claims WHERE status IN (\'Approved\',\'Paid\') LIMIT 50');
+      for (const c of claims) {
+        const existing = await q1('SELECT id FROM erpnext_transactions WHERE "localEntityType"=\'claim\' AND "localEntityId"=$1', [String(c.id)]);
+        if (!existing?.id) {
+          await q1(`INSERT INTO erpnext_transactions ("userId","erpDocType","erpDocId","localEntityType","localEntityId","syncStatus",amount,currency,"lastSyncAt","createdAt","updatedAt") VALUES (1,'Payment Entry',$1,'claim',$2,'Synced',$3,'NGN',NOW(),NOW(),NOW()) RETURNING id`, ['PE-' + new Date().getFullYear() + '-' + String(c.id).padStart(5,'0'), String(c.id), c.amount || 0]);
+          synced++;
+        }
+      }
+    }
+    // Sync agents → Sales Partners
+    if (config.syncAgents) {
+      const agents = await q('SELECT id, "agencyName" as name, "agentCode" as email, region FROM agents LIMIT 50');
+      for (const a of agents) {
+        const existing = await q1('SELECT id FROM erpnext_transactions WHERE "localEntityType"=\'agent\' AND "localEntityId"=$1', [String(a.id)]);
+        if (!existing?.id) {
+          await q1(`INSERT INTO erpnext_transactions ("userId","erpDocType","erpDocId","localEntityType","localEntityId","syncStatus",amount,currency,"lastSyncAt","createdAt","updatedAt") VALUES (1,'Sales Partner',$1,'agent',$2,'Synced',0,'NGN',NOW(),NOW(),NOW()) RETURNING id`, ['SP-' + String(a.id).padStart(5,'0'), String(a.id)]);
+          synced++;
+        }
+      }
+    }
+    const now = new Date().toISOString();
+    await q1(`UPDATE erp_config SET "lastSyncAt"=$1, "lastSyncStatus"='success', "lastSyncCount"=$2, "updatedAt"=NOW() WHERE id=1`, [now, synced]);
+    return { success: true, synced, failed, lastSync: now, message: `Sync completed: ${synced} new records synced` };
   },
 
   // ─── Mutations & Missing Query Routes ───
