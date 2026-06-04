@@ -65,8 +65,10 @@ const InsuranceApplication: React.FC = () => {
   const handleCalculate = () => {
     if (!formProduct || !formAge || !formSumAssured) { toast.error('Select product, enter age, and sum assured'); return; }
     const riskFactors: any = { claimsFreeYears: Number(claimsFreeYears), hasTracker, isSmoker };
-    calcPremiumMut.mutate({ productType: formProduct, age: Number(formAge), sumAssured: Number(formSumAssured), annualIncome: Number(formIncome) || undefined, riskFactors });
-    uwMut.mutate({ productType: formProduct, applicantAge: Number(formAge), sumAssured: Number(formSumAssured), annualIncome: Number(formIncome) || undefined, riskFactors });
+    const selectedProduct = productList.find((p: any) => p.code === formProduct);
+    const productCategory = selectedProduct?.category || formProduct;
+    calcPremiumMut.mutate({ productType: productCategory, age: Number(formAge), sumAssured: Number(formSumAssured), annualIncome: Number(formIncome) || undefined, riskFactors });
+    uwMut.mutate({ productType: productCategory, applicantAge: Number(formAge), sumAssured: Number(formSumAssured), annualIncome: Number(formIncome) || undefined, riskFactors });
   };
 
   const handleSubmit = () => {
@@ -94,7 +96,7 @@ const InsuranceApplication: React.FC = () => {
                     <Select value={formProduct} onValueChange={setFormProduct}>
                       <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
                       <SelectContent>
-                        {productList.map((p: any) => <SelectItem key={p.code} value={p.category}>{String(p.name)} ({String(p.category)})</SelectItem>)}
+                        {productList.map((p: any) => <SelectItem key={p.code} value={p.code}>{String(p.name)}</SelectItem>)}
                         {productList.length === 0 && <><SelectItem value="Motor">Motor</SelectItem><SelectItem value="Health">Health</SelectItem><SelectItem value="Life">Life</SelectItem><SelectItem value="Property">Property</SelectItem><SelectItem value="Agricultural">Agricultural</SelectItem><SelectItem value="Commercial">Commercial</SelectItem></>}
                       </SelectContent>
                     </Select>

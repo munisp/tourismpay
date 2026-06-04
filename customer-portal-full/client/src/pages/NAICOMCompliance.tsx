@@ -159,8 +159,8 @@ const NAICOMCompliance: React.FC = () => {
                           <TableCell className="font-medium">{String(f.id)}</TableCell>
                           <TableCell>{String(f.type)}</TableCell>
                           <TableCell>{String(f.period)}</TableCell>
-                          <TableCell>{String(f.dueDate)}</TableCell>
-                          <TableCell>{String(f.submissionDate)}</TableCell>
+                          <TableCell>{f.dueDate ? new Date(f.dueDate).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</TableCell>
+                          <TableCell>{f.submissionDate ? new Date(f.submissionDate).toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</TableCell>
                           <TableCell><Badge variant={f.status === 'Approved' ? 'default' : f.status === 'Submitted' ? 'secondary' : f.status === 'Pending' ? 'outline' : 'destructive'}>{String(f.status)}</Badge></TableCell>
                         </TableRow>
                       )) : <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No filings found</TableCell></TableRow>}

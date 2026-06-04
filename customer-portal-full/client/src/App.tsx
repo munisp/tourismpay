@@ -119,6 +119,7 @@ import DigitalConsumerProducts from "./pages/DigitalConsumerProducts";
 import TakafulProductsSuite from "./pages/TakafulProductsSuite";
 import NIIRACompulsoryInsurance from "./pages/NIIRACompulsoryInsurance";
 import InsuranceTechInnovations from "./pages/InsuranceTechInnovations";
+import AdminConfigCenter from "./pages/AdminConfigCenter";
 
 function Router() {
   return (
@@ -705,6 +706,11 @@ function Router() {
       <Route path="/insurance-tech-innovations">
         <UnifiedLayout>
           <InsuranceTechInnovations />
+        </UnifiedLayout>
+      </Route>
+      <Route path="/admin-config">
+        <UnifiedLayout>
+          <AdminConfigCenter />
         </UnifiedLayout>
       </Route>
                         <Route path="/404" component={NotFound} />

@@ -346,6 +346,7 @@ const menuGroups: MenuGroup[] = [
   {
     label: "Administration",
     items: [
+      { icon: Settings, label: "Admin Config Center", path: "/admin-config", permission: "canViewUserManagement" },
       { icon: FilePlus, label: "Create Policy", path: "/admin-policy-creation", permission: "canViewUserManagement" },
       { icon: Calculator, label: "Rate Management", path: "/rate-management", permission: "canViewUserManagement" },
       { icon: UserCog, label: "User Management", path: "/users", permission: "canViewUserManagement" },
