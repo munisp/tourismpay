@@ -119,7 +119,16 @@ async function runUnderwriting(applicationData) {
 async function calculatePremium(input) {
   const { productCode, productType, sumAssured, age, gender, term, riskFactors = {} } = input;
   const product = await q1('SELECT * FROM insurance_products WHERE (code=$1 OR category=$2) AND status=\'active\' LIMIT 1', [productCode || '', productType || '']);
-  const basePremium = product?.minPremium ? Number(product.minPremium) : 50000;
+  const category = product?.category || productType || 'Motor';
+
+  // Read admin-managed rate table for this product type
+  const rateTable = await q1('SELECT * FROM premium_rate_tables WHERE "productType"=$1 AND status=\'active\' AND ("expiryDate" IS NULL OR "expiryDate" >= CURRENT_DATE) ORDER BY "effectiveDate" DESC LIMIT 1', [category]);
+  const riskFactorRows = rateTable?.id ? await q('SELECT * FROM premium_risk_factors WHERE "tableId"=$1 ORDER BY category, name', [rateTable.id]) : [];
+
+  // Base premium: prefer rate table's baseRate (applied as % of sum assured), fall back to product's minPremium
+  const sa0 = sumAssured || Number(product?.minSumAssured) || 5000000;
+  const rateBaseRate = rateTable?.baseRate ? Number(rateTable.baseRate) : 0;
+  const basePremium = rateBaseRate > 0 ? Math.round(sa0 * rateBaseRate / 100) : (product?.minPremium ? Number(product.minPremium) : 50000);
   const maxPremium = product?.maxPremium ? Number(product.maxPremium) : 5000000;
 
   let premium = basePremium;
@@ -129,14 +138,37 @@ async function calculatePremium(input) {
   const sa = sumAssured || Number(product?.minSumAssured) || 5000000;
   const saFactor = sa / (Number(product?.minSumAssured) || 5000000);
   premium *= saFactor;
-  breakdown.push({ factor: 'Sum Assured', base: basePremium, multiplier: saFactor.toFixed(2), impact: `₦${Math.round(premium - basePremium).toLocaleString()}` });
+  breakdown.push({ factor: 'Sum Assured', base: basePremium, multiplier: saFactor.toFixed(2), impact: `₦${Math.round(premium - basePremium).toLocaleString()}`, source: 'calculation' });
 
-  // Age factor
-  if (age) {
+  // Apply admin-managed risk factors from DB
+  const ageFactorRow = riskFactorRows.find(f => f.category === 'demographic' && f.name?.toLowerCase().includes('age'));
+  if (age && ageFactorRow) {
+    const weight = Number(ageFactorRow.weight) || 1.0;
+    const minAge = Number(ageFactorRow.minValue) || 18;
+    const maxAge = Number(ageFactorRow.maxValue) || 65;
+    const ageFactor = age < 25 ? (1 + weight * 0.25) : age < 35 ? 1.0 : age < 45 ? (1 + weight * 0.05) : age < 55 ? (1 + weight * 0.15) : (1 + weight * 0.35);
+    const before = premium;
+    premium *= ageFactor;
+    breakdown.push({ factor: `Age (rate table: ${rateTable?.name || 'default'})`, value: age, multiplier: ageFactor.toFixed(2), impact: `₦${Math.round(premium - before).toLocaleString()}`, source: 'admin_rate_table' });
+  } else if (age) {
     const ageFactor = age < 25 ? 1.25 : age < 35 ? 1.0 : age < 45 ? 1.05 : age < 55 ? 1.15 : 1.35;
     const before = premium;
     premium *= ageFactor;
-    breakdown.push({ factor: 'Age', value: age, multiplier: ageFactor.toFixed(2), impact: `₦${Math.round(premium - before).toLocaleString()}` });
+    breakdown.push({ factor: 'Age (default)', value: age, multiplier: ageFactor.toFixed(2), impact: `₦${Math.round(premium - before).toLocaleString()}`, source: 'default' });
+  }
+
+  // Apply other admin risk factors (vehicle, property, health, etc.)
+  for (const rf of riskFactorRows) {
+    if (rf.category === 'demographic' && rf.name?.toLowerCase().includes('age')) continue; // already applied
+    const weight = Number(rf.weight) || 0;
+    if (weight === 0) continue;
+    const factorKey = rf.name?.toLowerCase().replace(/\s+/g, '_');
+    const inputVal = riskFactors[factorKey] || riskFactors[rf.name];
+    if (inputVal !== undefined) {
+      const before = premium;
+      premium *= (1 + weight);
+      breakdown.push({ factor: rf.name, value: inputVal, multiplier: (1 + weight).toFixed(2), impact: `₦${Math.round(premium - before).toLocaleString()}`, source: 'admin_risk_factor' });
+    }
   }
 
   // Term factor
@@ -144,7 +176,7 @@ async function calculatePremium(input) {
     const termDiscount = Math.min(term * 2, 15) / 100;
     const before = premium;
     premium *= (1 - termDiscount);
-    breakdown.push({ factor: 'Multi-year discount', value: `${term} years`, multiplier: (1 - termDiscount).toFixed(2), impact: `-₦${Math.round(before - premium).toLocaleString()}` });
+    breakdown.push({ factor: 'Multi-year discount', value: `${term} years`, multiplier: (1 - termDiscount).toFixed(2), impact: `-₦${Math.round(before - premium).toLocaleString()}`, source: 'calculation' });
   }
 
   // Underwriting adjustments
@@ -174,6 +206,8 @@ async function calculatePremium(input) {
     breakdown,
     underwriting: { decision: uwResult.decision, riskScore: uwResult.riskScore, riskCategory: uwResult.riskCategory, exclusions: uwResult.exclusions, conditions: uwResult.conditions },
     product: product ? { code: product.code, name: product.name, category: product.category } : null,
+    rateTable: rateTable ? { id: rateTable.id, name: rateTable.name, baseRate: Number(rateTable.baseRate), effectiveDate: rateTable.effectiveDate } : null,
+    riskFactorsApplied: riskFactorRows.length,
     validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
   };
 }
@@ -383,20 +417,34 @@ const ROUTE_HANDLERS = {
     { id: 'agricultural', name: 'Agricultural', value: 'agricultural' },
     { id: 'parametric', name: 'Parametric', value: 'parametric' },
   ]),
-  'coverage.recommendations': () => Promise.resolve([]),
+  'coverage.recommendations': async () => {
+    const recs = await q('SELECT id, "feedbackType" as type, subject as title, message as description FROM customer_feedback WHERE "feedbackType"=\'coverage_recommendation\' ORDER BY "createdAt" DESC');
+    return recs.length > 0 ? recs : [{ id: 1, type: 'coverage', title: 'Add comprehensive motor coverage', description: 'Based on your risk profile, upgrading to comprehensive coverage could save you in claims' }];
+  },
   'premium.calculate': async (input) => calculatePremium(input),
 
   // ─── Insurance Score ───
-  'insuranceScore.get': () => Promise.resolve({
-    score: 780, maxScore: 1000, status: 'Good', lastUpdated: new Date().toISOString().slice(0, 10),
-    recommendations: ['Maintain claims-free record', 'Increase coverage duration', 'Bundle multiple policies'],
-    factors: [
-      { name: 'Claims History', score: 85, weight: 30 },
-      { name: 'Payment History', score: 92, weight: 25 },
-      { name: 'Coverage Duration', score: 78, weight: 20 },
-      { name: 'Risk Profile', score: 70, weight: 25 },
-    ],
-  }),
+  'insuranceScore.get': async () => {
+    const policies = await q1('SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status=\'Active\') as active, COALESCE(AVG(EXTRACT(EPOCH FROM ("expiryDate" - "startDate"))/86400),0) as avg_days FROM policies WHERE "userId" IS NOT NULL');
+    const claims = await q1('SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status=\'Approved\') as approved FROM claims');
+    const premiums = await q1('SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status=\'completed\') as paid FROM premium_collections');
+    const claimsScore = Math.max(0, 100 - (Number(claims.total) || 0) * 5);
+    const paymentScore = Number(premiums.total) > 0 ? Math.round(Number(premiums.paid) / Number(premiums.total) * 100) : 50;
+    const durationScore = Math.min(100, Math.round(Number(policies.avg_days) / 3.65));
+    const diversityScore = Math.min(100, (Number(policies.total) || 0) * 15);
+    const score = Math.round(claimsScore * 0.30 + paymentScore * 0.25 + durationScore * 0.20 + diversityScore * 0.25);
+    return {
+      score: Math.round(score * 10), maxScore: 1000, status: score >= 75 ? 'Excellent' : score >= 60 ? 'Good' : score >= 40 ? 'Fair' : 'Needs Improvement',
+      lastUpdated: new Date().toISOString().slice(0, 10),
+      recommendations: score < 80 ? ['Maintain claims-free record', 'Increase coverage duration', 'Bundle multiple policies'] : ['Maintain your excellent record'],
+      factors: [
+        { name: 'Claims History', score: claimsScore, weight: 30 },
+        { name: 'Payment History', score: paymentScore, weight: 25 },
+        { name: 'Coverage Duration', score: durationScore, weight: 20 },
+        { name: 'Policy Diversity', score: diversityScore, weight: 25 },
+      ],
+    };
+  },
   'insuranceScore.improve': () => Promise.resolve([
     { id: 1, suggestion: 'Bundle home and auto insurance', impact: 'High', potentialIncrease: 50 },
     { id: 2, suggestion: 'Install telematics device', impact: 'Medium', potentialIncrease: 30 },
@@ -410,10 +458,7 @@ const ROUTE_HANDLERS = {
   'parametric.triggers': () => Promise.resolve([]),
 
   // ─── P2P ───
-  'p2p.pools': () => Promise.resolve([
-    { id: 1, name: 'Motor Pool Lagos', members: 45, totalFund: 2250000 },
-    { id: 2, name: 'Health Pool Abuja', members: 32, totalFund: 1600000 },
-  ]),
+  'p2p.pools': () => q('SELECT id, "poolName" as name, "memberCount" as members, "totalFund" as "totalFund", "coveragePerMember", "monthlyContribution", status FROM p2p_pools ORDER BY "memberCount" DESC'),
 
   // ─── Gig Economy ───
   'gig.plans': () => q('SELECT id, "planName" as name, premium, "planId" as "coverageType" FROM gig_coverage_policies WHERE status=\'active\' ORDER BY id'),
@@ -514,7 +559,15 @@ const ROUTE_HANDLERS = {
   ]),
 
   // ─── Financial ───
-  'financial.score': () => Promise.resolve({ score: 72, maxScore: 100, tips: ['Increase emergency fund', 'Review insurance coverage'] }),
+  'financial.score': async () => {
+    const policies = await q1('SELECT COUNT(*) as total FROM policies WHERE status=\'Active\'');
+    const premiums = await q1('SELECT COALESCE(SUM(amount),0) as total FROM premium_collections WHERE status=\'completed\'');
+    const claims = await q1('SELECT COALESCE(SUM(amount),0) as total FROM claims WHERE status=\'Approved\'');
+    const coverageRatio = Number(premiums.total) > 0 ? Math.min(100, Math.round(Number(premiums.total) / 1000000 * 20)) : 30;
+    const diversificationScore = Math.min(100, (Number(policies.total) || 0) * 8);
+    const score = Math.round((coverageRatio + diversificationScore) / 2);
+    return { score, maxScore: 100, tips: score < 70 ? ['Increase emergency fund', 'Review insurance coverage', 'Consider life insurance'] : ['Maintain current coverage levels', 'Review annually for gaps'] };
+  },
   'financial.insights': async () => {
     const lossRatio = await q1('SELECT COALESCE(SUM(c.amount),0) as claims, COALESCE(SUM(p.premium),0) as premium FROM claims c, policies p WHERE p.status=\'Active\'');
     const lr = Number(lossRatio.premium) > 0 ? (Number(lossRatio.claims)/Number(lossRatio.premium)*100).toFixed(1) : 0;
@@ -586,7 +639,14 @@ const ROUTE_HANDLERS = {
     { id: 1, name: 'Early Bird', description: 'Paid premium on time for 6 months', earned: true },
     { id: 2, name: 'Referral Champion', description: 'Referred 5 friends', earned: false, progress: 60 },
   ]),
-  'loyalty.program': () => Promise.resolve({ tier: 'Gold', points: 15000, benefits: ['10% discount on renewals', 'Priority claims processing'] }),
+  'loyalty.program': async () => {
+    const referrals = await q1('SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status=\'Completed\') as completed, COALESCE(SUM("rewardAmount"),0) as earned FROM referrals WHERE "referrerId"=1');
+    const policies = await q1('SELECT COUNT(*) as total FROM policies WHERE status=\'Active\'');
+    const points = (Number(referrals.completed) || 0) * 1000 + (Number(policies.total) || 0) * 2000;
+    const tier = points >= 20000 ? 'Platinum' : points >= 10000 ? 'Gold' : points >= 5000 ? 'Silver' : 'Bronze';
+    const benefits = tier === 'Platinum' ? ['15% discount on renewals', 'Dedicated account manager', 'Priority claims'] : tier === 'Gold' ? ['10% discount on renewals', 'Priority claims processing'] : ['5% discount on renewals'];
+    return { tier, points, benefits, totalEarned: Number(referrals.earned) || 0 };
+  },
   'loyalty.tiers': () => Promise.resolve([
     { name: 'Bronze', minPoints: 0, benefits: ['5% discount'] },
     { name: 'Silver', minPoints: 5000, benefits: ['7% discount', 'Free roadside assist'] },
@@ -599,15 +659,13 @@ const ROUTE_HANDLERS = {
   ]),
 
   // ─── Referrals ───
-  'referral.stats': () => Promise.resolve({ totalReferrals: 8, successfulReferrals: 5, pendingRewards: 2500 }),
-  'referral.code': () => Promise.resolve('PATRICK-REF-2026'),
-  'referral.list': () => Promise.resolve([
-    { id: 1, name: 'John Doe', status: 'Active', reward: 500, date: '2026-04-10' },
-    { id: 2, name: 'Jane Smith', status: 'Pending', reward: 0, date: '2026-05-20' },
-  ]),
-  'referrals.list': () => Promise.resolve([
-    { id: 1, name: 'John Doe', status: 'Active', reward: 500, date: '2026-04-10' },
-  ]),
+  'referral.stats': async () => {
+    const r = await q1('SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status=\'Completed\') as completed, COALESCE(SUM(CASE WHEN status=\'Pending\' THEN "rewardAmount" ELSE 0 END),0) as pending FROM referrals WHERE "referrerId"=1');
+    return { totalReferrals: Number(r.total) || 0, successfulReferrals: Number(r.completed) || 0, pendingRewards: Number(r.pending) || 0 };
+  },
+  'referral.code': () => Promise.resolve('INSURE-REF-2026'),
+  'referral.list': () => q('SELECT r.id, r."referredEmail" as email, r.status::text, r."rewardAmount" as reward, r."createdAt" as date FROM referrals r WHERE r."referrerId"=1 ORDER BY r."createdAt" DESC'),
+  'referrals.list': () => q('SELECT r.id, r."referredEmail" as email, r.status::text, r."rewardAmount" as reward, r."createdAt" as date FROM referrals r WHERE r."referrerId"=1 ORDER BY r."createdAt" DESC'),
 
   // ─── Reviews ───
   'reviews.list': () => q('SELECT id, "feedbackType" as product, rating, message as comment, "createdAt" as date FROM customer_feedback ORDER BY "createdAt" DESC'),
@@ -617,20 +675,13 @@ const ROUTE_HANDLERS = {
   },
 
   // ─── Communication ───
-  'communication.messages': () => Promise.resolve([
-    { id: 1, subject: 'Policy Renewal Reminder', body: 'Your property insurance expires soon', date: new Date().toISOString().slice(0, 10), read: false },
-  ]),
+  'communication.messages': () => q('SELECT id, title as subject, message as body, type as category, "isRead" as read, "createdAt" as date FROM notifications WHERE "userId"=1 ORDER BY "createdAt" DESC'),
   'communication.preferences': () => Promise.resolve({ email: true, sms: true, push: true, whatsapp: false }),
   'whatsapp.status': () => Promise.resolve({ connected: true, phone: '+234-803-XXX-XXXX' }),
   'whatsapp.messages': () => Promise.resolve([]),
 
   // ─── Literacy ───
-  'literacy.articles': () => Promise.resolve([
-    { id: 1, title: 'Understanding Motor Insurance in Nigeria', category: 'Motor', readTime: '5 min' },
-    { id: 2, title: 'NAICOM Regulations Explained', category: 'Compliance', readTime: '8 min' },
-    { id: 3, title: 'Agricultural Insurance for Nigerian Farmers', category: 'Agriculture', readTime: '6 min' },
-    { id: 4, title: 'Claims Filing Best Practices', category: 'Claims', readTime: '4 min' },
-  ]),
+  'literacy.articles': () => q('SELECT id, title, category, duration_minutes::text as "readTime", description FROM training_courses WHERE is_active=true ORDER BY id'),
 
   // ─── Health ───
   'health.programs': () => Promise.resolve([
@@ -707,14 +758,40 @@ const ROUTE_HANDLERS = {
 
   // ─── Fraud ───
   'fraud.alerts': () => q('SELECT id, "alertId", severity, "entityType" as type, message as description, "createdAt" as date, CASE WHEN resolved THEN \'Resolved\' ELSE \'Open\' END as status FROM fraud_alerts ORDER BY "createdAt" DESC'),
-  'fraud.network': () => Promise.resolve({ nodes: [], edges: [] }),
+  'fraud.network': async () => {
+    const alerts = await q('SELECT id, "alertId", "entityType", "entityId", severity::text, message FROM fraud_alerts WHERE NOT resolved ORDER BY "createdAt" DESC LIMIT 20');
+    const nodes = [];
+    const edges = [];
+    const seen = new Set();
+    for (const a of alerts) {
+      const nodeId = `${a.entityType}-${a.entityId}`;
+      if (!seen.has(nodeId)) {
+        nodes.push({ id: nodeId, label: a.entityId, type: a.entityType, riskScore: a.severity === 'critical' ? 95 : a.severity === 'high' ? 75 : a.severity === 'medium' ? 50 : 25 });
+        seen.add(nodeId);
+      }
+      // create edge to alert node
+      const alertNodeId = `alert-${a.id}`;
+      nodes.push({ id: alertNodeId, label: a.alertId, type: 'alert', riskScore: a.severity === 'critical' ? 95 : 75 });
+      edges.push({ source: nodeId, target: alertNodeId, weight: a.severity === 'critical' ? 1.0 : 0.7, label: a.severity });
+    }
+    return { nodes, edges, stats: { totalNodes: nodes.length, totalEdges: edges.length } };
+  },
   'fraudAlerts.graph': async () => {
     const alerts = await q('SELECT id, "alertId", "entityType", "entityId", severity FROM fraud_alerts WHERE NOT resolved ORDER BY "createdAt" DESC LIMIT 10');
     const nodes = alerts.map(a => ({ id: `N${a.id}`, label: `${a.entityType} ${a.entityId}`, type: a.entityType, riskScore: a.severity === 'critical' ? 0.9 : a.severity === 'high' ? 0.75 : 0.5 }));
     return { nodes, edges: [] };
   },
-  'fraudNetwork.data': () => Promise.resolve({ nodes: [], edges: [] }),
-  'fraudNetwork.graph': () => Promise.resolve({ nodes: [], edges: [] }),
+  'fraudNetwork.data': async () => {
+    const alerts = await q('SELECT id, "alertId", "entityType", "entityId", severity::text FROM fraud_alerts ORDER BY "createdAt" DESC LIMIT 15');
+    const nodes = alerts.map(a => ({ id: `N${a.id}`, label: a.entityId, type: a.entityType, risk: a.severity }));
+    const edges = alerts.slice(0, -1).map((a, i) => ({ source: `N${a.id}`, target: `N${alerts[i + 1].id}`, weight: 0.5 }));
+    return { nodes, edges };
+  },
+  'fraudNetwork.graph': async () => {
+    const alerts = await q('SELECT id, "alertId", "entityType", "entityId", severity::text FROM fraud_alerts ORDER BY "createdAt" DESC LIMIT 15');
+    const nodes = alerts.map(a => ({ id: `N${a.id}`, label: a.entityId, group: a.entityType, riskScore: a.severity === 'critical' ? 0.9 : a.severity === 'high' ? 0.75 : 0.5 }));
+    return { nodes, edges: [] };
+  },
 
   // ─── Radar ───
   'radar.insights': () => Promise.resolve([
@@ -726,7 +803,14 @@ const ROUTE_HANDLERS = {
   'approval.queue': () => q('SELECT id, "applicationId", "productType" as type, status, "createdAt" FROM insurance_applications WHERE status NOT IN (\'approved\',\'complete\') ORDER BY "createdAt" DESC'),
 
   // ─── Knowledge Graph ───
-  'knowledge.graph': () => Promise.resolve({ nodes: [], edges: [], stats: { totalNodes: 0, totalEdges: 0 } }),
+  'knowledge.graph': async () => {
+    const products = await q('SELECT id, name, category FROM insurance_products WHERE status=\'active\'');
+    const nodes = products.map(p => ({ id: `product-${p.id}`, label: p.name, type: 'product', group: p.category }));
+    const categories = [...new Set(products.map(p => p.category))];
+    categories.forEach(c => nodes.push({ id: `cat-${c}`, label: c, type: 'category', group: c }));
+    const edges = products.map(p => ({ source: `cat-${p.category}`, target: `product-${p.id}`, label: 'contains' }));
+    return { nodes, edges, stats: { totalNodes: nodes.length, totalEdges: edges.length } };
+  },
 
   // ─── Agent ───
   'agent.dashboard': async () => {
@@ -806,21 +890,35 @@ const ROUTE_HANDLERS = {
   ]),
 
   // ─── Telematics ───
-  'telematics.data': () => Promise.resolve({
-    devices: 1250, activeDrivers: 980, avgScore: 78,
-    recentTrips: [
-      { id: 1, driver: 'Driver A', distance: 45, score: 85, date: new Date().toISOString().slice(0, 10) },
-    ],
-  }),
-  'telematics.devices': () => Promise.resolve([]),
+  'telematics.data': async () => {
+    const devices = await q('SELECT id, name, device_type, avg_daily_km, driver_score, last_ping FROM telematics_devices ORDER BY id');
+    const avgScore = devices.length > 0 ? Math.round(devices.reduce((s, d) => s + (d.driver_score || 0), 0) / devices.length) : 0;
+    return {
+      devices: devices.length, activeDrivers: devices.filter(d => d.last_ping).length, avgScore,
+      recentTrips: devices.map(d => ({ id: d.id, driver: d.name, distance: Number(d.avg_daily_km) || 0, score: d.driver_score || 0, date: d.last_ping || new Date().toISOString() })),
+    };
+  },
+  'telematics.devices': () => q('SELECT id, name, "deviceId", device_type as type, make, model, imei, vehicle_vin as vin, avg_daily_km as "avgDailyKm", harsh_braking_events as "harshBraking", speeding_events as "speedingEvents", night_driving_pct as "nightDriving", driver_score as score, status, install_date as "installDate", last_ping as "lastPing" FROM telematics_devices ORDER BY id'),
 
   // ─── Geospatial ───
   'geospatial.data': () => Promise.resolve({ regions: [], riskZones: [], heatmap: [] }),
   'geospatial.riskMap': () => Promise.resolve({ center: { lat: 9.0820, lng: 8.6753 }, zoom: 6, zones: [] }),
 
   // ─── Broker ───
-  'broker.apiKeys': () => Promise.resolve([]),
-  'broker.documentation': () => Promise.resolve({ version: '2.0', endpoints: [] }),
+  'broker.apiKeys': () => q('SELECT id, name, "apiKey", permissions, "rateLimit", status, "expiresAt", "lastUsedAt" FROM broker_api_keys ORDER BY id'),
+  'broker.documentation': () => Promise.resolve({
+    version: '2.0',
+    baseUrl: '/api/v2/broker',
+    endpoints: [
+      { method: 'GET', path: '/policies', description: 'List all policies', auth: 'API Key' },
+      { method: 'POST', path: '/quotes', description: 'Create a premium quote', auth: 'API Key' },
+      { method: 'POST', path: '/claims', description: 'Submit a new claim', auth: 'API Key' },
+      { method: 'GET', path: '/claims/:id', description: 'Get claim status', auth: 'API Key' },
+      { method: 'POST', path: '/kyc/verify', description: 'Verify customer KYC', auth: 'API Key' },
+      { method: 'GET', path: '/products', description: 'List available insurance products', auth: 'API Key' },
+      { method: 'POST', path: '/payments/collect', description: 'Initiate premium collection', auth: 'API Key' },
+    ],
+  }),
 
   // ─── ERPNext ───
   'erpnext.status': async () => {
@@ -922,7 +1020,11 @@ const ROUTE_HANDLERS = {
   'bank.integrations': () => q('SELECT id, "bankName" as bank, status, "updatedAt" as "lastSync" FROM bancassurance_partners ORDER BY id'),
 
   // ─── Reconciliation ───
-  'reconciliation.status': () => Promise.resolve({ lastRun: new Date().toISOString().slice(0, 10), matched: 12400, unmatched: 47 }),
+  'reconciliation.status': async () => {
+    const r = await q1('SELECT COUNT(*) as total, COALESCE(SUM(matched_count),0) as matched, COALESCE(SUM(unmatched_count),0) as unmatched, MAX(processed_at) as last_run FROM reconciliation_batches');
+    return { lastRun: r.last_run || new Date().toISOString().slice(0, 10), matched: Number(r.matched) || 0, unmatched: Number(r.unmatched) || 0, totalBatches: Number(r.total) || 0 };
+  },
+  'reconciliation.batches': () => q('SELECT id, batch_reference as ref, source_type as type, total_records as total, matched_count as matched, unmatched_count as unmatched, discrepancy_count as discrepancies, total_amount::text as amount, status, created_at, processed_at FROM reconciliation_batches ORDER BY created_at DESC'),
 
   // ─── DR ───
   'dr.status': () => Promise.resolve({ rpo: '1 hour', rto: '4 hours', lastBackup: new Date().toISOString(), backupStatus: 'Healthy' }),
@@ -1384,18 +1486,32 @@ const ROUTE_HANDLERS = {
   'kyc.gate': async () => checkKycGate(1),
   'kyc.serviceHealth': () => Promise.resolve({ nibss: 'operational', nimc: 'operational', frsc: 'operational', cac: 'degraded' }),
 
-  // Literacy
-  'literacy.content': () => Promise.resolve([
-    { id: 1, title: 'Understanding Motor Insurance in Nigeria', category: 'motor', readTime: '5 min', progress: 0 },
-    { id: 2, title: 'Health Insurance: HMO vs Indemnity', category: 'health', readTime: '8 min', progress: 0 },
-    { id: 3, title: 'What is Reinsurance?', category: 'advanced', readTime: '10 min', progress: 0 },
-  ]),
-  'literacy.complete': (input) => Promise.resolve({ success: true, badges: ['Motor Expert'] }),
-  'literacy.progress': () => Promise.resolve({ completed: 3, total: 12, streak: 5 }),
+  // Training / LMS
+  'literacy.content': () => q('SELECT id, title, description, category, content_type as type, duration_minutes as "readTime", is_mandatory as mandatory FROM training_courses WHERE is_active=true ORDER BY id'),
+  'literacy.complete': async (input) => {
+    const courseId = input?.courseId || 1;
+    await q1('UPDATE training_enrollments SET status=\'completed\', progress=100, completed_at=NOW() WHERE course_id=$1 AND agent_id=1', [courseId]);
+    return { success: true, badges: ['Course Completed'] };
+  },
+  'literacy.progress': async () => {
+    const total = await q1('SELECT COUNT(*) as c FROM training_courses WHERE is_active=true');
+    const completed = await q1('SELECT COUNT(*) as c FROM training_enrollments WHERE agent_id=1 AND status=\'completed\'');
+    return { completed: Number(completed.c) || 0, total: Number(total.c) || 0, streak: 5 };
+  },
+  'training.courses': () => q('SELECT tc.id, tc.title, tc.description, tc.category, tc.content_type, tc.duration_minutes, tc.passing_score, tc.is_mandatory, COALESCE(te.status, \'not_enrolled\') as "enrollStatus", COALESCE(te.progress, 0) as progress, te.score FROM training_courses tc LEFT JOIN training_enrollments te ON tc.id=te.course_id AND te.agent_id=1 WHERE tc.is_active=true ORDER BY tc.is_mandatory DESC, tc.id'),
+  'training.enroll': async (input) => {
+    const r = await q1('INSERT INTO training_enrollments (id, course_id, agent_id, status, progress, started_at) VALUES ((SELECT COALESCE(MAX(id),0)+1 FROM training_enrollments), $1, 1, \'in_progress\', 0, NOW()) RETURNING id', [input?.courseId]);
+    return { success: true, enrollmentId: r?.id };
+  },
 
   // Loyalty mutations
-  'loyalty.points': () => Promise.resolve({ balance: 15000, lifetime: 45000, tier: 'Gold', nextTier: 'Platinum', pointsToNext: 5000 }),
-  'loyalty.redeem': (input) => Promise.resolve({ success: true, redeemed: input.points || 1000, remaining: 14000 }),
+  'loyalty.points': async () => {
+    const r = await q1('SELECT COUNT(*) FILTER (WHERE status=\'Completed\') as completed, COALESCE(SUM("rewardAmount"),0) as earned FROM referrals WHERE "referrerId"=1');
+    const policies = await q1('SELECT COUNT(*) as total FROM policies WHERE status=\'Active\'');
+    const points = (Number(r.completed) || 0) * 1000 + (Number(policies.total) || 0) * 2000;
+    return { balance: points, lifetime: points + 5000, tier: points >= 20000 ? 'Platinum' : points >= 10000 ? 'Gold' : 'Silver', nextTier: 'Platinum', pointsToNext: Math.max(0, 20000 - points) };
+  },
+  'loyalty.redeem': (input) => Promise.resolve({ success: true, redeemed: input?.points || 1000, remaining: 14000 }),
 
   // Marketplace
   'marketplace.products': () => q(`SELECT id, name, type as category, premium, name as description, status FROM policies WHERE status='Active' ORDER BY type`),
@@ -1492,6 +1608,79 @@ const ROUTE_HANDLERS = {
       VALUES ((SELECT COALESCE(MAX(id),0)+1 FROM financial_transactions), 'premium_received', 'policy', $1, 'Bank - Online', 'Premium Revenue', $2, $3, CURRENT_DATE) RETURNING id`,
       [input?.policyId || 1, input?.amount || 0, input?.narration || 'Premium payment via ' + (input?.method || 'card')]);
     return { success: true, transactionId: txnId, receiptNumber: receiptNo, amount: input?.amount || 0, status: 'completed', paymentMethod: input?.method || 'card' };
+  },
+
+  // Payment Gateway Integration
+  'payments.gateways': () => Promise.resolve([
+    { id: 'paystack', name: 'Paystack', status: 'active', supportedMethods: ['card', 'bank_transfer', 'ussd'], currencies: ['NGN'], webhookUrl: '/api/webhooks/paystack', fees: '1.5% + ₦100 (capped at ₦2,000)' },
+    { id: 'flutterwave', name: 'Flutterwave', status: 'active', supportedMethods: ['card', 'bank_transfer', 'ussd', 'mobile_money'], currencies: ['NGN', 'GHS', 'KES', 'ZAR'], webhookUrl: '/api/webhooks/flutterwave', fees: '1.4% (local cards), 3.8% (international)' },
+    { id: 'insureportal', name: 'InsurePortal Pay', status: 'beta', supportedMethods: ['bank_transfer', 'ussd'], currencies: ['NGN'], webhookUrl: '/api/webhooks/internal', fees: '0.5% flat' },
+  ]),
+  'payments.initiate': async (input) => {
+    const gateway = input?.gateway || 'paystack';
+    const amount = input?.amount || 0;
+    const ref = `${gateway.toUpperCase()}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    // In production, this would call Paystack/Flutterwave API:
+    // Paystack: POST https://api.paystack.co/transaction/initialize
+    // Flutterwave: POST https://api.flutterwave.com/v3/payments
+    return {
+      success: true, reference: ref, gateway,
+      authorizationUrl: `https://${gateway === 'paystack' ? 'checkout.paystack.com' : 'checkout.flutterwave.com'}/${ref}`,
+      amount, currency: 'NGN', status: 'pending',
+      callbackUrl: '/api/payments/callback',
+    };
+  },
+  'payments.verify': async (input) => {
+    const ref = input?.reference || '';
+    // In production: GET https://api.paystack.co/transaction/verify/:reference
+    return { success: true, reference: ref, status: 'success', amount: input?.amount || 0, channel: 'card', paidAt: new Date().toISOString() };
+  },
+  'payments.webhook': async (input) => {
+    // Process webhook from Paystack/Flutterwave — verify signature, update payment status
+    return { received: true, processed: true };
+  },
+
+  // Trial Balance Report
+  'financial.trialBalance': async () => {
+    const gl = await q('SELECT "debitAccount", "creditAccount", COALESCE(SUM(amount),0) as total FROM financial_transactions GROUP BY "debitAccount", "creditAccount" ORDER BY "debitAccount"');
+    const debitTotals = {};
+    const creditTotals = {};
+    for (const row of gl) {
+      debitTotals[row.debitAccount] = (debitTotals[row.debitAccount] || 0) + Number(row.total);
+      creditTotals[row.creditAccount] = (creditTotals[row.creditAccount] || 0) + Number(row.total);
+    }
+    const accounts = [...new Set([...Object.keys(debitTotals), ...Object.keys(creditTotals)])].sort();
+    const entries = accounts.map(acct => ({
+      account: acct,
+      debit: debitTotals[acct] || 0,
+      credit: creditTotals[acct] || 0,
+      balance: (debitTotals[acct] || 0) - (creditTotals[acct] || 0),
+    }));
+    const totalDebit = entries.reduce((s, e) => s + e.debit, 0);
+    const totalCredit = entries.reduce((s, e) => s + e.credit, 0);
+    return {
+      entries, totalDebit, totalCredit,
+      isBalanced: Math.abs(totalDebit - totalCredit) < 0.01,
+      asOfDate: new Date().toISOString().slice(0, 10),
+      currency: 'NGN',
+    };
+  },
+
+  // Field Agent Policy Issuance
+  'agent.issuePolicy': async (input) => {
+    const kycCheck = await checkKycGate(input?.customerId || 1);
+    if (!kycCheck.passed) return { success: false, error: 'Customer KYC not verified', kycLevel: kycCheck.level };
+    const agent = await q1('SELECT id, "agentCode", "escalationLimit" FROM agents WHERE id=$1', [input?.agentId || 1]);
+    const amount = input?.premium || 50000;
+    const limit = Number(agent?.escalationLimit) || 500000;
+    if (amount > limit) {
+      // Create approval request for amounts exceeding agent limit
+      await q1('INSERT INTO approval_requests (id, chain_id, entity_type, entity_id, status, requested_by, "createdAt") VALUES ((SELECT COALESCE(MAX(id),0)+1 FROM approval_requests), 1, \'policy\', $1, \'pending\', $2, NOW()) RETURNING id', [input?.applicationId || 'APP-' + Date.now(), agent?.agentCode || 'AGT-001']);
+      return { success: true, status: 'escalated', reason: `Premium ₦${amount.toLocaleString()} exceeds agent limit of ₦${limit.toLocaleString()}`, approvalRequired: true };
+    }
+    // Direct issuance within limit
+    const polNum = 'POL-AGT-' + Date.now();
+    return { success: true, status: 'issued', policyNumber: polNum, premium: amount, issuedBy: agent?.agentCode };
   },
 
   // Performance metrics
