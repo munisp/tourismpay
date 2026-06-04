@@ -1,36 +1,43 @@
 import TelegramBot from "node-telegram-bot-api";
 import { ConversationManager } from "../engine/conversation";
+import { InsuranceCommandHandler } from "./commands";
 
 export class CallbackHandler {
-  constructor(private bot: TelegramBot, private conversation: ConversationManager) {}
+  private commandHandler: InsuranceCommandHandler;
+
+  constructor(private bot: TelegramBot, private conversation: ConversationManager) {
+    this.commandHandler = new InsuranceCommandHandler(bot, conversation);
+  }
 
   async handle(query: TelegramBot.CallbackQuery) {
     const chatId = query.message!.chat.id;
     const data = query.data || "";
     await this.bot.answerCallbackQuery(query.id);
 
+    const msg = query.message as TelegramBot.Message;
+
     if (data === "policies") {
-      this.bot.emit("text", { ...query.message, text: "/policies", from: query.from, chat: query.message!.chat });
+      await this.commandHandler.handlePolicies(msg);
       return;
     }
     if (data === "claims") {
-      this.bot.emit("text", { ...query.message, text: "/claims", from: query.from, chat: query.message!.chat });
+      await this.commandHandler.handleClaims(msg);
       return;
     }
     if (data === "file_claim") {
-      this.bot.emit("text", { ...query.message, text: "/fileclaim", from: query.from, chat: query.message!.chat });
+      await this.commandHandler.handleFileClaim(msg);
       return;
     }
     if (data === "premium") {
-      this.bot.emit("text", { ...query.message, text: "/premium", from: query.from, chat: query.message!.chat });
+      await this.commandHandler.handlePremium(msg);
       return;
     }
     if (data === "find_agent") {
-      this.bot.emit("text", { ...query.message, text: "/agent", from: query.from, chat: query.message!.chat });
+      await this.commandHandler.handleFindAgent(msg);
       return;
     }
     if (data === "emergency") {
-      this.bot.emit("text", { ...query.message, text: "/emergency", from: query.from, chat: query.message!.chat });
+      await this.commandHandler.handleEmergency(msg);
       return;
     }
 
