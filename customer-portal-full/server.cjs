@@ -1037,7 +1037,15 @@ const ROUTE_HANDLERS = {
   }),
 
   // NAICOM mutations
-  'naicom.filings': () => q('SELECT id, "filingType", period, status, "dueDate", "submittedAt", "filingRef" FROM naicom_filings ORDER BY "dueDate" DESC'),
+  'naicom.filings': async (input) => {
+    const rows = await q('SELECT id, "filingType" as type, period, status, "dueDate", "submittedAt" as "submissionDate", "filingRef" FROM naicom_filings ORDER BY "dueDate" DESC');
+    const page = input?.page || 1;
+    const limit = input?.limit || 10;
+    const search = (input?.searchTerm || '').toLowerCase();
+    const filtered = search ? rows.filter(r => (r.type||'').toLowerCase().includes(search) || (r.period||'').toLowerCase().includes(search) || (r.status||'').toLowerCase().includes(search)) : rows;
+    const start = (page - 1) * limit;
+    return { filings: filtered.slice(start, start + limit), totalPages: Math.ceil(filtered.length / limit) || 1 };
+  },
   'naicom.submit': async (input) => {
     return { success: true, filingId: 'NAI-' + Date.now(), status: 'submitted', message: 'Filing submitted to NAICOM portal' };
   },
