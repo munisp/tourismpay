@@ -1,315 +1,252 @@
-import React, { useState, useEffect } from 'react';
-import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import React, { useState } from 'react';
+import { trpc } from '@/lib/trpc';
+import { useAuth } from '@/_core/hooks/useAuth';
+import { toast } from 'sonner';
+import { Loader2, FileText, Calculator, ShieldCheck, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-interface Application {
-  id: string;
-  policyType: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
-  applicantName: string;
-  submissionDate: string;
-  premium: number;
-}
+const fmt = (n: number | undefined | null) => n != null ? `₦${Number(n).toLocaleString()}` : '—';
 
 const InsuranceApplication: React.FC = () => {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'All' | 'Pending' | 'Approved' | 'Rejected'>('All');
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [currentApplication, setCurrentApplication] = useState<Application | null>(null);
-  const [newApplicationData, setNewApplicationData] = useState({
-    policyType: '',
-    applicantName: '',
-    premium: 0,
-  });
-
   const utils = trpc.useUtils();
+  const [tab, setTab] = useState('applications');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const { data: applicationsData, isLoading: isFetchingApplications, error: applicationsError } = trpc.application.list.useQuery(
-    undefined, // No input needed for list, assuming it returns all applications
-    { enabled: isAuthenticated }
-  );
+  // Application form
+  const [formProduct, setFormProduct] = useState('');
+  const [formAge, setFormAge] = useState('');
+  const [formSumAssured, setFormSumAssured] = useState('');
+  const [formIncome, setFormIncome] = useState('');
+  const [formName, setFormName] = useState('');
+  // Risk factors
+  const [isSmoker, setIsSmoker] = useState(false);
+  const [hasTracker, setHasTracker] = useState(false);
+  const [claimsFreeYears, setClaimsFreeYears] = useState('0');
 
-  const { data: singleApplicationData, isLoading: isFetchingSingleApplication, error: singleApplicationError } = trpc.application.get.useQuery(
-    { id: currentApplication?.id || '' },
-    { enabled: isAuthenticated && !!currentApplication?.id }
-  );
+  // Premium/UW results
+  const [premiumResult, setPremiumResult] = useState<any>(null);
+  const [uwResult, setUwResult] = useState<any>(null);
 
-  const createApplicationMutation = trpc.application.create.useMutation({
-    onSuccess: () => {
-      toast.success('Application created successfully!');
-      utils.application.list.invalidate();
-      setIsDialogOpen(false);
-      setNewApplicationData({ policyType: '', applicantName: '', premium: 0 });
-    },
-    onError: (error) => {
-      toast.error(`Failed to create application: ${error.message}`);
-    },
+  const { data: applications, isLoading } = trpc.application.list.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: products } = trpc.products.catalog.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: kycGate } = trpc.kyc.gate.useQuery(undefined, { enabled: isAuthenticated });
+
+  const calcPremiumMut = trpc.premium.calculate.useMutation({
+    onSuccess: (data) => { setPremiumResult(data); },
+    onError: (err) => toast.error(err.message),
+  });
+  const uwMut = trpc.underwriting.evaluate.useMutation({
+    onSuccess: (data) => { setUwResult(data); },
+    onError: (err) => toast.error(err.message),
+  });
+  const createMut = trpc.application.create.useMutation({
+    onSuccess: () => { toast.success('Application submitted'); setIsDialogOpen(false); utils.application.list.invalidate(); resetForm(); },
+    onError: (err) => toast.error(err.message),
   });
 
-  const updateApplicationMutation = trpc.application.update.useMutation({
-    onSuccess: () => {
-      toast.success('Application updated successfully!');
-      utils.application.list.invalidate();
-      utils.application.get.invalidate({ id: currentApplication?.id });
-      setIsDialogOpen(false);
-      setCurrentApplication(null);
-    },
-    onError: (error) => {
-      toast.error(`Failed to update application: ${error.message}`);
-    },
-  });
+  const resetForm = () => { setFormProduct(''); setFormAge(''); setFormSumAssured(''); setFormIncome(''); setFormName(''); setPremiumResult(null); setUwResult(null); setIsSmoker(false); setHasTracker(false); setClaimsFreeYears('0'); };
 
-  useEffect(() => {
-    if (applicationsError) {
-      toast.error(`Error fetching applications: ${applicationsError.message}`);
-    }
-    if (singleApplicationError) {
-      toast.error(`Error fetching application details: ${singleApplicationError.message}`);
-    }
-  }, [applicationsError, singleApplicationError]);
+  if (authLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  if (!isAuthenticated) return <div className="flex justify-center items-center h-screen text-lg font-semibold">Access Denied</div>;
 
-  if (authLoading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
+  const kycBlocked = kycGate && !kycGate.passed;
+  const appList = (applications || []) as any[];
+  const productList = (products || []) as any[];
 
-  if (!isAuthenticated) {
-    return (
-      <div className="flex justify-center items-center h-screen text-lg font-semibold">
-        Please log in to view your insurance applications.
-      </div>
-    );
-  }
-
-  const applications = applicationsData || [];
-
-  const filteredApplications = applications.filter((app) => {
-    const matchesSearch = app.applicantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          app.policyType.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'All' || app.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
-
-  const paginatedApplications = filteredApplications.slice((page - 1) * pageSize, page * pageSize);
-  const totalPages = Math.ceil(filteredApplications.length / pageSize);
-
-  const handleCreateApplication = () => {
-    createApplicationMutation.mutate({
-      policyType: newApplicationData.policyType,
-      applicantName: newApplicationData.applicantName,
-      premium: newApplicationData.premium,
-      // Assuming status and submissionDate are set by the backend
-    });
+  const handleCalculate = () => {
+    if (!formProduct || !formAge || !formSumAssured) { toast.error('Select product, enter age, and sum assured'); return; }
+    const riskFactors: any = { claimsFreeYears: Number(claimsFreeYears), hasTracker, isSmoker };
+    calcPremiumMut.mutate({ productType: formProduct, age: Number(formAge), sumAssured: Number(formSumAssured), annualIncome: Number(formIncome) || undefined, riskFactors });
+    uwMut.mutate({ productType: formProduct, applicantAge: Number(formAge), sumAssured: Number(formSumAssured), annualIncome: Number(formIncome) || undefined, riskFactors });
   };
 
-  const handleUpdateApplication = () => {
-    if (currentApplication) {
-      updateApplicationMutation.mutate({
-        id: currentApplication.id,
-        policyType: currentApplication.policyType,
-        status: currentApplication.status,
-        applicantName: currentApplication.applicantName,
-        premium: currentApplication.premium,
-      });
-    }
+  const handleSubmit = () => {
+    if (kycBlocked) { toast.error('Complete KYC verification before applying'); return; }
+    createMut.mutate({ type: formProduct, premium: premiumResult?.premium || 0, startDate: new Date().toISOString(), endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() });
   };
-
-  const handleEditClick = (app: Application) => {
-    setCurrentApplication(app);
-    setIsDialogOpen(true);
-  };
-
-  const handleDialogClose = () => {
-    setIsDialogOpen(false);
-    setCurrentApplication(null);
-    setNewApplicationData({ policyType: '', applicantName: '', premium: 0 });
-  };
-
-  const isLoading = isFetchingApplications || isFetchingSingleApplication || createApplicationMutation.isPending || updateApplicationMutation.isPending;
 
   return (
-    <div className="container mx-auto p-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-2xl font-bold">Insurance Applications</CardTitle>
-          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setIsDialogOpen(true)}>Create New Application</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{currentApplication ? 'Edit Application' : 'Create New Application'}</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <Input
-                  placeholder="Policy Type"
-                  value={currentApplication ? currentApplication.policyType : newApplicationData.policyType}
-                  onChange={(e) => {
-                    if (currentApplication) {
-                      setCurrentApplication({ ...currentApplication, policyType: e.target.value });
-                    } else {
-                      setNewApplicationData({ ...newApplicationData, policyType: e.target.value });
-                    }
-                  }}
-                />
-                <Input
-                  placeholder="Applicant Name"
-                  value={currentApplication ? currentApplication.applicantName : newApplicationData.applicantName}
-                  onChange={(e) => {
-                    if (currentApplication) {
-                      setCurrentApplication({ ...currentApplication, applicantName: e.target.value });
-                    } else {
-                      setNewApplicationData({ ...newApplicationData, applicantName: e.target.value });
-                    }
-                  }}
-                />
-                <Input
-                  type="number"
-                  placeholder="Premium"
-                  value={currentApplication ? currentApplication.premium : newApplicationData.premium}
-                  onChange={(e) => {
-                    const premium = parseFloat(e.target.value);
-                    if (currentApplication) {
-                      setCurrentApplication({ ...currentApplication, premium: isNaN(premium) ? 0 : premium });
-                    } else {
-                      setNewApplicationData({ ...newApplicationData, premium: isNaN(premium) ? 0 : premium });
-                    }
-                  }}
-                />
-                {currentApplication && (
-                  <Select
-                    value={currentApplication.status}
-                    onValueChange={(value) => setCurrentApplication({ ...currentApplication, status: value as 'Pending' | 'Approved' | 'Rejected' })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Pending">Pending</SelectItem>
-                      <SelectItem value="Approved">Approved</SelectItem>
-                      <SelectItem value="Rejected">Rejected</SelectItem>
-                    </SelectContent>
-                  </Select>
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2"><FileText className="h-8 w-8" /> Insurance Application</h1>
+          <p className="text-muted-foreground">Apply for coverage with real-time premium calculation and underwriting assessment</p>
+        </div>
+        <div className="flex gap-2 items-center">
+          {kycBlocked && <Badge variant="destructive" className="text-sm px-3 py-1"><AlertTriangle className="mr-1 h-3 w-3" /> KYC Required</Badge>}
+          <Dialog open={isDialogOpen} onOpenChange={(o) => { setIsDialogOpen(o); if (!o) resetForm(); }}>
+            <DialogTrigger asChild><Button size="lg" disabled={kycBlocked}><FileText className="mr-2 h-5 w-5" /> New Application</Button></DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader><DialogTitle>New Insurance Application</DialogTitle><DialogDescription>Select a product and provide details for instant premium quote and underwriting decision</DialogDescription></DialogHeader>
+              <div className="space-y-6 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Product Type</Label>
+                    <Select value={formProduct} onValueChange={setFormProduct}>
+                      <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                      <SelectContent>
+                        {productList.map((p: any) => <SelectItem key={p.code} value={p.category}>{String(p.name)} ({String(p.category)})</SelectItem>)}
+                        {productList.length === 0 && <><SelectItem value="Motor">Motor</SelectItem><SelectItem value="Health">Health</SelectItem><SelectItem value="Life">Life</SelectItem><SelectItem value="Property">Property</SelectItem><SelectItem value="Agricultural">Agricultural</SelectItem><SelectItem value="Commercial">Commercial</SelectItem></>}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Applicant Name</Label><Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Full name" /></div>
+                  <div><Label>Age</Label><Input type="number" value={formAge} onChange={e => setFormAge(e.target.value)} placeholder="28" /></div>
+                  <div><Label>Sum Assured (₦)</Label><Input type="number" value={formSumAssured} onChange={e => setFormSumAssured(e.target.value)} placeholder="5000000" /></div>
+                  <div><Label>Annual Income (₦)</Label><Input type="number" value={formIncome} onChange={e => setFormIncome(e.target.value)} placeholder="3000000" /></div>
+                  <div><Label>Claims-Free Years</Label><Input type="number" value={claimsFreeYears} onChange={e => setClaimsFreeYears(e.target.value)} placeholder="0" /></div>
+                </div>
+                <div className="flex gap-4 items-center">
+                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={isSmoker} onChange={e => setIsSmoker(e.target.checked)} /> Smoker</label>
+                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={hasTracker} onChange={e => setHasTracker(e.target.checked)} /> Vehicle Tracker</label>
+                </div>
+                <Button onClick={handleCalculate} disabled={calcPremiumMut.isLoading} variant="outline" className="w-full">
+                  {calcPremiumMut.isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Calculator className="mr-2 h-4 w-4" /> Calculate Premium & Run Underwriting
+                </Button>
+
+                {premiumResult && (
+                  <Card className="border-2 border-blue-200">
+                    <CardHeader className="pb-2"><CardTitle className="text-base">Premium Quote</CardTitle></CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-3 gap-4 text-center">
+                        <div className="p-3 bg-blue-50 rounded"><p className="text-xs text-muted-foreground">Base Premium</p><p className="font-bold text-lg">{fmt(premiumResult.basePremium)}</p></div>
+                        <div className="p-3 bg-green-50 rounded"><p className="text-xs text-muted-foreground">Final Premium</p><p className="font-bold text-xl text-green-600">{fmt(premiumResult.premium)}</p></div>
+                        <div className="p-3 bg-gray-50 rounded"><p className="text-xs text-muted-foreground">Deductible</p><p className="font-bold text-lg">{fmt(premiumResult.deductible)}</p></div>
+                      </div>
+                      <div className="text-xs space-y-1">
+                        <div className="flex justify-between"><span>NAICOM Levy</span><span>{fmt(premiumResult.naicomLevy)}</span></div>
+                        <div className="flex justify-between"><span>Stamp Duty</span><span>{fmt(premiumResult.stampDuty)}</span></div>
+                        <div className="flex justify-between"><span>Sum Assured</span><span>{fmt(premiumResult.sumAssured)}</span></div>
+                      </div>
+                      {premiumResult.breakdown && (
+                        <div className="space-y-1">{premiumResult.breakdown.map((b: any, i: number) => (
+                          <div key={i} className="flex justify-between text-xs py-1 border-b"><span>{String(b.factor)}</span><span className="font-medium">{String(b.impact)}</span></div>
+                        ))}</div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+                {uwResult && (
+                  <Card className={`border-2 ${uwResult.decision === 'auto_approved' ? 'border-green-200' : uwResult.decision === 'declined' ? 'border-red-200' : 'border-yellow-200'}`}>
+                    <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2">
+                      {uwResult.decision === 'auto_approved' ? <CheckCircle2 className="h-5 w-5 text-green-600" /> : uwResult.decision === 'declined' ? <XCircle className="h-5 w-5 text-red-600" /> : <AlertTriangle className="h-5 w-5 text-yellow-600" />}
+                      Underwriting Decision: <Badge variant={uwResult.decision === 'auto_approved' ? 'default' : uwResult.decision === 'declined' ? 'destructive' : 'secondary'}>{String(uwResult.decision).replace('_', ' ').toUpperCase()}</Badge>
+                    </CardTitle></CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="grid grid-cols-4 gap-3 text-center text-sm">
+                        <div><p className="text-xs text-muted-foreground">Risk Score</p><p className={`font-bold ${uwResult.riskScore < 50 ? 'text-green-600' : 'text-red-600'}`}>{uwResult.riskScore}/100</p></div>
+                        <div><p className="text-xs text-muted-foreground">Category</p><p className="font-bold">{String(uwResult.riskCategory)}</p></div>
+                        <div><p className="text-xs text-muted-foreground">Loading</p><p className="font-bold">+{uwResult.premiumLoading}%</p></div>
+                        <div><p className="text-xs text-muted-foreground">Discount</p><p className="font-bold text-green-600">-{uwResult.premiumDiscount}%</p></div>
+                      </div>
+                      {uwResult.rulesApplied?.length > 0 && (
+                        <div className="space-y-1">{uwResult.rulesApplied.map((r: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2 text-xs py-1 border-b">
+                            <ShieldCheck className="h-3 w-3 text-blue-600 flex-shrink-0" />
+                            <span className="font-medium">{String(r.rule)}</span>
+                            <span className="text-muted-foreground ml-auto">{String(r.result)}</span>
+                          </div>
+                        ))}</div>
+                      )}
+                      {uwResult.exclusions?.length > 0 && <div className="p-2 bg-red-50 rounded text-xs"><strong>Exclusions:</strong> {uwResult.exclusions.join(', ')}</div>}
+                      {uwResult.conditions?.length > 0 && <div className="p-2 bg-yellow-50 rounded text-xs"><strong>Conditions:</strong> {uwResult.conditions.join(', ')}</div>}
+                    </CardContent>
+                  </Card>
                 )}
               </div>
               <DialogFooter>
-                <Button onClick={currentApplication ? handleUpdateApplication : handleCreateApplication} disabled={isLoading}>
-                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {currentApplication ? 'Save Changes' : 'Create Application'}
+                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleSubmit} disabled={createMut.isLoading || !premiumResult || uwResult?.decision === 'declined'}>
+                  {createMut.isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Submit Application
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between mb-4">
-            <Input
-              placeholder="Search applications..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
-            />
-            <Select
-              value={filterStatus}
-              onValueChange={(value: 'All' | 'Pending' | 'Approved' | 'Rejected') => setFilterStatus(value)}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Filter by Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Statuses</SelectItem>
-                <SelectItem value="Pending">Pending</SelectItem>
-                <SelectItem value="Approved">Approved</SelectItem>
-                <SelectItem value="Rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        </div>
+      </div>
 
-          {isLoading ? (
-            <div className="flex justify-center items-center h-40">
-              <Loader2 className="h-8 w-8 animate-spin" />
+      {kycBlocked && (
+        <Card className="border-2 border-red-200 bg-red-50">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-6 w-6 text-red-600" />
+              <div>
+                <p className="font-semibold text-red-800">KYC Verification Required</p>
+                <p className="text-sm text-red-600">Complete your KYC/KYB verification before you can apply for insurance products. {kycGate?.reason || 'Go to KYC Status page to begin verification.'}</p>
+                <p className="text-xs text-muted-foreground mt-1">Blocked features: {kycGate?.blockedFeatures?.join(', ') || 'applications, claims, premium payments'}</p>
+              </div>
             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Policy Type</TableHead>
-                  <TableHead>Applicant Name</TableHead>
-                  <TableHead>Submission Date</TableHead>
-                  <TableHead>Premium (NGN)</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedApplications.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center">No applications found.</TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedApplications.map((app) => (
-                    <TableRow key={app.id}>
-                      <TableCell>{app.id}</TableCell>
-                      <TableCell>{app.policyType}</TableCell>
-                      <TableCell>{app.applicantName}</TableCell>
-                      <TableCell>{app.submissionDate}</TableCell>
-                      <TableCell>{app.premium.toLocaleString('en-NG', { style: 'currency', currency: 'NGN' })}</TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium
-                            ${app.status === 'Approved' ? 'bg-green-100 text-green-800'
-                            : app.status === 'Pending' ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'}`}
-                        >
-                          {app.status}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm" onClick={() => handleEditClick(app)}>
-                          Edit
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
+          </CardContent>
+        </Card>
+      )}
 
-          <div className="flex justify-between items-center mt-4">
-            <Button
-              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-              disabled={page === 1 || isLoading}
-            >
-              Previous
-            </Button>
-            <span>
-              Page {page} of {totalPages}
-            </span>
-            <Button
-              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-              disabled={page === totalPages || isLoading}
-            >
-              Next
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="applications">My Applications</TabsTrigger>
+          <TabsTrigger value="products">Available Products</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="applications">
+          <Card>
+            <CardHeader><CardTitle>Applications</CardTitle><CardDescription>Track your insurance application status</CardDescription></CardHeader>
+            <CardContent>
+              {isLoading ? <div className="flex justify-center h-40"><Loader2 className="h-8 w-8 animate-spin" /></div> : (
+                <Table>
+                  <TableHeader><TableRow><TableHead>ID</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead>Premium</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {appList.map((a: any) => (
+                      <TableRow key={a.id}>
+                        <TableCell className="font-medium">{String(a.id)}</TableCell>
+                        <TableCell>{String(a.policyType || a.type || '—')}</TableCell>
+                        <TableCell><Badge variant={a.status === 'Approved' ? 'default' : a.status === 'Rejected' ? 'destructive' : 'secondary'}>{String(a.status)}</Badge></TableCell>
+                        <TableCell>{fmt(a.premium)}</TableCell>
+                        <TableCell className="text-xs">{a.submissionDate ? new Date(a.submissionDate).toLocaleDateString() : '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                    {appList.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No applications yet</TableCell></TableRow>}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="products">
+          <Card>
+            <CardHeader><CardTitle>Insurance Product Catalog</CardTitle><CardDescription>NAICOM-registered products available for purchase — {productList.length} products across {new Set(productList.map((p: any) => p.category)).size} categories</CardDescription></CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader><TableRow><TableHead>Code</TableHead><TableHead>Product</TableHead><TableHead>Category</TableHead><TableHead>Type</TableHead><TableHead>Min Premium</TableHead><TableHead>Max Premium</TableHead><TableHead>NAICOM Class</TableHead><TableHead>Compulsory</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {productList.map((p: any) => (
+                    <TableRow key={p.code}>
+                      <TableCell className="font-medium">{String(p.code)}</TableCell>
+                      <TableCell>{String(p.name)}</TableCell>
+                      <TableCell><Badge variant="outline">{String(p.category)}</Badge></TableCell>
+                      <TableCell className="text-xs">{String(p.type || p.coverageType || '—')}</TableCell>
+                      <TableCell>{fmt(p.minPremium)}</TableCell>
+                      <TableCell>{fmt(p.maxPremium)}</TableCell>
+                      <TableCell className="text-xs">{String(p.naicomClass || '—')}</TableCell>
+                      <TableCell>{p.isCompulsory ? <Badge variant="destructive" className="text-xs">Mandatory</Badge> : <span className="text-xs text-muted-foreground">Optional</span>}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
