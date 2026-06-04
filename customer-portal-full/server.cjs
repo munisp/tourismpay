@@ -789,7 +789,7 @@ const ROUTE_HANDLERS = {
   },
   'fraudNetwork.graph': async () => {
     const alerts = await q('SELECT id, "alertId", "entityType", "entityId", severity::text FROM fraud_alerts ORDER BY "createdAt" DESC LIMIT 15');
-    const nodes = alerts.map(a => ({ id: `N${a.id}`, label: a.entityId, group: a.entityType, riskScore: a.severity === 'critical' ? 0.9 : a.severity === 'high' ? 0.75 : 0.5 }));
+    const nodes = alerts.map(a => ({ id: `N${a.id}`, label: a.entityId, type: a.entityType, riskScore: a.severity === 'critical' ? 0.9 : a.severity === 'high' ? 0.75 : 0.5 }));
     return { nodes, edges: [] };
   },
 
@@ -891,12 +891,14 @@ const ROUTE_HANDLERS = {
 
   // ─── Telematics ───
   'telematics.data': async () => {
-    const devices = await q('SELECT id, name, device_type, avg_daily_km, driver_score, last_ping FROM telematics_devices ORDER BY id');
-    const avgScore = devices.length > 0 ? Math.round(devices.reduce((s, d) => s + (d.driver_score || 0), 0) / devices.length) : 0;
-    return {
-      devices: devices.length, activeDrivers: devices.filter(d => d.last_ping).length, avgScore,
-      recentTrips: devices.map(d => ({ id: d.id, driver: d.name, distance: Number(d.avg_daily_km) || 0, score: d.driver_score || 0, date: d.last_ping || new Date().toISOString() })),
-    };
+    const devices = await q('SELECT id, "deviceId" as "vehicleId", name as "driverId", last_ping as timestamp, avg_daily_km as speed, install_date, driver_score, status, device_type as "engineStatus" FROM telematics_devices ORDER BY id');
+    const items = devices.map(d => ({
+      id: d.id, vehicleId: d.vehicleId || 'VEH-' + d.id, driverId: d.driverId || 'DRV-' + d.id,
+      timestamp: d.timestamp || new Date().toISOString(), speed: Number(d.speed) || 0,
+      location: { lat: 6.5244 + d.id * 0.01, lng: 3.3792 + d.id * 0.01 },
+      fuelLevel: 0.5 + (d.driver_score || 70) / 200, engineStatus: d.engineStatus || 'Running',
+    }));
+    return { items, totalPages: 1 };
   },
   'telematics.devices': () => q('SELECT id, name, "deviceId", device_type as type, make, model, imei, vehicle_vin as vin, avg_daily_km as "avgDailyKm", harsh_braking_events as "harshBraking", speeding_events as "speedingEvents", night_driving_pct as "nightDriving", driver_score as score, status, install_date as "installDate", last_ping as "lastPing" FROM telematics_devices ORDER BY id'),
 
@@ -1506,10 +1508,8 @@ const ROUTE_HANDLERS = {
 
   // Loyalty mutations
   'loyalty.points': async () => {
-    const r = await q1('SELECT COUNT(*) FILTER (WHERE status=\'Completed\') as completed, COALESCE(SUM("rewardAmount"),0) as earned FROM referrals WHERE "referrerId"=1');
-    const policies = await q1('SELECT COUNT(*) as total FROM policies WHERE status=\'Active\'');
-    const points = (Number(r.completed) || 0) * 1000 + (Number(policies.total) || 0) * 2000;
-    return { balance: points, lifetime: points + 5000, tier: points >= 20000 ? 'Platinum' : points >= 10000 ? 'Gold' : 'Silver', nextTier: 'Platinum', pointsToNext: Math.max(0, 20000 - points) };
+    const customers = await q('SELECT c.id, c."firstName" || \' \' || c."lastName" as name, COUNT(p.id) * 2000 as points FROM customers c LEFT JOIN policies p ON p."userId"=c.id AND p.status=\'Active\' GROUP BY c.id, c."firstName", c."lastName" ORDER BY points DESC LIMIT 20');
+    return customers.map(c => ({ id: String(c.id), customerName: c.name || 'Customer ' + c.id, points: Number(c.points) || 0, lastActivity: new Date().toISOString().slice(0, 10) }));
   },
   'loyalty.redeem': (input) => Promise.resolve({ success: true, redeemed: input?.points || 1000, remaining: 14000 }),
 
