@@ -1,0 +1,133 @@
+[2026-01-29T19:23:17.832Z] Starting dev server with command: pnpm run dev
+[2026-01-29T19:23:18.924Z] 
+[2026-01-29T19:23:18.925Z] > customer-portal-full@1.0.0 dev /home/ubuntu/customer-portal-full
+[2026-01-29T19:23:18.926Z] > vite --host
+[2026-01-29T19:23:18.926Z] 
+[2026-01-29T19:23:19.662Z] 
+[2026-01-29T19:23:19.663Z] VITE v7.1.9  ready in 693 ms
+[2026-01-29T19:23:19.664Z] 
+[2026-01-29T19:23:19.664Z] ➜  Local:   http://localhost:3000/
+[2026-01-29T19:23:19.665Z] ➜  Network: http://169.254.0.21:3000/
+[2026-01-29T19:24:27.315Z] [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[2026-01-29T19:24:31.892Z] 2:24:31 PM [vite] (client) ✨ new dependencies optimized: @radix-ui/react-label, @radix-ui/react-dialog
+[2026-01-29T19:24:31.893Z] 2:24:31 PM [vite] (client) ✨ optimized dependencies changed. reloading
+[2026-01-29T19:24:45.506Z] 2:24:45 PM [vite] (client) hmr update /src/pages/Home.tsx, /src/index.css
+[2026-01-29T19:27:06.076Z] Dev server process group stopped
+[2026-01-29T19:27:06.080Z] ELIFECYCLE  Command failed.
+[2026-01-29T19:27:06.111Z] Dev server exited with code -15
+[2026-01-29T19:27:21.762Z] Starting dev server with command: NODE_ENV=development tsx watch server/_core/index.ts
+[2026-01-29T19:27:23.815Z] Dev server process group stopped
+[2026-01-29T19:27:23.825Z] [OAuth] Initialized with baseURL: https://api.manus.im
+[2026-01-29T19:27:24.148Z] Dev server exited with code -15
+[2026-01-29T19:27:26.845Z] Starting dev server with command: NODE_ENV=development tsx watch server/_core/index.ts
+[2026-01-29T19:27:28.686Z] [OAuth] Initialized with baseURL: https://api.manus.im
+[2026-01-29T19:27:28.990Z] 2:27:28 PM [vite] (client) Re-optimizing dependencies because lockfile has changed
+[2026-01-29T19:27:29.031Z] Server running on http://localhost:3000/
+[2026-01-29T19:27:30.128Z] [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[2026-01-29T19:28:23.788Z] 2:28:23 PM [tsx] change in ./drizzle/schema.ts Restarting...
+[2026-01-29T19:28:25.595Z] c/home/ubuntu/customer-portal-full/drizzle/schema.ts:23
+[2026-01-29T19:28:25.597Z] updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+[2026-01-29T19:28:25.597Z] ^
+[2026-01-29T19:28:25.598Z] 
+[2026-01-29T19:28:25.598Z] 
+[2026-01-29T19:28:25.598Z] TypeError: timestamp(...).defaultNow(...).onUpdateNow is not a function
+[2026-01-29T19:28:25.599Z] at <anonymous> (/home/ubuntu/customer-portal-full/drizzle/schema.ts:23:50)
+[2026-01-29T19:28:25.599Z] at ModuleJob.run (node:internal/modules/esm/module_job:271:25)
+[2026-01-29T19:28:25.599Z] at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:547:26)
+[2026-01-29T19:28:25.600Z] at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:116:5)
+[2026-01-29T19:28:25.600Z] 
+[2026-01-29T19:28:25.600Z] Node.js v22.13.0
+[2026-01-29T19:28:40.869Z] 2:28:40 PM [tsx] change in ./drizzle/schema.ts Rerunning...
+[2026-01-29T19:28:42.538Z] c[OAuth] Initialized with baseURL: https://api.manus.im
+[2026-01-29T19:28:42.780Z] Server running on http://localhost:3000/
+[2026-01-29T19:28:43.810Z] [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[2026-01-29T19:29:18.265Z] 2:29:18 PM [tsx] change in ./server/db.ts Restarting...
+[2026-01-29T19:29:18.659Z] c
+[2026-01-29T19:29:18.660Z] node:internal/modules/run_main:122
+[2026-01-29T19:29:18.660Z] triggerUncaughtException(
+[2026-01-29T19:29:18.661Z] ^
+[2026-01-29T19:29:18.661Z] Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'postgres' imported from /home/ubuntu/customer-portal-full/server/db.ts
+[2026-01-29T19:29:18.662Z] at packageResolve (node:internal/modules/esm/resolve:857:9)
+[2026-01-29T19:29:18.662Z] at moduleResolve (node:internal/modules/esm/resolve:926:18)
+[2026-01-29T19:29:18.663Z] at defaultResolve (node:internal/modules/esm/resolve:1056:11)
+[2026-01-29T19:29:18.663Z] at nextResolve (node:internal/modules/esm/hooks:748:28)
+[2026-01-29T19:29:18.663Z] at resolveBase (file:///home/ubuntu/customer-portal-full/node_modules/.pnpm/tsx@4.20.6/node_modules/tsx/dist/esm/index.mjs?1769714958412:2:3744)
+[2026-01-29T19:29:18.664Z] at resolveDirectory (file:///home/ubuntu/customer-portal-full/node_modules/.pnpm/tsx@4.20.6/node_modules/tsx/dist/esm/index.mjs?1769714958412:2:4243)
+[2026-01-29T19:29:18.664Z] at resolveTsPaths (file:///home/ubuntu/customer-portal-full/node_modules/.pnpm/tsx@4.20.6/node_modules/tsx/dist/esm/index.mjs?1769714958412:2:4984)
+[2026-01-29T19:29:18.664Z] at async resolve (file:///home/ubuntu/customer-portal-full/node_modules/.pnpm/tsx@4.20.6/node_modules/tsx/dist/esm/index.mjs?1769714958412:2:5355)
+[2026-01-29T19:29:18.665Z] at async nextResolve (node:internal/modules/esm/hooks:748:22)
+[2026-01-29T19:29:18.665Z] at async Hooks.resolve (node:internal/modules/esm/hooks:240:24) {
+[2026-01-29T19:29:18.666Z] code: 'ERR_MODULE_NOT_FOUND'
+[2026-01-29T19:29:18.666Z] }
+[2026-01-29T19:29:18.667Z] 
+[2026-01-29T19:29:18.667Z] Node.js v22.13.0
+[2026-01-29T19:29:46.344Z] Dev server process group stopped
+[2026-01-29T19:29:46.350Z] Dev server exited with code -15
+[2026-01-29T19:29:49.368Z] Starting dev server with command: NODE_ENV=development tsx watch server/_core/index.ts
+[2026-01-29T19:29:50.982Z] [OAuth] Initialized with baseURL: https://api.manus.im
+[2026-01-29T19:29:51.245Z] 2:29:51 PM [vite] (client) Re-optimizing dependencies because lockfile has changed
+[2026-01-29T19:29:51.274Z] Server running on http://localhost:3000/
+[2026-01-29T19:29:51.895Z] [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[2026-01-29T19:31:29.745Z] 2:31:29 PM [tsx] change in ./server/db.ts Restarting...
+[2026-01-29T19:31:31.293Z] c[OAuth] Initialized with baseURL: https://api.manus.im
+[2026-01-29T19:31:31.578Z] Server running on http://localhost:3000/
+[2026-01-29T19:31:48.132Z] 2:31:48 PM [tsx] change in ./server/routers.ts Restarting...
+[2026-01-29T19:31:49.771Z] c[OAuth] Initialized with baseURL: https://api.manus.im
+[2026-01-29T19:31:50.045Z] Server running on http://localhost:3000/
+[2026-01-29T19:31:55.584Z] [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[2026-01-29T19:33:19.327Z] 2:33:19 PM [vite] (client) hmr update /src/pages/Dashboard.tsx, /src/index.css
+[2026-01-29T19:33:40.672Z] 2:33:40 PM [vite] (client) hmr update /src/pages/Policies.tsx, /src/index.css
+[2026-01-29T19:34:40.742Z] 2:34:40 PM [vite] (client) hmr update /src/components/ui/sonner.tsx, /src/index.css
+[2026-01-29T19:34:47.034Z] 2:34:47 PM [vite] (client) hmr update /src/pages/Policies.tsx, /src/index.css
+[2026-01-29T19:34:55.111Z] 2:34:55 PM [vite] (client) hmr update /src/pages/Policies.tsx, /src/index.css
+[2026-01-29T19:35:06.554Z] 2:35:06 PM [vite] (client) page reload src/main.tsx
+[2026-01-29T19:35:12.347Z] Dev server process group stopped
+[2026-01-29T19:35:12.393Z] Dev server exited with code -15
+[2026-01-29T19:35:15.352Z] Starting dev server with command: NODE_ENV=development tsx watch server/_core/index.ts
+[2026-01-29T19:35:16.971Z] [OAuth] Initialized with baseURL: https://api.manus.im
+[2026-01-29T19:35:17.220Z] Server running on http://localhost:3000/
+[2026-01-29T19:35:17.795Z] [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[2026-01-29T19:35:55.715Z] 2:35:55 PM [vite] (client) hmr update /src/pages/Claims.tsx, /src/index.css
+[2026-01-29T19:36:24.015Z] 2:36:24 PM [vite] (client) hmr update /src/pages/Payments.tsx, /src/index.css
+[2026-01-29T19:36:46.134Z] 2:36:46 PM [vite] (client) hmr update /src/pages/Profile.tsx, /src/index.css
+[2026-01-29T19:37:38.932Z] 2:37:38 PM [tsx] change in ./server/_core/index.ts Restarting...
+[2026-01-29T19:37:40.416Z] c/home/ubuntu/customer-portal-full/server/_core/index.ts:11
+[2026-01-29T19:37:40.417Z] import { getUserFromCookie } from "./cookies";
+[2026-01-29T19:37:40.417Z] ^
+[2026-01-29T19:37:40.418Z] 
+[2026-01-29T19:37:40.418Z] SyntaxError: The requested module './cookies' does not provide an export named 'getUserFromCookie'
+[2026-01-29T19:37:40.418Z] at ModuleJob._instantiate (node:internal/modules/esm/module_job:180:21)
+[2026-01-29T19:37:40.419Z] at async ModuleJob.run (node:internal/modules/esm/module_job:263:5)
+[2026-01-29T19:37:40.419Z] at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:547:26)
+[2026-01-29T19:37:40.419Z] at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:116:5)
+[2026-01-29T19:37:40.419Z] 
+[2026-01-29T19:37:40.420Z] Node.js v22.13.0
+[2026-01-29T19:37:56.679Z] 2:37:56 PM [tsx] change in ./server/_core/index.ts Rerunning...
+[2026-01-29T19:37:58.146Z] c[OAuth] Initialized with baseURL: https://api.manus.im
+[2026-01-29T19:37:58.394Z] Server running on http://localhost:3000/
+[2026-01-29T19:38:03.839Z] Dev server process group stopped
+[2026-01-29T19:38:03.892Z] Dev server exited with code -15
+[2026-01-29T19:38:06.844Z] Starting dev server with command: NODE_ENV=development tsx watch server/_core/index.ts
+[2026-01-29T19:38:08.608Z] [OAuth] Initialized with baseURL: https://api.manus.im
+[2026-01-29T19:38:08.861Z] Server running on http://localhost:3000/
+[2026-01-29T19:38:09.293Z] [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[2026-01-29T19:38:50.161Z] 2:38:50 PM [vite] (client) hmr update /src/pages/Dashboard.tsx, /src/index.css
+[2026-01-29T20:07:34.773Z] 3:07:34 PM [tsx] change in ./drizzle/schema.ts Restarting...
+[2026-01-29T20:07:37.287Z] c[OAuth] Initialized with baseURL: https://api.manus.im
+[2026-01-29T20:07:38.028Z] Server running on http://localhost:3000/
+[2026-01-29T20:07:58.062Z] 3:07:58 PM [tsx] change in ./server/db.ts Restarting...
+[2026-01-29T20:07:59.658Z] c[OAuth] Initialized with baseURL: https://api.manus.im
+[2026-01-29T20:07:59.925Z] Server running on http://localhost:3000/
+[2026-01-29T20:08:24.949Z] 3:08:24 PM [tsx] change in ./server/routers.ts Restarting...
+[2026-01-29T20:08:26.482Z] c[OAuth] Initialized with baseURL: https://api.manus.im
+[2026-01-29T20:08:26.748Z] Server running on http://localhost:3000/
+[2026-01-29T20:08:40.771Z] [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[2026-01-29T20:10:04.217Z] 3:10:04 PM [vite] (client) hmr update /src/App.tsx, /src/index.css
+[2026-01-29T20:18:43.153Z] 3:18:43 PM [vite] (client) ✨ new dependencies optimized: @radix-ui/react-select
+[2026-01-29T20:18:43.154Z] 3:18:43 PM [vite] (client) ✨ optimized dependencies changed. reloading
+[2026-01-29T21:06:37.254Z] Dev server process group stopped
+[2026-01-29T21:06:37.286Z] Dev server exited with code -15
+[2026-01-29T21:06:40.263Z] Starting dev server with command: NODE_ENV=development tsx watch server/_core/index.ts
+[2026-01-29T21:06:41.839Z] [OAuth] Initialized with baseURL: https://api.manus.im
+[2026-01-29T21:06:42.084Z] Server running on http://localhost:3000/
+[2026-01-29T21:06:42.690Z] [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
