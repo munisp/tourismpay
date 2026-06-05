@@ -45,9 +45,11 @@ export default function Auth() {
   const validate2FAMutation = trpc.auth.validate2FA.useMutation();
   const logoutMutation = trpc.auth.logout.useMutation();
 
-  // Handle ?action=logout
+  // Handle ?action=logout (also handles direct navigation/page reload)
   useEffect(() => {
-    if (action === "logout") {
+    const url = new URL(window.location.href);
+    const urlAction = url.searchParams.get("action");
+    if (urlAction === "logout" || action === "logout") {
       const token = localStorage.getItem("insureportal-token");
       if (token) {
         logoutMutation.mutateAsync({ token }).catch(() => {});
@@ -56,7 +58,7 @@ export default function Auth() {
       localStorage.removeItem("insureportal-user");
       setSuccess("You have been logged out successfully.");
     }
-  }, [action]);
+  }, []);
 
   const handleLogin = async () => {
     const result = await loginMutation.mutateAsync({
