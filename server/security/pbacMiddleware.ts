@@ -73,6 +73,52 @@ const ROUTE_RESOURCE_MAP: Record<string, { resource: string; action: string }> =
   "POST:/api/remittance": { resource: "remittance:transfer", action: "create" },
   "GET:/api/remittance": { resource: "remittance:history", action: "read" },
 
+  // tRPC - Wallet (accessible by tourist and merchant)
+  "GET:/api/trpc/wallet.": { resource: "wallet:own", action: "read" },
+  "POST:/api/trpc/wallet.": { resource: "wallet:own", action: "write" },
+  // tRPC - Loyalty (accessible by tourist and merchant)
+  "GET:/api/trpc/loyalty.": { resource: "wallet:own", action: "read" },
+  "POST:/api/trpc/loyalty.": { resource: "wallet:own", action: "write" },
+  // tRPC - Notifications (accessible by all authenticated)
+  "GET:/api/trpc/notifications.": { resource: "tourist:notifications", action: "read" },
+  "POST:/api/trpc/notifications.": { resource: "tourist:notifications", action: "write" },
+  "GET:/api/trpc/notifPrefs.": { resource: "tourist:notifications", action: "read" },
+  "POST:/api/trpc/notifPrefs.": { resource: "tourist:notifications", action: "write" },
+  // tRPC - Sustainability
+  "GET:/api/trpc/sustainability.": { resource: "tourist:sustainability", action: "read" },
+  // tRPC - Embedded Finance
+  "GET:/api/trpc/embeddedFinance.": { resource: "wallet:own", action: "read" },
+  "POST:/api/trpc/embeddedFinance.": { resource: "wallet:own", action: "write" },
+  // tRPC - Tourist Portal
+  "GET:/api/trpc/touristPortal.": { resource: "tourist:portal", action: "read" },
+  "POST:/api/trpc/touristPortal.": { resource: "tourist:portal", action: "write" },
+  // tRPC - Itinerary
+  "GET:/api/trpc/itinerary.": { resource: "tourist:itinerary", action: "read" },
+  "POST:/api/trpc/itinerary.": { resource: "tourist:itinerary", action: "write" },
+  // tRPC - Trip Summary
+  "GET:/api/trpc/tripSummary.": { resource: "tourist:itinerary", action: "read" },
+  // tRPC - Tourist Onboarding
+  "GET:/api/trpc/touristOnboarding.": { resource: "tourist:onboarding", action: "read" },
+  "POST:/api/trpc/touristOnboarding.": { resource: "tourist:onboarding", action: "write" },
+  // tRPC - Biometric
+  "GET:/api/trpc/biometric.": { resource: "tourist:biometric", action: "read" },
+  "POST:/api/trpc/biometric.": { resource: "tourist:biometric", action: "write" },
+  // tRPC - QR Payment
+  "GET:/api/trpc/qrPayment.": { resource: "payment:qr", action: "read" },
+  "POST:/api/trpc/qrPayment.": { resource: "payment:qr", action: "write" },
+  // tRPC - Exchange Rates (read by all)
+  "GET:/api/trpc/exchangeRates.": { resource: "wallet:own", action: "read" },
+  // tRPC - Merchant routes
+  "GET:/api/trpc/merchantRevenue.": { resource: "revenue:own", action: "read" },
+  "GET:/api/trpc/merchantProducts.": { resource: "products:own", action: "read" },
+  "POST:/api/trpc/merchantProducts.": { resource: "products:own", action: "write" },
+  "GET:/api/trpc/merchantBookings.": { resource: "bookings:own", action: "read" },
+  "POST:/api/trpc/merchantBookings.": { resource: "bookings:own", action: "write" },
+  "GET:/api/trpc/staffInvites.": { resource: "staff:own", action: "read" },
+  "POST:/api/trpc/staffInvites.": { resource: "staff:own", action: "write" },
+  // tRPC - Search (accessible by all)
+  "GET:/api/trpc/search.": { resource: "tourist:search", action: "read" },
+
   // tRPC - Tourist services
   "POST:/api/trpc/copilot.chat": { resource: "tourist:copilot", action: "write" },
   "GET:/api/trpc/copilot.chat": { resource: "tourist:copilot", action: "read" },
@@ -169,7 +215,9 @@ function fallbackRoleCheck(
       resource.startsWith("products:") ||
       resource.startsWith("bookings:") ||
       resource.startsWith("revenue:") ||
-      resource.startsWith("staff:");
+      resource.startsWith("staff:") ||
+      resource.startsWith("wallet:") ||
+      resource.startsWith("payment:");
   } else if (role === "compliance_officer") {
     allowed = resource.startsWith("kyb:") ||
       resource.startsWith("bis:") ||

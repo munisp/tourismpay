@@ -14,6 +14,9 @@ import { stripe } from "../_core/stripe";
 import { onTransactionCreated, onWalletEvent } from "../middleware/lakehouseBridge";
 import { fireAndForget, logger } from "../_core/logger";
 
+/** Epoch seconds for integer timestamp columns */
+const epochSec = () => Math.floor(Date.now() / 1000);
+
 // USD exchange rates for high-value threshold check (approximate)
 const APPROX_USD_RATES: Record<string, number> = {
   USDC: 1, USD: 1, "CBDC-NG": 0.00065, "CBDC-KE": 0.0077, "CBDC-GH": 0.067,
@@ -71,8 +74,8 @@ async function ensureDefaultBalances(userId: string) {
       lockedBalance: "0",
       walletAddress: `tp_${currency.toLowerCase().replace("-", "_")}_${String(userId).slice(0, 8)}`,
       network: CURRENCY_NETWORKS[currency],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: epochSec(),
+      updatedAt: epochSec(),
     });
   }
 }
@@ -272,7 +275,7 @@ export const walletRouter = router({
       await db.update(walletBalances)
         .set({
           balance: String(parseFloat(bal.balance as unknown as string) - total),
-          updatedAt: Date.now(),
+          updatedAt: epochSec(),
         })
         .where(eq(walletBalances.id, bal.id));
       // Create transaction record
@@ -289,8 +292,8 @@ export const walletRouter = router({
         counterpartyAddress: input.counterpartyAddress,
         note: input.note,
         txHash: `0x${crypto.randomUUID().replace(/-/g, "")}`,
-        completedAt: Date.now(),
-        createdAt: Date.now(),
+        completedAt: epochSec(),
+        createdAt: epochSec(),
       });
       onTransactionCreated({ transaction_id: txId, user_id: ctx.user.id, amount: input.amount, currency: input.currency, payment_method: "wallet", status: "completed" });
       onWalletEvent({ wallet_id: bal.id, user_id: ctx.user.id, event_type: "send", amount: input.amount, currency: input.currency });
@@ -416,7 +419,7 @@ export const walletRouter = router({
       }
       // Deduct from sender
       await db.update(walletBalances)
-        .set({ balance: String(currentBal - totalDeduct), updatedAt: Date.now() })
+        .set({ balance: String(currentBal - totalDeduct), updatedAt: epochSec() })
         .where(eq(walletBalances.id, bal.id));
       // Record the outbound transaction
       const txId = crypto.randomUUID();
@@ -508,14 +511,14 @@ export const walletRouter = router({
           lockedBalance: "0",
           walletAddress: `tp_${input.currency.toLowerCase().replace("-", "_")}_${String(ctx.user.id).slice(0, 8)}`,
           network: CURRENCY_NETWORKS[input.currency],
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+          createdAt: epochSec(),
+          updatedAt: epochSec(),
         });
       } else {
         await db.update(walletBalances)
           .set({
             balance: String(parseFloat(bal.balance as unknown as string) + input.amount),
-            updatedAt: Date.now(),
+            updatedAt: epochSec(),
           })
           .where(eq(walletBalances.id, bal.id));
       }
@@ -529,8 +532,8 @@ export const walletRouter = router({
         amount: String(input.amount),
         fee: "0",
         counterparty: input.source,
-        completedAt: Date.now(),
-        createdAt: Date.now(),
+        completedAt: epochSec(),
+        createdAt: epochSec(),
       });
       return { success: true, txId };
     }),
@@ -562,7 +565,7 @@ export const walletRouter = router({
       const fee = input.amount * 0.002; // 0.2% swap fee
       // Deduct from
       await db.update(walletBalances)
-        .set({ balance: String(parseFloat(fromBal.balance as unknown as string) - input.amount - fee), updatedAt: Date.now() })
+        .set({ balance: String(parseFloat(fromBal.balance as unknown as string) - input.amount - fee), updatedAt: epochSec() })
         .where(eq(walletBalances.id, fromBal.id));
       // Credit to
       let [toBal] = await db
@@ -578,12 +581,12 @@ export const walletRouter = router({
           lockedBalance: "0",
           walletAddress: `tp_${input.toCurrency.toLowerCase().replace("-", "_")}_${String(ctx.user.id).slice(0, 8)}`,
           network: CURRENCY_NETWORKS[input.toCurrency],
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+          createdAt: epochSec(),
+          updatedAt: epochSec(),
         });
       } else {
         await db.update(walletBalances)
-          .set({ balance: String(parseFloat(toBal.balance as unknown as string) + toAmount), updatedAt: Date.now() })
+          .set({ balance: String(parseFloat(toBal.balance as unknown as string) + toAmount), updatedAt: epochSec() })
           .where(eq(walletBalances.id, toBal.id));
       }
       const txId = crypto.randomUUID();
@@ -597,8 +600,8 @@ export const walletRouter = router({
         amount: String(input.amount),
         toAmount: String(toAmount),
         fee: String(fee),
-        completedAt: Date.now(),
-        createdAt: Date.now(),
+        completedAt: epochSec(),
+        createdAt: epochSec(),
       });
       return { success: true, txId, toAmount, rate, fee };
     }),
@@ -630,7 +633,7 @@ export const walletRouter = router({
         sql`INSERT INTO finance_requests (id, user_id, type, amount, currency, status, description, metadata, created_at, updated_at)
             VALUES (gen_random_uuid()::text, ${ctx.user.id}, 'payout', ${input.amount}, ${input.currency}, 'pending',
               ${`Wallet top-up: ${input.currency} ${input.amount} to ${walletAddress}`},
-              ${metadata}::jsonb, ${Date.now()}, ${Date.now()})
+              ${metadata}::jsonb, ${epochSec()}, ${epochSec()})
             RETURNING *`
       );
       const row = (result as any[])[0];
@@ -1186,8 +1189,8 @@ export const walletRouter = router({
     const db = await getDb();
     if (!db) return { balances: [] };
     await ensureDefaultBalances(String(ctx.user.id));
-    const nowMs = Date.now();
-    const sevenDaysAgo = nowMs - 7 * 24 * 60 * 60 * 1000;
+    const nowSec = epochSec();
+    const sevenDaysAgo = nowSec - 7 * 24 * 60 * 60;
     const balRows = await db
       .select()
       .from(walletBalances)
@@ -1209,7 +1212,7 @@ export const walletRouter = router({
         // Build day-by-day net delta map (index 0 = 7 days ago, index 6 = today)
         const dayMap: Record<number, number> = {};
         for (const tx of txRows) {
-          const dayIndex = Math.floor((tx.createdAt - sevenDaysAgo) / (24 * 60 * 60 * 1000));
+          const dayIndex = Math.floor((tx.createdAt - sevenDaysAgo) / (24 * 60 * 60));
           const clamped = Math.min(6, Math.max(0, dayIndex));
           const amt = parseFloat(tx.amount as unknown as string);
           dayMap[clamped] = (dayMap[clamped] ?? 0) + (tx.type === "receive" || tx.type === "deposit" ? amt : -amt);
@@ -1831,7 +1834,7 @@ export const walletRouter = router({
       // Monthly wallet outbound spending
       const monthlyRows = await db
         .select({
-          month: sql<string>`to_char(to_timestamp(${walletTransactions.createdAt} / 1000.0), 'YYYY-MM')`,
+          month: sql<string>`to_char(to_timestamp(${walletTransactions.createdAt}), 'YYYY-MM')`,
           total: sql<string>`coalesce(sum(cast(${walletTransactions.amount} as numeric)), 0)`,
           txCount: count(),
         })
@@ -1841,11 +1844,11 @@ export const walletRouter = router({
             eq(walletTransactions.userId, String(ctx.user.id)),
             eq(walletTransactions.type, "send"),
             eq(walletTransactions.status, "completed"),
-            gte(walletTransactions.createdAt, sinceTs * 1000)
+            gte(walletTransactions.createdAt, sinceTs)
           )
         )
-        .groupBy(sql`to_char(to_timestamp(${walletTransactions.createdAt} / 1000.0), 'YYYY-MM')`)
-        .orderBy(sql`to_char(to_timestamp(${walletTransactions.createdAt} / 1000.0), 'YYYY-MM')`);
+        .groupBy(sql`to_char(to_timestamp(${walletTransactions.createdAt}), 'YYYY-MM')`)
+        .orderBy(sql`to_char(to_timestamp(${walletTransactions.createdAt}), 'YYYY-MM')`);
 
       // QR payments by establishment category
       const qrByCategory = await db

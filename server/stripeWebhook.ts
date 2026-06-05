@@ -103,7 +103,7 @@ export function registerStripeWebhook(app: Express) {
             const newBalance = parseFloat(existing.balance as unknown as string) + walletAmount;
             await db
               .update(walletBalances)
-              .set({ balance: String(newBalance), updatedAt: Date.now() })
+              .set({ balance: String(newBalance), updatedAt: Math.floor(Date.now() / 1000) })
               .where(eq(walletBalances.id, existing.id));
           } else {
             // Create new balance entry
