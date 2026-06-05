@@ -288,6 +288,7 @@ const menuGroups: MenuGroup[] = [
     items: [
       { icon: Calculator, label: "Actuarial Module", path: "/actuarial-module", permission: "canViewAnalytics" },
       { icon: Umbrella, label: "Reinsurance Management", path: "/reinsurance", permission: "canViewAnalytics" },
+      { icon: Scale, label: "IFRS 17 Engine", path: "/ifrs17", permission: "canViewAnalytics" },
     ],
   },
   {

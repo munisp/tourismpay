@@ -120,6 +120,7 @@ import TakafulProductsSuite from "./pages/TakafulProductsSuite";
 import NIIRACompulsoryInsurance from "./pages/NIIRACompulsoryInsurance";
 import InsuranceTechInnovations from "./pages/InsuranceTechInnovations";
 import AdminConfigCenter from "./pages/AdminConfigCenter";
+import IFRS17Dashboard from "./pages/IFRS17Dashboard";
 
 function Router() {
   return (
@@ -711,6 +712,11 @@ function Router() {
       <Route path="/admin-config">
         <UnifiedLayout>
           <AdminConfigCenter />
+        </UnifiedLayout>
+      </Route>
+      <Route path="/ifrs17">
+        <UnifiedLayout>
+          <IFRS17Dashboard />
         </UnifiedLayout>
       </Route>
                         <Route path="/404" component={NotFound} />
