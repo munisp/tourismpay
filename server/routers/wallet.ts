@@ -1773,6 +1773,7 @@ export const walletRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const origin = "https://tourismpay.manus.space";
+      if (!stripe) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stripe not configured — set STRIPE_SECRET_KEY" });
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         customer_email: ctx.user.email || undefined,

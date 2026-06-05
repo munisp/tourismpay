@@ -1746,6 +1746,7 @@ export const bisRouter = router({
 
       // Create Stripe Checkout session for the bundled payment
       const { stripe } = await import("../_core/stripe");
+      if (!stripe) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stripe not configured — set STRIPE_SECRET_KEY" });
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         payment_method_types: ["card"],

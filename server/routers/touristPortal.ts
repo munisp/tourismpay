@@ -43,9 +43,9 @@ import { invokeLLM } from "../_core/llm";
 import { sendPushToUser } from "../_core/webPush";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
-  apiVersion: "2024-06-20" as any,
-});
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" as any })
+  : null;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -172,6 +172,7 @@ export const touristPortalRouter = router({
         })
         .returning();
 
+      if (!stripe) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stripe not configured — set STRIPE_SECRET_KEY" });
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         customer_email: ctx.user.email ?? undefined,

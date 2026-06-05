@@ -18,16 +18,21 @@ const APPROX_USD_RATES: Record<string, number> = {
 };
 
 export function registerStripeWebhook(app: Express) {
+  if (!stripe) {
+    console.warn("[Stripe Webhook] STRIPE_SECRET_KEY not set — webhook endpoint disabled");
+    return;
+  }
+  const stripeClient = stripe;
   // MUST use express.raw before express.json for Stripe signature verification
   app.post(
     "/api/stripe/webhook",
     express.raw({ type: "application/json" }),
     async (req, res) => {
       const sig = req.headers["stripe-signature"];
-      let event: ReturnType<typeof stripe.webhooks.constructEvent>;
+      let event: ReturnType<typeof stripeClient.webhooks.constructEvent>;
 
       try {
-        event = stripe.webhooks.constructEvent(
+        event = stripeClient.webhooks.constructEvent(
           req.body as Buffer,
           sig as string,
           ENV.stripeWebhookSecret
