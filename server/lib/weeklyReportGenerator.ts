@@ -14,9 +14,9 @@
  *  - System uptime and database health
  */
 
+import { secureRandom } from "../lib/securityAuditFixes";
 import { notifyOwner } from "../_core/notification";
 import {
-import { secureRandom } from "../lib/securityAuditFixes";
   checkDbHealth,
   getAverageLatency,
   getUptimePercentage,

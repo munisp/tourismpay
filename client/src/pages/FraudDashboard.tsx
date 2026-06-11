@@ -5,13 +5,13 @@
  * Features: Live feed, risk heatmap, SHAP explanations, agent network graph, case management
  */
 
+import { secureRandom } from "@/lib/secureRandom";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { useFraudSocket } from "../hooks/useSocket";
 import { usePosStore } from "../store/posStore";
 import { trpc } from "../lib/trpc";
 import {
-import { secureRandom } from "@/lib/secureRandom";
   AreaChart,
   Area,
   BarChart,

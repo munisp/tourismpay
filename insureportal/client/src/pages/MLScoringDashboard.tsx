@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { secureRandom } from "@/lib/secureRandom";
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
 import {
-import { secureRandom } from "@/lib/secureRandom";
   Brain,
   AlertTriangle,
   CheckCircle,

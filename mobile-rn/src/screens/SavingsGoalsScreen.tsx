@@ -1,6 +1,6 @@
+import { secureRandom } from "../lib/secureRandom";
 import React, { useState, useEffect } from 'react';
 import {
-import { secureRandom } from "../lib/secureRandom";
   View,
   Text,
   StyleSheet,

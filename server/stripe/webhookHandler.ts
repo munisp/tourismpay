@@ -7,11 +7,11 @@
  *
  * Middleware: Kafka (event publishing), Redis (dedup), TigerBeetle (ledger)
  */
+import { secureRandom } from "../lib/securityAuditFixes";
 import { Request, Response } from "express";
 import Stripe from "stripe";
 import { getDb } from "../db";
 import {
-import { secureRandom } from "../lib/securityAuditFixes";
   billingAuditLog,
   platformBillingLedger,
   users,

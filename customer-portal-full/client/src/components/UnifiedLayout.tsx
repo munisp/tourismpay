@@ -1,7 +1,7 @@
+import { logger } from "@/lib/logger";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
-import { logger } from "@/lib/logger";
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,

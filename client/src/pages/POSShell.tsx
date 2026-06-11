@@ -9,15 +9,15 @@
  * ALL 26 SCREENS FULLY IMPLEMENTED — Tier 1-4 improvements applied
  */
 
+import { secureRandom } from "@/lib/secureRandom";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import LiveChatSupport from "./LiveChatSupport";
 import LoyaltySystem from "./LoyaltySystem";
 import FraudDashboard from "./FraudDashboard";
 import { toast } from "sonner";
-import {
-import { secureRandom } from "@/lib/secureRandom";
 import { logger } from "@/lib/logger";
+import {
   AreaChart,
   Area,
   BarChart,

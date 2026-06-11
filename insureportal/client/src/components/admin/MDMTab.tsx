@@ -7,13 +7,13 @@
  * config push, and OTA update triggers.
  */
 
+import { logger } from "@/lib/logger";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-import { logger } from "@/lib/logger";
   Dialog,
   DialogContent,
   DialogHeader,
