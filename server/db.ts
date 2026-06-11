@@ -252,7 +252,9 @@ export async function updateKybApplicationStep(
 
 function generateBisRef(): string {
   const year = new Date().getFullYear();
-  const seq = Math.floor(Math.random() * 9000) + 1000;
+  const buf = new Uint16Array(1);
+  crypto.getRandomValues(buf);
+  const seq = (buf[0] % 9000) + 1000;
   return `BIS-${year}-${seq}`;
 }
 

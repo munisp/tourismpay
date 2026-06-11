@@ -81,7 +81,9 @@ export async function serviceFetch<T = unknown>(
       for (let attempt = 0; attempt <= retries; attempt++) {
         if (attempt > 0) {
           const delay = retryDelayMs * Math.pow(retryBackoffMultiplier, attempt - 1);
-          const jitter = delay * 0.2 * Math.random();
+          const jitterBuf = new Uint16Array(1);
+          crypto.getRandomValues(jitterBuf);
+          const jitter = delay * 0.2 * (jitterBuf[0] / 65535);
           logger.debug(`Retrying ${serviceName}`, { attempt, delay: delay + jitter, url });
           await sleep(delay + jitter);
         }

@@ -153,7 +153,7 @@ const memoryWorkflows = new Map<string, WorkflowExecution>();
 function startWorkflowInMemory(options: WorkflowOptions): WorkflowExecution {
   const exec: WorkflowExecution = {
     workflowId: options.workflowId,
-    runId: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    runId: `mem-${Date.now()}-${Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b => b.toString(36)).join("").slice(0, 6)}`,
     status: "RUNNING",
     startedAt: new Date().toISOString(),
   };

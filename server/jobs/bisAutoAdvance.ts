@@ -25,11 +25,12 @@ import { eq } from "drizzle-orm";
 // ─── Scoring helpers ──────────────────────────────────────────────────────────
 
 function generateRiskScore(tier: string): number {
-  // Simulate realistic risk score distribution
-  const rand = Math.random();
-  if (tier === "basic") return Math.floor(rand * 40); // 0–39 (mostly low risk)
-  if (tier === "standard") return Math.floor(rand * 60 + 10); // 10–69
-  return Math.floor(rand * 80 + 10); // 10–89 (comprehensive)
+  const buf = new Uint16Array(1);
+  crypto.getRandomValues(buf);
+  const rand = buf[0] / 65535;
+  if (tier === "basic") return Math.floor(rand * 40);
+  if (tier === "standard") return Math.floor(rand * 60 + 10);
+  return Math.floor(rand * 80 + 10);
 }
 
 function riskLevel(score: number): "low" | "medium" | "high" | "critical" {

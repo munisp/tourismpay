@@ -316,7 +316,7 @@ export class TemporalWorkflowSimulator {
     const now = Date.now();
     const instance: WorkflowInstance = {
       workflowId,
-      runId: `run_${Math.random().toString(36).slice(2)}`,
+      runId: `run_${Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(36)).join("")}`,
       state: "pending",
       transitions: [],
       createdAt: now,
