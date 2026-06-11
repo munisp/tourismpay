@@ -9,6 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	authMw "shared/middleware"
 )
 
 // multi-currency-support — production microservice
@@ -17,6 +19,7 @@ import (
 func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger, middleware.Recoverer)
+	r.Use(authMw.RequireAuth)
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "healthy", "service": "multi-currency-support", "version": "1.0.0"})
 	})

@@ -39,6 +39,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	authMw "shared/middleware"
 )
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -479,10 +481,10 @@ func newRouter() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/ota/latest", handleLatest)
-	mux.HandleFunc("/api/v1/ota/list", handleList)
-	mux.HandleFunc("/api/v1/ota/upload", handleUpload)
-	mux.HandleFunc("/api/v1/ota/download/", handleDownload)
+	mux.HandleFunc("/api/v1/ota/latest", authMw.RequireAuthFunc(handleLatest))
+	mux.HandleFunc("/api/v1/ota/list", authMw.RequireAuthFunc(handleList))
+	mux.HandleFunc("/api/v1/ota/upload", authMw.RequireAuthFunc(handleUpload))
+	mux.HandleFunc("/api/v1/ota/download/", authMw.RequireAuthFunc(handleDownload))
 	mux.HandleFunc("/api/v1/ota/", func(w http.ResponseWriter, r *http.Request) {
 		// Route /api/v1/ota/{id}/rollout
 		if strings.HasSuffix(r.URL.Path, "/rollout") && r.Method == http.MethodPut {

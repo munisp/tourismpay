@@ -9,6 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	authMw "shared/middleware"
 )
 
 // Pan-African eKYC — cross-border identity verification across African markets
@@ -23,6 +25,7 @@ import (
 func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger, middleware.Recoverer)
+	r.Use(authMw.RequireAuth)
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "healthy", "service": "pan-african-ekyc"})
 	})

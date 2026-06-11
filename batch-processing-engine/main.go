@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	authMw "shared/middleware"
 )
 
 // Batch Processing Engine
@@ -80,8 +82,8 @@ func handleGetBatch(w http.ResponseWriter, r *http.Request) {
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/batch", handleCreateBatch)
-	mux.HandleFunc("/api/v1/batch/status", handleGetBatch)
+	mux.HandleFunc("/api/v1/batch", authMw.RequireAuthFunc(handleCreateBatch))
+	mux.HandleFunc("/api/v1/batch/status", authMw.RequireAuthFunc(handleGetBatch))
 	
 	port := ":8092"
 	log.Printf("Batch Processing Engine starting on %s", port)

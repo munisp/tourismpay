@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	authMw "shared/middleware"
 )
 
 // Communication Service
@@ -70,8 +72,8 @@ func handleTemplates(w http.ResponseWriter, r *http.Request) {
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/send", handleSend)
-	mux.HandleFunc("/api/v1/templates", handleTemplates)
+	mux.HandleFunc("/api/v1/send", authMw.RequireAuthFunc(handleSend))
+	mux.HandleFunc("/api/v1/templates", authMw.RequireAuthFunc(handleTemplates))
 	
 	port := ":8093"
 	log.Printf("Communication Service starting on %s", port)

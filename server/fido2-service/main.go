@@ -41,6 +41,8 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
+
+	authMw "shared/middleware"
 )
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -526,10 +528,10 @@ func newRouter() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/fido2/register/begin", handleRegisterBegin)
-	mux.HandleFunc("/api/v1/fido2/register/finish", handleRegisterFinish)
-	mux.HandleFunc("/api/v1/fido2/authenticate/begin", handleAuthBegin)
-	mux.HandleFunc("/api/v1/fido2/authenticate/finish", handleAuthFinish)
+	mux.HandleFunc("/api/v1/fido2/register/begin", authMw.RequireAuthFunc(handleRegisterBegin))
+	mux.HandleFunc("/api/v1/fido2/register/finish", authMw.RequireAuthFunc(handleRegisterFinish))
+	mux.HandleFunc("/api/v1/fido2/authenticate/begin", authMw.RequireAuthFunc(handleAuthBegin))
+	mux.HandleFunc("/api/v1/fido2/authenticate/finish", authMw.RequireAuthFunc(handleAuthFinish))
 	mux.HandleFunc("/api/v1/fido2/credentials/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:

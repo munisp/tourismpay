@@ -10,6 +10,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	authMw "shared/middleware"
 )
 
 // Reconciliation Engine — automated transaction matching and discrepancy resolution
@@ -37,6 +39,7 @@ type ReconciliationBatch struct {
 func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger, middleware.Recoverer)
+	r.Use(authMw.RequireAuth)
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "healthy", "service": "reconciliation-engine"})
 	})

@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	authMw "shared/middleware"
 )
 
 // Policy Lifecycle Service
@@ -83,8 +85,8 @@ func handleTransitions(w http.ResponseWriter, r *http.Request) {
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/transition", handleTransition)
-	mux.HandleFunc("/api/v1/transitions", handleTransitions)
+	mux.HandleFunc("/api/v1/transition", authMw.RequireAuthFunc(handleTransition))
+	mux.HandleFunc("/api/v1/transitions", authMw.RequireAuthFunc(handleTransitions))
 	port := ":8097"
 	log.Printf("Policy Lifecycle Service starting on %s", port)
 	log.Fatal(http.ListenAndServe(port, mux))
