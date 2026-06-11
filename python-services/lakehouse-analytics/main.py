@@ -460,7 +460,22 @@ class LakehouseHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass  # Suppress default logging
 
+    def _check_auth(self):
+        if self.path == "/health":
+            return True
+        auth = self.headers.get("Authorization", "")
+        service_key = self.headers.get("X-Service-Key", "")
+        internal_key = os.environ.get("INTERNAL_SERVICE_KEY", "")
+        if auth.startswith("Bearer "):
+            return True
+        if internal_key and service_key == internal_key:
+            return True
+        self._json(401, {"error": "missing authorization"})
+        return False
+
     def do_GET(self):
+        if not self._check_auth():
+            return
         parsed = urlparse(self.path)
         path = parsed.path
         params = parse_qs(parsed.query)
@@ -591,6 +606,8 @@ class LakehouseHandler(BaseHTTPRequestHandler):
             self._json(404, {"error": "Not found", "path": path})
 
     def do_POST(self):
+        if not self._check_auth():
+            return
         parsed = urlparse(self.path)
         path = parsed.path
         body = self._read_body()

@@ -325,7 +325,22 @@ def aggregate_documents(index: str, aggs: dict) -> dict:
 # ─── HTTP Handler ────────────────────────────────────────────────────────────
 
 class OpenSearchHandler(BaseHTTPRequestHandler):
+    def _check_auth(self):
+        if self.path == "/health":
+            return True
+        auth = self.headers.get("Authorization", "")
+        service_key = self.headers.get("X-Service-Key", "")
+        internal_key = os.environ.get("INTERNAL_SERVICE_KEY", "")
+        if auth.startswith("Bearer "):
+            return True
+        if internal_key and service_key == internal_key:
+            return True
+        self._json_response(401, {"error": "missing authorization"})
+        return False
+
     def do_GET(self):
+        if not self._check_auth():
+            return
         parsed = urlparse(self.path)
         path = parsed.path
         params = parse_qs(parsed.query)
@@ -377,6 +392,8 @@ class OpenSearchHandler(BaseHTTPRequestHandler):
             self._json_response(404, {"error": "not found"})
 
     def do_POST(self):
+        if not self._check_auth():
+            return
         content_length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(content_length)) if content_length > 0 else {}
 
