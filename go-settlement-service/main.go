@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tourismpay/settlement-service/internal/database"
 	"github.com/tourismpay/settlement-service/internal/handlers"
+	"github.com/tourismpay/settlement-service/internal/middleware"
 	"github.com/tourismpay/settlement-service/internal/services"
 )
 
@@ -17,9 +19,12 @@ func main() {
 		port = "8081"
 	}
 
-	tigerbeetleAddr := os.Getenv("TIGERBEETLE_ADDR")
-	if tigerbeetleAddr == "" {
-		tigerbeetleAddr = "127.0.0.1:3000"
+	// Connect to PostgreSQL (graceful fallback to in-memory if DB unavailable)
+	if err := database.Connect(); err != nil {
+		log.Printf("[WARN] Database connection failed, falling back to in-memory: %v", err)
+	} else {
+		log.Println("[INFO] Connected to PostgreSQL")
+		defer database.Close()
 	}
 
 	ledgerService := services.NewTigerBeetleLedgerService(0)
@@ -33,10 +38,16 @@ func main() {
 
 	router := gin.Default()
 
+	// CORS middleware — restrict to known origins in production
+	allowedOrigin := os.Getenv("CORS_ORIGIN")
+	if allowedOrigin == "" {
+		allowedOrigin = "http://localhost:5173"
+	}
 	router.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Origin", allowedOrigin)
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
+		c.Header("Access-Control-Allow-Credentials", "true")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusOK)
 			return
@@ -44,16 +55,24 @@ func main() {
 		c.Next()
 	})
 
+	// Health endpoint (unauthenticated)
 	router.GET("/health", func(c *gin.Context) {
+		dbStatus := "connected"
+		if database.DB == nil {
+			dbStatus = "in-memory-fallback"
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"status":    "healthy",
 			"service":   "TourismPay Settlement Service (Go)",
-			"version":   "2.0.0",
+			"version":   "3.0.0",
+			"database":  dbStatus,
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
 		})
 	})
 
+	// All API routes require authentication
 	api := router.Group("/api/v1")
+	api.Use(middleware.AuthMiddleware())
 	{
 		ledger := api.Group("/ledger")
 		{
@@ -99,52 +118,41 @@ func main() {
 			settlement.POST("/batches/:batch_id/process", h.ProcessSettlementBatch)
 			settlement.GET("/batches", h.ListSettlementBatches)
 			settlement.GET("/batches/:batch_id", h.GetSettlementBatch)
-			settlement.POST("/run-daily", h.RunDailySettlements)
+			settlement.POST("/run-daily", middleware.AdminMiddleware(), h.RunDailySettlements)
 			settlement.GET("/providers/:provider_id/balance", h.GetProviderBalance)
 			settlement.GET("/pending", h.ListPendingSettlements)
 			settlement.GET("/status", h.GetSettlementStatus)
 		}
 
 		reconciliation := api.Group("/reconciliation")
+		reconciliation.Use(middleware.AdminMiddleware())
 		{
 			reconciliation.POST("/reports", h.GenerateReconciliationReport)
 			reconciliation.GET("/reports", h.ListReconciliationReports)
 			reconciliation.GET("/reports/:report_id", h.GetReconciliationReport)
 		}
 
-		// Crypto and Stablecoin routes
 		crypto := api.Group("/crypto")
 		{
-			// Wallet management
 			crypto.POST("/wallets", cryptoHandlers.CreateWallet)
 			crypto.GET("/wallets/:wallet_id", cryptoHandlers.GetWallet)
 			crypto.GET("/wallets/user/:user_id", cryptoHandlers.GetWalletByUser)
 			crypto.GET("/wallets/:wallet_id/address/:coin", cryptoHandlers.GetDepositAddress)
 			crypto.GET("/wallets/:wallet_id/transactions", cryptoHandlers.GetTransactions)
-
-			// Deposits and withdrawals
 			crypto.POST("/deposit", cryptoHandlers.SimulateDeposit)
 			crypto.POST("/withdraw", cryptoHandlers.Withdraw)
-
-			// Swaps and exchange
 			crypto.GET("/rates", cryptoHandlers.GetAllExchangeRates)
 			crypto.GET("/rate", cryptoHandlers.GetExchangeRate)
 			crypto.POST("/swap", cryptoHandlers.Swap)
-
-			// Payments
 			crypto.POST("/quote", cryptoHandlers.GetPaymentQuote)
 			crypto.POST("/pay", cryptoHandlers.PayWithCrypto)
-
-			// Info
 			crypto.GET("/coins", cryptoHandlers.GetSupportedCoins)
-			crypto.GET("/status", cryptoHandlers.GetCryptoStatus)
+			crypto.GET("/health", cryptoHandlers.GetCryptoStatus)
 		}
-
-		api.GET("/infrastructure/status", h.GetInfrastructureStatus)
 	}
 
-	log.Printf("TourismPay Settlement Service (Go) starting on port %s", port)
+	log.Printf("[INFO] Settlement service starting on :%s", port)
 	if err := router.Run(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		log.Fatal(err)
 	}
 }

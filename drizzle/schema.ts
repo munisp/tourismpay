@@ -7,6 +7,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  real,
   serial,
   text,
   timestamp,
@@ -2177,3 +2178,36 @@ export const serviceAvailability = pgTable(
 );
 export type ServiceAvailability = typeof serviceAvailability.$inferSelect;
 export type InsertServiceAvailability = typeof serviceAvailability.$inferInsert;
+
+// ─── KYC Verification Records (Tourist identity verification) ─────────────────
+export const kycVerificationRecords = pgTable(
+  "kyc_verification_records",
+  {
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 128 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    documentType: varchar("document_type", { length: 32 }),
+    documentCountry: varchar("document_country", { length: 3 }),
+    documentNumberHash: varchar("document_number_hash", { length: 128 }),
+    fullNameEncrypted: text("full_name_encrypted"),
+    dateOfBirth: varchar("date_of_birth", { length: 16 }),
+    nationality: varchar("nationality", { length: 3 }),
+    livenessScore: real("liveness_score"),
+    documentMatchScore: real("document_match_score"),
+    riskScore: real("risk_score"),
+    sanctionsClear: boolean("sanctions_clear"),
+    pepClear: boolean("pep_clear"),
+    reviewerId: varchar("reviewer_id", { length: 128 }),
+    rejectionReason: text("rejection_reason"),
+    expiresAt: timestamp("expires_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("kyc_user_idx").on(t.userId),
+    index("kyc_status_idx").on(t.status),
+    index("kyc_doc_hash_idx").on(t.documentNumberHash),
+  ]
+);
+export type KycVerificationRecord = typeof kycVerificationRecords.$inferSelect;
+export type InsertKycVerificationRecord = typeof kycVerificationRecords.$inferInsert;

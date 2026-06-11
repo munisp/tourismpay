@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import math
-import random
+import secrets
 import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional

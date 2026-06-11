@@ -11,7 +11,7 @@ Services:
   - PDF Report Generator   PORT=8005
 """
 import os
-import random
+import secrets
 import math
 import time
 import hashlib
@@ -100,7 +100,7 @@ async def bis_risk_score(req: RiskScoreRequest):
         "subject": req.subject_full_name,
         "risk_score": score,
         "risk_level": level,
-        "confidence": round(0.75 + random.uniform(0, 0.2), 3),
+        "confidence": round(0.75 + (secrets.randbelow(200) / 1000.0), 3),
         "factors": {
             "country_risk": req.subject_country,
             "transaction_velocity": req.transaction_count or 0,
@@ -199,7 +199,7 @@ async def fraud_score(req: FraudScoreRequest):
         "fraud_score": score,
         "fraud_level": level,
         "is_fraud": score >= 75,
-        "confidence": round(0.80 + random.uniform(0, 0.15), 3),
+        "confidence": round(0.80 + (secrets.randbelow(150) / 1000.0), 3),
         "signals": {
             "velocity_anomaly": score > 60,
             "geo_mismatch": score > 70,
@@ -311,7 +311,7 @@ async def pep_screen(req: PepScreenRequest):
         "pep_category": "DOMESTIC_PEP" if is_pep and seed % 2 == 0 else "FOREIGN_PEP" if is_pep else None,
         "pep_position": "Government Official" if is_pep else None,
         "country": req.country,
-        "confidence": round(0.85 + random.uniform(0, 0.1), 3),
+        "confidence": round(0.85 + (secrets.randbelow(100) / 1000.0), 3),
         "matches": [{"name": req.full_name, "position": "Minister", "country": req.country}] if is_pep else [],
         "screened_at": datetime.utcnow().isoformat(),
     }
@@ -478,10 +478,10 @@ async def merchant_revenue_report(req: MerchantReportRequest):
         "merchant_name": req.merchant_name,
         "period": {"start": req.period_start, "end": req.period_end},
         "summary": {
-            "total_revenue_usd": req.total_revenue_usd or round(random.uniform(10000, 500000), 2),
-            "transaction_count": random.randint(100, 5000),
-            "avg_transaction_usd": round(random.uniform(50, 500), 2),
-            "growth_pct": round(random.uniform(-5, 25), 1),
+            "total_revenue_usd": req.total_revenue_usd or round(10000 + (secrets.randbelow(490000)), 2),
+            "transaction_count": 100 + secrets.randbelow(4900),
+            "avg_transaction_usd": round(50 + (secrets.randbelow(450)), 2),
+            "growth_pct": round(-5 + (secrets.randbelow(300) / 10.0), 1),
         },
         "status": "GENERATED",
         "download_url": f"/api/v1/reports/download/{report_id}",
@@ -550,7 +550,7 @@ async def download_report(report_id: str):
         "message": "In production, this endpoint streams the PDF binary. In dev mode, a mock response is returned.",
         "mock": True,
         "content_type": "application/pdf",
-        "size_bytes": random.randint(50000, 500000),
+        "size_bytes": 50000 + secrets.randbelow(450000),
     }
 
 if __name__ == "__main__":

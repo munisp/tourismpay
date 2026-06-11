@@ -55,6 +55,7 @@ import { stripeConnectRouter } from "./routers/stripeConnect";
 import { pythonServicesRouter } from "./routers/pythonServices";
 import { analyticsRouter as crossPlatformAnalyticsRouter } from "./routers/analytics";
 import { emailPreviewRouter } from "./routers/emailPreview";
+import { kycRouter } from "./routers/kyc";
 import { nocDashboardRouter } from "./routers/nocDashboard";
 import {
   rateAlertsRouter,
@@ -176,6 +177,7 @@ export const appRouter = router({
   stripeConnect: stripeConnectRouter,
   pythonServices: pythonServicesRouter,
   emailPreview: emailPreviewRouter,
+  kyc: kycRouter,
 });
 
 export type AppRouter = typeof appRouter;

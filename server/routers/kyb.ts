@@ -14,6 +14,8 @@ import {
   updateKybApplicationStep,
 } from "../db";
 
+import { encryptPII } from "../_core/encryption";
+
 const KYB_SERVICE_URL = process.env.KYB_SERVICE_URL || "http://localhost:8083";
 
 async function callKybService(path: string, body?: unknown): Promise<unknown> {
@@ -84,6 +86,9 @@ export const kybRouter = router({
         ...input,
         ownerId: ctx.user.id,
         kybStatus: "draft",
+        registrationNumber: input.registrationNumber ? encryptPII(input.registrationNumber) : undefined,
+        taxId: input.taxId ? encryptPII(input.taxId) : undefined,
+        contactPhone: input.contactPhone ? encryptPII(input.contactPhone) : undefined,
       });
 
       // Notify Go KYB service of new establishment
