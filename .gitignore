@@ -110,3 +110,4 @@ temp/
 .webdev/
 .manus/
 .manus-logs/
+rust-kyc-service/target/
