@@ -1,10 +1,35 @@
 use actix_cors::Cors;
-use actix_web::{web, App, HttpServer, HttpRequest, HttpResponse, middleware};
+use actix_web::{web, App, HttpServer, HttpRequest, HttpResponse, middleware, dev::ServiceRequest, dev::ServiceResponse, Error};
+use actix_web::middleware::from_fn;
 use chrono::Utc;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
+
+async fn auth_middleware(
+    req: ServiceRequest,
+    next: actix_web::middleware::Next<impl actix_web::body::MessageBody>,
+) -> Result<ServiceResponse<impl actix_web::body::MessageBody>, Error> {
+    if req.path() == "/health" {
+        return next.call(req).await;
+    }
+    let has_bearer = req.headers().get("Authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.starts_with("Bearer "))
+        .unwrap_or(false);
+    let service_key = std::env::var("INTERNAL_SERVICE_KEY").unwrap_or_default();
+    let has_service_key = req.headers().get("X-Service-Key")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| !service_key.is_empty() && v == service_key)
+        .unwrap_or(false);
+    if !has_bearer && !has_service_key {
+        return Ok(req.into_response(
+            HttpResponse::Unauthorized().json(serde_json::json!({"error": "missing authorization"}))
+        ).map_into_right_body());
+    }
+    next.call(req).await.map(|res| res.map_into_left_body())
+}
 
 mod policy;
 mod evaluator;
@@ -254,6 +279,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(state.clone()))
             .wrap(Cors::permissive())
+            .wrap(from_fn(auth_middleware))
             .route("/health", web::get().to(health))
             .route("/api/v1/access/check", web::post().to(check_access))
             .route("/api/v1/policies", web::get().to(list_policies))

@@ -1,4 +1,5 @@
 use actix_cors::Cors;
+use actix_web::middleware::from_fn;
 use actix_web::{web, App, HttpServer, HttpResponse};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use chrono::Utc;
@@ -265,6 +266,31 @@ async fn rotate_key(
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
+
+async fn auth_middleware(
+    req: actix_web::dev::ServiceRequest,
+    next: actix_web::middleware::Next<impl actix_web::body::MessageBody>,
+) -> Result<actix_web::dev::ServiceResponse<impl actix_web::body::MessageBody>, actix_web::Error> {
+    if req.path() == "/health" {
+        return next.call(req).await;
+    }
+    let has_bearer = req.headers().get("Authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.starts_with("Bearer "))
+        .unwrap_or(false);
+    let service_key = std::env::var("INTERNAL_SERVICE_KEY").unwrap_or_default();
+    let has_service_key = req.headers().get("X-Service-Key")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| !service_key.is_empty() && v == service_key)
+        .unwrap_or(false);
+    if !has_bearer && !has_service_key {
+        return Ok(req.into_response(
+            actix_web::HttpResponse::Unauthorized().json(serde_json::json!({"error": "missing authorization"}))
+        ).map_into_right_body());
+    }
+    next.call(req).await.map(|res| res.map_into_left_body())
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt::init();
@@ -296,6 +322,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(state.clone()))
             .wrap(Cors::permissive())
+            .wrap(from_fn(auth_middleware))
             .route("/health", web::get().to(health))
             .route("/api/v1/keys", web::get().to(list_keys))
             .route("/api/v1/keys/generate", web::post().to(generate_key))
