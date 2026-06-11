@@ -457,7 +457,47 @@ async function seed() {
     await db.insert(schema.rolePermissions).values(p).onConflictDoNothing();
   }
 
-  console.log("[seed] Complete! Seeded 30 categories of data.");
+  // ─── 31. Liveness Checks ─────────────────────────────────────
+  console.log("[seed] 31/31 Liveness Checks...");
+  for (const t of tourists) {
+    const passed = Math.random() > 0.2;
+    await db.insert(schema.livenessChecks).values({
+      userId: t.openId,
+      sessionId: crypto.randomUUID(),
+      challengeType: ["blink", "head_turn", "smile", "nod"][Math.floor(Math.random() * 4)],
+      status: passed ? "passed" : "failed",
+      confidenceScore: passed ? 75 + Math.floor(Math.random() * 25) : 30 + Math.floor(Math.random() * 35),
+      expiresAt: Date.now() + 300_000,
+      completedAt: Date.now() - Math.floor(Math.random() * 86400_000),
+    }).onConflictDoNothing();
+  }
+
+  // ─── 32. Verification Codes (completed verifications) ───────
+  console.log("[seed] 32/32 Verification Codes...");
+  for (const t of tourists) {
+    await db.insert(schema.verificationCodes).values({
+      userId: t.openId,
+      type: "email",
+      target: t.email ?? "user@example.com",
+      code: "000000",
+      expiresAt: Date.now() + 600_000,
+      attempts: 1,
+      verified: true,
+      verifiedAt: Date.now() - 86400_000,
+    }).onConflictDoNothing();
+    await db.insert(schema.verificationCodes).values({
+      userId: t.openId,
+      type: "phone",
+      target: "+254700000001",
+      code: "000000",
+      expiresAt: Date.now() + 600_000,
+      attempts: 1,
+      verified: true,
+      verifiedAt: Date.now() - 86400_000,
+    }).onConflictDoNothing();
+  }
+
+  console.log("[seed] Complete! Seeded 32 categories of data.");
   await client.end();
 }
 

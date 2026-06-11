@@ -59,6 +59,7 @@ import { nocDashboardRouter } from "./routers/nocDashboard";
 import { offlineResilienceRouter } from "./resilience/offlineResilience";
 import { middlewareHubRouter } from "./middleware/middlewareHub";
 import { verificationRouter } from "./routers/verification";
+import { livenessRouter } from "./routers/liveness";
 import { paymentRailsRouter } from "./routers/paymentRails";
 import { mapLocationRouter } from "./routers/mapLocation";
 import { arTourismRouter } from "./integrations/arTourism";
@@ -185,6 +186,7 @@ export const appRouter = router({
   offlineResilience: offlineResilienceRouter,
   middlewareHub: middlewareHubRouter,
   verification: verificationRouter,
+  liveness: livenessRouter,
   paymentRails: paymentRailsRouter,
   mapLocation: mapLocationRouter,
   arTourism: arTourismRouter,

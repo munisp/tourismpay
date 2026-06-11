@@ -2193,3 +2193,21 @@ export const verificationCodes = pgTable("verification_codes", {
 });
 export type VerificationCode = typeof verificationCodes.$inferSelect;
 export type InsertVerificationCode = typeof verificationCodes.$inferInsert;
+
+export const livenessChecks = pgTable("liveness_checks", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sessionId: text("session_id").notNull(),
+  status: text("status").notNull().default("pending"), // pending | passed | failed | expired
+  challengeType: text("challenge_type").notNull(), // blink | head_turn | smile | nod
+  confidenceScore: integer("confidence_score"), // 0-100
+  deviceFingerprint: text("device_fingerprint"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  failureReason: text("failure_reason"),
+  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+  completedAt: bigint("completed_at", { mode: "number" }),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+});
+export type LivenessCheck = typeof livenessChecks.$inferSelect;
+export type InsertLivenessCheck = typeof livenessChecks.$inferInsert;
