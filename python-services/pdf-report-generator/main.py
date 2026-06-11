@@ -31,25 +31,6 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
 app = FastAPI(title="PDF Report Generator", version="1.0.0")
 
-from fastapi import Request
-from fastapi.responses import JSONResponse
-import os
-
-@app.middleware("http")
-async def auth_middleware(request: Request, call_next):
-    if request.url.path == "/health":
-        return await call_next(request)
-    auth_header = request.headers.get("Authorization", "")
-    service_key = request.headers.get("X-Service-Key", "")
-    internal_key = os.environ.get("INTERNAL_SERVICE_KEY", "")
-    if auth_header.startswith("Bearer "):
-        return await call_next(request)
-    if internal_key and service_key == internal_key:
-        return await call_next(request)
-    return JSONResponse(status_code=401, content={"error": "missing authorization"})
-
-
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

@@ -2177,37 +2177,3 @@ export const serviceAvailability = pgTable(
 );
 export type ServiceAvailability = typeof serviceAvailability.$inferSelect;
 export type InsertServiceAvailability = typeof serviceAvailability.$inferInsert;
-
-// ─── Verification Codes ──────────────────────────────────────────────────────
-export const verificationCodes = pgTable("verification_codes", {
-  id: serial("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  type: text("type").notNull(), // "email" | "phone"
-  target: text("target").notNull(), // email address or phone number
-  code: text("code").notNull(),
-  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
-  attempts: integer("attempts").notNull().default(0),
-  verified: boolean("verified").notNull().default(false),
-  verifiedAt: bigint("verified_at", { mode: "number" }),
-  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
-});
-export type VerificationCode = typeof verificationCodes.$inferSelect;
-export type InsertVerificationCode = typeof verificationCodes.$inferInsert;
-
-export const livenessChecks = pgTable("liveness_checks", {
-  id: serial("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  sessionId: text("session_id").notNull(),
-  status: text("status").notNull().default("pending"), // pending | passed | failed | expired
-  challengeType: text("challenge_type").notNull(), // blink | head_turn | smile | nod
-  confidenceScore: integer("confidence_score"), // 0-100
-  deviceFingerprint: text("device_fingerprint"),
-  ipAddress: text("ip_address"),
-  userAgent: text("user_agent"),
-  failureReason: text("failure_reason"),
-  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
-  completedAt: bigint("completed_at", { mode: "number" }),
-  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
-});
-export type LivenessCheck = typeof livenessChecks.$inferSelect;
-export type InsertLivenessCheck = typeof livenessChecks.$inferInsert;

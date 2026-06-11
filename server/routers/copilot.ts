@@ -36,31 +36,15 @@ async function generateWithFallback(
   const ollamaResult = await callOllama(prompt, systemPrompt);
   if (ollamaResult) return ollamaResult;
 
-  // Try real LLM providers (OpenAI / Anthropic / rule-based fallback)
-  try {
-    const { chat } = await import("../integrations/llmCopilot");
-    const result = await chat([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: prompt },
-    ]);
-    if (result.provider !== "fallback") return result.message;
-    // Rule-based fallback returned a useful response — use it instead of invoking unconfigured LLM
-    if (result.message) return result.message;
-  } catch { /* continue to built-in fallback */ }
-
-  // Fall back to built-in LLM (Manus Forge) — only if API key is configured
-  try {
-    const result = await invokeLLM({
-      messages: [
-        { role: "system" as const, content: systemPrompt as string },
-        { role: "user" as const, content: prompt as string },
-      ],
-    });
-    const content = result.choices?.[0]?.message?.content;
-    return (typeof content === "string" ? content : JSON.stringify(content)) ?? "Unable to generate response.";
-  } catch {
-    return "I'm your TourismPay AI travel assistant for Africa! I can help with destinations, currency, culture, safety, and itinerary planning. What would you like to know?"
-  }
+  // Fall back to built-in LLM (Manus Forge)
+  const result = await invokeLLM({
+    messages: [
+      { role: "system" as const, content: systemPrompt as string },
+      { role: "user" as const, content: prompt as string },
+    ],
+  });
+  const content = result.choices?.[0]?.message?.content;
+  return (typeof content === "string" ? content : JSON.stringify(content)) ?? "Unable to generate response.";
 }
 
 const TOURISM_SYSTEM_PROMPT = `You are TourismPay AI Co-Pilot, an expert travel and hospitality assistant 

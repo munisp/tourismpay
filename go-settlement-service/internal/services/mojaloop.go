@@ -3,50 +3,39 @@ package services
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
+	"sync"
 	"time"
 
-	"github.com/tourismpay/settlement-service/internal/db"
 	"github.com/tourismpay/settlement-service/internal/models"
 )
 
 type MojaloopDFSPService struct {
-	dfspID string
-	hubURL string
-	conn   *sql.DB
+	dfspID            string
+	hubURL            string
+	participants      map[string]*models.MojaloopParticipant
+	quotes            map[string]*models.MojaloopQuote
+	transfers         map[string]*models.MojaloopTransfer
+	settlementWindows map[string]*models.SettlementWindow
+	mu                sync.RWMutex
 }
 
 func NewMojaloopDFSPService(dfspID string) *MojaloopDFSPService {
-	conn, err := db.GetDB()
-	if err != nil {
-		log.Printf("[mojaloop] DB unavailable: %v", err)
+	s := &MojaloopDFSPService{
+		dfspID:            dfspID,
+		hubURL:            "https://mojaloop-hub.example.com",
+		participants:      make(map[string]*models.MojaloopParticipant),
+		quotes:            make(map[string]*models.MojaloopQuote),
+		transfers:         make(map[string]*models.MojaloopTransfer),
+		settlementWindows: make(map[string]*models.SettlementWindow),
 	}
-	s := &MojaloopDFSPService{dfspID: dfspID, hubURL: "https://mojaloop-hub.example.com", conn: conn}
-	s.seedParticipants()
+	s.initializeParticipants()
 	return s
 }
 
-func (s *MojaloopDFSPService) getConn() *sql.DB {
-	if s.conn != nil {
-		return s.conn
-	}
-	conn, err := db.GetDB()
-	if err != nil {
-		return nil
-	}
-	s.conn = conn
-	return conn
-}
-
-func (s *MojaloopDFSPService) seedParticipants() {
-	conn := s.getConn()
-	if conn == nil {
-		return
-	}
+func (s *MojaloopDFSPService) initializeParticipants() {
 	participants := []models.MojaloopParticipant{
 		{FSPID: "tourismpay", Name: "TourismPay", Currency: "TZS", AccountID: "TP001", IsActive: true},
 		{FSPID: "crdb", Name: "CRDB Bank", Currency: "TZS", AccountID: "CRDB001", IsActive: true},
@@ -58,9 +47,9 @@ func (s *MojaloopDFSPService) seedParticipants() {
 		{FSPID: "serengeti_tours", Name: "Serengeti Tours", Currency: "USD", AccountID: "ST001", IsActive: true},
 		{FSPID: "zanzibar_resorts", Name: "Zanzibar Resorts", Currency: "USD", AccountID: "ZR001", IsActive: true},
 	}
-	for _, p := range participants {
-		_, _ = conn.Exec(`INSERT INTO mojaloop_participants (fsp_id, name, currency, account_id, is_active) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (fsp_id) DO NOTHING`,
-			p.FSPID, p.Name, p.Currency, p.AccountID, p.IsActive)
+
+	for i := range participants {
+		s.participants[participants[i].FSPID] = &participants[i]
 	}
 }
 
@@ -95,47 +84,35 @@ func (s *MojaloopDFSPService) generateID(prefix string) string {
 }
 
 func (s *MojaloopDFSPService) LookupParticipant(identifierType, identifier string) *models.MojaloopParticipant {
-	conn := s.getConn()
-	if conn == nil {
-		return nil
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, p := range s.participants {
+		if p.AccountID == identifier || p.FSPID == identifier {
+			return p
+		}
 	}
-	var p models.MojaloopParticipant
-	err := conn.QueryRow(`SELECT fsp_id, name, currency, account_id, is_active FROM mojaloop_participants WHERE fsp_id=$1 OR account_id=$1`, identifier).
-		Scan(&p.FSPID, &p.Name, &p.Currency, &p.AccountID, &p.IsActive)
-	if err != nil {
-		return nil
-	}
-	return &p
+	return nil
 }
 
 func (s *MojaloopDFSPService) ListParticipants() []*models.MojaloopParticipant {
-	conn := s.getConn()
-	if conn == nil {
-		return nil
-	}
-	rows, err := conn.Query(`SELECT fsp_id, name, currency, account_id, is_active FROM mojaloop_participants ORDER BY fsp_id`)
-	if err != nil {
-		return nil
-	}
-	defer rows.Close()
-	var result []*models.MojaloopParticipant
-	for rows.Next() {
-		var p models.MojaloopParticipant
-		if err := rows.Scan(&p.FSPID, &p.Name, &p.Currency, &p.AccountID, &p.IsActive); err == nil {
-			result = append(result, &p)
-		}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make([]*models.MojaloopParticipant, 0, len(s.participants))
+	for _, p := range s.participants {
+		result = append(result, p)
 	}
 	return result
 }
 
 func (s *MojaloopDFSPService) CreateQuote(payerFSP, payeeFSP string, amount float64, currency string) (*models.MojaloopQuote, error) {
-	conn := s.getConn()
-	if conn == nil {
-		return nil, fmt.Errorf("database unavailable")
-	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	quoteID := s.generateID("Q")
 	transactionID := s.generateID("T")
+
 	baseFee := amount * 0.005
 	commission := 0.0
 	if payeeFSP != s.dfspID {
@@ -144,147 +121,194 @@ func (s *MojaloopDFSPService) CreateQuote(payerFSP, payeeFSP string, amount floa
 
 	condition := s.generateCondition()
 	ilpPacket := s.generateILPPacket(amount, currency, payeeFSP)
-	expiration := time.Now().Add(time.Hour)
 
 	quote := &models.MojaloopQuote{
-		QuoteID: quoteID, TransactionID: transactionID,
-		PayerFSP: payerFSP, PayeeFSP: payeeFSP,
-		Amount: amount, Currency: currency,
-		Fees: baseFee, Commission: commission,
-		Expiration: expiration, Condition: condition, ILPPacket: ilpPacket,
+		QuoteID:       quoteID,
+		TransactionID: transactionID,
+		PayerFSP:      payerFSP,
+		PayeeFSP:      payeeFSP,
+		Amount:        amount,
+		Currency:      currency,
+		Fees:          baseFee,
+		Commission:    commission,
+		Expiration:    time.Now().Add(time.Hour),
+		Condition:     condition,
+		ILPPacket:     ilpPacket,
 	}
 
-	_, err := conn.Exec(`INSERT INTO mojaloop_quotes (quote_id, transaction_id, payer_fsp, payee_fsp, amount, currency, fees, commission, expiration, condition, ilp_packet)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-		quoteID, transactionID, payerFSP, payeeFSP, amount, currency, baseFee, commission, expiration, condition, ilpPacket)
-	if err != nil {
-		return nil, fmt.Errorf("insert quote: %w", err)
-	}
+	s.quotes[quoteID] = quote
 	return quote, nil
 }
 
 func (s *MojaloopDFSPService) PrepareTransfer(quoteID string) (*models.MojaloopTransfer, error) {
-	conn := s.getConn()
-	if conn == nil {
-		return nil, fmt.Errorf("database unavailable")
-	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	var q models.MojaloopQuote
-	err := conn.QueryRow(`SELECT quote_id, transaction_id, payer_fsp, payee_fsp, amount, currency, condition, ilp_packet, expiration
-		FROM mojaloop_quotes WHERE quote_id=$1`, quoteID).
-		Scan(&q.QuoteID, &q.TransactionID, &q.PayerFSP, &q.PayeeFSP, &q.Amount, &q.Currency, &q.Condition, &q.ILPPacket, &q.Expiration)
-	if err != nil {
+	quote, ok := s.quotes[quoteID]
+	if !ok {
 		return nil, fmt.Errorf("quote %s not found", quoteID)
 	}
-	if time.Now().After(q.Expiration) {
+
+	if time.Now().After(quote.Expiration) {
 		return nil, fmt.Errorf("quote has expired")
 	}
 
 	transferID := s.generateID("TR")
+
 	transfer := &models.MojaloopTransfer{
-		TransferID: transferID, QuoteID: quoteID,
-		PayerFSP: q.PayerFSP, PayeeFSP: q.PayeeFSP,
-		Amount: q.Amount, Currency: q.Currency, State: models.MojaloopStatePending,
+		TransferID: transferID,
+		QuoteID:    quoteID,
+		PayerFSP:   quote.PayerFSP,
+		PayeeFSP:   quote.PayeeFSP,
+		Amount:     quote.Amount,
+		Currency:   quote.Currency,
+		State:      models.MojaloopStatePending,
 	}
 
-	_, err = conn.Exec(`INSERT INTO mojaloop_transfers (transfer_id, quote_id, payer_fsp, payee_fsp, amount, currency, status, condition, ilp_packet)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-		transferID, quoteID, q.PayerFSP, q.PayeeFSP, q.Amount, q.Currency, "RESERVED", q.Condition, q.ILPPacket)
-	if err != nil {
-		return nil, fmt.Errorf("insert transfer: %w", err)
-	}
+	s.transfers[transferID] = transfer
 	return transfer, nil
 }
 
 func (s *MojaloopDFSPService) CommitTransfer(transferID string) (*models.MojaloopTransfer, error) {
-	conn := s.getConn()
-	if conn == nil {
-		return nil, fmt.Errorf("database unavailable")
-	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	var t models.MojaloopTransfer
-	var condition string
-	err := conn.QueryRow(`SELECT transfer_id, quote_id, payer_fsp, payee_fsp, amount, currency, status, condition
-		FROM mojaloop_transfers WHERE transfer_id=$1`, transferID).
-		Scan(&t.TransferID, &t.QuoteID, &t.PayerFSP, &t.PayeeFSP, &t.Amount, &t.Currency, &t.State, &condition)
-	if err != nil {
+	transfer, ok := s.transfers[transferID]
+	if !ok {
 		return nil, fmt.Errorf("transfer %s not found", transferID)
 	}
-	if string(t.State) != "RESERVED" {
-		return nil, fmt.Errorf("transfer not in RESERVED state")
+
+	quote, ok := s.quotes[transfer.QuoteID]
+	if !ok {
+		transfer.State = models.MojaloopStateAborted
+		return transfer, nil
 	}
 
-	fulfilment := s.generateFulfilment(condition)
+	transfer.Fulfilment = s.generateFulfilment(quote.Condition)
+	transfer.State = models.MojaloopStateCompleted
 	now := time.Now()
-	t.State = models.MojaloopStateCompleted
-	t.Fulfilment = fulfilment
-	t.CompletedTimestamp = &now
+	transfer.CompletedTimestamp = &now
 
-	_, _ = conn.Exec(`UPDATE mojaloop_transfers SET status='COMMITTED', fulfilment=$1, committed_at=$2 WHERE transfer_id=$3`,
-		fulfilment, now, transferID)
+	return transfer, nil
+}
 
-	return &t, nil
+func (s *MojaloopDFSPService) AbortTransfer(transferID, reason string) (*models.MojaloopTransfer, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	transfer, ok := s.transfers[transferID]
+	if !ok {
+		return nil, fmt.Errorf("transfer %s not found", transferID)
+	}
+
+	transfer.State = models.MojaloopStateAborted
+	return transfer, nil
+}
+
+func (s *MojaloopDFSPService) GetSettlementWindow(windowID string) *models.SettlementWindow {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if windowID == "" {
+		windowID = time.Now().Format("20060102")
+	}
+
+	window, ok := s.settlementWindows[windowID]
+	if !ok {
+		window = &models.SettlementWindow{
+			WindowID:       windowID,
+			State:          "OPEN",
+			CreatedAt:      time.Now(),
+			Participants:   make(map[string]models.ParticipantPosition),
+			TotalTransfers: 0,
+			TotalAmount:    0,
+		}
+		s.settlementWindows[windowID] = window
+	}
+
+	return window
+}
+
+func (s *MojaloopDFSPService) CloseSettlementWindow(windowID string) *models.SettlementWindow {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	window, ok := s.settlementWindows[windowID]
+	if !ok {
+		window = &models.SettlementWindow{
+			WindowID:     windowID,
+			State:        "OPEN",
+			CreatedAt:    time.Now(),
+			Participants: make(map[string]models.ParticipantPosition),
+		}
+		s.settlementWindows[windowID] = window
+	}
+
+	for _, transfer := range s.transfers {
+		if transfer.State == models.MojaloopStateCompleted {
+			payerPos := window.Participants[transfer.PayerFSP]
+			payerPos.Debits += transfer.Amount
+			window.Participants[transfer.PayerFSP] = payerPos
+
+			payeePos := window.Participants[transfer.PayeeFSP]
+			payeePos.Credits += transfer.Amount
+			window.Participants[transfer.PayeeFSP] = payeePos
+
+			window.TotalTransfers++
+			window.TotalAmount += transfer.Amount
+		}
+	}
+
+	window.State = "CLOSED"
+	now := time.Now()
+	window.ClosedAt = &now
+
+	window.NetPositions = make(map[string]float64)
+	for fspID, pos := range window.Participants {
+		window.NetPositions[fspID] = pos.Credits - pos.Debits
+	}
+
+	return window
 }
 
 func (s *MojaloopDFSPService) ListSettlementWindows() []*models.SettlementWindow {
-	conn := s.getConn()
-	if conn == nil {
-		return nil
-	}
-	rows, err := conn.Query(`SELECT window_id, state, open_time, close_time, total_value, transfer_count FROM settlement_windows ORDER BY open_time DESC LIMIT 20`)
-	if err != nil {
-		return nil
-	}
-	defer rows.Close()
-	var result []*models.SettlementWindow
-	for rows.Next() {
-		var w models.SettlementWindow
-		var closeTime sql.NullTime
-		if err := rows.Scan(&w.WindowID, &w.State, &w.OpenTime, &closeTime, &w.TotalValue, &w.TransferCount); err == nil {
-			if closeTime.Valid {
-				w.CloseTime = &closeTime.Time
-			}
-			result = append(result, &w)
-		}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make([]*models.SettlementWindow, 0, len(s.settlementWindows))
+	for _, w := range s.settlementWindows {
+		result = append(result, w)
 	}
 	return result
 }
 
-func (s *MojaloopDFSPService) CloseSettlementWindow(windowID string) (*models.SettlementWindow, error) {
-	conn := s.getConn()
-	if conn == nil {
-		return nil, fmt.Errorf("database unavailable")
-	}
-	now := time.Now()
-	res, err := conn.Exec(`UPDATE settlement_windows SET state='CLOSED', close_time=$1 WHERE window_id=$2 AND state='OPEN'`, now, windowID)
-	if err != nil {
-		return nil, fmt.Errorf("close window: %w", err)
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return nil, fmt.Errorf("window %s not found or already closed", windowID)
-	}
-	var w models.SettlementWindow
-	var closeTime sql.NullTime
-	_ = conn.QueryRow(`SELECT window_id, state, open_time, close_time, total_value, transfer_count FROM settlement_windows WHERE window_id=$1`, windowID).
-		Scan(&w.WindowID, &w.State, &w.OpenTime, &closeTime, &w.TotalValue, &w.TransferCount)
-	if closeTime.Valid {
-		w.CloseTime = &closeTime.Time
-	}
-	return &w, nil
+type MojaloopStatus struct {
+	Service           string `json:"service"`
+	Status            string `json:"status"`
+	DFSPID            string `json:"dfsp_id"`
+	HubURL            string `json:"hub_url"`
+	TotalParticipants int    `json:"total_participants"`
+	ActiveQuotes      int    `json:"active_quotes"`
+	TotalTransfers    int    `json:"total_transfers"`
+	SettlementWindows int    `json:"settlement_windows"`
 }
 
-func (s *MojaloopDFSPService) GetStatus() map[string]interface{} {
-	conn := s.getConn()
-	status := map[string]interface{}{"dfsp_id": s.dfspID, "hub_url": s.hubURL, "connected": conn != nil}
-	if conn != nil {
-		var pCount, qCount, tCount int
-		_ = conn.QueryRow(`SELECT COUNT(*) FROM mojaloop_participants`).Scan(&pCount)
-		_ = conn.QueryRow(`SELECT COUNT(*) FROM mojaloop_quotes`).Scan(&qCount)
-		_ = conn.QueryRow(`SELECT COUNT(*) FROM mojaloop_transfers`).Scan(&tCount)
-		status["participants"] = pCount
-		status["quotes"] = qCount
-		status["transfers"] = tCount
+func (s *MojaloopDFSPService) GetStatus() MojaloopStatus {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return MojaloopStatus{
+		Service:           "Mojaloop DFSP (Go)",
+		Status:            "OPERATIONAL",
+		DFSPID:            s.dfspID,
+		HubURL:            s.hubURL,
+		TotalParticipants: len(s.participants),
+		ActiveQuotes:      len(s.quotes),
+		TotalTransfers:    len(s.transfers),
+		SettlementWindows: len(s.settlementWindows),
 	}
-	return status
+}
+
+func (s *MojaloopDFSPService) GetDFSPID() string {
+	return s.dfspID
 }

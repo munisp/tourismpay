@@ -1,8 +1,6 @@
-import { logger } from "@/lib/logger";
-
 /** Stub PDF export utilities — replace with a real PDF library for production */
 export async function exportAnalyticsToPDF(elementId: string, filename: string): Promise<void> {
-  logger.warn("exportAnalyticsToPDF: PDF export not yet implemented", { elementId, filename });
+  console.warn("exportAnalyticsToPDF: PDF export not yet implemented", { elementId, filename });
   alert("PDF export is not yet available in this version.");
 }
 

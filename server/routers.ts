@@ -56,13 +56,6 @@ import { pythonServicesRouter } from "./routers/pythonServices";
 import { analyticsRouter as crossPlatformAnalyticsRouter } from "./routers/analytics";
 import { emailPreviewRouter } from "./routers/emailPreview";
 import { nocDashboardRouter } from "./routers/nocDashboard";
-import { offlineResilienceRouter } from "./resilience/offlineResilience";
-import { middlewareHubRouter } from "./middleware/middlewareHub";
-import { verificationRouter } from "./routers/verification";
-import { livenessRouter } from "./routers/liveness";
-import { paymentRailsRouter } from "./routers/paymentRails";
-import { mapLocationRouter } from "./routers/mapLocation";
-import { arTourismRouter } from "./integrations/arTourism";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -84,7 +77,7 @@ import {
   psNotificationRouter,
   accountRecoveryRouter,
   psAdminRouter,
-} from "./routers/ps";
+} from "./routers/psStubs";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -183,13 +176,6 @@ export const appRouter = router({
   stripeConnect: stripeConnectRouter,
   pythonServices: pythonServicesRouter,
   emailPreview: emailPreviewRouter,
-  offlineResilience: offlineResilienceRouter,
-  middlewareHub: middlewareHubRouter,
-  verification: verificationRouter,
-  liveness: livenessRouter,
-  paymentRails: paymentRailsRouter,
-  mapLocation: mapLocationRouter,
-  arTourism: arTourismRouter,
 });
 
 export type AppRouter = typeof appRouter;

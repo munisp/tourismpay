@@ -106,51 +106,7 @@ temp/
 *.sqlite
 *.sqlite3
 
-# Webdev artifacts (checkpoint zips, migrations, etc.)
+# Webdev/Manus artifacts
 .webdev/
 .manus/
-
-# Rust build artifacts
-rust-services/*/target/
-
-# Go binaries
-go-settlement-service/settlement-service
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
-
-# Flutter
-flutter-mobile/.dart_tool/
-flutter-mobile/.flutter-plugins
-flutter-mobile/.flutter-plugins-dependencies
-flutter-mobile/.packages
-flutter-mobile/build/
-flutter-mobile/.pub-cache/
-flutter-mobile/android/.gradle/
-flutter-mobile/ios/Pods/
-flutter-mobile/ios/.symlinks/
-
-# Docker volumes
-postgres_data/
-redis_data/
-
-# Archives
-*.zip
-*.tar.gz
-
-# Screenshots (dev only)
-screenshots/
-*.png
-test-*.md
-
-# Session artifacts (audit reports, manifests, patches)
-AUDIT_REPORT_*.md
-CHANGE_MANIFEST*.md
-COMPREHENSIVE_AUDIT_ARCHIVE*.md
-todo.md
-ideas.md
-patch_*.py
+.manus-logs/

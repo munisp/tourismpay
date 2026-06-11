@@ -15,7 +15,6 @@
  */
 
 import { z } from "zod";
-import crypto from "crypto";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import {
@@ -43,14 +42,14 @@ import { invokeLLM } from "../_core/llm";
 import { sendPushToUser } from "../_core/webPush";
 import Stripe from "stripe";
 
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" as any })
-  : null;
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
+  apiVersion: "2024-06-20" as any,
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function randomCode(len = 8) {
-  return crypto.randomUUID().replace(/-/g, "").substring(0, len).toUpperCase();
+  return Math.random().toString(36).substring(2, 2 + len).toUpperCase();
 }
 
 async function requireDb() {
@@ -172,7 +171,6 @@ export const touristPortalRouter = router({
         })
         .returning();
 
-      if (!stripe) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stripe not configured — set STRIPE_SECRET_KEY" });
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         customer_email: ctx.user.email ?? undefined,
@@ -1159,7 +1157,7 @@ Current date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
       // Generate a cryptographically random token
       const token = [
         ctx.user.id.toString().padStart(8, "0"),
-        crypto.randomUUID().replace(/-/g, "").substring(0, 8).toUpperCase(),
+        Math.random().toString(36).substring(2, 10).toUpperCase(),
         Date.now().toString(36).toUpperCase(),
       ].join("-");
       const expiresAt = Date.now() + 30 * 60 * 1000; // 30 minutes

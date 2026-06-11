@@ -1,5 +1,4 @@
 import { z } from "zod";
-import crypto from "crypto";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
 import {
@@ -16,7 +15,6 @@ import {
 import { notifyOwner } from "../_core/notification";
 import { storagePut } from "../storage";
 import { createAuditLog } from "../db";
-import { logger } from "../_core/logger";
 
 // Allowed MIME types for KYB document uploads
 const ALLOWED_MIME_TYPES = [
@@ -34,7 +32,7 @@ const ALLOWED_MIME_TYPES = [
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
 function randomSuffix(): string {
-  return crypto.randomUUID().replace(/-/g, "").substring(0, 8);
+  return Math.random().toString(36).substring(2, 10);
 }
 
 export const kybDocumentsRouter = router({
@@ -188,7 +186,7 @@ export const kybDocumentsRouter = router({
       await notifyOwner({
         title: `KYB Document ${action}`,
         content: `Document #${doc.id} (${doc.documentType.replace(/_/g, " ")}) has been ${action.toLowerCase()} by admin ${ctx.user.name ?? ctx.user.email ?? "Unknown"}.${input.reviewNotes ? `\n\nReview Notes: ${input.reviewNotes}` : ""}`,
-      }).catch((err) => { logger.warn("KYB document review notification failed", { error: String(err) }); });
+      }).catch(() => {});
 
       // Write audit log
       await createAuditLog({
@@ -201,7 +199,7 @@ export const kybDocumentsRouter = router({
         description: `Document "${doc.documentType.replace(/_/g, " ")}" (${doc.fileName}) ${action.toLowerCase()} by ${ctx.user.name ?? ctx.user.email ?? "admin"}.${input.reviewNotes ? ` Notes: ${input.reviewNotes}` : ""}`,
         before: { status: "pending" },
         after: { status: input.status, reviewNotes: input.reviewNotes },
-      }).catch((err) => { logger.warn("KYB document audit log failed", { error: String(err), docId: doc.id }); });
+      }).catch(() => {});
 
       return doc;
     }),
@@ -280,7 +278,7 @@ export const kybDocumentsRouter = router({
       await notifyOwner({
         title: `KYB Documents Bulk ${action.charAt(0).toUpperCase() + action.slice(1)}`,
         content: `Admin ${ctx.user.name ?? ctx.user.email ?? "Unknown"} has ${action} ${updated.length} KYB document(s).${input.reviewNotes ? `\n\nNotes: ${input.reviewNotes}` : ""}`,
-      }).catch((err) => { logger.warn("KYB bulk review notification failed", { error: String(err) }); });
+      }).catch(() => {});
 
       // Write audit log for bulk action
       await createAuditLog({
@@ -293,7 +291,7 @@ export const kybDocumentsRouter = router({
         description: `Bulk ${action}: ${updated.length} document(s) by ${ctx.user.name ?? ctx.user.email ?? "admin"}.${input.reviewNotes ? ` Notes: ${input.reviewNotes}` : ""}`,
         before: { status: "pending", count: input.documentIds.length },
         after: { status: input.status, count: updated.length },
-      }).catch((err) => { logger.warn("KYB bulk audit log failed", { error: String(err) }); });
+      }).catch(() => {});
 
       return { updated: updated.length, status: input.status };
     }),

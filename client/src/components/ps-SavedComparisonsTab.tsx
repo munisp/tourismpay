@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { logger } from "@/lib/logger";
 import { useState, useMemo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -174,7 +173,7 @@ export function SavedComparisonsTab({ credentialId }: SavedComparisonsTabProps) 
         img.src = url;
       });
     } catch (err) {
-      logger.error('Failed to convert QR code:', err);
+      console.error('Failed to convert QR code:', err);
       return null;
     }
   };
@@ -200,12 +199,12 @@ export function SavedComparisonsTab({ credentialId }: SavedComparisonsTabProps) 
           setTimeout(() => setQrCopied(false), 2000);
           toast.success("QR code copied to clipboard");
         } catch (err) {
-          logger.error('Failed to copy QR code:', err);
+          console.error('Failed to copy QR code:', err);
           toast.error("Failed to copy QR code");
         }
       }, 'image/png');
     } catch (err) {
-      logger.error('Failed to copy QR code:', err);
+      console.error('Failed to copy QR code:', err);
       toast.error("Failed to copy QR code");
     }
   };
@@ -234,7 +233,7 @@ export function SavedComparisonsTab({ credentialId }: SavedComparisonsTabProps) 
         toast.success("QR code downloaded successfully");
       }, 'image/png');
     } catch (err) {
-      logger.error('Failed to download QR code:', err);
+      console.error('Failed to download QR code:', err);
       toast.error("Failed to download QR code");
     }
   };

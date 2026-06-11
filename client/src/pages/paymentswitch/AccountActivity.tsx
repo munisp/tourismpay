@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { logger } from "@/lib/logger";
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -50,7 +49,7 @@ export default function AccountActivity() {
       }
     } catch (error) {
       toast.error('Failed to end session');
-      logger.error(error);
+      console.error(error);
     } finally {
       setSessionToEnd(null);
     }
@@ -69,7 +68,7 @@ export default function AccountActivity() {
       }
     } catch (error) {
       toast.error('Failed to end sessions');
-      logger.error(error);
+      console.error(error);
     } finally {
       setShowEndAllDialog(false);
     }

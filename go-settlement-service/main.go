@@ -4,41 +4,12 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tourismpay/settlement-service/internal/db"
 	"github.com/tourismpay/settlement-service/internal/handlers"
 	"github.com/tourismpay/settlement-service/internal/services"
 )
-
-func authMiddleware() gin.HandlerFunc {
-	internalKey := os.Getenv("INTERNAL_SERVICE_KEY")
-	return func(c *gin.Context) {
-		if c.Request.URL.Path == "/health" {
-			c.Next()
-			return
-		}
-		serviceKey := c.GetHeader("X-Service-Key")
-		if internalKey != "" && serviceKey == internalKey {
-			c.Next()
-			return
-		}
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authorization"})
-			c.Abort()
-			return
-		}
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization format"})
-			c.Abort()
-			return
-		}
-		c.Next()
-	}
-}
 
 func main() {
 	port := os.Getenv("PORT")
@@ -46,8 +17,9 @@ func main() {
 		port = "8081"
 	}
 
-	if err := db.Migrate(); err != nil {
-		log.Printf("[settlement] DB migration warning (non-fatal): %v", err)
+	tigerbeetleAddr := os.Getenv("TIGERBEETLE_ADDR")
+	if tigerbeetleAddr == "" {
+		tigerbeetleAddr = "127.0.0.1:3000"
 	}
 
 	ledgerService := services.NewTigerBeetleLedgerService(0)
@@ -64,7 +36,7 @@ func main() {
 	router.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Service-Key")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusOK)
 			return
@@ -72,21 +44,11 @@ func main() {
 		c.Next()
 	})
 
-	router.Use(authMiddleware())
-
 	router.GET("/health", func(c *gin.Context) {
-		dbConn, dbErr := db.GetDB()
-		dbStatus := "connected"
-		if dbErr != nil || dbConn == nil {
-			dbStatus = "unavailable"
-		} else if dbConn.Ping() != nil {
-			dbStatus = "unreachable"
-		}
 		c.JSON(http.StatusOK, gin.H{
 			"status":    "healthy",
 			"service":   "TourismPay Settlement Service (Go)",
 			"version":   "2.0.0",
-			"database":  dbStatus,
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
 		})
 	})
@@ -150,20 +112,30 @@ func main() {
 			reconciliation.GET("/reports/:report_id", h.GetReconciliationReport)
 		}
 
+		// Crypto and Stablecoin routes
 		crypto := api.Group("/crypto")
 		{
+			// Wallet management
 			crypto.POST("/wallets", cryptoHandlers.CreateWallet)
 			crypto.GET("/wallets/:wallet_id", cryptoHandlers.GetWallet)
 			crypto.GET("/wallets/user/:user_id", cryptoHandlers.GetWalletByUser)
 			crypto.GET("/wallets/:wallet_id/address/:coin", cryptoHandlers.GetDepositAddress)
 			crypto.GET("/wallets/:wallet_id/transactions", cryptoHandlers.GetTransactions)
+
+			// Deposits and withdrawals
 			crypto.POST("/deposit", cryptoHandlers.SimulateDeposit)
 			crypto.POST("/withdraw", cryptoHandlers.Withdraw)
+
+			// Swaps and exchange
 			crypto.GET("/rates", cryptoHandlers.GetAllExchangeRates)
 			crypto.GET("/rate", cryptoHandlers.GetExchangeRate)
 			crypto.POST("/swap", cryptoHandlers.Swap)
+
+			// Payments
 			crypto.POST("/quote", cryptoHandlers.GetPaymentQuote)
 			crypto.POST("/pay", cryptoHandlers.PayWithCrypto)
+
+			// Info
 			crypto.GET("/coins", cryptoHandlers.GetSupportedCoins)
 			crypto.GET("/status", cryptoHandlers.GetCryptoStatus)
 		}

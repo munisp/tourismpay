@@ -18,36 +18,10 @@ import { getDb } from "../db";
 import { biometricEnrollments, pinLockoutHistory } from "../../drizzle/schema";
 import { eq, and, lt, desc } from "drizzle-orm";
 import { createAuditLog, createUserNotification } from "../db";
-import { cacheGet, cacheSet } from "../middleware/redisClient";
-import { logger } from "../_core/logger";
 
-// PIN lockout tracking — persisted to Redis with in-memory fallback
+// Module-level map for PIN lockout tracking (in-memory cache, backed by DB for tier persistence)
 // key: userId, value: { failedAttempts, lockedUntil }
-const _pinLockoutFallback = new Map<string, { failedAttempts: number; lockedUntil: number }>();
-
-async function getPinLockout(userId: string): Promise<{ failedAttempts: number; lockedUntil: number } | undefined> {
-  try {
-    const cached = await cacheGet(`pinlockout:${userId}`);
-    if (cached) return JSON.parse(cached);
-  } catch { /* fallback */ }
-  return _pinLockoutFallback.get(userId);
-}
-
-async function setPinLockout(userId: string, data: { failedAttempts: number; lockedUntil: number }): Promise<void> {
-  _pinLockoutFallback.set(userId, data);
-  const ttl = Math.max(Math.ceil((data.lockedUntil - Date.now()) / 1000), 3600);
-  try {
-    await cacheSet(`pinlockout:${userId}`, JSON.stringify(data), ttl);
-  } catch { /* in-memory fallback already set */ }
-}
-
-async function deletePinLockout(userId: string): Promise<void> {
-  _pinLockoutFallback.delete(userId);
-  try {
-    const { cacheDel } = await import("../middleware/redisClient");
-    await cacheDel(`pinlockout:${userId}`);
-  } catch { /* ignore */ }
-}
+const _pinLockout = new Map<string, { failedAttempts: number; lockedUntil: number }>();
 const PIN_MAX_ATTEMPTS = 5;
 // Exponential backoff tiers: tier 0 = 15 min, tier 1 = 1 hr, tier 2+ = 24 hr
 const PIN_LOCKOUT_TIERS_MS = [
@@ -66,40 +40,14 @@ function getPinLockoutLabel(tier: number): string {
   return "24 hours";
 }
 
-// High-value transaction tokens — persisted to Redis with in-memory fallback
-const _highValueTokensFallback = new Map<string, {
+// Module-level map for high-value transaction tokens (resets on server restart)
+// key: token UUID, value: { userId, amount, currency, expiresAt }
+export const _highValueTokens = new Map<string, {
   userId: string;
   amount: number;
   currency: string;
   expiresAt: number;
 }>();
-
-async function getHighValueToken(token: string): Promise<{ userId: string; amount: number; currency: string; expiresAt: number } | undefined> {
-  try {
-    const cached = await cacheGet(`hvtoken:${token}`);
-    if (cached) return JSON.parse(cached);
-  } catch { /* fallback */ }
-  return _highValueTokensFallback.get(token);
-}
-
-async function setHighValueToken(token: string, data: { userId: string; amount: number; currency: string; expiresAt: number }): Promise<void> {
-  _highValueTokensFallback.set(token, data);
-  const ttl = Math.max(Math.ceil((data.expiresAt - Date.now()) / 1000), 60);
-  try {
-    await cacheSet(`hvtoken:${token}`, JSON.stringify(data), ttl);
-  } catch { /* in-memory fallback already set */ }
-}
-
-async function deleteHighValueToken(token: string): Promise<void> {
-  _highValueTokensFallback.delete(token);
-  try {
-    const { cacheDel } = await import("../middleware/redisClient");
-    await cacheDel(`hvtoken:${token}`);
-  } catch { /* ignore */ }
-}
-
-// Exported for test compatibility
-export const _highValueTokens = _highValueTokensFallback;
 
 export const biometricRouter = router({
   // List all enrollments for the current user
@@ -494,7 +442,7 @@ export const biometricRouter = router({
       // Check PIN lockout (exponential backoff: tier 0=15min, tier 1=1hr, tier 2+=24hr)
       const lockoutKey = String(ctx.user.id);
       // Check in-memory cache first for speed
-      const lockoutEntry = await getPinLockout(lockoutKey);
+      const lockoutEntry = _pinLockout.get(lockoutKey);
       if (lockoutEntry && lockoutEntry.lockedUntil > Date.now()) {
         const remainingMs = lockoutEntry.lockedUntil - Date.now();
         const remainingMin = Math.ceil(remainingMs / 60_000);
@@ -514,7 +462,7 @@ export const biometricRouter = router({
       }
       if (enrollment.credentialId !== pinHash) {
         // Track failed attempt
-        const current = (await getPinLockout(lockoutKey)) ?? { failedAttempts: 0, lockedUntil: 0 };
+        const current = _pinLockout.get(lockoutKey) ?? { failedAttempts: 0, lockedUntil: 0 };
         const newAttempts = current.failedAttempts + 1;
         if (newAttempts >= PIN_MAX_ATTEMPTS) {
           // Determine next tier from DB (count unresolved lockout records)
@@ -526,7 +474,7 @@ export const biometricRouter = router({
           const lockoutMs = getPinLockoutMs(nextTier);
           const lockedUntil = Date.now() + lockoutMs;
           const unlocksAtSec = Math.floor(lockedUntil / 1000);
-          await setPinLockout(lockoutKey, { failedAttempts: newAttempts, lockedUntil });
+          _pinLockout.set(lockoutKey, { failedAttempts: newAttempts, lockedUntil });
           // Persist lockout event to DB for tier tracking across server restarts
           db.insert(pinLockoutHistory).values({
             id: crypto.randomUUID(),
@@ -555,7 +503,7 @@ export const biometricRouter = router({
             message: `PIN locked for ${tierLabel} after ${PIN_MAX_ATTEMPTS} failed attempts (Tier ${nextTier + 1}). A notification has been sent.`,
           });
         } else {
-          await setPinLockout(lockoutKey, { failedAttempts: newAttempts, lockedUntil: 0 });
+          _pinLockout.set(lockoutKey, { failedAttempts: newAttempts, lockedUntil: 0 });
           const attemptsLeft = PIN_MAX_ATTEMPTS - newAttempts;
           // Log failed attempt to audit trail (fire-and-forget)
           createAuditLog({
@@ -573,7 +521,7 @@ export const biometricRouter = router({
         }
       }
       // Successful — reset lockout counter
-      await deletePinLockout(lockoutKey);
+      _pinLockout.delete(lockoutKey);
       // Issue a one-time high-value token (same mechanism as biometric)
       const token = crypto.randomUUID();
       const expiresAt = Date.now() + 60_000;
@@ -677,7 +625,7 @@ export const biometricRouter = router({
   // ── getPinLockoutStatus ────────────────────────────────────────────────────
   getPinLockoutStatus: protectedProcedure.query(async ({ ctx }) => {
     const lockoutKey = String(ctx.user.id);
-    const entry = await getPinLockout(lockoutKey);
+    const entry = _pinLockout.get(lockoutKey);
     // Fetch lockout history from DB for tier information
     const db = await getDb();
     const history = db ? await db

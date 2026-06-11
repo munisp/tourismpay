@@ -1,5 +1,4 @@
 // @ts-nocheck
-import { logger } from "@/lib/logger";
 import { useState, useEffect } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,7 +52,7 @@ export default function NotificationSettings() {
       }
     } catch (error) {
       toast.error('Failed to save preferences');
-      logger.error(error);
+      console.error(error);
     }
   };
 
@@ -74,7 +73,7 @@ export default function NotificationSettings() {
       }
     } catch (error) {
       toast.error('Failed to reset preferences');
-      logger.error(error);
+      console.error(error);
     }
   };
 

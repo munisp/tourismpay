@@ -1,5 +1,4 @@
 import { z } from "zod";
-import crypto from "crypto";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { merchantProducts, establishments, serviceAvailability } from "../../drizzle/schema";
@@ -178,7 +177,7 @@ export const merchantProductsRouter = router({
       }
 
       const ext = input.mimeType.split("/")[1] ?? "jpg";
-      const suffix = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+      const suffix = Math.random().toString(36).slice(2, 10);
       const fileKey = `merchant-products/${input.establishmentId}/${Date.now()}-${suffix}.${ext}`;
 
       const buffer = Buffer.from(input.base64Data, "base64");

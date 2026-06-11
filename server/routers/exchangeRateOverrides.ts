@@ -10,7 +10,6 @@ import { eq, and, desc } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { exchangeRateOverrides } from "../../drizzle/schema";
-import { onExchangeRateUpdated } from "../middleware/lakehouseBridge";
 
 const SUPPORTED_CURRENCIES = [
   "USD", "EUR", "GBP", "NGN", "KES", "ZAR", "GHS", "TZS", "EGP",
@@ -132,7 +131,6 @@ export const exchangeRateOverridesRouter = router({
         })
         .returning();
 
-      onExchangeRateUpdated(`${base}/${target}`, input.rate);
       return { id: row.id, rate: parseFloat(row.rate), expiresAt };
     }),
 

@@ -1,9 +1,0 @@
-{
-  "model_class": "FXTransformerForecaster",
-  "n_features": 11,
-  "d_model": 64,
-  "forecast_horizon": 24,
-  "metrics": {
-    "best_val_loss": -0.5424804802124317
-  }
-}

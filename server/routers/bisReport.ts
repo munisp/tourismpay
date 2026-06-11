@@ -1,5 +1,4 @@
 import { z } from "zod";
-import crypto from "crypto";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
 import {
@@ -13,7 +12,7 @@ import { invokeLLM } from "../_core/llm";
 import { notifyOwner } from "../_core/notification";
 
 function randomSuffix(): string {
-  return crypto.randomUUID().replace(/-/g, "").substring(0, 8);
+  return Math.random().toString(36).substring(2, 10);
 }
 
 // ─── LLM Summary Generation ───────────────────────────────────────────────────

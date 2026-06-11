@@ -36,7 +36,7 @@ export default function BiometricAuth() {
   });
 
   const handleEnroll = () => {
-    const cid = `cred-${Date.now().toString(36)}-${Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b => b.toString(36)).join("").slice(0, 6)}`;
+    const cid = `cred-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const pk = `MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE${btoa(cid).slice(0, 40)}`;
     const dn = navigator.userAgent.includes("Mobile") ? "Mobile Device" : "Desktop Browser";
     enrollMutation.mutate({ credentialId: cid, publicKey: pk, deviceName: dn, aaguid: "00000000-0000-0000-0000-000000000000" });

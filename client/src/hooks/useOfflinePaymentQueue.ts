@@ -9,7 +9,6 @@
  * Usage:
  *   const { queuePayment, pendingCount, isOnline, retryAll } = useOfflinePaymentQueue();
  */
-import { logger } from "@/lib/logger";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -96,7 +95,7 @@ export function useOfflinePaymentQueue() {
   useEffect(() => {
     getAllQueued()
       .then(setQueue)
-      .catch((err) => logger.warn("[OfflineQueue] Could not load queue:", err));
+      .catch((err) => console.warn("[OfflineQueue] Could not load queue:", err));
   }, []);
 
   // Track online/offline status

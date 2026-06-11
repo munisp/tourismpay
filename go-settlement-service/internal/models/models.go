@@ -139,27 +139,39 @@ type InventoryReservation struct {
 }
 
 type SyncJob struct {
-	JobID       string     `json:"job_id"`
-	PartnerID   string     `json:"partner_id"`
-	Status      string     `json:"status"`
-	StartedAt   time.Time  `json:"started_at"`
-	CompletedAt *time.Time `json:"completed_at,omitempty"`
-	ItemsSynced int        `json:"items_synced"`
-	ErrorsCount int        `json:"errors_count"`
+	JobID       string    `json:"job_id"`
+	PartnerID   string    `json:"partner_id"`
+	Status      string    `json:"status"`
+	StartedAt   time.Time `json:"started_at"`
+	CompletedAt time.Time `json:"completed_at,omitempty"`
+	ItemsSynced int       `json:"items_synced"`
+	Errors      []string  `json:"errors"`
 }
 
+type SettlementStatus string
+
+const (
+	SettlementPending            SettlementStatus = "PENDING"
+	SettlementProcessing         SettlementStatus = "PROCESSING"
+	SettlementCompleted          SettlementStatus = "COMPLETED"
+	SettlementFailed             SettlementStatus = "FAILED"
+	SettlementPartiallyCompleted SettlementStatus = "PARTIALLY_COMPLETED"
+)
+
 type SettlementBatch struct {
-	BatchID        string     `json:"batch_id"`
-	ProviderID     string     `json:"provider_id"`
-	SettlementDate string     `json:"settlement_date"`
-	TotalAmount    float64    `json:"total_amount"`
-	SettlementFee  float64    `json:"settlement_fee"`
-	NetAmount      float64    `json:"net_amount"`
-	Currency       string     `json:"currency"`
-	Status         string     `json:"status"`
-	Transactions   []string   `json:"transactions"`
-	CreatedAt      time.Time  `json:"created_at"`
-	ProcessedAt    *time.Time `json:"processed_at,omitempty"`
+	BatchID            string           `json:"batch_id"`
+	SettlementDate     string           `json:"settlement_date"`
+	Status             SettlementStatus `json:"status"`
+	ProviderID         string           `json:"provider_id"`
+	TotalAmount        float64          `json:"total_amount"`
+	Currency           string           `json:"currency"`
+	TransactionCount   int              `json:"transaction_count"`
+	FeesDeducted       float64          `json:"fees_deducted"`
+	NetAmount          float64          `json:"net_amount"`
+	CreatedAt          time.Time        `json:"created_at"`
+	CompletedAt        *time.Time       `json:"completed_at,omitempty"`
+	Transactions       []string         `json:"transactions"`
+	MojaloopTransferID string           `json:"mojaloop_transfer_id,omitempty"`
 }
 
 type PendingSettlement struct {
@@ -168,34 +180,50 @@ type PendingSettlement struct {
 	Currency      string    `json:"currency"`
 	PlatformFee   float64   `json:"platform_fee"`
 	ProcessingFee float64   `json:"processing_fee"`
+	TransferIDs   []uint64  `json:"transfer_ids"`
 	RecordedAt    time.Time `json:"recorded_at"`
 }
 
 type ReconciliationReport struct {
-	ReportID      string    `json:"report_id"`
-	ProviderID    string    `json:"provider_id"`
-	PeriodStart   time.Time `json:"period_start"`
-	PeriodEnd     time.Time `json:"period_end"`
-	TotalBookings float64   `json:"total_bookings"`
-	TotalSettled  float64   `json:"total_settled"`
-	Discrepancy   float64   `json:"discrepancy"`
-	Status        string    `json:"status"`
+	ReportID         string                   `json:"report_id"`
+	PeriodStart      time.Time                `json:"period_start"`
+	PeriodEnd        time.Time                `json:"period_end"`
+	TotalBookings    int                      `json:"total_bookings"`
+	TotalRevenue     float64                  `json:"total_revenue"`
+	TotalSettlements float64                  `json:"total_settlements"`
+	Discrepancies    []ReconciliationDiscrep  `json:"discrepancies"`
+	Status           string                   `json:"status"`
+	GeneratedAt      time.Time                `json:"generated_at"`
+}
+
+type ReconciliationDiscrep struct {
+	Type       string  `json:"type"`
+	Expected   float64 `json:"expected"`
+	Actual     float64 `json:"actual"`
+	Difference float64 `json:"difference"`
 }
 
 type SettlementWindow struct {
-	WindowID      string     `json:"window_id"`
-	State         string     `json:"state"`
-	OpenTime      time.Time  `json:"open_time"`
-	CloseTime     *time.Time `json:"close_time,omitempty"`
-	TotalValue    float64    `json:"total_value"`
-	TransferCount int        `json:"transfer_count"`
+	WindowID     string                       `json:"window_id"`
+	State        string                       `json:"state"`
+	CreatedAt    time.Time                    `json:"created_at"`
+	ClosedAt     *time.Time                   `json:"closed_at,omitempty"`
+	Participants map[string]ParticipantPosition `json:"participants"`
+	TotalTransfers int                        `json:"total_transfers"`
+	TotalAmount    float64                    `json:"total_amount"`
+	NetPositions   map[string]float64         `json:"net_positions,omitempty"`
+}
+
+type ParticipantPosition struct {
+	Debits  float64 `json:"debits"`
+	Credits float64 `json:"credits"`
 }
 
 type FeeStructure struct {
-	PlatformFeePercent       float64 `json:"platform_fee_percent"`
+	PlatformFeePercent     float64 `json:"platform_fee_percent"`
 	PaymentProcessingPercent float64 `json:"payment_processing_percent"`
-	SettlementFeeFixed       float64 `json:"settlement_fee_fixed"`
-	MinimumSettlement        float64 `json:"minimum_settlement"`
+	SettlementFeeFixed     float64 `json:"settlement_fee_fixed"`
+	MinimumSettlement      float64 `json:"minimum_settlement"`
 }
 
 type ProviderAccount struct {

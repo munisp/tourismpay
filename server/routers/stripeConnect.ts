@@ -19,11 +19,6 @@ import { stripe } from "../_core/stripe";
 import { TRPCError } from "@trpc/server";
 import { createAuditLog, createUserNotification } from "../db";
 
-function requireStripe() {
-  if (!stripe) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stripe is not configured — set STRIPE_SECRET_KEY" });
-  return stripe;
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 async function requireEstablishment(establishmentId: number, userId: number, isAdmin: boolean) {
   const db = await getDb();
@@ -53,7 +48,7 @@ export const stripeConnectRouter = router({
       // If we have an account, refresh status from Stripe
       if (est.stripeAccountId) {
         try {
-          const account = await requireStripe().accounts.retrieve(est.stripeAccountId);
+          const account = await stripe.accounts.retrieve(est.stripeAccountId);
           const db = await getDb();
           if (db) {
             await db
@@ -117,7 +112,7 @@ export const stripeConnectRouter = router({
       let accountId = est.stripeAccountId;
       // Create account if not yet created
       if (!accountId) {
-        const account = await requireStripe().accounts.create({
+        const account = await stripe.accounts.create({
           type: "express",
           country: est.country ?? "US",
           email: est.contactEmail ?? ctx.user.email ?? undefined,
@@ -143,7 +138,7 @@ export const stripeConnectRouter = router({
         await createAuditLog({ actorId: ctx.user.id, action: "stripe_connect.account_created", entityType: "establishment", entityId: String(input.establishmentId), after: { stripeAccountId: accountId } });
       }
       // Create account link
-      const accountLink = await requireStripe().accountLinks.create({
+      const accountLink = await stripe.accountLinks.create({
         account: accountId,
         refresh_url: `${input.origin}/merchant/stripe-connect?stripe_connect=refresh&est=${input.establishmentId}`,
         return_url: `${input.origin}/merchant/stripe-connect?stripe_connect=return&est=${input.establishmentId}`,
@@ -164,7 +159,7 @@ export const stripeConnectRouter = router({
       if (!est.stripeAccountId) {
         return { success: false, message: "No Stripe account found" };
       }
-      const account = await requireStripe().accounts.retrieve(est.stripeAccountId);
+      const account = await stripe.accounts.retrieve(est.stripeAccountId);
       const newStatus = account.payouts_enabled
         ? "active"
         : account.details_submitted
@@ -210,7 +205,7 @@ export const stripeConnectRouter = router({
       if (!est.stripeAccountId || !est.stripePayoutsEnabled) {
         return { available: [], pending: [], currency: "usd" };
       }
-      const balance = await requireStripe().balance.retrieve({
+      const balance = await stripe.balance.retrieve({
         stripeAccount: est.stripeAccountId,
       });
       return {
@@ -241,7 +236,7 @@ export const stripeConnectRouter = router({
         ctx.user.role === "admin"
       );
       if (!est.stripeAccountId) return { payouts: [] };
-      const payouts = await requireStripe().payouts.list(
+      const payouts = await stripe.payouts.list(
         { limit: input.limit },
         { stripeAccount: est.stripeAccountId }
       );
@@ -283,14 +278,14 @@ export const stripeConnectRouter = router({
       if (input.amount) {
         payoutAmount = Math.round(input.amount * 100);
       } else {
-        const balance = await requireStripe().balance.retrieve({ stripeAccount: est.stripeAccountId });
+        const balance = await stripe.balance.retrieve({ stripeAccount: est.stripeAccountId });
         const avail = balance.available.find((b) => b.currency === input.currency.toLowerCase());
         payoutAmount = avail?.amount ?? 0;
         if (payoutAmount <= 0) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "No available balance to payout" });
         }
       }
-      const payout = await requireStripe().payouts.create(
+      const payout = await stripe.payouts.create(
         { currency: input.currency.toLowerCase(), method: "standard", amount: payoutAmount },
         { stripeAccount: est.stripeAccountId }
       );
@@ -326,7 +321,7 @@ export const stripeConnectRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const session = await requireStripe().checkout.sessions.create({
+      const session = await stripe.checkout.sessions.create({
         mode: "payment",
         payment_method_types: ["card"],
         line_items: [

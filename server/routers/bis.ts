@@ -126,27 +126,8 @@ const DEFAULT_SLA_HOURS: Record<string, number> = {
   high: 24,
   critical: 8,
 };
-// SLA config persisted to Redis with in-memory fallback
+// In-memory SLA config (persisted per-process; for production use a DB table)
 let slaConfig: Record<string, number> = { ...DEFAULT_SLA_HOURS };
-const REDIS_SLA_KEY = "bis:sla_config";
-
-async function loadSlaConfig(): Promise<void> {
-  try {
-    const { cacheGet } = await import("../middleware/redisClient");
-    const cached = await cacheGet(REDIS_SLA_KEY);
-    if (cached) slaConfig = { ...DEFAULT_SLA_HOURS, ...JSON.parse(cached) };
-  } catch { /* use defaults */ }
-}
-
-async function persistSlaConfig(): Promise<void> {
-  try {
-    const { cacheSet } = await import("../middleware/redisClient");
-    await cacheSet(REDIS_SLA_KEY, JSON.stringify(slaConfig), 0);
-  } catch { /* in-memory only */ }
-}
-
-// Load on module init
-loadSlaConfig().catch(() => {});
 
 
 
@@ -1746,7 +1727,6 @@ export const bisRouter = router({
 
       // Create Stripe Checkout session for the bundled payment
       const { stripe } = await import("../_core/stripe");
-      if (!stripe) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Stripe not configured — set STRIPE_SECRET_KEY" });
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         payment_method_types: ["card"],
