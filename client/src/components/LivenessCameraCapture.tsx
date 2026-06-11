@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
+import { secureRandom } from "@/lib/secureRandom";
   Camera,
   CheckCircle,
   XCircle,
@@ -504,7 +505,7 @@ export default function LivenessCameraCapture({
   // ── Active Liveness ───────────────────────────────────────────────────────
 
   const startActiveLiveness = useCallback(() => {
-    const shuffled = [...CHALLENGE_POOL].sort(() => Math.random() - 0.5);
+    const shuffled = [...CHALLENGE_POOL].sort(() => secureRandom() - 0.5);
     const selected = shuffled.slice(0, challengeCount).map(c => ({ ...c }));
     setChallenges(selected);
     setCurrentChallengeIdx(0);

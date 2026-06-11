@@ -11,6 +11,7 @@
  */
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+import { secureRandom } from "@/lib/secureRandom";
 export interface ReceiptData {
   ref: string;
   type: string;
@@ -249,7 +250,7 @@ export const nfc = {
             const record = event.message.records[0];
             resolve({
               success: true,
-              cardNumber: `**** **** **** ${Math.floor(Math.random() * 9000 + 1000)}`,
+              cardNumber: `**** **** **** ${Math.floor(secureRandom() * 9000 + 1000)}`,
               cardType: "Verve",
             });
           };
@@ -272,8 +273,8 @@ export const nfc = {
     const cardTypes = ["Verve", "Mastercard", "Visa"];
     return {
       success: true,
-      cardNumber: `**** **** **** ${Math.floor(Math.random() * 9000 + 1000)}`,
-      cardType: cardTypes[Math.floor(Math.random() * cardTypes.length)],
+      cardNumber: `**** **** **** ${Math.floor(secureRandom() * 9000 + 1000)}`,
+      cardType: cardTypes[Math.floor(secureRandom() * cardTypes.length)],
     };
   },
 };
@@ -287,12 +288,12 @@ export const emv = {
   async readCard(): Promise<CardResult> {
     await new Promise(r => setTimeout(r, 1500));
     const cardTypes = ["Verve", "Mastercard", "Visa"];
-    const year = new Date().getFullYear() + Math.floor(Math.random() * 4 + 1);
+    const year = new Date().getFullYear() + Math.floor(secureRandom() * 4 + 1);
     return {
       success: true,
-      maskedPan: `**** **** **** ${Math.floor(Math.random() * 9000 + 1000)}`,
-      cardType: cardTypes[Math.floor(Math.random() * cardTypes.length)],
-      expiryMonth: String(Math.floor(Math.random() * 12 + 1)).padStart(2, "0"),
+      maskedPan: `**** **** **** ${Math.floor(secureRandom() * 9000 + 1000)}`,
+      cardType: cardTypes[Math.floor(secureRandom() * cardTypes.length)],
+      expiryMonth: String(Math.floor(secureRandom() * 12 + 1)).padStart(2, "0"),
       expiryYear: String(year).slice(-2),
     };
   },

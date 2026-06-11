@@ -13,6 +13,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { usePosStore } from "../store/posStore";
 import { trpc } from "../lib/trpc";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 export function useOfflineSync() {
   const { isOnline, offlineQueue, dequeueOfflineTx } = usePosStore();
@@ -29,7 +30,7 @@ export function useOfflineSync() {
   // ── Sync Zustand in-memory queue ──────────────────────────────────────────
   const syncZustandQueue = useCallback(async () => {
     if (!isOnline || offlineQueue.length === 0) return;
-    console.log(
+    logger.log(
       `[OfflineSync] Syncing ${offlineQueue.length} in-memory queued transactions...`
     );
 
@@ -49,7 +50,7 @@ export function useOfflineSync() {
           `Offline transaction synced: ₦${tx.amount.toLocaleString()} ${tx.type}`
         );
       } catch (err) {
-        console.error(`[OfflineSync] Failed to sync ${tx.id}:`, err);
+        logger.error(`[OfflineSync] Failed to sync ${tx.id}:`, err);
       }
     }
   }, [isOnline, offlineQueue, createTx, dequeueOfflineTx]);
@@ -96,7 +97,7 @@ export function useOfflineSync() {
         } catch (createErr) {
           // Dead-letter guarantee: re-enqueue via typed tRPC mutation so the item is not lost
           failed++;
-          console.error(
+          logger.error(
             `[OfflineSync] createTx failed for rustQueueId=${item.id}, re-enqueueing:`,
             createErr
           );
@@ -108,11 +109,11 @@ export function useOfflineSync() {
               customerPhone: item.customer_phone ?? "",
               channel: item.channel ?? "Offline",
             });
-            console.log(
+            logger.log(
               `[OfflineSync] Re-enqueued ${item.id} to Rust queue after createTx failure`
             );
           } catch (requeueErr) {
-            console.error(
+            logger.error(
               `[OfflineSync] Re-enqueue also failed for ${item.id}:`,
               requeueErr
             );
@@ -185,7 +186,7 @@ export function useOfflineSync() {
 
     if (wasOfflinePrev && isNowOnline) {
       // POS-level reconnect detected — drain both queues
-      console.log(
+      logger.log(
         "[OfflineSync] POS probe reconnect detected — triggering auto-sync"
       );
       toast.info("POS reconnected — syncing queued transactions…");

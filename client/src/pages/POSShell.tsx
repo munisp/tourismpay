@@ -16,6 +16,8 @@ import LoyaltySystem from "./LoyaltySystem";
 import FraudDashboard from "./FraudDashboard";
 import { toast } from "sonner";
 import {
+import { secureRandom } from "@/lib/secureRandom";
+import { logger } from "@/lib/logger";
   AreaChart,
   Area,
   BarChart,
@@ -1554,7 +1556,7 @@ function TileComponent({
       setWobble(false);
       return;
     }
-    const delay = Math.random() * 300;
+    const delay = secureRandom() * 300;
     const t = setTimeout(() => setWobble(true), delay);
     return () => clearTimeout(t);
   }, [editMode]);
@@ -4434,7 +4436,7 @@ function pickChallenges(count: number): Array<{
   instruction: string;
   completed: boolean;
 }> {
-  const shuffled = [...KYC_CHALLENGE_POOL].sort(() => Math.random() - 0.5);
+  const shuffled = [...KYC_CHALLENGE_POOL].sort(() => secureRandom() - 0.5);
   return shuffled
     .slice(0, Math.min(count, shuffled.length))
     .map(c => ({ ...c, completed: false }));
@@ -5503,7 +5505,7 @@ function OpenAccountScreen({ onBack }: { onBack: () => void }) {
   // Stable account number generated once on mount (not on every render)
   const [acctNo] = useState(
     () =>
-      `20${Math.floor(Math.random() * 100000000)
+      `20${Math.floor(secureRandom() * 100000000)
         .toString()
         .padStart(8, "0")}`
   );
@@ -11914,7 +11916,7 @@ export default function POSShell() {
     const screen = screenMap[activeScreen];
     if (!screen) {
       // All screens are implemented — this branch only fires if a tile ID is misconfigured
-      console.warn(`[POSShell] No screen mapped for: ${activeScreen}`);
+      logger.warn(`[POSShell] No screen mapped for: ${activeScreen}`);
       setActiveScreen(null);
       return null;
     }

@@ -14,6 +14,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { MQTTBridgeTab } from "./MQTTBridgeTab";
+import { secureRandom } from "@/lib/secureRandom";
 
 // ── Design tokens (match AdminPanel) ─────────────────────────────────────────
 const BG = "#0a0e1a";
@@ -268,8 +269,8 @@ export function FluvioStreamTab() {
           topic: topicId,
           key: `test-${Date.now()}`,
           value: JSON.stringify({
-            ref: `TEST-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-            amount: Math.floor(Math.random() * 50000) + 1000,
+            ref: `TEST-${secureRandom().toString(36).slice(2, 8).toUpperCase()}`,
+            amount: Math.floor(secureRandom() * 50000) + 1000,
             type: "Test",
             timestamp: new Date().toISOString(),
             source: "admin-dashboard",
