@@ -76,6 +76,7 @@
 
 /// <reference types="@types/google.maps" />
 
+import { logger } from "@/lib/logger";
 import { useEffect, useRef } from "react";
 import { usePersistFn } from "@/hooks/usePersistFn";
 import { cn } from "@/lib/utils";
@@ -103,7 +104,7 @@ function loadMapScript() {
       script.remove(); // Clean up immediately
     };
     script.onerror = () => {
-      console.error("Failed to load Google Maps script");
+      logger.error("Failed to load Google Maps script");
     };
     document.head.appendChild(script);
   });
@@ -128,7 +129,7 @@ export function MapView({
   const init = usePersistFn(async () => {
     await loadMapScript();
     if (!mapContainer.current) {
-      console.error("Map container not found");
+      logger.error("Map container not found");
       return;
     }
     map.current = new window.google.maps.Map(mapContainer.current, {

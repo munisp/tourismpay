@@ -7,6 +7,7 @@
  * Usage:
  *   const { isSupported, isSubscribed, isLoading, subscribe, unsubscribe } = usePushNotifications();
  */
+import { logger } from "@/lib/logger";
 import { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -129,7 +130,7 @@ export function usePushNotifications() {
         userAgent: navigator.userAgent.slice(0, 512),
       });
     } catch (err) {
-      console.error("Push subscribe error:", err);
+      logger.error("Push subscribe error:", err);
       toast.error("Could not enable push notifications.");
     } finally {
       setIsLoading(false);
@@ -149,7 +150,7 @@ export function usePushNotifications() {
         setIsSubscribed(false);
       }
     } catch (err) {
-      console.error("Push unsubscribe error:", err);
+      logger.error("Push unsubscribe error:", err);
       toast.error("Could not disable push notifications.");
     } finally {
       setIsLoading(false);

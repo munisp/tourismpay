@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { logger } from "@/lib/logger";
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -536,7 +537,7 @@ function CreateRemittance() {
   const createMutation = trpc.remittance.createRemittance.useMutation({
     onSuccess: (data) => {
       toast.success('Remittance created successfully!');
-      console.log('Remittance:', data);
+      logger.info('Remittance:', data);
     },
     onError: (error) => {
       toast.error(error.message);
@@ -905,7 +906,9 @@ function AgentCashDemo() {
   const [collectionCode, setCollectionCode] = useState('');
 
   const generateCode = () => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const codeBuf = new Uint32Array(1);
+    crypto.getRandomValues(codeBuf);
+    const code = (100000 + (codeBuf[0] % 900000)).toString();
     setCollectionCode(code);
     toast.success('Collection code generated! Valid for 72 hours.');
   };

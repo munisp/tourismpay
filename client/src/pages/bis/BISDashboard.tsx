@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { Link, useLocation } from "wouter";
 import {
   Shield, Search, CheckCircle, AlertCircle, TrendingUp, RefreshCw,
@@ -243,7 +244,7 @@ export default function BISDashboard() {
       }
     },
     onError: (err) => {
-      console.error("Report generation failed:", err);
+      logger.error("Report generation failed:", err);
     },
   });
 

@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { logger } from "@/lib/logger";
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
@@ -52,7 +53,7 @@ export default function TwoFactorVerify({
       toast.success('This device will be remembered for 30 days');
     },
     onError: (error) => {
-      console.error('Failed to trust device:', error);
+      logger.error('Failed to trust device:', error);
       // Don't show error to user as this is optional
     },
   });
