@@ -1,0 +1,99 @@
+# TourismPay — Full-Stack Development/Deployment
+# Usage: docker compose up -d
+# All services share a PostgreSQL instance.
+
+services:
+  # ─── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tourismpay_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-testpass123}
+      POSTGRES_DB: tourismpay
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tourismpay_user -d tourismpay"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── TypeScript Server (Express + tRPC + React PWA) ─────────────────────────
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      JWT_SECRET: ${JWT_SECRET:-tourismpay-test-jwt-secret-for-dev-32chars}
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
+      SETTLEMENT_SERVICE_URL: http://settlement:8081
+      EXCHANGE_RATE_ML_URL: http://python-ml:8004
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ─── Go Settlement Service ──────────────────────────────────────────────────
+  settlement:
+    build:
+      context: ./go-settlement-service
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: "8081"
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay_settlement
+      JWT_SECRET: ${JWT_SECRET:-tourismpay-test-jwt-secret-for-dev-32chars}
+      SETTLEMENT_API_KEY: ${SETTLEMENT_API_KEY:-test-settlement-api-key}
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  # ─── Python ML Services (all-in-one container) ─────────────────────────────
+  python-ml:
+    build:
+      context: ./python-services
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay_settlement
+      JWT_SECRET: ${JWT_SECRET:-tourismpay-test-jwt-secret-for-dev-32chars}
+      SERVICE_API_KEY: ${SERVICE_API_KEY:-test-key-123}
+    ports:
+      - "8001:8001"
+      - "8002:8002"
+      - "8003:8003"
+      - "8004:8004"
+      - "8005:8005"
+    command: ["bash", "-c", "./start-all.sh"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  pgdata:

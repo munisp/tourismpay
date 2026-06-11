@@ -841,7 +841,8 @@ Current date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
     };
 
     try {
-      const resp = await fetch("http://localhost:8004/fx/rates", {
+      const fxUrl = process.env.EXCHANGE_RATE_ML_URL || "http://localhost:8004";
+      const resp = await fetch(`${fxUrl}/fx/rates`, {
         signal: AbortSignal.timeout(2000),
       });
       if (resp.ok) {

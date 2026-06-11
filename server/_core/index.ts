@@ -85,6 +85,11 @@ async function startServer() {
   app.use("/api", apiLimiter);
   app.use("/trpc", apiLimiter);
 
+  // ─── Health endpoint (before body parsers — lightweight, no auth) ────────────
+  app.get("/health", (_req, res) => {
+    res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
+  });
+
   // ─── Body parsers ───────────────────────────────────────────────────────────
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -268,6 +273,22 @@ async function startServer() {
 
   server.listen(port, () => {
     logger.info(`Server running on http://localhost:${port}/`);
+
+    // ─── Graceful shutdown ────────────────────────────────────────────────────
+    const shutdown = (signal: string) => {
+      logger.info(`${signal} received — shutting down gracefully`);
+      server.close(() => {
+        logger.info("HTTP server closed");
+        process.exit(0);
+      });
+      setTimeout(() => {
+        logger.error("Graceful shutdown timed out — forcing exit");
+        process.exit(1);
+      }, 10_000);
+    };
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    process.on("SIGINT", () => shutdown("SIGINT"));
+
     // Start BIS investigation auto-advance background job
     startBisAutoAdvanceJob(60_000);
     // Start biometric enrollment expiry background job (runs every 6 hours)
