@@ -207,7 +207,7 @@ export async function runBisAutoAdvanceCycle(): Promise<{
 
                   // Send transactional email to merchant owner if their email is available
                   if (est.ownerEmail) {
-                    const actionUrl = `${process.env.VITE_OAUTH_PORTAL_URL ?? "https://tourismpay.manus.space"}/merchant/bis-status`;
+                    const actionUrl = `${process.env.VITE_OAUTH_PORTAL_URL ?? "https://tourismpay.com"}/merchant/bis-status`;
                     const htmlBody = buildBisEmailHtml({
                       merchantName: est.ownerName ?? "Merchant",
                       establishmentName: est.name ?? "your establishment",

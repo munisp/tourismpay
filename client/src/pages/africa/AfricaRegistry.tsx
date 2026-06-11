@@ -7,7 +7,7 @@ import StatCard from "@/components/shared/StatCard";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 
-const HERO_URL = "https://private-us-east-1.manuscdn.com/sessionFile/36BK9KyeX17TYTGEkutYJy/sandbox/BxJ4SO21A5gwKBhEpVJjtb-img-3_1771823761000_na1fn_a3liLW9uYm9hcmRpbmctaGVybw.png?x-oss-process=image/resize,w_1920,h_1920/format,webp/quality,q_80&Expires=1798761600&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9wcml2YXRlLXVzLWVhc3QtMS5tYW51c2Nkbi5jb20vc2Vzc2lvbkZpbGUvMzZCSzlLeWVYMTdUWVRHRWt1dFlKeS9zYW5kYm94L0J4SjRTTzIxQTVnd0tCaEVwVkpqdGItaW1nLTNfMTc3MTgyMzc2MTAwMF9uYTFmbl9hM2xpTFc5dVltOWhjbVJwYm1jdGFHVnlidy5wbmc~eC1vc3MtcHJvY2Vzcz1pbWFnZS9yZXNpemUsd18xOTIwLGhfMTkyMC9mb3JtYXQsd2VicC9xdWFsaXR5LHFfODAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3OTg3NjE2MDB9fX1dfQ__&Key-Pair-Id=K2HSFNDJXOU9YS&Signature=AkiOEUIEovOUOzXWQcj4VKY1eQfIO1GhQoRWO~LnVOflXZSHuEDxkUprVDn-a5ayJ697FakqCpUt~4Jav7T-xrurd1vqoBmlsP6jd2JclRwsh3mpU2rVqes-V3IKvwLd34bP8U5NMIH0wsba5vQvMs86SfRaXrFUPp4udBxrrj87xTZboXozJS2nqWc6BqmTErNJsjLmpbwD4L7IGCMIrOW6CMbLSmZ8yTJnlguE9imWqRpScO5k~-B96Sykaenezn5MUrz4LbQhQfIprp8MRaiqMvIcXjRcoH6klECkV09CKBwgvZLFoyxoAZReO15ocEduNKrqKX-rWB93a0alRQ__";
+const HERO_URL = "/icons/pwa-512.png";
 
 export default function AfricaRegistry() {
   const [search, setSearch] = useState("");

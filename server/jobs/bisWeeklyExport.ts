@@ -7,7 +7,7 @@
  *    matching the user's saved filters.
  * 3. Sends the export as an in-app notification to the user.
  * 4. If the scheduled user is the platform owner, also sends the full export
- *    text via the notifyOwner channel (owner email / Manus notification).
+ *    text via the notifyOwner channel (owner email / platform notification).
  * 5. Updates nextRunAt to the next scheduled run time.
  * 6. Updates lastRunAt to now.
  */
@@ -185,7 +185,7 @@ async function runCycle() {
 
       // ── 2. Email delivery via notifyOwner (owner users only) ─────────────────
       // The notifyOwner channel delivers to the platform owner's registered email
-      // via the Manus notification service. We only use this for the owner to avoid
+      // via the platform notification service. We only use this for the owner to avoid
       // sending unsolicited emails to regular users.
       const { isOwner, name: ownerName } = await isOwnerUser(schedule.userId);
       if (isOwner) {

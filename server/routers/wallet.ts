@@ -1768,7 +1768,7 @@ export const walletRouter = router({
       currency: z.enum(WALLET_CURRENCIES),
     }))
     .mutation(async ({ ctx, input }) => {
-      const origin = "https://tourismpay.manus.space";
+      const origin = process.env.VITE_APP_ORIGIN ?? "https://tourismpay.com";
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         customer_email: ctx.user.email || undefined,
