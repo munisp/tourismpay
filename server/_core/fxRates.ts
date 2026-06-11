@@ -1,3 +1,4 @@
+import { logger } from "./logger";
 /**
  * FX Rate Service — Live API with 3-tier fallback chain
  *
@@ -152,7 +153,7 @@ export async function getFxRate(from: string, to: string): Promise<{ rate: numbe
   }
 
   // Last resort: return 1 with a warning
-  console.warn(`[FX] No rate found for ${fromNorm}→${toNorm}, returning 1`);
+  logger.warn(`[FX] No rate found for ${fromNorm}→${toNorm}, returning 1`);
   return { rate: 1, source: "unknown" };
 }
 

@@ -10,6 +10,7 @@ import {
 import { storagePut } from "../storage";
 import { invokeLLM } from "../_core/llm";
 import { notifyOwner } from "../_core/notification";
+import { logger } from "../_core/logger";
 
 function randomSuffix(): string {
   return crypto.randomUUID().replace(/-/g, "").substring(0, 8);
@@ -72,7 +73,7 @@ Write a 3-5 paragraph executive summary covering company legitimacy, ownership t
     const content = result.choices[0]?.message?.content;
     return typeof content === "string" ? content : JSON.stringify(content);
   } catch (err) {
-    console.error("[BIS Report] Entity LLM summary generation failed:", err);
+    logger.error("[BIS Report] Entity LLM summary generation failed:", err);
     return `Entity Investigation Executive Summary\n\nThis report covers a ${String(inv.tier)} entity background investigation for ${String(inv.subjectFullName)} (Reference: ${String(inv.referenceId)}). The investigation yielded a risk score of ${String(inv.riskScore ?? 'N/A')}/100 with a ${String(inv.riskLevel ?? 'pending')} risk classification.\n\nEntity profile, directorship, regulatory compliance, and financial health analysis are presented in the sections below. Please refer to the module results for full details.`;
   }
 }
@@ -130,7 +131,7 @@ Write a 3-5 paragraph executive summary followed by a bullet-point recommendatio
     const content = result.choices[0]?.message?.content;
     return typeof content === "string" ? content : JSON.stringify(content);
   } catch (err) {
-    console.error("[BIS Report] LLM summary generation failed:", err);
+    logger.error("[BIS Report] LLM summary generation failed:", err);
     return `Executive Summary\n\nThis report covers a ${String(inv.tier)} background investigation for ${String(inv.subjectFullName)} (Reference: ${String(inv.referenceId)}). The investigation yielded a risk score of ${String(inv.riskScore ?? "N/A")}/100 with a ${String(inv.riskLevel ?? "pending")} risk classification.\n\nModule analysis and detailed findings are presented in the sections below. Please refer to the module results for full details.`;
   }
 }
@@ -572,7 +573,7 @@ export const bisReportRouter = router({
         const result = await storagePut(fileKey, htmlContent, "text/html");
         fileUrl = result.url;
       } catch (err) {
-        console.error("[BIS Report] S3 upload failed:", err);
+        logger.error("[BIS Report] S3 upload failed:", err);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to upload report to storage.",

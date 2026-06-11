@@ -11,6 +11,7 @@ import { ENV } from "./env";
 import { getDb } from "../db";
 import { pushSubscriptions } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { logger } from "./logger";
 
 // ─── VAPID setup ──────────────────────────────────────────────────────────────
 
@@ -19,7 +20,7 @@ let vapidConfigured = false;
 function ensureVapid() {
   if (vapidConfigured) return;
   if (!ENV.vapidPublicKey || !ENV.vapidPrivateKey) {
-    console.warn("[WebPush] VAPID keys not configured — push notifications disabled");
+    logger.warn("[WebPush] VAPID keys not configured — push notifications disabled");
     return;
   }
   webpush.setVapidDetails(ENV.vapidEmail, ENV.vapidPublicKey, ENV.vapidPrivateKey);
@@ -75,7 +76,7 @@ export async function sendPushNotification(
   } catch (err: any) {
     // 410 Gone = subscription expired/unsubscribed — clean up DB
     if (err?.statusCode === 410 || err?.statusCode === 404) {
-      console.log(`[WebPush] Subscription expired, removing: ${subscription.endpoint.slice(0, 60)}…`);
+      logger.info(`[WebPush] Subscription expired, removing: ${subscription.endpoint.slice(0, 60)}…`);
       const db = await getDb();
       if (db) {
         await db
@@ -83,7 +84,7 @@ export async function sendPushNotification(
           .where(eq(pushSubscriptions.endpoint, subscription.endpoint));
       }
     } else {
-      console.error("[WebPush] Send error:", err?.message ?? err);
+      logger.error("[WebPush] Send error:", err?.message ?? err);
     }
     return false;
   }

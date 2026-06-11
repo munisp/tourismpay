@@ -9,6 +9,7 @@ import { walletBalances, walletTransactions, walletRecurringPayments } from "../
 import { eq, and, lte } from "drizzle-orm";
 import { createAuditLog, createUserNotification } from "../db";
 import { notifyOwner } from "../_core/notification";
+import { logger } from "../_core/logger";
 
 function computeNextRun(frequency: string, fromMs: number): number {
   const d = new Date(fromMs);
@@ -21,7 +22,7 @@ function computeNextRun(frequency: string, fromMs: number): number {
 export async function runWalletRecurringPaymentsJob(): Promise<{ executed: number; failed: number }> {
   const db = await getDb();
   if (!db) {
-    console.warn("[RecurringPayments] DB unavailable, skipping job");
+    logger.warn("[RecurringPayments] DB unavailable, skipping job");
     return { executed: 0, failed: 0 };
   }
 
@@ -132,7 +133,7 @@ export async function runWalletRecurringPaymentsJob(): Promise<{ executed: numbe
 
       executed++;
     } catch (err) {
-      console.error(`[RecurringPayments] Failed to execute payment ${payment.id}:`, err);
+      logger.error(`[RecurringPayments] Failed to execute payment ${payment.id}:`, err);
       await db.update(walletRecurringPayments).set({
         status: "failed",
         failureReason: err instanceof Error ? err.message : "Unknown error",
@@ -143,7 +144,7 @@ export async function runWalletRecurringPaymentsJob(): Promise<{ executed: numbe
   }
 
   if (executed > 0 || failed > 0) {
-    console.log(`[RecurringPayments] Cycle — executed: ${executed}, failed: ${failed}`);
+    logger.info(`[RecurringPayments] Cycle — executed: ${executed}, failed: ${failed}`);
     if (failed > 0) {
       await notifyOwner({
         title: `Recurring Payments: ${failed} payment(s) failed`,
@@ -160,13 +161,13 @@ let jobInterval: ReturnType<typeof setInterval> | null = null;
 
 export function startWalletRecurringPaymentsJob(intervalMs = 5 * 60 * 1000): void {
   if (jobInterval) {
-    console.log("[RecurringPayments] Already running");
+    logger.info("[RecurringPayments] Already running");
     return;
   }
-  console.log(`[RecurringPayments] Starting recurring payments job (interval: ${intervalMs / 60000}min)`);
+  logger.info(`[RecurringPayments] Starting recurring payments job (interval: ${intervalMs / 60000}min)`);
   // Run once on startup, then on interval
   runWalletRecurringPaymentsJob().catch((err) =>
-    console.error("[RecurringPayments] Initial run failed:", err)
+    logger.error("[RecurringPayments] Initial run failed:", err)
   );
   jobInterval = setInterval(async () => {
     await runWalletRecurringPaymentsJob();
@@ -177,6 +178,6 @@ export function stopWalletRecurringPaymentsJob(): void {
   if (jobInterval) {
     clearInterval(jobInterval);
     jobInterval = null;
-    console.log("[RecurringPayments] Stopped");
+    logger.info("[RecurringPayments] Stopped");
   }
 }

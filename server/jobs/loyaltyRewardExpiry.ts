@@ -11,6 +11,7 @@
 import { getDb, createUserNotification } from "../db";
 import { sql } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
+import { logger } from "../_core/logger";
 
 const JOB_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -32,7 +33,7 @@ async function runCycle() {
   );
   const expired = expiredResult as any[];
   if (expired.length > 0) {
-    console.log(`[Loyalty Expiry Job] Deactivated ${expired.length} expired reward(s):`, expired.map((r: any) => r.name).join(", "));
+    logger.info(`[Loyalty Expiry Job] Deactivated ${expired.length} expired reward(s):`, expired.map((r: any) => r.name).join(", "));
     await notifyOwner({
       title: `[TourismPay] ${expired.length} loyalty reward(s) expired`,
       content: expired.map((r: any) => `• ${r.name} (ID: ${r.id})`).join("\n"),
@@ -68,15 +69,15 @@ async function runCycle() {
         }).catch(() => null);
       }
     }
-    console.log(`[Loyalty Expiry Job] Sent expiry-soon notifications for ${soon.length} reward(s) to ${userIds.length} user(s).`);
+    logger.info(`[Loyalty Expiry Job] Sent expiry-soon notifications for ${soon.length} reward(s) to ${userIds.length} user(s).`);
   }
 }
 
 export function startLoyaltyRewardExpiryJob() {
   // Run once at startup, then on interval
-  runCycle().catch(err => console.error("[Loyalty Expiry Job] Startup error:", err));
+  runCycle().catch(err => logger.error("[Loyalty Expiry Job] Startup error:", err));
   setInterval(() => {
-    runCycle().catch(err => console.error("[Loyalty Expiry Job] Cycle error:", err));
+    runCycle().catch(err => logger.error("[Loyalty Expiry Job] Cycle error:", err));
   }, JOB_INTERVAL_MS);
-  console.log("[Loyalty Expiry Job] Started (interval: 6h)");
+  logger.info("[Loyalty Expiry Job] Started (interval: 6h)");
 }

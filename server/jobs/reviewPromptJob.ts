@@ -14,6 +14,7 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, isNull, lte, sql } from "drizzle-orm";
 import { sendPushToUser } from "../_core/webPush";
+import { logger } from "../_core/logger";
 
 const JOB_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
 const PROMPT_DELAY_MS = 2 * 60 * 60 * 1000; // 2 hours after redemption
@@ -100,15 +101,15 @@ export function startReviewPromptJob() {
         }
       }
 
-      console.log(`[ReviewPromptJob] Processed ${unprompted.length} redemptions`);
+      logger.info(`[ReviewPromptJob] Processed ${unprompted.length} redemptions`);
     } catch (err) {
-      console.error("[ReviewPromptJob] Error:", err);
+      logger.error("[ReviewPromptJob] Error:", err);
     }
   };
 
   // Run immediately then on interval
   run();
   const interval = setInterval(run, JOB_INTERVAL_MS);
-  console.log("[ReviewPromptJob] Job scheduled (15 min interval)");
+  logger.info("[ReviewPromptJob] Job scheduled (15 min interval)");
   return interval;
 }

@@ -14,7 +14,7 @@ import postgres from "postgres";
 
 const DATABASE_URL =
   process.env.DATABASE_URL ||
-  "postgresql://tourismpay:tourismpay2026@localhost:5432/tourismpay";
+  "postgresql://tourismpay_user:testpass123@localhost:5432/tourismpay";
 
 const GO_DATABASE_URL =
   process.env.GO_DATABASE_URL ||

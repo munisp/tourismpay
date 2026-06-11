@@ -9,6 +9,7 @@
  */
 import { getDb } from "../db";
 import { reviewSentimentCache, reviewSentimentHistory } from "../../drizzle/schema";
+import { logger } from "../_core/logger";
 
 // Schedule: run once at startup (to backfill today) then every 24 hours
 const JOB_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -45,11 +46,11 @@ export async function runDailySentimentSnapshotJob(): Promise<void> {
         });
     }
 
-    console.log(
+    logger.info(
       `[DailySentimentSnapshot] Saved ${cacheRows.length} snapshot(s) for ${today}`
     );
   } catch (err) {
-    console.error("[DailySentimentSnapshot] Error:", err);
+    logger.error("[DailySentimentSnapshot] Error:", err);
   }
 }
 
@@ -58,5 +59,5 @@ export function startDailySentimentSnapshotJob(): void {
   runDailySentimentSnapshotJob();
   // Then repeat every 24 hours
   setInterval(runDailySentimentSnapshotJob, JOB_INTERVAL_MS);
-  console.log("[DailySentimentSnapshot] Job scheduled (24h interval)");
+  logger.info("[DailySentimentSnapshot] Job scheduled (24h interval)");
 }

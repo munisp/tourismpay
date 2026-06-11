@@ -17,6 +17,7 @@ import { eq, lte, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
 import { ENV } from "../_core/env";
+import { logger } from "../_core/logger";
 
 const JOB_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -75,7 +76,7 @@ async function runCycle() {
 
   if (!dueSchedules || dueSchedules.length === 0) return;
 
-  console.log(`[BISWeeklyExport] Processing ${dueSchedules.length} due schedule(s)`);
+  logger.info(`[BISWeeklyExport] Processing ${dueSchedules.length} due schedule(s)`);
 
   for (const schedule of dueSchedules) {
     try {
@@ -212,7 +213,7 @@ async function runCycle() {
           title: emailSubject,
           content: emailBody,
         }).catch((err) => {
-          console.warn(`[BISWeeklyExport] Failed to send owner email notification for schedule ${schedule.id}:`, err);
+          logger.warn(`[BISWeeklyExport] Failed to send owner email notification for schedule ${schedule.id}:`, err);
         });
       }
 
@@ -223,9 +224,9 @@ async function runCycle() {
         .set({ lastRunAt: nowMs, nextRunAt, updatedAt: nowMs, lastExportNoteCount: totalNotes })
         .where(eq(bisExportSchedules.id, schedule.id));
 
-      console.log(`[BISWeeklyExport] Exported ${totalNotes} notes for user ${schedule.userId} (${schedule.frequency})${isOwner ? " + owner email sent" : ""}`);
+      logger.info(`[BISWeeklyExport] Exported ${totalNotes} notes for user ${schedule.userId} (${schedule.frequency})${isOwner ? " + owner email sent" : ""}`);
     } catch (err) {
-      console.error(`[BISWeeklyExport] Error processing schedule ${schedule.id}:`, err);
+      logger.error(`[BISWeeklyExport] Error processing schedule ${schedule.id}:`, err);
     }
   }
 
@@ -239,7 +240,7 @@ async function runCycle() {
 }
 
 export function startBisWeeklyExportJob() {
-  console.log("[BISWeeklyExport] Starting scheduled export job (interval: 30min)");
-  runCycle().catch(console.error);
-  setInterval(() => runCycle().catch(console.error), JOB_INTERVAL_MS);
+  logger.info("[BISWeeklyExport] Starting scheduled export job (interval: 30min)");
+  runCycle().catch((err) => logger.error("Unhandled error", err));
+  setInterval(() => runCycle().catch((err) => logger.error("Unhandled error", err)), JOB_INTERVAL_MS);
 }

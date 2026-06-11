@@ -15,6 +15,7 @@ import {
 } from "../db";
 
 import { encryptPII } from "../_core/encryption";
+import { logger } from "../_core/logger";
 
 const KYB_SERVICE_URL = process.env.KYB_SERVICE_URL || "http://localhost:8083";
 
@@ -29,7 +30,7 @@ async function callKybService(path: string, body?: unknown): Promise<unknown> {
     if (!res.ok) throw new Error(`KYB service error: ${res.status}`);
     return res.json();
   } catch (err) {
-    console.warn(`[KYB] Service call failed (${path}):`, err);
+    logger.warn(`[KYB] Service call failed (${path}):`, err);
     return null;
   }
 }
@@ -209,14 +210,14 @@ export const kybRouter = router({
                     pricePaid: "0.00",
                     currency: "USD",
                   });
-                  console.log(`[KYB] Auto-triggered BIS entity investigation for establishment #${estId} (${est.name})`);
+                  logger.info(`[KYB] Auto-triggered BIS entity investigation for establishment #${estId} (${est.name})`);
                 }
               }
             }
           }
         } catch (err) {
           // Non-fatal: log but don't block the KYB submission
-          console.warn("[KYB] Failed to auto-trigger BIS investigation:", err);
+          logger.warn("[KYB] Failed to auto-trigger BIS investigation:", err);
         }
       }
 

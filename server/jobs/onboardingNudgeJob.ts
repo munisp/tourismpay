@@ -19,6 +19,7 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, lt } from "drizzle-orm";
 import { createUserNotification } from "../db";
+import { logger } from "../_core/logger";
 
 const JOB_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const SCORE_THRESHOLD = 60;
@@ -99,7 +100,7 @@ async function computeOnboardingScore(
 async function runNudgeJob() {
   const db = await getDb();
   if (!db) {
-    console.warn("[OnboardingNudge] Database unavailable, skipping");
+    logger.warn("[OnboardingNudge] Database unavailable, skipping");
     return;
   }
 
@@ -181,34 +182,34 @@ async function runNudgeJob() {
         .where(eq(establishments.id, est.id));
 
       nudged++;
-      console.log(
+      logger.info(
         `[OnboardingNudge] Nudge sent to owner ${est.ownerId} for establishment ${est.id} (${est.name}) — score: ${score}%`
       );
     } catch (err) {
-      console.error(
+      logger.error(
         `[OnboardingNudge] Failed for establishment ${est.id} (${est.name}):`,
         err
       );
     }
   }
 
-  console.log(
+  logger.info(
     `[OnboardingNudge] Run complete: ${nudged} nudges sent, ${skipped} skipped`
   );
 }
 
 export function startOnboardingNudgeJob() {
-  console.log("[OnboardingNudge] Starting daily onboarding nudge job (interval: 24h)");
+  logger.info("[OnboardingNudge] Starting daily onboarding nudge job (interval: 24h)");
   // Run after a short delay on startup to avoid blocking server init
   setTimeout(() => {
     runNudgeJob().catch((err) =>
-      console.error("[OnboardingNudge] Initial run failed:", err)
+      logger.error("[OnboardingNudge] Initial run failed:", err)
     );
   }, 30_000); // 30s delay on startup
 
   setInterval(() => {
     runNudgeJob().catch((err) =>
-      console.error("[OnboardingNudge] Scheduled run failed:", err)
+      logger.error("[OnboardingNudge] Scheduled run failed:", err)
     );
   }, JOB_INTERVAL_MS);
 }

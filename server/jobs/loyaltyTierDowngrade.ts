@@ -12,6 +12,7 @@
 import { getDb, createUserNotification } from "../db";
 import { sql } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
+import { logger } from "../_core/logger";
 
 const JOB_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
@@ -79,21 +80,21 @@ async function runCycle() {
   }
 
   if (downgradedCount > 0) {
-    console.log(`[Tier Downgrade Job] Processed ${expired.length} expired grace period(s), downgraded ${downgradedCount} user(s).`);
+    logger.info(`[Tier Downgrade Job] Processed ${expired.length} expired grace period(s), downgraded ${downgradedCount} user(s).`);
     await notifyOwner({
       title: `Loyalty Tier Downgrades Processed: ${downgradedCount} user(s)`,
       content: `${downgradedCount} user(s) had their loyalty tier downgraded after their 90-day grace period expired:\n\n${downgrades.map(d => `• User #${d.userId}: ${d.from} → ${d.to}`).join("\n")}`,
     }).catch(() => null);
   } else if (expired.length > 0) {
-    console.log(`[Tier Downgrade Job] Cleared ${expired.length} expired grace period flag(s) (no downgrades needed).`);
+    logger.info(`[Tier Downgrade Job] Cleared ${expired.length} expired grace period flag(s) (no downgrades needed).`);
   }
 }
 
 export function startLoyaltyTierDowngradeJob() {
   // Run once at startup, then on interval
-  runCycle().catch(err => console.error("[Tier Downgrade Job] Startup error:", err));
+  runCycle().catch(err => logger.error("[Tier Downgrade Job] Startup error:", err));
   setInterval(() => {
-    runCycle().catch(err => console.error("[Tier Downgrade Job] Cycle error:", err));
+    runCycle().catch(err => logger.error("[Tier Downgrade Job] Cycle error:", err));
   }, JOB_INTERVAL_MS);
-  console.log("[Tier Downgrade Job] Started (interval: 6h)");
+  logger.info("[Tier Downgrade Job] Started (interval: 6h)");
 }

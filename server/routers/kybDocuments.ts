@@ -15,6 +15,7 @@ import {
 import { notifyOwner } from "../_core/notification";
 import { storagePut } from "../storage";
 import { createAuditLog } from "../db";
+import { logger } from "../_core/logger";
 
 // Allowed MIME types for KYB document uploads
 const ALLOWED_MIME_TYPES = [
@@ -102,7 +103,7 @@ export const kybDocumentsRouter = router({
         const result = await storagePut(fileKey, fileBuffer, input.mimeType);
         fileUrl = result.url;
       } catch (err) {
-        console.error("[KYB Upload] S3 upload failed:", err);
+        logger.error("[KYB Upload] S3 upload failed:", err);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to upload document to storage. Please try again.",

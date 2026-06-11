@@ -21,6 +21,7 @@ import {
 } from "../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { dispatchWebhookEvent } from "./webhookEngine";
+import { logger } from "./_core/logger";
 
 // ─── Country → Corridor mapping ───────────────────────────────────────────────
 // Maps ISO-3166-1 alpha-2 country codes to the most relevant PaymentSwitch corridors.
@@ -196,7 +197,7 @@ export async function triggerKillSwitchFromBis(
         createdAt: now,
       });
     } catch (err) {
-      console.error(
+      logger.error(
         `[BisKillSwitchBridge] Failed to activate corridor ${corridor}:`,
         err
       );

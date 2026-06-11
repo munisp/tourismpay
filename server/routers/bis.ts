@@ -13,6 +13,7 @@ import { getDb } from "../db";
 import { bisTimeline, bisInvestigations, bisDirectors, users, bisInvestigationNotes, bisExportSchedules, fraudAlerts, psSettlements, establishments } from "../../drizzle/schema";
 import { eq, desc, and, count, sql, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { logger } from "../_core/logger";
 
 // ─── Auto-timeline helper ────────────────────────────────────────────────────
 // Fire-and-forget: records a system timeline event for an investigation.
@@ -72,7 +73,7 @@ async function callBisService(path: string, body?: unknown): Promise<unknown> {
     if (!res.ok) throw new Error(`BIS Core returned ${res.status}`);
     return res.json();
   } catch (err) {
-    console.warn(`[BIS-Core] Service call failed (${path}):`, err);
+    logger.warn(`[BIS-Core] Service call failed (${path}):`, err);
     return null;
   }
 }
@@ -90,7 +91,7 @@ async function callBisGateway(path: string, body?: unknown): Promise<unknown> {
     if (!res.ok) throw new Error(`BIS Gateway returned ${res.status}`);
     return res.json();
   } catch (err) {
-    console.warn(`[BIS-Gateway] Service call failed (${path}):`, err);
+    logger.warn(`[BIS-Gateway] Service call failed (${path}):`, err);
     return null;
   }
 }
@@ -108,7 +109,7 @@ async function callBisAI(path: string, body?: unknown): Promise<unknown> {
     if (!res.ok) throw new Error(`BIS AI returned ${res.status}`);
     return res.json();
   } catch (err) {
-    console.warn(`[BIS-AI] Service call failed (${path}):`, err);
+    logger.warn(`[BIS-AI] Service call failed (${path}):`, err);
     return null;
   }
 }

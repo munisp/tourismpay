@@ -15,6 +15,7 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, isNotNull, lt } from "drizzle-orm";
 import { sendPushToUser } from "../_core/webPush";
+import { logger } from "../_core/logger";
 
 const JOB_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -80,16 +81,16 @@ export function startSentimentAlertJob() {
       }
 
       if (alertsSent > 0) {
-        console.log(`[SentimentAlertJob] Sent ${alertsSent} sentiment alerts`);
+        logger.info(`[SentimentAlertJob] Sent ${alertsSent} sentiment alerts`);
       }
     } catch (err) {
-      console.error("[SentimentAlertJob] Error:", err);
+      logger.error("[SentimentAlertJob] Error:", err);
     }
   };
 
   // Run immediately then every 24 hours
   run();
   const interval = setInterval(run, JOB_INTERVAL_MS);
-  console.log("[SentimentAlertJob] Job scheduled (24h interval)");
+  logger.info("[SentimentAlertJob] Job scheduled (24h interval)");
   return interval;
 }

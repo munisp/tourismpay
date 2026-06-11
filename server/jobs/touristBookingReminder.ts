@@ -15,6 +15,7 @@ import { touristBookings, establishments, users } from "../../drizzle/schema";
 import { eq, and, isNull, gte, lte } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
 import { sendPushToUser } from "../_core/webPush";
+import { logger } from "../_core/logger";
 
 const JOB_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -100,17 +101,17 @@ export async function runTouristBookingReminderJob(): Promise<void> {
           .set({ touristReminderSentAt: new Date() })
           .where(eq(touristBookings.id, booking.id));
 
-        console.log(
+        logger.info(
           `[TouristReminder] Sent reminder for booking #${booking.id} (${booking.serviceName}) to user #${booking.userId}`
         );
       }
     }
 
     if (bookings.length > 0) {
-      console.log(`[TouristReminder] Processed ${bookings.length} tourist reminders`);
+      logger.info(`[TouristReminder] Processed ${bookings.length} tourist reminders`);
     }
   } catch (err) {
-    console.error("[TouristReminder] Job error:", err);
+    logger.error("[TouristReminder] Job error:", err);
   }
 }
 
@@ -118,5 +119,5 @@ export function startTouristBookingReminderJob(): void {
   // Run immediately on startup, then every 30 minutes
   runTouristBookingReminderJob();
   setInterval(runTouristBookingReminderJob, JOB_INTERVAL_MS);
-  console.log("[TouristReminder] Tourist booking reminder job started (30-min interval)");
+  logger.info("[TouristReminder] Tourist booking reminder job started (30-min interval)");
 }

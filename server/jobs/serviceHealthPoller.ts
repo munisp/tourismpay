@@ -21,6 +21,7 @@ import { serviceHealthAlerts, serviceHealthHistory } from "../../drizzle/schema"
 import { eq, lt } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
 import { ENV } from "../_core/env";
+import { logger } from "../_core/logger";
 
 const ALERT_COOLDOWN_S = 60 * 60; // 1 hour between alerts per service
 const HISTORY_TTL_S = 24 * 60 * 60; // keep 24h of history
@@ -151,7 +152,7 @@ async function runHealthPoller() {
             alertCount: 1,
           }).catch(() => {});
         }
-        console.log(`[Health Poller] Alert sent for ${result.name} (${result.status})`);
+        logger.info(`[Health Poller] Alert sent for ${result.name} (${result.status})`);
       }
     }
   }
@@ -165,7 +166,7 @@ async function runHealthPoller() {
 
   const unhealthy = results.filter((r) => r.status !== "healthy");
   if (unhealthy.length > 0) {
-    console.log(
+    logger.info(
       `[Health Poller] Checked ${results.length} services. Unhealthy: ${unhealthy.map((r) => r.key).join(", ")}`
     );
   }
@@ -176,11 +177,11 @@ let _jobInterval: ReturnType<typeof setInterval> | null = null;
 export function startServiceHealthPoller(intervalMs = 5 * 60 * 1000) {
   if (_jobInterval) return; // already running
   // Run immediately on start, then on interval
-  runHealthPoller().catch((err) => console.error("[Health Poller] Initial run error:", err));
+  runHealthPoller().catch((err) => logger.error("[Health Poller] Initial run error:", err));
   _jobInterval = setInterval(() => {
-    runHealthPoller().catch((err) => console.error("[Health Poller] Cycle error:", err));
+    runHealthPoller().catch((err) => logger.error("[Health Poller] Cycle error:", err));
   }, intervalMs);
-  console.log(`[Health Poller] Started (interval: ${intervalMs / 60000}min)`);
+  logger.info(`[Health Poller] Started (interval: ${intervalMs / 60000}min)`);
 }
 
 export function stopServiceHealthPoller() {

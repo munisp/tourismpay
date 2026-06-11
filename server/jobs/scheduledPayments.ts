@@ -11,6 +11,7 @@
 import { getDb } from "../db";
 import { sql } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
+import { logger } from "../_core/logger";
 
 const JOB_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -44,11 +45,11 @@ async function runCycle() {
   const due = dueResult as any[];
 
   if (due.length === 0) {
-    console.log(`[Scheduled Payments Job] No due payments at ${new Date(nowMs).toISOString()}`);
+    logger.info(`[Scheduled Payments Job] No due payments at ${new Date(nowMs).toISOString()}`);
     return;
   }
 
-  console.log(`[Scheduled Payments Job] Processing ${due.length} due payment(s)...`);
+  logger.info(`[Scheduled Payments Job] Processing ${due.length} due payment(s)...`);
 
   let processed = 0;
   let failed = 0;
@@ -134,7 +135,7 @@ async function runCycle() {
     }
   }
 
-  console.log(`[Scheduled Payments Job] Cycle complete: ${processed} processed, ${failed} failed.`);
+  logger.info(`[Scheduled Payments Job] Cycle complete: ${processed} processed, ${failed} failed.`);
 
   // Notify owner if any payments failed
   if (failed > 0) {
@@ -147,9 +148,9 @@ async function runCycle() {
 
 export function startScheduledPaymentsJob() {
   // Run once at startup, then hourly
-  runCycle().catch(err => console.error("[Scheduled Payments Job] Startup error:", err));
+  runCycle().catch(err => logger.error("[Scheduled Payments Job] Startup error:", err));
   setInterval(() => {
-    runCycle().catch(err => console.error("[Scheduled Payments Job] Cycle error:", err));
+    runCycle().catch(err => logger.error("[Scheduled Payments Job] Cycle error:", err));
   }, JOB_INTERVAL_MS);
-  console.log("[Scheduled Payments Job] Started (interval: 1h)");
+  logger.info("[Scheduled Payments Job] Started (interval: 1h)");
 }

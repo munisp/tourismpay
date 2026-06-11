@@ -14,6 +14,7 @@
 
 import { createUserNotification } from "../db";
 import { ENV } from "./env";
+import { logger } from "./logger";
 
 export type EmailPayload = {
   /** Recipient user ID (for fallback in-app notification) */
@@ -204,10 +205,10 @@ export async function sendTransactionalEmail(
         text: payload.text,
         html: payload.html,
       });
-      console.log(`[Email] Sent via SMTP to ${payload.to}: ${payload.subject}`);
+      logger.info(`[Email] Sent via SMTP to ${payload.to}: ${payload.subject}`);
       return { sent: true, method: "smtp" };
     } catch (err) {
-      console.error("[Email] SMTP send failed, falling back to in-app notification:", err);
+      logger.error("[Email] SMTP send failed, falling back to in-app notification:", err);
       // Fall through to in-app notification
     }
   }
@@ -222,10 +223,10 @@ export async function sendTransactionalEmail(
       actionUrl: payload.actionUrl,
       actionLabel: payload.actionLabel ?? "View",
     });
-    console.log(`[Email] No SMTP configured — sent as in-app notification to user ${payload.userId}`);
+    logger.info(`[Email] No SMTP configured — sent as in-app notification to user ${payload.userId}`);
     return { sent: true, method: "notification" };
   } catch (err) {
-    console.error("[Email] In-app notification fallback also failed:", err);
+    logger.error("[Email] In-app notification fallback also failed:", err);
     return { sent: false, method: "none" };
   }
 }

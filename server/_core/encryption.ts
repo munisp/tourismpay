@@ -9,6 +9,7 @@
  * can be identified and migrated independently of the column schema.
  */
 import crypto from "crypto";
+import { logger } from "./logger";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
@@ -20,7 +21,7 @@ function getEncryptionKey(): Buffer {
   if (!key) {
     throw new Error(
       "PII_ENCRYPTION_KEY environment variable is required for field-level encryption. " +
-      "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\""
+      "Generate one with: node -e \"logger.info(require('crypto').randomBytes(32).toString('hex'))\""
     );
   }
   const buf = Buffer.from(key, "hex");

@@ -13,6 +13,7 @@ import { sql } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
 import { createUserNotification } from "../db";
 import { computeNextRunAt } from "../routers/payoutSchedule";
+import { logger } from "../_core/logger";
 
 const JOB_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -103,20 +104,20 @@ async function runCycle() {
             WHERE id = ${row.id}`
       );
     } catch (err) {
-      console.error(`[PayoutScheduler] Failed for merchant #${merchantId}:`, err);
+      logger.error(`[PayoutScheduler] Failed for merchant #${merchantId}:`, err);
       failed++;
     }
   }
 
   if (processed > 0 || failed > 0) {
-    console.log(
+    logger.info(
       `[PayoutScheduler] Cycle at ${nowIso}: processed=${processed}, failed=${failed}`
     );
   }
 }
 
 export function startMerchantPayoutSchedulerJob(intervalMs = JOB_INTERVAL_MS) {
-  console.log("[PayoutScheduler] Starting merchant payout scheduler job");
-  runCycle().catch(console.error);
-  setInterval(() => runCycle().catch(console.error), intervalMs);
+  logger.info("[PayoutScheduler] Starting merchant payout scheduler job");
+  runCycle().catch((err) => logger.error("Unhandled error", err));
+  setInterval(() => runCycle().catch((err) => logger.error("Unhandled error", err)), intervalMs);
 }

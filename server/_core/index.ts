@@ -2,6 +2,9 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import helmet from "helmet";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerSSERoutes } from "../sse";
@@ -30,6 +33,7 @@ import { startReviewPromptJob } from "../jobs/reviewPromptJob";
 import { startSentimentAlertJob } from "../jobs/sentimentAlertJob";
 import { startLeaderboardSnapshotJob } from "../jobs/leaderboardSnapshotJob";
 import { startOnboardingNudgeJob } from "../jobs/onboardingNudgeJob";
+import { logger } from "./logger";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -56,7 +60,32 @@ async function startServer() {
   // Stripe webhook MUST be registered before express.json() for raw body access
   registerStripeWebhook(app);
 
-  // Configure body parser with larger size limit for file uploads
+  // ─── Security middleware ─────────────────────────────────────────────────────
+  app.use(helmet({
+    contentSecurityPolicy: process.env.NODE_ENV === "production" ? undefined : false,
+    crossOriginEmbedderPolicy: false,
+  }));
+
+  app.use(cors({
+    origin: process.env.CORS_ORIGIN || true,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
+  }));
+
+  // Rate limit API endpoints (100 req/min per IP by default)
+  const apiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: process.env.RATE_LIMIT_MAX ? parseInt(process.env.RATE_LIMIT_MAX, 10) : 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests, please try again later." },
+    skip: (req) => req.path === "/health" || req.path.startsWith("/api/dev/"),
+  });
+  app.use("/api", apiLimiter);
+  app.use("/trpc", apiLimiter);
+
+  // ─── Body parsers ───────────────────────────────────────────────────────────
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
@@ -234,11 +263,11 @@ async function startServer() {
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    logger.info(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+    logger.info(`Server running on http://localhost:${port}/`);
     // Start BIS investigation auto-advance background job
     startBisAutoAdvanceJob(60_000);
     // Start biometric enrollment expiry background job (runs every 6 hours)
@@ -284,4 +313,4 @@ async function startServer() {
   });
 }
 
-startServer().catch(console.error);
+startServer().catch((err) => logger.error("Unhandled error", err));
