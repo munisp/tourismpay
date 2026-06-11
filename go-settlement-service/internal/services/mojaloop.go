@@ -3,18 +3,21 @@ package services
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/tourismpay/settlement-service/internal/database"
 	"github.com/tourismpay/settlement-service/internal/models"
 )
 
 type MojaloopDFSPService struct {
 	dfspID            string
 	hubURL            string
+	// In-memory fallback
 	participants      map[string]*models.MojaloopParticipant
 	quotes            map[string]*models.MojaloopQuote
 	transfers         map[string]*models.MojaloopTransfer
@@ -35,6 +38,14 @@ func NewMojaloopDFSPService(dfspID string) *MojaloopDFSPService {
 	return s
 }
 
+func (s *MojaloopDFSPService) db() *sql.DB {
+	return database.DB
+}
+
+func (s *MojaloopDFSPService) hasDB() bool {
+	return s.db() != nil
+}
+
 func (s *MojaloopDFSPService) initializeParticipants() {
 	participants := []models.MojaloopParticipant{
 		{FSPID: "tourismpay", Name: "TourismPay", Currency: "TZS", AccountID: "TP001", IsActive: true},
@@ -49,7 +60,14 @@ func (s *MojaloopDFSPService) initializeParticipants() {
 	}
 
 	for i := range participants {
-		s.participants[participants[i].FSPID] = &participants[i]
+		p := participants[i]
+		s.participants[p.FSPID] = &p
+		if s.hasDB() {
+			s.db().Exec(
+				"INSERT INTO mojaloop_participants (fsp_id, name, currency, account_id, is_active) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (fsp_id) DO NOTHING",
+				p.FSPID, p.Name, p.Currency, p.AccountID, p.IsActive,
+			)
+		}
 	}
 }
 
@@ -84,9 +102,17 @@ func (s *MojaloopDFSPService) generateID(prefix string) string {
 }
 
 func (s *MojaloopDFSPService) LookupParticipant(identifierType, identifier string) *models.MojaloopParticipant {
+	if s.hasDB() {
+		p := &models.MojaloopParticipant{}
+		err := s.db().QueryRow(
+			"SELECT fsp_id, name, currency, account_id, is_active FROM mojaloop_participants WHERE fsp_id=$1 OR account_id=$1", identifier,
+		).Scan(&p.FSPID, &p.Name, &p.Currency, &p.AccountID, &p.IsActive)
+		if err == nil {
+			return p
+		}
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
 	for _, p := range s.participants {
 		if p.AccountID == identifier || p.FSPID == identifier {
 			return p
@@ -96,9 +122,22 @@ func (s *MojaloopDFSPService) LookupParticipant(identifierType, identifier strin
 }
 
 func (s *MojaloopDFSPService) ListParticipants() []*models.MojaloopParticipant {
+	if s.hasDB() {
+		rows, err := s.db().Query("SELECT fsp_id, name, currency, account_id, is_active FROM mojaloop_participants ORDER BY fsp_id")
+		if err == nil {
+			defer rows.Close()
+			result := make([]*models.MojaloopParticipant, 0)
+			for rows.Next() {
+				p := &models.MojaloopParticipant{}
+				if rows.Scan(&p.FSPID, &p.Name, &p.Currency, &p.AccountID, &p.IsActive) == nil {
+					result = append(result, p)
+				}
+			}
+			return result
+		}
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
 	result := make([]*models.MojaloopParticipant, 0, len(s.participants))
 	for _, p := range s.participants {
 		result = append(result, p)
@@ -166,6 +205,14 @@ func (s *MojaloopDFSPService) PrepareTransfer(quoteID string) (*models.MojaloopT
 	}
 
 	s.transfers[transferID] = transfer
+
+	if s.hasDB() {
+		s.db().Exec(
+			"INSERT INTO mojaloop_transfers (transfer_id, quote_id, payer_fsp, payee_fsp, amount, currency, state) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+			transferID, quoteID, quote.PayerFSP, quote.PayeeFSP, quote.Amount, quote.Currency, string(models.MojaloopStatePending),
+		)
+	}
+
 	return transfer, nil
 }
 
@@ -181,6 +228,9 @@ func (s *MojaloopDFSPService) CommitTransfer(transferID string) (*models.Mojaloo
 	quote, ok := s.quotes[transfer.QuoteID]
 	if !ok {
 		transfer.State = models.MojaloopStateAborted
+		if s.hasDB() {
+			s.db().Exec("UPDATE mojaloop_transfers SET state=$1 WHERE transfer_id=$2", string(models.MojaloopStateAborted), transferID)
+		}
 		return transfer, nil
 	}
 
@@ -188,6 +238,13 @@ func (s *MojaloopDFSPService) CommitTransfer(transferID string) (*models.Mojaloo
 	transfer.State = models.MojaloopStateCompleted
 	now := time.Now()
 	transfer.CompletedTimestamp = &now
+
+	if s.hasDB() {
+		s.db().Exec(
+			"UPDATE mojaloop_transfers SET state=$1, fulfilment=$2, completed_at=NOW() WHERE transfer_id=$3",
+			string(models.MojaloopStateCompleted), transfer.Fulfilment, transferID,
+		)
+	}
 
 	return transfer, nil
 }
@@ -202,6 +259,9 @@ func (s *MojaloopDFSPService) AbortTransfer(transferID, reason string) (*models.
 	}
 
 	transfer.State = models.MojaloopStateAborted
+	if s.hasDB() {
+		s.db().Exec("UPDATE mojaloop_transfers SET state=$1 WHERE transfer_id=$2", string(models.MojaloopStateAborted), transferID)
+	}
 	return transfer, nil
 }
 
@@ -291,21 +351,32 @@ type MojaloopStatus struct {
 	ActiveQuotes      int    `json:"active_quotes"`
 	TotalTransfers    int    `json:"total_transfers"`
 	SettlementWindows int    `json:"settlement_windows"`
+	DatabaseConnected bool   `json:"database_connected"`
 }
 
 func (s *MojaloopDFSPService) GetStatus() MojaloopStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	participantCount := len(s.participants)
+	transferCount := len(s.transfers)
+	dbConnected := s.hasDB()
+
+	if dbConnected {
+		s.db().QueryRow("SELECT COUNT(*) FROM mojaloop_participants").Scan(&participantCount)
+		s.db().QueryRow("SELECT COUNT(*) FROM mojaloop_transfers").Scan(&transferCount)
+	}
+
 	return MojaloopStatus{
 		Service:           "Mojaloop DFSP (Go)",
 		Status:            "OPERATIONAL",
 		DFSPID:            s.dfspID,
 		HubURL:            s.hubURL,
-		TotalParticipants: len(s.participants),
+		TotalParticipants: participantCount,
 		ActiveQuotes:      len(s.quotes),
-		TotalTransfers:    len(s.transfers),
+		TotalTransfers:    transferCount,
 		SettlementWindows: len(s.settlementWindows),
+		DatabaseConnected: dbConnected,
 	}
 }
 

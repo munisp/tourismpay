@@ -12,7 +12,7 @@ import { invokeLLM } from "../_core/llm";
 import { notifyOwner } from "../_core/notification";
 
 function randomSuffix(): string {
-  return Math.random().toString(36).substring(2, 10);
+  return crypto.randomUUID().replace(/-/g, "").substring(0, 8);
 }
 
 // ─── LLM Summary Generation ───────────────────────────────────────────────────

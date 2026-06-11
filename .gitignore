@@ -111,3 +111,7 @@ temp/
 .manus/
 .manus-logs/
 rust-kyc-service/target/
+
+# Python
+__pycache__/
+*.pyc

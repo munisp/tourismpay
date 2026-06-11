@@ -24,7 +24,7 @@ type SSEClient = {
 const clients = new Map<string, SSEClient>();
 
 function generateClientId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return `${Date.now()}-${crypto.randomUUID().replace(/-/g, "").substring(0, 7)}`;
 }
 
 function sendToClient(client: SSEClient, event: string, data: unknown): void {

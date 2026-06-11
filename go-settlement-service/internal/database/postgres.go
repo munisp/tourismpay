@@ -134,6 +134,21 @@ func runMigrations() error {
 			expires_at TIMESTAMPTZ NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+		`CREATE TABLE IF NOT EXISTS sync_jobs (
+			job_id VARCHAR(64) PRIMARY KEY,
+			partner_id VARCHAR(128) NOT NULL,
+			status VARCHAR(20) NOT NULL DEFAULT 'RUNNING',
+			items_synced INT NOT NULL DEFAULT 0,
+			errors TEXT[] NOT NULL DEFAULT '{}',
+			started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			completed_at TIMESTAMPTZ
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_sync_jobs_partner ON sync_jobs(partner_id, status)`,
+		`CREATE TABLE IF NOT EXISTS partner_webhooks (
+			partner_id VARCHAR(128) PRIMARY KEY,
+			webhook_url TEXT NOT NULL,
+			registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
 		`CREATE TABLE IF NOT EXISTS mojaloop_participants (
 			fsp_id VARCHAR(64) PRIMARY KEY,
 			name VARCHAR(256) NOT NULL,

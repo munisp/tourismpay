@@ -11,12 +11,29 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from auth import AuthMiddleware
+import db as database
 
 app = FastAPI(title="Compliance Risk Engine", version="1.0.0")
 
+
+@app.on_event("startup")
+async def _startup():
+    await database.ensure_tables()
+
+
+@app.on_event("shutdown")
+async def _shutdown():
+    await database.close_pool()
+
+app.add_middleware(AuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -140,7 +157,13 @@ def deterministic_noise(seed: str, scale: float = 0.03) -> float:
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "compliance-risk-engine", "version": "1.0.0"}
+    pool = await database.get_pool()
+    return {
+        "status": "ok",
+        "service": "compliance-risk-engine",
+        "version": "1.0.0",
+        "database": "connected" if pool else "unavailable",
+    }
 
 
 @app.post("/api/v1/compliance/aml-risk-score")
@@ -199,6 +222,14 @@ async def aml_risk_score(req: AMLRiskRequest):
     risk_rating = "critical" if score >= 0.75 else "high" if score >= 0.55 else "medium" if score >= 0.30 else "low"
 
     due_diligence = "enhanced_due_diligence" if score >= 0.55 else "standard_due_diligence"
+
+    await database.execute(
+        "INSERT INTO compliance_screenings (entity_id, entity_type, risk_score, risk_level, pep_match, sanctions_match, factors) "
+        "VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb)",
+        req.entity_id, req.entity_type, round(score, 4), risk_rating,
+        bool(req.politically_exposed), False,
+        str({k: round(v, 4) for k, v in factors.items()}).replace("'", '"'),
+    )
 
     return {
         "entity_id": req.entity_id,

@@ -534,9 +534,8 @@ function CreateRemittance() {
 
   const { data: banks } = trpc.remittance.getSupportedBanks.useQuery();
   const createMutation = trpc.remittance.createRemittance.useMutation({
-    onSuccess: (data) => {
+    onSuccess: () => {
       toast.success('Remittance created successfully!');
-      console.log('Remittance:', data);
     },
     onError: (error) => {
       toast.error(error.message);

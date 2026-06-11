@@ -233,7 +233,7 @@ export const tripSummaryRouter = router({
       });
 
       // 4. Upload to S3
-      const suffix = Math.random().toString(36).slice(2, 8);
+      const suffix = crypto.randomUUID().replace(/-/g, "").substring(0, 6);
       const fileKey = `trip-summaries/${ctx.user.id}/${Date.now()}-${suffix}.html`;
       const { url } = await storagePut(
         fileKey,

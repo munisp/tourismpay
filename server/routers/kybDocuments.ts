@@ -32,7 +32,7 @@ const ALLOWED_MIME_TYPES = [
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
 function randomSuffix(): string {
-  return Math.random().toString(36).substring(2, 10);
+  return crypto.randomUUID().replace(/-/g, "").substring(0, 8);
 }
 
 export const kybDocumentsRouter = router({

@@ -177,7 +177,7 @@ export const merchantProductsRouter = router({
       }
 
       const ext = input.mimeType.split("/")[1] ?? "jpg";
-      const suffix = Math.random().toString(36).slice(2, 10);
+      const suffix = crypto.randomUUID().replace(/-/g, "").substring(0, 8);
       const fileKey = `merchant-products/${input.establishmentId}/${Date.now()}-${suffix}.${ext}`;
 
       const buffer = Buffer.from(input.base64Data, "base64");

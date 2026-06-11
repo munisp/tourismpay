@@ -21,6 +21,8 @@ from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from auth import AuthMiddleware
+import db as database
 
 PORT = int(os.environ.get("PORT", "8001"))
 SERVICE_NAME = os.environ.get("SERVICE_NAME", "tourismpay-ml")
@@ -31,6 +33,18 @@ app = FastAPI(
     description="AI/ML microservices for TourismPay platform",
 )
 
+
+@app.on_event("startup")
+async def _startup():
+    await database.ensure_tables()
+
+
+@app.on_event("shutdown")
+async def _shutdown():
+    await database.close_pool()
+
+
+app.add_middleware(AuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -49,6 +63,7 @@ async def health():
         8004: "exchange-rate-ml",
         8005: "pdf-report-generator",
     }
+    pool = await database.get_pool()
     return {
         "status": "healthy",
         "service": service_map.get(PORT, SERVICE_NAME),
@@ -56,6 +71,7 @@ async def health():
         "version": "2.0.0",
         "timestamp": datetime.utcnow().isoformat(),
         "uptime_seconds": time.monotonic(),
+        "database": "connected" if pool else "unavailable",
     }
 
 # ═══════════════════════════════════════════════════════════════════════════════

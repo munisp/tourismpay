@@ -14,6 +14,7 @@ import StatCard from "@/components/shared/StatCard";
 import RiskRing from "@/components/shared/RiskRing";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 import { useEffect, useRef, useState, useMemo } from "react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -243,7 +244,7 @@ export default function BISDashboard() {
       }
     },
     onError: (err) => {
-      console.error("Report generation failed:", err);
+      logger.error("Report generation failed", { err });
     },
   });
 

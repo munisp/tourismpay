@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { logger } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -52,7 +53,7 @@ export default function TwoFactorVerify({
       toast.success('This device will be remembered for 30 days');
     },
     onError: (error) => {
-      console.error('Failed to trust device:', error);
+      logger.error('Failed to trust device', { error });
       // Don't show error to user as this is optional
     },
   });
