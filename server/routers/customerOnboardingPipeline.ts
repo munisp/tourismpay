@@ -160,6 +160,34 @@ export const customerOnboardingPipelineRouter = router({
           }
         }
 
+        // ── KYB Gate: Block advancement from account_setup → training
+        //    for business customers without approved KYB verification ────────
+        if (
+          input.fromStage === "account_setup" &&
+          input.toStage === "training"
+        ) {
+          const [user] = await db
+            .select()
+            .from(users)
+            .where(eq(users.id, input.userId as any))
+            .limit(1);
+          if (user && (user as any).accountType === "business") {
+            const kybResult = await db.execute(
+              sql`SELECT id FROM merchant_kyc_docs
+                  WHERE merchant_id = ${input.userId}
+                  AND verification_status = 'approved'
+                  LIMIT 1`
+            );
+            if (!kybResult.rows || kybResult.rows.length === 0) {
+              throw new TRPCError({
+                code: "PRECONDITION_FAILED",
+                message:
+                  "KYB verification must be approved for business accounts before proceeding to training.",
+              });
+            }
+          }
+        }
+
         await writeAuditLog({
           agentId: 0,
           agentCode: "system",
