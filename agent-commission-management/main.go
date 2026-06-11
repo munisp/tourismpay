@@ -8,7 +8,10 @@ import (
 	"time"
 	"os"
 	"strings"
-)
+
+	"database/sql"
+	"context"
+	_ "github.com/jackc/pgx/v5/stdlib")
 
 // Agent Commission Management Service
 // Calculates, tracks, and pays agent commissions based on tiered structures.
@@ -71,10 +74,23 @@ func handleCalculate(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePayoutSummary(w http.ResponseWriter, r *http.Request) {
+	period := time.Now().Format("2006-01")
+	var totalPayable float64
+	var agentsDue, pendingApproval int
+	var topEarner, avgPayout float64
+
+	row := db.QueryRowContext(r.Context(),
+		`SELECT COALESCE(SUM(commission_amount),0), COUNT(DISTINCT agent_id),
+		 COALESCE(MAX(commission_amount),0), COALESCE(AVG(commission_amount),0),
+		 COUNT(*) FILTER (WHERE status='pending_approval')
+		 FROM agent_commissions WHERE period = $1`, period)
+	if err := row.Scan(&totalPayable, &agentsDue, &topEarner, &avgPayout, &pendingApproval); err != nil {
+		log.Printf("payout summary query error: %v", err)
+	}
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"period": time.Now().Format("2006-01"),
-		"total_payable": 12500000, "agents_due": 342, "avg_payout": 36549,
-		"top_earner": 285000, "pending_approval": 15,
+		"period": period, "total_payable": totalPayable, "agents_due": agentsDue,
+		"avg_payout": avgPayout, "top_earner": topEarner, "pending_approval": pendingApproval,
 	})
 }
 
@@ -122,6 +138,27 @@ func requireAuthFunc(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		next(w, r)
+	}
+}
+
+var db *sql.DB
+
+func initDB() {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://postgres:postgres@localhost:5432/tourismpay?sslmode=disable"
+	}
+	var err error
+	db, err = sql.Open("pgx", dsn)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err = db.PingContext(ctx); err != nil {
+		log.Printf("Warning: database ping failed: %v (will retry on first query)", err)
 	}
 }
 

@@ -2,6 +2,7 @@ use actix_cors::Cors;
 use actix_web::{web, App, HttpServer, HttpResponse, middleware};
 use std::env;
 
+mod auth;
 mod models;
 mod cart;
 mod checkout;
@@ -30,6 +31,7 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .wrap(cors)
+            .wrap(auth::RequireAuth)
             .wrap(middleware::Logger::default())
             .wrap(middleware::Compress::default())
             .app_data(cart_store.clone())

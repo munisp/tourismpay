@@ -3,6 +3,7 @@ module github.com/54link/pos-shell/gateway
 go 1.18
 
 require (
+	github.com/jackc/pgx/v5 v5.5.5
 	github.com/gorilla/mux v1.8.1
 	github.com/prometheus/client_golang v1.14.0
 	github.com/rs/cors v1.11.0
@@ -10,6 +11,7 @@ require (
 )
 
 require (
+	github.com/jackc/pgx/v5 v5.5.5
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect

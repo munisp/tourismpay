@@ -7,7 +7,10 @@ import (
 	"net/http"
 	"os"
 	"time"
-)
+
+	"database/sql"
+	"context"
+	_ "github.com/jackc/pgx/v5/stdlib")
 
 // BancassuranceService handles bank-insurance integration
 type BancassuranceService struct{}
@@ -319,6 +322,27 @@ func (s *BancassuranceService) HandleHealth(w http.ResponseWriter, r *http.Reque
 			"Stanbic IBTC", "Fidelity Bank", "FCMB", "Sterling Bank", "Union Bank",
 		},
 	})
+}
+
+var db *sql.DB
+
+func initDB() {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://postgres:postgres@localhost:5432/tourismpay?sslmode=disable"
+	}
+	var err error
+	db, err = sql.Open("pgx", dsn)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err = db.PingContext(ctx); err != nil {
+		log.Printf("Warning: database ping failed: %v (will retry on first query)", err)
+	}
 }
 
 func main() {
