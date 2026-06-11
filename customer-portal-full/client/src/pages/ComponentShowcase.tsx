@@ -1,4 +1,5 @@
 import {
+import { logger } from "@/lib/logger";
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -194,7 +195,7 @@ export default function ComponentsShowcase() {
   const [isChatLoading, setIsChatLoading] = useState(false);
 
   const handleDialogSubmit = () => {
-    console.log("Dialog submitted with value:", dialogInput);
+    logger.log("Dialog submitted with value:", dialogInput);
     sonnerToast.success("Submitted successfully", {
       description: `Input: ${dialogInput}`,
     });

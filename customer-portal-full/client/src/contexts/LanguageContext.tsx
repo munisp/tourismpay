@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from "react";
+import { logger } from "@/lib/logger";
 
 type Language = "en" | "yo" | "ha" | "ig";
 
@@ -351,7 +352,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const t = (key: string): string => {
     const translation = translations[key];
     if (!translation) {
-      console.warn(`Translation missing for key: ${key}`);
+      logger.warn(`Translation missing for key: ${key}`);
       return key;
     }
     return translation[language] || translation.en;

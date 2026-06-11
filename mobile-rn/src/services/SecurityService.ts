@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
+import { secureRandom } from "../lib/secureRandom";
 
 export class SecurityService {
   private static readonly SECURE_KEY_PREFIX = 'secure_';
@@ -101,7 +102,7 @@ export class SecurityService {
     if (!deviceId) {
       deviceId = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
-        `${Date.now()}_${Math.random()}`
+        `${Date.now()}_${secureRandom()}`
       );
       await AsyncStorage.setItem(this.DEVICE_ID_KEY, deviceId);
     }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
+import { secureRandom } from "../lib/secureRandom";
   View,
   Text,
   StyleSheet,
@@ -100,7 +101,7 @@ const SavingsGoalsScreen = () => {
     } catch (error) {
       // Mock success for demo if API fails
       const mockNewGoal: SavingsGoal = {
-        id: Math.random().toString(),
+        id: secureRandom().toString(),
         title: newGoalTitle,
         targetAmount: parseFloat(newGoalTarget),
         currentAmount: 0,

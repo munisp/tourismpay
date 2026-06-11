@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Loader2, Send, User, Sparkles } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Streamdown } from "streamdown";
+import { logger } from "@/lib/logger";
 
 /**
  * Message type matching server-side LLM Message interface
@@ -85,7 +86,7 @@ export type AIChatBoxProps = {
  *       }]);
  *     },
  *     onError: (error) => {
- *       console.error("Chat error:", error);
+ *       logger.error("Chat error:", error);
  *       // Optionally show error message to user
  *     }
  *   });

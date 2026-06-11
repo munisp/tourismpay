@@ -1,6 +1,7 @@
 // React Native API Client with Security
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AnalyticsService } from '../services/AnalyticsService';
+import { secureRandom } from "../lib/secureRandom";
 
 export class APIClient {
   // Base URL points to the 54Link pos-shell backend REST bridge.
@@ -71,14 +72,14 @@ export class APIClient {
   private async getDeviceId(): Promise<string> {
     let deviceId = await AsyncStorage.getItem('device_id');
     if (!deviceId) {
-      deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      deviceId = `device_${Date.now()}_${secureRandom().toString(36).substr(2, 9)}`;
       await AsyncStorage.setItem('device_id', deviceId);
     }
     return deviceId;
   }
 
   private generateRequestId(): string {
-    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `req_${Date.now()}_${secureRandom().toString(36).substr(2, 9)}`;
   }
 }
 

@@ -25,7 +25,7 @@ PRODUCT_CODES = ["Motor", "Health", "Life", "Property", "Agriculture", "Cyber", 
 
 OCCUPATIONS = [
     "Civil Servant", "Trader", "Engineer", "Doctor", "Teacher", "Lawyer",
-    "Farmer", "Banker", "IT Professional", "Business Owner", "Artisan", "Driver"
+    "Tour Guide", "Banker", "IT Professional", "Business Owner", "Artisan", "Driver"
 ]
 
 

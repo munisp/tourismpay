@@ -1,6 +1,7 @@
 // React Native Comprehensive Analytics Service
 // Integrates with Lakehouse, Middleware, Postgres, TigerBeetle
 
+import { secureRandom } from "../lib/secureRandom";
 export class AnalyticsService {
   private static sessionId: string = this.generateSessionId();
   private static userId: string | null = null;
@@ -103,6 +104,6 @@ export class AnalyticsService {
   }
 
   private static generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `session_${Date.now()}_${secureRandom().toString(36).substr(2, 9)}`;
   }
 }

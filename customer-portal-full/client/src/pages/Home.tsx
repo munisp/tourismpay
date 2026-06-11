@@ -340,7 +340,7 @@ export default function Home() {
                 </div>
                 <div>
                   <h3 className="text-2xl font-bold text-gray-900">Agricultural Insurance</h3>
-                  <p className="text-sm text-gray-500">Protecting Nigerian farmers and agribusinesses</p>
+                  <p className="text-sm text-gray-500">Protecting tourism operators and hospitality businesses</p>
                 </div>
               </div>
               <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">

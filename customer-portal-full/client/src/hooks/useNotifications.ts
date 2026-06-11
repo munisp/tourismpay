@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 interface Notification {
   type: 'claim_update' | 'payment_reminder' | 'policy_renewal' | 'general' | 'system' | 'maintenance' | 'connected';
@@ -54,7 +55,7 @@ export function useNotifications(enabled: boolean = true) {
         eventSource = new EventSource('/api/notifications/stream');
 
         eventSource.onopen = () => {
-          console.log('[Notifications] Connected to notification stream');
+          logger.log('[Notifications] Connected to notification stream');
           setConnected(true);
         };
 
@@ -63,30 +64,30 @@ export function useNotifications(enabled: boolean = true) {
             const notification: Notification = JSON.parse(event.data);
             
             if (notification.type === 'connected') {
-              console.log('[Notifications]', notification.message);
+              logger.log('[Notifications]', notification.message);
               return;
             }
 
             setNotifications(prev => [notification, ...prev].slice(0, 50)); // Keep last 50
             showToast(notification);
           } catch (error) {
-            console.error('[Notifications] Failed to parse notification:', error);
+            logger.error('[Notifications] Failed to parse notification:', error);
           }
         };
 
         eventSource.onerror = (error) => {
-          console.error('[Notifications] Connection error:', error);
+          logger.error('[Notifications] Connection error:', error);
           setConnected(false);
           eventSource?.close();
           
           // Reconnect after 5 seconds
           reconnectTimeout = setTimeout(() => {
-            console.log('[Notifications] Attempting to reconnect...');
+            logger.log('[Notifications] Attempting to reconnect...');
             connect();
           }, 5000);
         };
       } catch (error) {
-        console.error('[Notifications] Failed to establish connection:', error);
+        logger.error('[Notifications] Failed to establish connection:', error);
         setConnected(false);
       }
     };

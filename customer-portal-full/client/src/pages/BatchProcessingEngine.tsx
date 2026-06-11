@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { secureRandom } from "@/lib/secureRandom";
 
 interface BatchJob {
   id: string;
@@ -91,7 +92,7 @@ const BatchProcessingEngine: React.FC = () => {
       toast.info(`Running batch job of type '${selectedJobType}'`);
       // Simulate adding a new job to demo data
       const newJob: BatchJob = {
-        id: `job-${Math.random().toString(36).substr(2, 9)}`,
+        id: `job-${secureRandom().toString(36).substr(2, 9)}`,
         jobType: selectedJobType,
         status: 'pending',
         createdAt: new Date().toISOString(),

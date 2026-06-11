@@ -1,6 +1,7 @@
 // React Native Offline Service
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import { secureRandom } from "../lib/secureRandom";
 
 interface QueuedRequest {
   id: string;
@@ -66,7 +67,7 @@ export class OfflineService {
     headers?: Record<string, string>
   ): Promise<void> {
     const request: QueuedRequest = {
-      id: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `req_${Date.now()}_${secureRandom().toString(36).substr(2, 9)}`,
       url,
       method,
       body,
