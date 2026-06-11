@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
 import {
+import { secureRandom } from "@/lib/secureRandom";
   Brain,
   AlertTriangle,
   CheckCircle,
@@ -48,8 +49,8 @@ export default function MLScoringDashboard() {
   const handleBatchScore = () => {
     const txns = Array.from({ length: 50 }, (_, i) => ({
       transactionId: `BATCH-${Date.now()}-${i}`,
-      amount: Math.floor(Math.random() * 500000) + 1000,
-      agentId: `AGT-${String(Math.floor(Math.random() * 100) + 1).padStart(3, "0")}`,
+      amount: Math.floor(secureRandom() * 500000) + 1000,
+      agentId: `AGT-${String(Math.floor(secureRandom() * 100) + 1).padStart(3, "0")}`,
     }));
     batchMut.mutate({ transactions: txns });
   };

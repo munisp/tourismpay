@@ -11,6 +11,8 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { secureRandom } from "@/lib/secureRandom";
+import { logger } from "@/lib/logger";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -227,7 +229,7 @@ export function useOfflineTransactionQueue(
         totalAmount: amounts.reduce((sum, a) => sum + a, 0),
       });
     } catch (err) {
-      console.error("[OfflineQueue] Failed to refresh:", err);
+      logger.error("[OfflineQueue] Failed to refresh:", err);
     }
   }, []);
 
@@ -245,7 +247,7 @@ export function useOfflineTransactionQueue(
         | "clientTimestamp"
       >
     ) => {
-      const id = `txn_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      const id = `txn_${Date.now()}_${secureRandom().toString(36).substring(2, 8)}`;
       const clientTimestamp = Date.now();
       const offlineDuration = isOnline
         ? 0
@@ -360,7 +362,7 @@ export function useOfflineTransactionQueue(
       await refreshQueue();
       return result;
     } catch (err) {
-      console.error("[OfflineQueue] Sync failed:", err);
+      logger.error("[OfflineQueue] Sync failed:", err);
       // Mark syncing items as failed
       const syncing = await dbGetByStatus("syncing");
       for (const tx of syncing) {

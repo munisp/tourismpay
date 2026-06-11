@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { secureRandom } from "../lib/secureRandom";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { analyticsMetrics } from "../../drizzle/schema";
@@ -53,10 +54,10 @@ export const platformMetricsExporterRouter = router({
       lines.push(`# HELP ${m.name} ${m.help}`);
       lines.push(`# TYPE ${m.name} ${m.type}`);
       if (m.type === "counter") {
-        lines.push(`${m.name}{status="success"} ${Math.floor(Math.random() * 100000)}`);
-        lines.push(`${m.name}{status="failure"} ${Math.floor(Math.random() * 1000)}`);
+        lines.push(`${m.name}{status="success"} ${Math.floor(secureRandom() * 100000)}`);
+        lines.push(`${m.name}{status="failure"} ${Math.floor(secureRandom() * 1000)}`);
       } else if (m.type === "gauge") {
-        lines.push(`${m.name} ${Math.round(Math.random() * 1000) / 10}`);
+        lines.push(`${m.name} ${Math.round(secureRandom() * 1000) / 10}`);
       }
     });
 

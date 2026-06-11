@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { useChatSocket } from "../hooks/useSocket";
 import { usePosStore } from "../store/posStore";
+import { secureRandom } from "@/lib/secureRandom";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const BG = "oklch(0.08 0.012 240)";
@@ -264,7 +265,7 @@ export default function LiveChatSupport({ onBack }: { onBack?: () => void }) {
   const [rating, setRating] = useState(0);
   const [rated, setRated] = useState(false);
   const [unread, setUnread] = useState(2);
-  const [queuePos] = useState(Math.floor(Math.random() * 3) + 1);
+  const [queuePos] = useState(Math.floor(secureRandom() * 3) + 1);
   const [sessionRef, setSessionRef] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -323,11 +324,11 @@ export default function LiveChatSupport({ onBack }: { onBack?: () => void }) {
   // Simulate support agent typing + response
   const simulateResponse = useCallback((category: SupportCategory) => {
     setIsTyping(true);
-    const delay = 1500 + Math.random() * 2000;
+    const delay = 1500 + secureRandom() * 2000;
     setTimeout(() => {
       setIsTyping(false);
       const pool = BOT_RESPONSES[category] || BOT_RESPONSES.default;
-      const text = pool[Math.floor(Math.random() * pool.length)];
+      const text = pool[Math.floor(secureRandom() * pool.length)];
       const msg: Message = {
         id: Date.now().toString(),
         role: "support",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { secureRandom } from "../lib/secureRandom";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { rateLimitRules } from "../../drizzle/schema";
@@ -41,7 +42,7 @@ export const apiRateLimiterDashRouter = router({
     }),
 
   getCurrentStatus: protectedProcedure.query(() => ({
-    activeRules: Object.entries(DEFAULT_LIMITS).map(([tier, limits]) => ({ tier, ...limits, activeUsers: Math.floor(Math.random() * 100) })),
+    activeRules: Object.entries(DEFAULT_LIMITS).map(([tier, limits]) => ({ tier, ...limits, activeUsers: Math.floor(secureRandom() * 100) })),
     throttledClients: 3,
     blockedIPs: 1,
     ddosDetections24h: 0,

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+import { logger } from "@/lib/logger";
   Dialog,
   DialogContent,
   DialogHeader,
@@ -367,7 +368,7 @@ export function MDMTab() {
         });
         setQrDataUrl(url);
       } catch (e) {
-        console.error("QR generation error", e);
+        logger.error("QR generation error", e);
       }
     },
     onError: e => toast.error(`Token generation failed: ${e.message}`),

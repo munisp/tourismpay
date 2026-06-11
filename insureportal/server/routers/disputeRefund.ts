@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { secureRandom } from "../lib/secureRandom";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { disputes, refunds, transactions } from "../../drizzle/schema";
@@ -128,7 +129,7 @@ export const disputeRefundRouter = router({
     return {
       totalDisputes: (totalRows as any)[0]?.total ?? 0,
       pendingRefunds: Math.floor(((totalRows as any)[0]?.total ?? 0) * 0.3),
-      processedToday: Math.floor(Math.random() * 15) + 5,
+      processedToday: Math.floor(secureRandom() * 15) + 5,
       totalRefundedAmount: 4500000,
       avgProcessingTime: 18.5,
       slaCompliance: 94.2,

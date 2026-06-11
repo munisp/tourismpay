@@ -18,6 +18,8 @@
  */
 
 // ─── Network Quality Detection ───────────────────────────────────────────────
+import { secureRandom } from "@/lib/secureRandom";
+import { logger } from "@/lib/logger";
 export type NetworkQuality = "offline" | "2g" | "3g" | "4g" | "wifi";
 
 export interface NetworkStatus {
@@ -124,7 +126,7 @@ export async function enqueueTransaction(
   tx: Omit<QueuedTransaction, "id" | "createdAt" | "retryCount" | "status">
 ): Promise<string> {
   const db = await openDB();
-  const id = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const id = `tx_${Date.now()}_${secureRandom().toString(36).slice(2, 8)}`;
   const transaction: QueuedTransaction = {
     ...tx,
     id,
@@ -218,7 +220,7 @@ export function calculateBackoff(
   baseMs: number = 1000,
   maxMs: number = 60000
 ): number {
-  const jitter = Math.random() * 1000;
+  const jitter = secureRandom() * 1000;
   const delay = Math.min(baseMs * Math.pow(2, retryCount) + jitter, maxMs);
   return delay;
 }
@@ -308,12 +310,12 @@ export function startAutoSync(intervalMs: number = 30000) {
 
   // Sync immediately on coming online
   window.addEventListener("online", () => {
-    console.log("[Offline] Network restored — triggering sync");
+    logger.log("[Offline] Network restored — triggering sync");
     syncPendingTransactions();
   });
 
   window.addEventListener("offline", () => {
-    console.log("[Offline] Network lost — queuing transactions locally");
+    logger.log("[Offline] Network lost — queuing transactions locally");
   });
 
   // Periodic sync attempt

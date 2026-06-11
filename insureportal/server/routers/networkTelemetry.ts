@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { secureRandom } from "../lib/secureRandom";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { transactions } from "../../drizzle/schema";
@@ -41,9 +42,9 @@ export const networkTelemetryRouter = router({
       const results = await database.select().from(transactions).orderBy(desc(transactions.id)).limit(input.limit).offset(input.offset);
       const totalRows = await database.select({ total: count() }).from(transactions);
       const telemetry = results.map((t: any, i: number) => {
-        const rtt = Math.round(50 + Math.random() * 200);
-        const jitter = Math.round(5 + Math.random() * 40);
-        const bandwidth = Math.round(500 + Math.random() * 5000);
+        const rtt = Math.round(50 + secureRandom() * 200);
+        const jitter = Math.round(5 + secureRandom() * 40);
+        const bandwidth = Math.round(500 + secureRandom() * 5000);
         return { id: t.id, source: ["pos", "mobile", "web", "api"][i % 4], rttMs: rtt, jitterMs: jitter, bandwidthKbps: bandwidth, connectionQuality: classifyConnection(rtt, jitter, bandwidth), connectionType: ["4G", "WiFi", "3G", "5G"][i % 4], timestamp: t.createdAt };
       });
       return { data: telemetry, total: (totalRows as any)[0]?.total ?? 0, limit: input.limit, offset: input.offset };
@@ -53,10 +54,10 @@ export const networkTelemetryRouter = router({
     const sources = ["pos", "mobile", "web", "api"];
     return {
       metrics: sources.map(s => {
-        const rtt = Math.round(50 + Math.random() * 150);
-        const jitter = Math.round(5 + Math.random() * 30);
-        const bandwidth = Math.round(1000 + Math.random() * 8000);
-        return { source: s, rttMs: rtt, jitterMs: jitter, bandwidthKbps: bandwidth, quality: classifyConnection(rtt, jitter, bandwidth), activeSessions: Math.floor(Math.random() * 200) + 50, errorRate: Math.round(Math.random() * 200) / 100 };
+        const rtt = Math.round(50 + secureRandom() * 150);
+        const jitter = Math.round(5 + secureRandom() * 30);
+        const bandwidth = Math.round(1000 + secureRandom() * 8000);
+        return { source: s, rttMs: rtt, jitterMs: jitter, bandwidthKbps: bandwidth, quality: classifyConnection(rtt, jitter, bandwidth), activeSessions: Math.floor(secureRandom() * 200) + 50, errorRate: Math.round(secureRandom() * 200) / 100 };
       }),
       thresholds: TELEMETRY_THRESHOLDS,
       timestamp: new Date().toISOString(),
