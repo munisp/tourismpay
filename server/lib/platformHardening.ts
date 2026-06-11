@@ -9,6 +9,7 @@
  */
 
 // ─── F16: Chat Audit Trail ──────────────────────────────────────────────────
+import { secureRandom } from "../lib/securityAuditFixes";
 export type AuditAction =
   | "session_created"
   | "session_assigned"
@@ -238,7 +239,7 @@ export function createAttachmentRecord(
   uploadedBy: string
 ): ChatAttachment {
   return {
-    id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `att-${Date.now()}-${secureRandom().toString(36).slice(2, 8)}`,
     sessionId,
     messageId,
     fileName: sanitizeFileName(fileName),

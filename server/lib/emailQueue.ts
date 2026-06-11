@@ -26,6 +26,7 @@
  *   });
  */
 
+import { secureRandom } from "../lib/securityAuditFixes";
 interface EmailJob {
   id: string;
   to: string | string[];
@@ -58,7 +59,7 @@ export function enqueueEmail(opts: {
   text?: string;
   from?: string;
 }): string {
-  const id = `email_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const id = `email_${Date.now()}_${secureRandom().toString(36).slice(2, 8)}`;
   const job: EmailJob = {
     id,
     to: opts.to,

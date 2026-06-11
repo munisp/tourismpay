@@ -5,6 +5,7 @@
  * graceful shutdown, and connection draining
  */
 import logger from "../_core/logger";
+import { secureRandom } from "../lib/securityAuditFixes";
 
 // ── 1. Circuit Breaker ────────────────────────────────────────────────────────
 type CircuitState = "closed" | "open" | "half_open";
@@ -196,7 +197,7 @@ export async function retryWithBackoff<T>(
 
       // Add jitter to prevent thundering herd
       if (opts.jitter) {
-        delay = delay * (0.5 + Math.random() * 0.5);
+        delay = delay * (0.5 + secureRandom() * 0.5);
       }
 
       logger.warn(

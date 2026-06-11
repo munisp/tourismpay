@@ -3,6 +3,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { disputes, disputeMessages, disputeEvidence, transactions } from "../../drizzle/schema";
 import { desc, eq, sql, and, gte, lte, count, lt } from "drizzle-orm";
+import { secureRandom } from "../lib/securityAuditFixes";
 
 /**
  * Transaction Dispute Resolution Router
@@ -75,7 +76,7 @@ export const transactionDisputeResolutionRouter = router({
       else if (amount > 10000) { priority = "medium"; slaHours = 240; }
       else { priority = "low"; slaHours = 480; }
 
-      const ref = `DSP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      const ref = `DSP-${Date.now().toString(36).toUpperCase()}-${secureRandom().toString(36).substring(2, 6).toUpperCase()}`;
       const slaDeadline = new Date(Date.now() + slaHours * 3600000);
 
       const [dispute] = await database

@@ -9,6 +9,7 @@
 import type { Server as SocketIOServer, Socket } from "socket.io";
 import { jwtVerify } from "jose";
 import { getJwtSecret } from "./envValidation";
+import { secureRandom } from "../lib/securityAuditFixes";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Event Types
@@ -329,7 +330,7 @@ export async function notifyUser(
 ): Promise<void> {
   await publishNotification({
     ...notification,
-    id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `notif_${Date.now()}_${secureRandom().toString(36).slice(2, 8)}`,
     timestamp: new Date().toISOString(),
     userId,
   });
@@ -343,7 +344,7 @@ export async function broadcastNotification(
 ): Promise<void> {
   await publishNotification({
     ...notification,
-    id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `notif_${Date.now()}_${secureRandom().toString(36).slice(2, 8)}`,
     timestamp: new Date().toISOString(),
   });
 }

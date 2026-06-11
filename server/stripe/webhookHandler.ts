@@ -11,6 +11,7 @@ import { Request, Response } from "express";
 import Stripe from "stripe";
 import { getDb } from "../db";
 import {
+import { secureRandom } from "../lib/securityAuditFixes";
   billingAuditLog,
   platformBillingLedger,
   users,
@@ -141,7 +142,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
             metadata: { eventId: event.id, source: "stripe_webhook" },
           });
           await db.insert(platformBillingLedger).values({
-            transactionId: Math.floor(Math.random() * 1000000),
+            transactionId: Math.floor(secureRandom() * 1000000),
             tenantId,
             agentId: 0,
             posTerminalId: 0,

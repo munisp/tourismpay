@@ -3,6 +3,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { platform_health_checks } from "../../drizzle/schema";
 import { desc, eq, count } from "drizzle-orm";
+import { secureRandom } from "../lib/securityAuditFixes";
 
 /**
  * Platform Health Dashboard Router
@@ -66,18 +67,18 @@ export const platformHealthDashRouter = router({
   getOverview: protectedProcedure.query(() => {
     const serviceStatuses = SERVICES.map((s) => ({
       ...s,
-      status: Math.random() > 0.05 ? "healthy" : "degraded",
-      latencyMs: Math.round(50 + Math.random() * 100),
-      uptimePct: 99.9 + Math.random() * 0.09,
-      lastCheck: new Date(Date.now() - Math.random() * 30000).toISOString(),
+      status: secureRandom() > 0.05 ? "healthy" : "degraded",
+      latencyMs: Math.round(50 + secureRandom() * 100),
+      uptimePct: 99.9 + secureRandom() * 0.09,
+      lastCheck: new Date(Date.now() - secureRandom() * 30000).toISOString(),
       consecutiveFailures: 0,
       circuitBreaker: "closed",
     }));
 
     const depStatuses = DEPENDENCIES.map((d) => ({
       ...d,
-      status: Math.random() > 0.02 ? "connected" : "degraded",
-      latencyMs: Math.round(1 + Math.random() * 10),
+      status: secureRandom() > 0.02 ? "connected" : "degraded",
+      latencyMs: Math.round(1 + secureRandom() * 10),
       lastCheck: new Date().toISOString(),
     }));
 
@@ -90,11 +91,11 @@ export const platformHealthDashRouter = router({
       dependencies: depStatuses,
       slaTargets: SLA_TARGETS,
       metrics: {
-        apiLatencyP95: Math.round(80 + Math.random() * 60),
+        apiLatencyP95: Math.round(80 + secureRandom() * 60),
         uptimePct: 99.95,
         errorRate: 0.03,
-        requestsPerSecond: Math.round(500 + Math.random() * 200),
-        activeConnections: Math.round(1200 + Math.random() * 300),
+        requestsPerSecond: Math.round(500 + secureRandom() * 200),
+        activeConnections: Math.round(1200 + secureRandom() * 300),
       },
       lastFullCheck: new Date().toISOString(),
     };

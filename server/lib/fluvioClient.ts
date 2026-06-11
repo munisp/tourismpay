@@ -26,6 +26,7 @@
 
 import { ENV } from "../_core/env.js";
 import axios from "axios";
+import { secureRandom } from "../lib/securityAuditFixes";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -163,7 +164,7 @@ function bufferEvent(event: FluvioEvent): void {
   }
   eventBuffer.push({
     ...event,
-    id: `buf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    id: `buf-${Date.now()}-${secureRandom().toString(36).slice(2, 6)}`,
     enqueuedAt: new Date().toISOString(),
     retries: 0,
   });
@@ -227,7 +228,7 @@ export async function fluvioProduce(event: FluvioEvent): Promise<void> {
   // Build enriched event for SSE fan-out (always, regardless of upstream status)
   const enriched = {
     ...event,
-    id: `${event.topic}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `${event.topic}-${Date.now()}-${secureRandom().toString(36).slice(2, 8)}`,
     timestamp: event.timestamp ?? new Date().toISOString(),
   };
   notifySseListeners(enriched);

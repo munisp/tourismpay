@@ -3,6 +3,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { otpTokens } from "../../drizzle/schema";
 import { desc, eq, count } from "drizzle-orm";
+import { secureRandom } from "../lib/securityAuditFixes";
 
 /**
  * Payment Token Vault Router
@@ -26,7 +27,7 @@ const MAX_FAILED_ATTEMPTS = 3;
 function generateToken(type: string): string {
   const prefix = type === "card" ? "CRD" : type === "bank" ? "BNK" : "MOB";
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  const random = Array.from({ length: 13 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  const random = Array.from({ length: 13 }, () => chars[Math.floor(secureRandom() * chars.length)]).join("");
   return `${prefix}_${random}`;
 }
 

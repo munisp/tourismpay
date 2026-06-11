@@ -29,6 +29,7 @@
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+import { secureRandom } from "../lib/securityAuditFixes";
 export type SmsProvider = "twilio" | "africastalking" | "termii" | "console";
 
 export interface SmsMessage {
@@ -333,7 +334,7 @@ export async function sendSms(msg: SmsMessage): Promise<SmsResult> {
       timestamp: new Date(),
     };
     logDelivery({
-      id: `sms_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id: `sms_${Date.now()}_${secureRandom().toString(36).slice(2, 8)}`,
       to: normalizedTo,
       body: msg.body,
       provider: "console",
@@ -363,7 +364,7 @@ export async function sendSms(msg: SmsMessage): Promise<SmsResult> {
       incrementPhoneRateLimit(normalizedTo);
 
       const logEntry: SmsDeliveryLog = {
-        id: `sms_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        id: `sms_${Date.now()}_${secureRandom().toString(36).slice(2, 8)}`,
         to: normalizedTo,
         body: msg.body,
         provider: provider.name,
@@ -393,7 +394,7 @@ export async function sendSms(msg: SmsMessage): Promise<SmsResult> {
   }
 
   const failEntry: SmsDeliveryLog = {
-    id: `sms_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `sms_${Date.now()}_${secureRandom().toString(36).slice(2, 8)}`,
     to: normalizedTo,
     body: msg.body,
     provider: "console",
