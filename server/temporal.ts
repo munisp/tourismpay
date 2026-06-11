@@ -160,7 +160,7 @@ export async function getSettlementStatus(date: string): Promise<{
   try {
     const handle = client.workflow.getHandle(workflowId);
     const desc = await handle.describe();
-    return { status: desc.status.name };
+    return { status: (desc as Record<string, any>).status?.name ?? "unknown" };
   } catch {
     return null;
   }

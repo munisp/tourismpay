@@ -130,7 +130,7 @@ export default function VaultSecretsManager() {
                           variant="outline"
                           className="text-gray-300 border-gray-600"
                           onClick={() =>
-                            rotateMut.mutate({ path: p.path || p })
+                            rotateMut.mutate({ name: p.path || p, reason: "Manual rotation from vault manager" })
                           }
                         >
                           Rotate

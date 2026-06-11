@@ -130,7 +130,7 @@ export const executiveCommandCenterRouter = router({
         .groupBy(sql`DATE(${transactions.createdAt})`)
         .orderBy(sql`DATE(${transactions.createdAt})`);
 
-      return results.map((r) => ({
+      return results.map((r: { date: string; count: number; volume: string | null }) => ({
         date: r.date,
         count: r.count,
         volume: Number(r.volume ?? 0),

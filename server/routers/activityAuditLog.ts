@@ -33,7 +33,7 @@ export const activityAuditLogRouter = router({
 
       const conditions = [];
       if (input.action) conditions.push(eq(auditLog.action, input.action));
-      if (input.userId) conditions.push(eq(auditLog.userId, input.userId));
+      if (input.userId) conditions.push(eq(auditLog.agentId, input.userId));
 
       const query = database.select().from(auditLog)
         .orderBy(desc(auditLog.id))

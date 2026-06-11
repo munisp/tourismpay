@@ -168,7 +168,7 @@ export async function getSettlementWorkflowStatus(batchId: string): Promise<{
     if (!client) return null;
     const handle = client.workflow.getHandle(`settlement-${batchId}`);
     const desc = await handle.describe();
-    return { status: desc.status.name, agentsProcessed: 0, totalAmount: 0 };
+    return { status: (desc as any).status?.name ?? "unknown", agentsProcessed: 0, totalAmount: 0 };
   } catch {
     return null;
   }
