@@ -18,7 +18,7 @@ const { Pool } = pg;
 const POSTGRES_URL =
   process.env.POSTGRES_URL ??
   process.env.DATABASE_URL ??
-  "postgresql://posadmin:pos54link2026@localhost:5432/pos54link";
+  "postgres://postgres:postgres@localhost:5432/tourismpay?sslmode=disable";
 
 const pool = new Pool({ connectionString: POSTGRES_URL, ssl: false });
 

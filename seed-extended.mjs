@@ -18,7 +18,7 @@ const { Pool } = pg;
 const POSTGRES_URL =
   process.env.POSTGRES_URL ??
   process.env.DATABASE_URL ??
-  "postgresql://posadmin:pos54link2026@localhost:5432/pos54link";
+  "postgres://postgres:postgres@localhost:5432/tourismpay?sslmode=disable";
 
 const pool = new Pool({ connectionString: POSTGRES_URL, ssl: false });
 
@@ -232,6 +232,61 @@ async function seedExtended() {
         ($5, 'Cash Out Hourly (Gold)', 'cash_out', 25, 1500000, 60, 'gold', true)
       ON CONFLICT DO NOTHING
     `, [randomUUID(), randomUUID(), randomUUID(), randomUUID(), randomUUID()]);
+
+    // ── Deployments (devops-platform) ──────────────────────────────────────────
+    await safeInsert("deployments", `
+      INSERT INTO deployments (service_name, version, environment, status, deployed_at)
+      VALUES
+        ('customer-portal', '2.5.1', 'production', 'healthy', $1),
+        ('claims-engine', '1.8.0', 'staging', 'canary_validating', $2),
+        ('agent-mobile-app', '3.1.0', 'production', 'healthy', $3),
+        ('payment-gateway', '4.0.2', 'production', 'healthy', $4),
+        ('notification-service', '1.2.0', 'production', 'healthy', $5)
+      ON CONFLICT DO NOTHING
+    `, [daysAgo(2), daysAgo(0), daysAgo(5), daysAgo(1), daysAgo(3)]);
+
+    // ── Float Accounts (agent wallets) ──────────────────────────────────────────
+    await safeInsert("floatAccounts", `
+      INSERT INTO float_accounts (agent_id, balance, currency, last_topup_at, created_at)
+      VALUES
+        (1, 125000.00, 'ZAR', $1, $2),
+        (2, 85000.00, 'ZAR', $3, $4),
+        (3, 200000.00, 'ZAR', $5, $6)
+      ON CONFLICT DO NOTHING
+    `, [daysAgo(1), daysAgo(30), daysAgo(2), daysAgo(25), daysAgo(0), daysAgo(20)]);
+
+    // ── Commissions ─────────────────────────────────────────────────────────────
+    await safeInsert("commissions", `
+      INSERT INTO commissions (agent_id, amount, type, status, created_at)
+      VALUES
+        (1, 15000.00, 'new_business', 'credited', $1),
+        (1, 8000.00, 'renewal', 'credited', $2),
+        (1, 22000.00, 'new_business', 'pending', $3),
+        (2, 12000.00, 'new_business', 'credited', $4),
+        (2, 5000.00, 'renewal', 'pending', $5)
+      ON CONFLICT DO NOTHING
+    `, [daysAgo(5), daysAgo(3), daysAgo(0), daysAgo(2), daysAgo(1)]);
+
+    // ── Offline Sync Queue (mobile offline-first) ───────────────────────────────
+    await safeInsert("offlineSyncQueue", `
+      INSERT INTO offline_sync_queue (device_id, payload, status, created_at)
+      VALUES
+        ('DEV-001', '{"type":"transaction","amount":5000}', 'pending', $1),
+        ('DEV-002', '{"type":"checkin","lat":-26.2}', 'synced', $2),
+        ('DEV-001', '{"type":"claim","policy_id":1}', 'pending', $3)
+      ON CONFLICT DO NOTHING
+    `, [daysAgo(0), daysAgo(1), daysAgo(0)]);
+
+    // ── Notification Log ────────────────────────────────────────────────────────
+    await safeInsert("notificationLog", `
+      INSERT INTO notification_log (title, body, channel, status, created_at)
+      VALUES
+        ('Payment Received', 'Transaction of ZAR 5,000 completed', 'push', 'delivered', $1),
+        ('KYC Approved', 'Your identity verification is complete', 'email', 'delivered', $2),
+        ('Float Low', 'Your float balance is below ZAR 10,000', 'sms', 'delivered', $3),
+        ('Commission Credited', 'ZAR 15,000 commission added to wallet', 'push', 'delivered', $4)
+      ON CONFLICT DO NOTHING
+    `, [daysAgo(0), daysAgo(1), daysAgo(2), daysAgo(0)]);
 
     await client.query("COMMIT");
     console.log(`\nExtended seed complete: ${seeded} table groups seeded.`);
