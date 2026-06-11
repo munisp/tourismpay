@@ -37,7 +37,7 @@ export function securityHeaders(
     "Content-Security-Policy",
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://cdn.jsdelivr.net",
+      "script-src 'self' https://js.stripe.com https://cdn.jsdelivr.net",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https: blob:",
@@ -110,14 +110,16 @@ export function csrfProtection(
   const sessionId = req.cookies?.session_id;
 
   if (!sessionId || !csrfToken) {
-    // Don't block — just log for monitoring
     console.warn(`[CSRF] Missing token/session on ${req.method} ${req.path}`);
-    return next();
+    res.status(403).json({ error: { code: "CSRF_MISSING", message: "CSRF token required" } });
+    return;
   }
 
   const stored = csrfTokens.get(sessionId);
   if (!stored || stored.token !== csrfToken || stored.expires < Date.now()) {
     console.warn(`[CSRF] Invalid token on ${req.method} ${req.path}`);
+    res.status(403).json({ error: { code: "CSRF_INVALID", message: "Invalid or expired CSRF token" } });
+    return;
   }
 
   // Clean expired tokens periodically

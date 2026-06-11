@@ -30,6 +30,7 @@ if (
   console.error(
     "[SECURITY] FATAL: JWT_SECRET is not set or is using the default value. Set a strong secret in production."
   );
+  process.exit(1);
 }
 
 export type TrpcContext = {

@@ -131,6 +131,15 @@ class InsurePortalSDK {
   }
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 // Widget rendering for checkout pages
 function renderInsuranceWidget(containerId: string, config: EmbeddedConfig & { category: string }): void {
   const container = document.getElementById(containerId);
@@ -151,9 +160,9 @@ function renderInsuranceWidget(containerId: string, config: EmbeddedConfig & { c
     }
     container.innerHTML = offers.map(offer => `
       <div class="insureportal-offer" style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin-bottom:8px;">
-        <strong>${offer.productName}</strong> — ₦${offer.premium.toLocaleString()}
-        <p style="font-size:12px;color:#6b7280;">${offer.coverageSummary}</p>
-        <button data-offer-id="${offer.offerId}" style="background:#3b82f6;color:#fff;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">
+        <strong>${escapeHtml(offer.productName)}</strong> — ₦${Number(offer.premium).toLocaleString()}
+        <p style="font-size:12px;color:#6b7280;">${escapeHtml(offer.coverageSummary)}</p>
+        <button data-offer-id="${escapeHtml(offer.offerId)}" style="background:#3b82f6;color:#fff;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;">
           Add Protection
         </button>
       </div>

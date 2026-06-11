@@ -45,9 +45,6 @@ impl OpenSearchClient {
 
         let http_client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
-            .danger_accept_invalid_certs(
-                std::env::var("OPENSEARCH_SKIP_TLS").unwrap_or_default() == "true"
-            )
             .build()
             .expect("Failed to build HTTP client");
 

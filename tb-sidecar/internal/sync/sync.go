@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -133,10 +132,10 @@ func (e *Engine) syncTransfer(ctx context.Context, t ledger.Transfer) error {
 	return nil
 }
 
-// submitToTigerBeetle invokes the tigerbeetle CLI to create a transfer.
-// In production this would use the native tigerbeetle-go client.
+// submitToTigerBeetle sends a transfer to the TigerBeetle cluster via HTTP API.
+// Uses the native HTTP API instead of exec.Command to prevent shell injection
+// and reduce process management overhead.
 func (e *Engine) submitToTigerBeetle(t ledger.Transfer) error {
-	// Build the JSON payload for the TB CLI
 	payload := map[string]interface{}{
 		"id":                t.ID,
 		"debit_account_id":  t.DebitAccountID,
@@ -145,21 +144,32 @@ func (e *Engine) submitToTigerBeetle(t ledger.Transfer) error {
 		"ledger":            t.Ledger,
 		"code":              t.Code,
 	}
-	payloadJSON, _ := json.Marshal(payload)
-
-	// Use tigerbeetle CLI: `tigerbeetle transfer <json>`
-	// The binary accepts JSON via stdin for scripted operations.
-	cmd := exec.Command("tigerbeetle", "transfer",
-		"--cluster="+e.cfg.TigerBeetleCluster,
-		"--addresses=3000",
-	)
-	cmd.Stdin = strings.NewReader(string(payloadJSON))
-
-	out, err := cmd.CombinedOutput()
+	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
-		// TB may not be running in dev — this is acceptable
-		log.Printf("[sync] TB CLI output: %s", strings.TrimSpace(string(out)))
-		return nil // soft failure
+		return fmt.Errorf("marshal transfer payload: %w", err)
+	}
+
+	tbAddr := "http://127.0.0.1:3000"
+	if e.cfg.TigerBeetleDataFile != "" {
+		tbAddr = fmt.Sprintf("http://127.0.0.1:%s", strings.TrimPrefix(e.cfg.TigerBeetleCluster, "cluster-"))
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest("POST", tbAddr+"/transfer", strings.NewReader(string(payloadJSON)))
+	if err != nil {
+		return fmt.Errorf("create TB request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[sync] TB HTTP API unavailable: %v", err)
+		return nil // soft failure — TB may not be running in dev
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		log.Printf("[sync] TB returned status %d for transfer %s", resp.StatusCode, t.ID)
 	}
 	return nil
 }
