@@ -8,7 +8,6 @@ import (
 	"github.com/unified-insurance/nmid-integration/internal/repository"
 	"github.com/unified-insurance/nmid-integration/internal/service"
 	"os"
-
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

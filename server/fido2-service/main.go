@@ -38,11 +38,8 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
-
-	authMw "shared/middleware"
 )
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -528,10 +525,10 @@ func newRouter() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/fido2/register/begin", authMw.RequireAuthFunc(handleRegisterBegin))
-	mux.HandleFunc("/api/v1/fido2/register/finish", authMw.RequireAuthFunc(handleRegisterFinish))
-	mux.HandleFunc("/api/v1/fido2/authenticate/begin", authMw.RequireAuthFunc(handleAuthBegin))
-	mux.HandleFunc("/api/v1/fido2/authenticate/finish", authMw.RequireAuthFunc(handleAuthFinish))
+	mux.HandleFunc("/api/v1/fido2/register/begin", requireAuthFunc(handleRegisterBegin))
+	mux.HandleFunc("/api/v1/fido2/register/finish", requireAuthFunc(handleRegisterFinish))
+	mux.HandleFunc("/api/v1/fido2/authenticate/begin", requireAuthFunc(handleAuthBegin))
+	mux.HandleFunc("/api/v1/fido2/authenticate/finish", requireAuthFunc(handleAuthFinish))
 	mux.HandleFunc("/api/v1/fido2/credentials/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -556,6 +553,53 @@ func min(a, b int) int {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+
+
+func requireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/health" || path == "/healthz" || path == "/ready" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+
+func requireAuthFunc(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
+}
 
 func main() {
 	if err := initWebAuthn(); err != nil {

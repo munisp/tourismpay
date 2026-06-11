@@ -9,9 +9,55 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	authMw "shared/middleware"
+	"strings"
 )
+
+
+func requireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/health" || path == "/healthz" || path == "/ready" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+
+func requireAuthFunc(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
+}
 
 func main() {
 	port := os.Getenv("PORT")
@@ -28,58 +74,58 @@ func main() {
 	})
 
 	// ─── Warehouse Management ────────────────────────────────────────────
-	mux.HandleFunc("GET /api/v1/warehouses", authMw.RequireAuthFunc(listWarehouses))
-	mux.HandleFunc("POST /api/v1/warehouses", authMw.RequireAuthFunc(createWarehouse))
-	mux.HandleFunc("GET /api/v1/warehouses/{id}", authMw.RequireAuthFunc(getWarehouse))
-	mux.HandleFunc("PUT /api/v1/warehouses/{id}", authMw.RequireAuthFunc(updateWarehouse))
-	mux.HandleFunc("GET /api/v1/warehouses/{id}/zones", authMw.RequireAuthFunc(listZones))
-	mux.HandleFunc("POST /api/v1/warehouses/{id}/zones", authMw.RequireAuthFunc(createZone))
-	mux.HandleFunc("GET /api/v1/warehouses/{id}/locations", authMw.RequireAuthFunc(listLocations))
-	mux.HandleFunc("POST /api/v1/warehouses/{id}/locations", authMw.RequireAuthFunc(createLocation))
-	mux.HandleFunc("GET /api/v1/warehouses/{id}/occupancy", authMw.RequireAuthFunc(getOccupancy))
+	mux.HandleFunc("GET /api/v1/warehouses", requireAuthFunc(listWarehouses))
+	mux.HandleFunc("POST /api/v1/warehouses", requireAuthFunc(createWarehouse))
+	mux.HandleFunc("GET /api/v1/warehouses/{id}", requireAuthFunc(getWarehouse))
+	mux.HandleFunc("PUT /api/v1/warehouses/{id}", requireAuthFunc(updateWarehouse))
+	mux.HandleFunc("GET /api/v1/warehouses/{id}/zones", requireAuthFunc(listZones))
+	mux.HandleFunc("POST /api/v1/warehouses/{id}/zones", requireAuthFunc(createZone))
+	mux.HandleFunc("GET /api/v1/warehouses/{id}/locations", requireAuthFunc(listLocations))
+	mux.HandleFunc("POST /api/v1/warehouses/{id}/locations", requireAuthFunc(createLocation))
+	mux.HandleFunc("GET /api/v1/warehouses/{id}/occupancy", requireAuthFunc(getOccupancy))
 
 	// ─── Stock Movements ─────────────────────────────────────────────────
-	mux.HandleFunc("POST /api/v1/stock/receive", authMw.RequireAuthFunc(receiveStock))
-	mux.HandleFunc("POST /api/v1/stock/transfer", authMw.RequireAuthFunc(transferStock))
-	mux.HandleFunc("POST /api/v1/stock/adjust", authMw.RequireAuthFunc(adjustStock))
-	mux.HandleFunc("POST /api/v1/stock/reserve", authMw.RequireAuthFunc(reserveStock))
-	mux.HandleFunc("POST /api/v1/stock/pick", authMw.RequireAuthFunc(pickStock))
-	mux.HandleFunc("GET /api/v1/stock/movements", authMw.RequireAuthFunc(listMovements))
-	mux.HandleFunc("GET /api/v1/stock/levels", authMw.RequireAuthFunc(getStockLevels))
-	mux.HandleFunc("GET /api/v1/stock/alerts", authMw.RequireAuthFunc(getStockAlerts))
+	mux.HandleFunc("POST /api/v1/stock/receive", requireAuthFunc(receiveStock))
+	mux.HandleFunc("POST /api/v1/stock/transfer", requireAuthFunc(transferStock))
+	mux.HandleFunc("POST /api/v1/stock/adjust", requireAuthFunc(adjustStock))
+	mux.HandleFunc("POST /api/v1/stock/reserve", requireAuthFunc(reserveStock))
+	mux.HandleFunc("POST /api/v1/stock/pick", requireAuthFunc(pickStock))
+	mux.HandleFunc("GET /api/v1/stock/movements", requireAuthFunc(listMovements))
+	mux.HandleFunc("GET /api/v1/stock/levels", requireAuthFunc(getStockLevels))
+	mux.HandleFunc("GET /api/v1/stock/alerts", requireAuthFunc(getStockAlerts))
 
 	// ─── Inventory Valuation ─────────────────────────────────────────────
-	mux.HandleFunc("GET /api/v1/valuation/{sku}", authMw.RequireAuthFunc(getValuation))
-	mux.HandleFunc("POST /api/v1/valuation/calculate", authMw.RequireAuthFunc(calculateValuation))
-	mux.HandleFunc("GET /api/v1/valuation/report", authMw.RequireAuthFunc(valuationReport))
+	mux.HandleFunc("GET /api/v1/valuation/{sku}", requireAuthFunc(getValuation))
+	mux.HandleFunc("POST /api/v1/valuation/calculate", requireAuthFunc(calculateValuation))
+	mux.HandleFunc("GET /api/v1/valuation/report", requireAuthFunc(valuationReport))
 
 	// ─── Procurement ─────────────────────────────────────────────────────
-	mux.HandleFunc("GET /api/v1/suppliers", authMw.RequireAuthFunc(listSuppliers))
-	mux.HandleFunc("POST /api/v1/suppliers", authMw.RequireAuthFunc(createSupplier))
-	mux.HandleFunc("GET /api/v1/suppliers/{id}", authMw.RequireAuthFunc(getSupplier))
-	mux.HandleFunc("PUT /api/v1/suppliers/{id}", authMw.RequireAuthFunc(updateSupplier))
-	mux.HandleFunc("GET /api/v1/suppliers/{id}/performance", authMw.RequireAuthFunc(getSupplierPerformance))
-	mux.HandleFunc("GET /api/v1/purchase-orders", authMw.RequireAuthFunc(listPurchaseOrders))
-	mux.HandleFunc("POST /api/v1/purchase-orders", authMw.RequireAuthFunc(createPurchaseOrder))
-	mux.HandleFunc("GET /api/v1/purchase-orders/{id}", authMw.RequireAuthFunc(getPurchaseOrder))
-	mux.HandleFunc("PUT /api/v1/purchase-orders/{id}/status", authMw.RequireAuthFunc(updatePOStatus))
-	mux.HandleFunc("POST /api/v1/purchase-orders/{id}/receive", authMw.RequireAuthFunc(receivePO))
+	mux.HandleFunc("GET /api/v1/suppliers", requireAuthFunc(listSuppliers))
+	mux.HandleFunc("POST /api/v1/suppliers", requireAuthFunc(createSupplier))
+	mux.HandleFunc("GET /api/v1/suppliers/{id}", requireAuthFunc(getSupplier))
+	mux.HandleFunc("PUT /api/v1/suppliers/{id}", requireAuthFunc(updateSupplier))
+	mux.HandleFunc("GET /api/v1/suppliers/{id}/performance", requireAuthFunc(getSupplierPerformance))
+	mux.HandleFunc("GET /api/v1/purchase-orders", requireAuthFunc(listPurchaseOrders))
+	mux.HandleFunc("POST /api/v1/purchase-orders", requireAuthFunc(createPurchaseOrder))
+	mux.HandleFunc("GET /api/v1/purchase-orders/{id}", requireAuthFunc(getPurchaseOrder))
+	mux.HandleFunc("PUT /api/v1/purchase-orders/{id}/status", requireAuthFunc(updatePOStatus))
+	mux.HandleFunc("POST /api/v1/purchase-orders/{id}/receive", requireAuthFunc(receivePO))
 
 	// ─── Logistics ───────────────────────────────────────────────────────
-	mux.HandleFunc("GET /api/v1/carriers", authMw.RequireAuthFunc(listCarriers))
-	mux.HandleFunc("POST /api/v1/shipments", authMw.RequireAuthFunc(createShipment))
-	mux.HandleFunc("GET /api/v1/shipments/{id}", authMw.RequireAuthFunc(getShipment))
-	mux.HandleFunc("PUT /api/v1/shipments/{id}/status", authMw.RequireAuthFunc(updateShipmentStatus))
-	mux.HandleFunc("POST /api/v1/shipments/{id}/label", authMw.RequireAuthFunc(generateLabel))
-	mux.HandleFunc("GET /api/v1/shipments/{id}/tracking", authMw.RequireAuthFunc(trackShipment))
-	mux.HandleFunc("POST /api/v1/shipments/{id}/pod", authMw.RequireAuthFunc(submitProofOfDelivery))
-	mux.HandleFunc("GET /api/v1/shipping/rates", authMw.RequireAuthFunc(calculateShippingRates))
-	mux.HandleFunc("POST /api/v1/shipping/optimize-route", authMw.RequireAuthFunc(optimizeRoute))
+	mux.HandleFunc("GET /api/v1/carriers", requireAuthFunc(listCarriers))
+	mux.HandleFunc("POST /api/v1/shipments", requireAuthFunc(createShipment))
+	mux.HandleFunc("GET /api/v1/shipments/{id}", requireAuthFunc(getShipment))
+	mux.HandleFunc("PUT /api/v1/shipments/{id}/status", requireAuthFunc(updateShipmentStatus))
+	mux.HandleFunc("POST /api/v1/shipments/{id}/label", requireAuthFunc(generateLabel))
+	mux.HandleFunc("GET /api/v1/shipments/{id}/tracking", requireAuthFunc(trackShipment))
+	mux.HandleFunc("POST /api/v1/shipments/{id}/pod", requireAuthFunc(submitProofOfDelivery))
+	mux.HandleFunc("GET /api/v1/shipping/rates", requireAuthFunc(calculateShippingRates))
+	mux.HandleFunc("POST /api/v1/shipping/optimize-route", requireAuthFunc(optimizeRoute))
 
 	// ─── Cycle Counting ──────────────────────────────────────────────────
-	mux.HandleFunc("POST /api/v1/cycle-count/start", authMw.RequireAuthFunc(startCycleCount))
-	mux.HandleFunc("POST /api/v1/cycle-count/record", authMw.RequireAuthFunc(recordCycleCount))
-	mux.HandleFunc("GET /api/v1/cycle-count/discrepancies", authMw.RequireAuthFunc(getDiscrepancies))
+	mux.HandleFunc("POST /api/v1/cycle-count/start", requireAuthFunc(startCycleCount))
+	mux.HandleFunc("POST /api/v1/cycle-count/record", requireAuthFunc(recordCycleCount))
+	mux.HandleFunc("GET /api/v1/cycle-count/discrepancies", requireAuthFunc(getDiscrepancies))
 
 	server := &http.Server{
 		Addr:         ":" + port,

@@ -39,8 +39,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	authMw "shared/middleware"
 )
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -481,10 +479,10 @@ func newRouter() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/ota/latest", authMw.RequireAuthFunc(handleLatest))
-	mux.HandleFunc("/api/v1/ota/list", authMw.RequireAuthFunc(handleList))
-	mux.HandleFunc("/api/v1/ota/upload", authMw.RequireAuthFunc(handleUpload))
-	mux.HandleFunc("/api/v1/ota/download/", authMw.RequireAuthFunc(handleDownload))
+	mux.HandleFunc("/api/v1/ota/latest", requireAuthFunc(handleLatest))
+	mux.HandleFunc("/api/v1/ota/list", requireAuthFunc(handleList))
+	mux.HandleFunc("/api/v1/ota/upload", requireAuthFunc(handleUpload))
+	mux.HandleFunc("/api/v1/ota/download/", requireAuthFunc(handleDownload))
 	mux.HandleFunc("/api/v1/ota/", func(w http.ResponseWriter, r *http.Request) {
 		// Route /api/v1/ota/{id}/rollout
 		if strings.HasSuffix(r.URL.Path, "/rollout") && r.Method == http.MethodPut {
@@ -498,6 +496,53 @@ func newRouter() http.Handler {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+
+
+func requireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/health" || path == "/healthz" || path == "/ready" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+
+func requireAuthFunc(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
+}
 
 func main() {
 	port := os.Getenv("PORT")

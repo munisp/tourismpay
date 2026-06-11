@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

@@ -17,7 +17,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
 	"github.com/54link/resilience-agent/internal/carrier"
 	"github.com/54link/resilience-agent/internal/probe"
 	"github.com/54link/resilience-agent/internal/retry"

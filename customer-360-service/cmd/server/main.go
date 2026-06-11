@@ -12,7 +12,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
 	"github.com/gorilla/mux"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

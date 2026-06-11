@@ -13,7 +13,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
 	"github.com/munisp/NGApp/ecommerce-catalog/handlers"
 	"github.com/munisp/NGApp/ecommerce-catalog/middleware"
 	"github.com/munisp/NGApp/ecommerce-catalog/store"

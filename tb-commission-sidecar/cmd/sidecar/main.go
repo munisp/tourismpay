@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
 	"github.com/54link/tb-commission-sidecar/internal/api"
 	"github.com/54link/tb-commission-sidecar/internal/ledger"
 )
