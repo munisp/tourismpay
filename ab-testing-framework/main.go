@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
+	"crypto/rand"
+	"encoding/binary"
 	"net/http"
 	"os"
 	"sync"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	authMw "shared/middleware"
 )
 
 // A/B Testing Framework — manages experiments, traffic allocation, and statistical analysis
@@ -54,6 +57,7 @@ var (
 func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger, middleware.Recoverer, middleware.Timeout(30*time.Second))
+	r.Use(authMw.RequireAuth)
 
 	r.Get("/health", healthHandler)
 	r.Route("/api/v1/experiments", func(r chi.Router) {
@@ -116,7 +120,9 @@ func assignUser(w http.ResponseWriter, r *http.Request) {
 	if !ok { http.Error(w, `{"error":"not_found"}`, 404); return }
 	if exp.Status != "running" { http.Error(w, `{"error":"experiment_not_running"}`, 400); return }
 	// Deterministic assignment based on user hash
-	variant := exp.Variants[rand.Intn(len(exp.Variants))]
+	var vb [2]byte
+	rand.Read(vb[:])
+	variant := exp.Variants[int(binary.BigEndian.Uint16(vb[:]))%len(exp.Variants)]
 	json.NewEncoder(w).Encode(map[string]interface{}{"experiment_id": id, "variant": variant.Name, "variant_id": variant.ID})
 }
 

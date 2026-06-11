@@ -20,12 +20,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
+	"crypto/rand"
+	"encoding/binary"
 	"net/http"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	authMw "shared/middleware"
 )
 
 // ── Data Structures ──────────────────────────────────────────────────────────
@@ -154,7 +157,9 @@ func transferHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if entry.ID == "" {
-		entry.ID = fmt.Sprintf("txn_%d_%d", time.Now().UnixMilli(), rand.Intn(99999))
+		var rb [2]byte
+		rand.Read(rb[:])
+		entry.ID = fmt.Sprintf("txn_%d_%d", time.Now().UnixMilli(), binary.BigEndian.Uint16(rb[:])%99999)
 	}
 	if entry.Timestamp == 0 {
 		entry.Timestamp = time.Now().UnixMilli()
@@ -195,7 +200,9 @@ func batchTransferHandler(w http.ResponseWriter, r *http.Request) {
 	state.mu.Lock()
 	for i := range entries {
 		if entries[i].ID == "" {
-			entries[i].ID = fmt.Sprintf("txn_%d_%d", time.Now().UnixMilli(), rand.Intn(99999))
+			var rb2 [2]byte
+			rand.Read(rb2[:])
+			entries[i].ID = fmt.Sprintf("txn_%d_%d", time.Now().UnixMilli(), binary.BigEndian.Uint16(rb2[:])%99999)
 		}
 		if entries[i].Timestamp == 0 {
 			entries[i].Timestamp = time.Now().UnixMilli()
@@ -536,30 +543,30 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Ledger endpoints
-	mux.HandleFunc("/transfer", transferHandler)
-	mux.HandleFunc("/transfer/batch", batchTransferHandler)
-	mux.HandleFunc("/balance", balanceHandler)
-	mux.HandleFunc("/balances", allBalancesHandler)
-	mux.HandleFunc("/ledger/query", ledgerQueryHandler)
+	mux.HandleFunc("/transfer", authMw.RequireAuthFunc(transferHandler))
+	mux.HandleFunc("/transfer/batch", authMw.RequireAuthFunc(batchTransferHandler))
+	mux.HandleFunc("/balance", authMw.RequireAuthFunc(balanceHandler))
+	mux.HandleFunc("/balances", authMw.RequireAuthFunc(allBalancesHandler))
+	mux.HandleFunc("/ledger/query", authMw.RequireAuthFunc(ledgerQueryHandler))
 
 	// Settlement
-	mux.HandleFunc("/settlement/create", settlementHandler)
+	mux.HandleFunc("/settlement/create", authMw.RequireAuthFunc(settlementHandler))
 
 	// Reconciliation
-	mux.HandleFunc("/reconcile", reconcileHandler)
+	mux.HandleFunc("/reconcile", authMw.RequireAuthFunc(reconcileHandler))
 
 	// Transaction lifecycle
-	mux.HandleFunc("/lifecycle", lifecycleHandler)
+	mux.HandleFunc("/lifecycle", authMw.RequireAuthFunc(lifecycleHandler))
 
 	// Health aggregator (checks all services)
 	mux.HandleFunc("/health/aggregate", healthAggregatorHandler)
 
 	// Signature verification
-	mux.HandleFunc("/signature/verify", signatureVerifyHandler)
+	mux.HandleFunc("/signature/verify", authMw.RequireAuthFunc(signatureVerifyHandler))
 
 	// Health & stats
 	mux.HandleFunc("/health", healthHandler)
-	mux.HandleFunc("/stats", statsHandler)
+	mux.HandleFunc("/stats", authMw.RequireAuthFunc(statsHandler))
 
 	log.Printf("[pos-ledger-sync] Starting Go sidecar on port %s", port)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
