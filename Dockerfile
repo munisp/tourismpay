@@ -2,14 +2,14 @@
 # Multi-stage build for production deployment
 
 FROM node:22-alpine AS base
-RUN corepack enable && corepack prepare pnpm@10.4.1 --activate
+RUN npm install -g pnpm@9.15.1
 WORKDIR /app
 
 # ─── Dependencies ─────────────────────────────────────────────────────────────
 FROM base AS deps
 COPY package.json pnpm-lock.yaml ./
 COPY patches/ ./patches/
-RUN pnpm install --frozen-lockfile --prod=false
+RUN pnpm install --frozen-lockfile
 
 # ─── Build ────────────────────────────────────────────────────────────────────
 FROM base AS build
