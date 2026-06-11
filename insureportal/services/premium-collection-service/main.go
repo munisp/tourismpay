@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	authMw "shared/middleware"
 )
 
 // Premium Collection Service
@@ -59,8 +61,8 @@ func handleReconcile(w http.ResponseWriter, r *http.Request) {
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/collect", handleCollect)
-	mux.HandleFunc("/api/v1/reconcile", handleReconcile)
+	mux.HandleFunc("/api/v1/collect", authMw.RequireAuthFunc(handleCollect))
+	mux.HandleFunc("/api/v1/reconcile", authMw.RequireAuthFunc(handleReconcile))
 	port := ":8098"
 	log.Printf("Premium Collection Service starting on %s", port)
 	log.Fatal(http.ListenAndServe(port, mux))

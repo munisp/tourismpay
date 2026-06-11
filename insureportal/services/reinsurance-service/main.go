@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+
+	authMw "shared/middleware"
 )
 
 // Reinsurance Service
@@ -66,8 +68,8 @@ func handleCede(w http.ResponseWriter, r *http.Request) {
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/treaties", handleTreaties)
-	mux.HandleFunc("/api/v1/cede", handleCede)
+	mux.HandleFunc("/api/v1/treaties", authMw.RequireAuthFunc(handleTreaties))
+	mux.HandleFunc("/api/v1/cede", authMw.RequireAuthFunc(handleCede))
 	port := ":8095"
 	log.Printf("Reinsurance Service starting on %s", port)
 	log.Fatal(http.ListenAndServe(port, mux))

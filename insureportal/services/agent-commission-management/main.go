@@ -6,6 +6,8 @@ import (
 	"math"
 	"net/http"
 	"time"
+
+	authMw "shared/middleware"
 )
 
 // Agent Commission Management Service
@@ -79,8 +81,8 @@ func handlePayoutSummary(w http.ResponseWriter, r *http.Request) {
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/calculate", handleCalculate)
-	mux.HandleFunc("/api/v1/payout-summary", handlePayoutSummary)
+	mux.HandleFunc("/api/v1/calculate", authMw.RequireAuthFunc(handleCalculate))
+	mux.HandleFunc("/api/v1/payout-summary", authMw.RequireAuthFunc(handlePayoutSummary))
 	port := ":8099"
 	log.Printf("Agent Commission Management starting on %s", port)
 	log.Fatal(http.ListenAndServe(port, mux))

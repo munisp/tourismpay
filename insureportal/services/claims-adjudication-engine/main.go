@@ -7,6 +7,8 @@ import (
 	"math"
 	"net/http"
 	"time"
+
+	authMw "shared/middleware"
 )
 
 // Claims Adjudication Engine
@@ -119,8 +121,8 @@ func handleMetrics(w http.ResponseWriter, r *http.Request) {
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/adjudicate", handleAdjudicate)
-	mux.HandleFunc("/api/v1/metrics", handleMetrics)
+	mux.HandleFunc("/api/v1/adjudicate", authMw.RequireAuthFunc(handleAdjudicate))
+	mux.HandleFunc("/api/v1/metrics", authMw.RequireAuthFunc(handleMetrics))
 
 	port := ":8091"
 	log.Printf("Claims Adjudication Engine starting on %s", port)

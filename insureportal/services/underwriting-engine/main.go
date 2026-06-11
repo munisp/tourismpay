@@ -5,6 +5,8 @@ import (
 	"log"
 	"math"
 	"net/http"
+
+	authMw "shared/middleware"
 )
 
 // Underwriting Engine
@@ -105,7 +107,7 @@ func handleQuote(w http.ResponseWriter, r *http.Request) {
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/quote", handleQuote)
+	mux.HandleFunc("/api/v1/quote", authMw.RequireAuthFunc(handleQuote))
 	port := ":8096"
 	log.Printf("Underwriting Engine starting on %s", port)
 	log.Fatal(http.ListenAndServe(port, mux))
