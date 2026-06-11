@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
-	"math/rand"
+	"crypto/rand"
+	"encoding/binary"
 	"net/http"
 	"os"
 	"sync"
@@ -211,7 +212,9 @@ func main() {
 				req.QuoteID = fmt.Sprintf("quote-%d", quoteSeq)
 			}
 
-			fee := float64(rand.Intn(200)+50) / 100.0
+			var feeBuf [2]byte
+			rand.Read(feeBuf[:])
+			fee := float64(int(binary.BigEndian.Uint16(feeBuf[:])%200)+50) / 100.0
 			quote := &Quote{
 				QuoteID:        req.QuoteID,
 				TransactionID:  req.TransactionID,

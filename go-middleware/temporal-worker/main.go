@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
+	"crypto/rand"
+	"encoding/binary"
 	"net/http"
 	"os"
 	"sync"
@@ -154,7 +155,9 @@ var (
 )
 
 func generateRunID() string {
-	return fmt.Sprintf("run_%d_%d", time.Now().UnixNano(), rand.Intn(10000))
+	var buf [2]byte
+	rand.Read(buf[:])
+	return fmt.Sprintf("run_%d_%d", time.Now().UnixNano(), binary.BigEndian.Uint16(buf[:]))
 }
 
 // ─── Workflow Engine ────────────────────────────────────────────────────────
@@ -187,7 +190,9 @@ func executeWorkflow(wf *WorkflowExecution) {
 		mu.Unlock()
 
 		// Simulate activity execution
-		duration := time.Duration(100+rand.Intn(400)) * time.Millisecond
+		var durBuf [2]byte
+		rand.Read(durBuf[:])
+		duration := time.Duration(100+int(binary.BigEndian.Uint16(durBuf[:])%400)) * time.Millisecond
 		time.Sleep(duration)
 
 		mu.Lock()
