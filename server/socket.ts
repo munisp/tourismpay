@@ -73,7 +73,7 @@ export function initSocketIO(httpServer: HttpServer) {
   // In production, set ALLOWED_ORIGINS env var to comma-separated list.
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(",").map(o => o.trim())
-    : ["https://54link.io", "https://app.54link.io", "https://admin.54link.io"];
+    : ["https://tourismpay.io", "https://app.tourismpay.io", "https://admin.tourismpay.io"];
   const isDev = process.env.NODE_ENV !== "production";
 
   const io = new SocketIOServer(httpServer, {

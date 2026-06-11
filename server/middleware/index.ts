@@ -130,7 +130,7 @@ export function xssSanitizeMiddleware(
 const ALLOWED_ORIGINS = [
   /^https?:\/\/localhost(:\d+)?$/,
   /^https?:\/\/.*\.manus\.(computer|space)$/,
-  /^https?:\/\/.*\.54link\.com$/,
+  /^https?:\/\/.*\.tourismpay\.com$/,
 ];
 
 export function corsHardeningMiddleware(

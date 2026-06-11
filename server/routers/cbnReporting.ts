@@ -25,7 +25,7 @@ async function callCbnService(
       method,
       headers: {
         "Content-Type": "application/json",
-        "X-Internal-Key": process.env.INTERNAL_API_KEY ?? "internal-key-54link",
+        "X-Internal-Key": process.env.INTERNAL_API_KEY ?? "internal-key-tourismpay",
       },
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(10000),

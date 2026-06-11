@@ -92,7 +92,7 @@ async function runRetryBatch(): Promise<void> {
       const webhookUrl = cfg.baseUrl.endsWith("/")
         ? cfg.baseUrl.slice(0, -1)
         : cfg.baseUrl;
-      const res = await fetch(`${webhookUrl}/api/54link/sync`, {
+      const res = await fetch(`${webhookUrl}/api/tourismpay/sync`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

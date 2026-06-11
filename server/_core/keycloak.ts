@@ -10,8 +10,8 @@
  *  6. Build end-session (logout) URL
  *
  * Environment variables required:
- *  - KEYCLOAK_URL          e.g. https://auth.54link.io
- *  - KEYCLOAK_REALM        e.g. 54link
+ *  - KEYCLOAK_URL          e.g. https://auth.tourismpay.io
+ *  - KEYCLOAK_REALM        e.g. tourismpay
  *  - KEYCLOAK_CLIENT_ID    e.g. pos-shell
  *  - KEYCLOAK_CLIENT_SECRET (confidential client secret)
  *
@@ -36,7 +36,7 @@ function getConfig(): KeycloakConfig {
   // Default: local Keycloak Docker container (docker-compose.production.yml)
   // Override KEYCLOAK_URL in .env.production for remote deployments
   const url = process.env.KEYCLOAK_URL ?? "http://localhost:8080";
-  const realm = process.env.KEYCLOAK_REALM ?? "54link";
+  const realm = process.env.KEYCLOAK_REALM ?? "tourismpay";
   const clientId = process.env.KEYCLOAK_CLIENT_ID ?? "pos-shell";
   const clientSecret =
     process.env.KEYCLOAK_CLIENT_SECRET ??
@@ -259,8 +259,8 @@ export function mapKeycloakRoleToPlatformRole(
   payload: KeycloakTokenPayload
 ): "admin" | "supervisor" | "user" {
   const roles = getRealmRoles(payload);
-  if (roles.includes("54link-admin") || roles.includes("admin")) return "admin";
-  if (roles.includes("54link-supervisor") || roles.includes("supervisor"))
+  if (roles.includes("tourismpay-admin") || roles.includes("admin")) return "admin";
+  if (roles.includes("tourismpay-supervisor") || roles.includes("supervisor"))
     return "supervisor";
   return "user";
 }

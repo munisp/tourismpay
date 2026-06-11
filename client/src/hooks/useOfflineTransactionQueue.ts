@@ -60,7 +60,7 @@ export interface SyncResult {
 
 // ── IndexedDB Helper ─────────────────────────────────────────────────────────
 
-const DB_NAME = "54link_offline_queue";
+const DB_NAME = "tourismpay_offline_queue";
 const DB_VERSION = 1;
 const STORE_NAME = "transactions";
 

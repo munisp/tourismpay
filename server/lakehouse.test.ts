@@ -463,7 +463,7 @@ describe("DataFusion SQL validation", () => {
 
   it("accepts valid SELECT queries", () => {
     expect(
-      validateSql("SELECT * FROM 54link.silver.transactions LIMIT 100").valid
+      validateSql("SELECT * FROM tourismpay.silver.transactions LIMIT 100").valid
     ).toBe(true);
   });
 
@@ -497,7 +497,7 @@ describe("DataFusion SQL validation", () => {
              count(*) as tx_count,
              sum(amount) as volume,
              avg(fraud_score) as avg_fraud
-      FROM 54link.silver.transactions
+      FROM tourismpay.silver.transactions
       WHERE tx_date >= '2026-01-01'
       GROUP BY agent_code, agent_tier
       ORDER BY volume DESC
@@ -510,15 +510,15 @@ describe("DataFusion SQL validation", () => {
 describe("Lakehouse bucket constants", () => {
   it("defines expected bucket names", () => {
     const BUCKETS = {
-      TRANSACTIONS: "54link-transactions",
-      SETTLEMENTS: "54link-settlements",
-      FRAUD_EVENTS: "54link-fraud-events",
-      AGENT_METRICS: "54link-agent-metrics",
+      TRANSACTIONS: "tourismpay-transactions",
+      SETTLEMENTS: "tourismpay-settlements",
+      FRAUD_EVENTS: "tourismpay-fraud-events",
+      AGENT_METRICS: "tourismpay-agent-metrics",
     };
-    expect(BUCKETS.TRANSACTIONS).toBe("54link-transactions");
-    expect(BUCKETS.SETTLEMENTS).toBe("54link-settlements");
-    expect(BUCKETS.FRAUD_EVENTS).toBe("54link-fraud-events");
-    expect(BUCKETS.AGENT_METRICS).toBe("54link-agent-metrics");
+    expect(BUCKETS.TRANSACTIONS).toBe("tourismpay-transactions");
+    expect(BUCKETS.SETTLEMENTS).toBe("tourismpay-settlements");
+    expect(BUCKETS.FRAUD_EVENTS).toBe("tourismpay-fraud-events");
+    expect(BUCKETS.AGENT_METRICS).toBe("tourismpay-agent-metrics");
   });
 });
 

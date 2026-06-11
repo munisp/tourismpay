@@ -1,4 +1,4 @@
-module github.com/pos54link/middleware/health-checker
+module github.com/postourismpay/middleware/health-checker
 
 go 1.22
 

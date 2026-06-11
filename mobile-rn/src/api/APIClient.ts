@@ -8,7 +8,7 @@ export class APIClient {
   // Development: http://10.0.2.2:3000/api/v1  (Android emulator)
   //              http://localhost:3000/api/v1   (iOS simulator)
   // Production:  set REACT_NATIVE_API_BASE_URL env var or update below.
-  private baseURL: string = (process.env.REACT_NATIVE_API_BASE_URL as string) ?? 'https://api.54link.io/v1';
+  private baseURL: string = (process.env.REACT_NATIVE_API_BASE_URL as string) ?? 'https://api.tourismpay.io/v1';
 
   async get(endpoint: string): Promise<any> {
     return this.request('GET', endpoint);

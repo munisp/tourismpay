@@ -84,7 +84,7 @@ export const referralProgramRouter = router({
         validityDays: REFERRAL_VALIDITY_DAYS,
         targetType: input.targetType,
         message: input.channel === "sms"
-          ? `Join InsurePortal with my code ${code} and earn ₦500 bonus! Link: https://insureportal.ng/join?ref=${code}`
+          ? `Join TourismPay with my code ${code} and earn ₦500 bonus! Link: https://insureportal.ng/join?ref=${code}`
           : undefined,
       };
     }),

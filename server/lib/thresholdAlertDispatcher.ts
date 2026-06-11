@@ -445,7 +445,7 @@ export async function dispatchThresholdAlert(
           timestamp: event.createdAt,
         };
         const result = await sendWebhookNotification(
-          "https://hooks.54link.com/alerts",
+          "https://hooks.tourismpay.com/alerts",
           payload
         );
         const record: NotificationRecord = {
@@ -453,7 +453,7 @@ export async function dispatchThresholdAlert(
           eventId: event.eventId,
           ruleId: event.ruleId,
           channel: "webhook",
-          recipient: "https://hooks.54link.com/alerts",
+          recipient: "https://hooks.tourismpay.com/alerts",
           status: result.success ? "sent" : "failed",
           sentAt: new Date().toISOString(),
         };

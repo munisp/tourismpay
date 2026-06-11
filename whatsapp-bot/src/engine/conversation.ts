@@ -55,7 +55,7 @@ export class ConversationEngine {
   private mainMenu(): BotResponse {
     return {
       text:
-        "Welcome to *InsurePortal* \u{1F6E1}\n\n" +
+        "Welcome to *TourismPay* \u{1F6E1}\n\n" +
         "How can I help you today?\n\n" +
         "Type a number or describe what you need:",
       list: {

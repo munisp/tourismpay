@@ -119,7 +119,7 @@ const REWARD_CATALOG = [
     name: "Training Certificate",
     category: "education",
     pointsCost: 3000,
-    description: "InsurePortal certified agent training course",
+    description: "TourismPay certified agent training course",
     available: true,
     stock: -1,
     imageUrl: null,

@@ -1,5 +1,5 @@
 /**
- * Internationalization (i18n) Framework — InsurePortal Insurance Platform
+ * Internationalization (i18n) Framework — TourismPay Insurance Platform
  *
  * Supports 6 languages for Nigerian agent banking:
  * - English (en) — Default

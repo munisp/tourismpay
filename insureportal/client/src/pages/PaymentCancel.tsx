@@ -1,5 +1,5 @@
 /**
- * Payment Cancel Callback Page — InsurePortal
+ * Payment Cancel Callback Page — TourismPay
  * Displays cancellation message with retry CTA after Stripe checkout cancellation.
  */
 import DashboardLayout from "@/components/DashboardLayout";

@@ -129,7 +129,7 @@ export const cbnReportingRouter = router({
         year: z.number().int().min(2020).max(2100),
         month: z.number().int().min(1).max(12),
         institutionCode: z.string().default("INSURE001"),
-        institutionName: z.string().default("InsurePortal Insurance Platform"),
+        institutionName: z.string().default("TourismPay Insurance Platform"),
       })
     )
     .mutation(async ({ input }) => {

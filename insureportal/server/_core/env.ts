@@ -4,7 +4,7 @@
  * All values have safe defaults so the server starts without any .env file.
  * Production deployments override these via the platform Secrets panel.
  *
- * Default URLs follow the InsurePortal Docker Compose service name convention:
+ * Default URLs follow the TourismPay Docker Compose service name convention:
  *   http://<service>:<port>  — internal Docker network (production default)
  *   https://<service>.insureportal.ng  — public-facing microservices
  *   https://api.insureportal.ng        — APISix gateway

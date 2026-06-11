@@ -96,5 +96,5 @@ app.get("/health", (_req, res) => {
 
 const port = process.env.PORT || 8094;
 app.listen(port, () => {
-  console.log(`InsurePortal Telegram Bot running on port ${port}`);
+  console.log(`TourismPay Telegram Bot running on port ${port}`);
 });

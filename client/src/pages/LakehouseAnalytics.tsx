@@ -731,15 +731,15 @@ function GoldLayerMetrics() {
 const EXAMPLE_QUERIES = [
   {
     label: "Top 10 agents by volume (Silver)",
-    sql: "SELECT agent_code, agent_tier, count(*) as tx_count, sum(amount) as volume FROM 54link.silver.transactions WHERE tx_date = current_date GROUP BY agent_code, agent_tier ORDER BY volume DESC LIMIT 10",
+    sql: "SELECT agent_code, agent_tier, count(*) as tx_count, sum(amount) as volume FROM tourismpay.silver.transactions WHERE tx_date = current_date GROUP BY agent_code, agent_tier ORDER BY volume DESC LIMIT 10",
   },
   {
     label: "Hourly fraud rate (Gold)",
-    sql: "SELECT metric_hour, fraud_rate, error_rate FROM 54link.gold.hourly_transaction_metrics WHERE days(metric_hour) = current_date ORDER BY metric_hour",
+    sql: "SELECT metric_hour, fraud_rate, error_rate FROM tourismpay.gold.hourly_transaction_metrics WHERE days(metric_hour) = current_date ORDER BY metric_hour",
   },
   {
     label: "CBN monthly summary",
-    sql: "SELECT * FROM 54link.gold.cbn_monthly_summary ORDER BY report_month DESC LIMIT 6",
+    sql: "SELECT * FROM tourismpay.gold.cbn_monthly_summary ORDER BY report_month DESC LIMIT 6",
   },
 ];
 
@@ -772,7 +772,7 @@ function DataFusionConsole() {
           onChange={e => setSqlQuery(e.target.value)}
           rows={5}
           className="font-mono text-xs"
-          placeholder="SELECT * FROM 54link.silver.transactions LIMIT 100"
+          placeholder="SELECT * FROM tourismpay.silver.transactions LIMIT 100"
         />
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">

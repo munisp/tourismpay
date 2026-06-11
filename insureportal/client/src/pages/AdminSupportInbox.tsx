@@ -1,5 +1,5 @@
 /**
- * Admin Support Inbox — InsurePortal
+ * Admin Support Inbox — TourismPay
  * Bloomberg Terminal dark theme with electric blue accents.
  *
  * Features:
@@ -69,7 +69,7 @@ interface ChatMessage {
 const ADMIN_CANNED = [
   {
     label: "Greeting",
-    text: "Hello! Thank you for contacting InsurePortal support. I'm reviewing your issue now.",
+    text: "Hello! Thank you for contacting TourismPay support. I'm reviewing your issue now.",
   },
   {
     label: "Investigating",

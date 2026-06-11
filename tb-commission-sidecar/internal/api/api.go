@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/54link/tb-commission-sidecar/internal/ledger"
+	"github.com/tourismpay/tb-commission-sidecar/internal/ledger"
 )
 
 type Server struct {

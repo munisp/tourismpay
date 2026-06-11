@@ -80,7 +80,7 @@ export default function Dashboard() {
         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Shield className="h-8 w-8 text-blue-600" />
-            <span className="text-xl font-bold">InsurePortal</span>
+            <span className="text-xl font-bold">TourismPay</span>
           </div>
           <div className="flex gap-4">
             <Link href="/profile"><Button variant="ghost">Profile</Button></Link>

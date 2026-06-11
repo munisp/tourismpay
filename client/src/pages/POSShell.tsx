@@ -2413,7 +2413,7 @@ function QRPaymentScreen({ onBack }: { onBack: () => void }) {
   const DEFAULT_PRESET_AMOUNTS = [
     500, 1000, 2000, 5000, 10000, 20000, 50000, 100000,
   ];
-  const LS_PRESETS_KEY = "54link-qr-preset-amounts";
+  const LS_PRESETS_KEY = "tourismpay-qr-preset-amounts";
   const [batchPresetAmounts, setBatchPresetAmounts] = useState<number[]>(() => {
     try {
       const saved = localStorage.getItem(LS_PRESETS_KEY);
@@ -2531,7 +2531,7 @@ function QRPaymentScreen({ onBack }: { onBack: () => void }) {
 
   // Load offline QR codes from IndexedDB
   useEffect(() => {
-    const IDB_NAME = "54link-qr-store";
+    const IDB_NAME = "tourismpay-qr-store";
     const IDB_STORE = "offline_qr_codes";
     const req = indexedDB.open(IDB_NAME, 1);
     req.onupgradeneeded = e => {
@@ -2688,7 +2688,7 @@ function QRPaymentScreen({ onBack }: { onBack: () => void }) {
       toast.error("Enter an amount first");
       return;
     }
-    const IDB_NAME = "54link-qr-store";
+    const IDB_NAME = "tourismpay-qr-store";
     const IDB_STORE = "offline_qr_codes";
     const record = {
       id: qrPayload,
@@ -3350,7 +3350,7 @@ function QRPaymentScreen({ onBack }: { onBack: () => void }) {
             onClick={async () => {
               if (selectedBatchAmounts.size === 0) return;
               setBatchGenerating(true);
-              const IDB_NAME = "54link-qr-store";
+              const IDB_NAME = "tourismpay-qr-store";
               const IDB_STORE = "offline_qr_codes";
               const newItems: typeof batchQRList = [];
               const expiresAt = Date.now() + QR_TTL_MS;
@@ -11289,7 +11289,7 @@ function OfflineResilienceScreen({ onBack }: { onBack: () => void }) {
                 className="text-center text-xs mt-2"
                 style={{ color: "#bbb" }}
               >
-                www.54link.io
+                www.tourismpay.io
               </div>
             </div>
             {/* Thermal paper bottom perforation */}
@@ -11391,7 +11391,7 @@ ${thermalPreviewCode.carrier_hint ? `<div class="row"><span>CARRIER</span><span 
     qr.appendChild(img);
   })();
 <\/script>
-<div class="footer">www.54link.io</div>
+<div class="footer">www.tourismpay.io</div>
 <div class="perf" style="margin-top:6px"></div>
 </body></html>`);
                   printWin.document.close();

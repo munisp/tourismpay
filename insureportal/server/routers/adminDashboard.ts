@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * Admin Dashboard Router — InsurePortal (Sprint 89)
+ * Admin Dashboard Router — TourismPay (Sprint 89)
  *
  * Role-gated admin procedures for user management, system statistics,
  * audit log viewing, and platform health monitoring.

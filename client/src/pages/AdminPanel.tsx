@@ -474,7 +474,7 @@ function AnalyticsTab() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `54link-transactions-${fromDate}-to-${toDate}.csv`;
+      a.download = `tourismpay-transactions-${fromDate}-to-${toDate}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

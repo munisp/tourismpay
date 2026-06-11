@@ -1,5 +1,5 @@
 /**
- * AdminPanel — InsurePortal Supervisor / Back-Office Dashboard
+ * AdminPanel — TourismPay Supervisor / Back-Office Dashboard
  * Route: /admin  (protected — requires agent.role === "admin" OR Manus OAuth admin role)
  *
  * Sections:
@@ -42,7 +42,7 @@ import { FailoverHistoryTab } from "../components/admin/FailoverHistoryTab";
 import { MQTTBridgeTab } from "../components/admin/MQTTBridgeTab";
 import { CoverageMap } from "../components/admin/CoverageMap";
 
-// ─── Design tokens (match InsurePortal) ─────────────────────────────────────────
+// ─── Design tokens (match TourismPay) ─────────────────────────────────────────
 const BG = "#0a0e1a";
 const CARD = "oklch(0.14 0.02 240)";
 const BORDER = "oklch(0.22 0.02 240)";
@@ -1578,7 +1578,7 @@ export default function AdminPanel() {
               className="text-sm font-black text-white"
               style={{ fontFamily: DISP }}
             >
-              InsurePortal Admin
+              TourismPay Admin
             </div>
             <div className="text-xs text-gray-500" style={{ fontFamily: MONO }}>
               Supervisor Dashboard

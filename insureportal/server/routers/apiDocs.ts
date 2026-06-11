@@ -8,11 +8,11 @@ import { TRPCError } from "@trpc/server";
 const API_SPEC = {
   openapi: "3.1.0",
   info: {
-    title: "InsurePortal Insurance Platform API",
+    title: "TourismPay Insurance Platform API",
     version: "1.0.0",
     description:
       "Comprehensive API for insurance operations including KYC/KYB, policy management, claims processing, and NAICOM compliance.",
-    contact: { name: "InsurePortal Engineering", email: "engineering@insureportal.ng" },
+    contact: { name: "TourismPay Engineering", email: "engineering@insureportal.ng" },
     license: { name: "Proprietary" },
   },
   servers: [

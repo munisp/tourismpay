@@ -19,8 +19,8 @@ export default defineConfig({
       // Provide a well-formed test URL so Keycloak URL-construction tests
       // (buildAuthorizationUrl) can run without a live Keycloak instance.
       // This does NOT enable real Keycloak auth — it only satisfies new URL().
-      KEYCLOAK_URL: "https://auth.test.54link.io",
-      KEYCLOAK_REALM: "54link",
+      KEYCLOAK_URL: "https://auth.test.tourismpay.io",
+      KEYCLOAK_REALM: "tourismpay",
       KEYCLOAK_CLIENT_ID: "pos-shell",
     },
     testTimeout: 30000,

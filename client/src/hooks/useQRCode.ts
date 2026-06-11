@@ -22,7 +22,7 @@ import { logger } from "@/lib/logger";
 
 // ── IndexedDB helpers ─────────────────────────────────────────────────────────
 
-const IDB_NAME = "54link-qr-store";
+const IDB_NAME = "tourismpay-qr-store";
 const IDB_VERSION = 1;
 const IDB_STORE = "offline_qr_codes";
 

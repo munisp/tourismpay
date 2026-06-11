@@ -1,5 +1,5 @@
 /**
- * Admin User Management — InsurePortal (Sprint 89)
+ * Admin User Management — TourismPay (Sprint 89)
  * Dedicated user management page for admins with search, filter, role management.
  */
 import { useState, useMemo } from "react";

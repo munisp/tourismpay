@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * UserGuide — Comprehensive multi-section user guide for the InsurePortal
+ * UserGuide — Comprehensive multi-section user guide for the TourismPay
  *
  * Sections:
  * 1. Getting Started
@@ -82,13 +82,13 @@ const guideSections: GuideSection[] = [
     id: "getting-started",
     title: "Getting Started",
     icon: Zap,
-    description: "Everything you need to begin using the InsurePortal platform",
+    description: "Everything you need to begin using the TourismPay platform",
     subsections: [
       {
         id: "overview",
         title: "Platform Overview",
         content:
-          "InsurePortal is a comprehensive insurance technology platform designed for insurance operations in Nigeria. It enables agents to process policy sales, claims submissions, premium collections, and renewals on behalf of policyholders.\n\nThe platform includes multiple portals for different user roles: Agent Portal for field agents, Customer Portal for policyholders, Underwriter Portal for risk assessment, Developer Portal for API integrations, and Admin/Supervisor dashboards for management oversight.",
+          "TourismPay is a comprehensive insurance technology platform designed for insurance operations in Nigeria. It enables agents to process policy sales, claims submissions, premium collections, and renewals on behalf of policyholders.\n\nThe platform includes multiple portals for different user roles: Agent Portal for field agents, Customer Portal for policyholders, Underwriter Portal for risk assessment, Developer Portal for API integrations, and Admin/Supervisor dashboards for management oversight.",
         tags: ["introduction", "overview", "platform"],
       },
       {

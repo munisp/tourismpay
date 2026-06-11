@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/54link/tb-sidecar/internal/ledger"
+	"github.com/tourismpay/tb-sidecar/internal/ledger"
 	"github.com/jackc/pgx/v5"
 )
 

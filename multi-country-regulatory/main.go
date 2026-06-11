@@ -14,7 +14,7 @@ import (
 	"context"
 	_ "github.com/jackc/pgx/v5/stdlib")
 
-// multi-country-regulatory — production microservice for InsurePortal platform
+// multi-country-regulatory — production microservice for TourismPay platform
 // Integrates with: Kafka, Redis, Postgres
 
 

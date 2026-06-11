@@ -13,7 +13,7 @@
  *   SMTP_PORT        - SMTP port (default: 587)
  *   SMTP_USER        - SMTP username / API key
  *   SMTP_PASS        - SMTP password / API key
- *   SMTP_FROM        - From address (e.g., "54Link POS <noreply@54link.io>")
+ *   SMTP_FROM        - From address (e.g., "54Link POS <noreply@tourismpay.io>")
  *   SMTP_SECURE      - "true" for TLS on port 465 (default: false)
  *
  * Usage:
@@ -44,7 +44,7 @@ interface EmailJob {
 const queue: EmailJob[] = [];
 let workerRunning = false;
 
-const DEFAULT_FROM = process.env.SMTP_FROM ?? "54Link POS <noreply@54link.io>";
+const DEFAULT_FROM = process.env.SMTP_FROM ?? "54Link POS <noreply@tourismpay.io>";
 const MAX_ATTEMPTS = 3;
 const BASE_RETRY_MS = 5_000; // 5s base, doubles each retry
 

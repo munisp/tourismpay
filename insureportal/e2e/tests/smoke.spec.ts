@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("InsurePortal Smoke Tests", () => {
+test.describe("TourismPay Smoke Tests", () => {
   test("should load the login page", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/InsurePortal/);
+    await expect(page).toHaveTitle(/TourismPay/);
   });
 
   test("should render the login form", async ({ page }) => {
@@ -49,11 +49,11 @@ test.describe("InsurePortal Smoke Tests", () => {
   test("should be responsive on mobile viewport", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/");
-    await expect(page).toHaveTitle(/InsurePortal/);
+    await expect(page).toHaveTitle(/TourismPay/);
   });
 });
 
-test.describe("InsurePortal Navigation", () => {
+test.describe("TourismPay Navigation", () => {
   test("should navigate to health check endpoint", async ({ page }) => {
     const response = await page.goto("/api/health");
     if (response) {
@@ -62,7 +62,7 @@ test.describe("InsurePortal Navigation", () => {
   });
 });
 
-test.describe("InsurePortal Accessibility", () => {
+test.describe("TourismPay Accessibility", () => {
   test("should have proper heading hierarchy", async ({ page }) => {
     await page.goto("/");
     await page.waitForTimeout(2000);

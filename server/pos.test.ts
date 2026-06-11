@@ -74,7 +74,7 @@ const MOCK_USER = {
   role: "admin" as const,
   agentCode: "AGT001",
   name: "Test Agent",
-  email: "test@54link.io",
+  email: "test@tourismpay.io",
 };
 
 // ─── Test context factory ─────────────────────────────────────────────────────

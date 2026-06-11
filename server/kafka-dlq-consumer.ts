@@ -9,9 +9,9 @@
  *   4. Sends an owner notification for critical failures
  *
  * Topics consumed:
- *   - 54link.dlq.transactions
- *   - 54link.dlq.settlements
- *   - 54link.dlq.notifications
+ *   - tourismpay.dlq.transactions
+ *   - tourismpay.dlq.settlements
+ *   - tourismpay.dlq.notifications
  */
 
 import { Kafka, Consumer, EachMessagePayload, KafkaMessage } from "kafkajs";
@@ -34,7 +34,7 @@ interface DlqPayload {
 }
 
 const kafka = new Kafka({
-  clientId: "54link-dlq-consumer",
+  clientId: "tourismpay-dlq-consumer",
   brokers: ENV.kafkaBrokers.split(","),
   ssl: ENV.kafkaSsl === "true",
   sasl: ENV.kafkaSaslUsername
@@ -173,7 +173,7 @@ export async function startDlqConsumer(): Promise<void> {
   }
 
   consumer = kafka.consumer({
-    groupId: "54link-dlq-processor",
+    groupId: "tourismpay-dlq-processor",
     sessionTimeout: 30_000,
     heartbeatInterval: 3_000,
     maxBytesPerPartition: 1_048_576,
@@ -183,9 +183,9 @@ export async function startDlqConsumer(): Promise<void> {
     await consumer.connect();
     await consumer.subscribe({
       topics: [
-        "54link.dlq.transactions",
-        "54link.dlq.settlements",
-        "54link.dlq.notifications",
+        "tourismpay.dlq.transactions",
+        "tourismpay.dlq.settlements",
+        "tourismpay.dlq.notifications",
       ],
       fromBeginning: false,
     });

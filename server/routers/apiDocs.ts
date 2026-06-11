@@ -12,7 +12,7 @@ const API_SPEC = {
     version: "1.0.0",
     description:
       "Comprehensive API for agency banking operations including KYC/KYB, transactions, settlements, and compliance.",
-    contact: { name: "54Link Engineering", email: "engineering@54link.com" },
+    contact: { name: "54Link Engineering", email: "engineering@tourismpay.com" },
     license: { name: "Proprietary" },
   },
   servers: [

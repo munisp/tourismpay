@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/54link/tb-sidecar/internal/ledger"
-	"github.com/54link/tb-sidecar/internal/sync"
+	"github.com/tourismpay/tb-sidecar/internal/ledger"
+	"github.com/tourismpay/tb-sidecar/internal/sync"
 	"github.com/google/uuid"
 )
 

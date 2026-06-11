@@ -14,7 +14,7 @@ import (
 	"context"
 	_ "github.com/jackc/pgx/v5/stdlib")
 
-// insurance-tech-innovations — production microservice for InsurePortal platform
+// insurance-tech-innovations — production microservice for TourismPay platform
 // Integrates with: Kafka, Redis, Postgres
 
 

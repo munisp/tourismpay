@@ -1,5 +1,5 @@
 /**
- * Transaction Analytics — InsurePortal (Sprint 89)
+ * Transaction Analytics — TourismPay (Sprint 89)
  *
  * Real-time analytics dashboard powered by Fluvio→OpenSearch pipeline.
  * Displays transaction volume, time-series charts, search, and pipeline health.

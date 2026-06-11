@@ -205,7 +205,7 @@ const tutorials: Tutorial[] = [
         timestamp: "00:00",
         duration: "3 min",
         content:
-          "The InsurePortal fraud detection system uses AI and rule-based engines to monitor transactions in real-time. It assigns fraud scores (0-100) and categorizes alerts by severity: Critical (80+), High (60-79), Medium (40-59), and Low (0-39).",
+          "The TourismPay fraud detection system uses AI and rule-based engines to monitor transactions in real-time. It assigns fraud scores (0-100) and categorizes alerts by severity: Critical (80+), High (60-79), Medium (40-59), and Low (0-39).",
         steps: [
           "Navigate to Admin Panel > Fraud tab or the dedicated Fraud Dashboard",
           "Review the overview panel showing active alerts by severity",

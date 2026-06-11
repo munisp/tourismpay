@@ -29,7 +29,7 @@ const COLORS = {
   success: '#4CAF50',
 };
 
-const BASE_URL = 'https://api.54link.io/v1';
+const BASE_URL = 'https://api.tourismpay.io/v1';
 
 export const AddBeneficiaryScreen = () => {
   const navigation = useNavigation();

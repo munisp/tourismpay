@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// multi-country-regulatory — production microservice for InsurePortal platform
+// multi-country-regulatory — production microservice for TourismPay platform
 // Integrates with: Kafka, Redis, Postgres
 
 

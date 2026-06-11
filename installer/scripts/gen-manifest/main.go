@@ -15,7 +15,7 @@ Typical CI workflow:
   2. Copy them into installer/cmd/installer/embedded/
   3. Run this script to generate the manifest
   4. Paste the output into main.go
-  5. Build the installer: go build -o bin/54link-installer ./cmd/installer/
+  5. Build the installer: go build -o bin/tourismpay-installer ./cmd/installer/
 */
 
 package main

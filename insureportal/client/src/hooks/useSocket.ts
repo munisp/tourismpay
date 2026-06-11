@@ -224,7 +224,7 @@ export function useTerminalSocket(agentCode?: string) {
         tier: string;
         timestamp: string;
       }) => {
-        // Dispatch DOM event so InsurePortal can show an amber banner
+        // Dispatch DOM event so TourismPay can show an amber banner
         window.dispatchEvent(
           new CustomEvent("terminal:velocity_warning", { detail: data })
         );
@@ -245,7 +245,7 @@ export function useTerminalSocket(agentCode?: string) {
       (data: { reason: string; disabledBy: string; disabledAt: string }) => {
         // Persist in localStorage so the overlay survives a page reload
         localStorage.setItem("pos_terminal_disabled", JSON.stringify(data));
-        // Dispatch custom DOM event so InsurePortal reacts immediately
+        // Dispatch custom DOM event so TourismPay reacts immediately
         window.dispatchEvent(
           new CustomEvent("terminal:kill-switch", { detail: data })
         );

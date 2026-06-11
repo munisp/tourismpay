@@ -1,5 +1,5 @@
 /**
- * usePushNotifications — Web Push API integration for InsurePortal.
+ * usePushNotifications — Web Push API integration for TourismPay.
  *
  * Responsibilities:
  *  1. Register the Service Worker (sw.js)

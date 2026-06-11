@@ -1,5 +1,5 @@
 /**
- * KYC Router — tRPC procedures bridging InsurePortal to the open-source KYC/KYB engines
+ * KYC Router — tRPC procedures bridging TourismPay to the open-source KYC/KYB engines
  *
  * Procedures:
  *  kyc.startLiveness       — create a liveness challenge (returns challengeId + instruction)
@@ -274,7 +274,7 @@ export const kycRouter = router({
 
   /**
    * Create a new KYC session and return a liveness challenge.
-   * The InsurePortal camera will display the challenge instruction to the agent.
+   * The TourismPay camera will display the challenge instruction to the agent.
    */
   startLiveness: protectedProcedure
     .input(

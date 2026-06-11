@@ -89,7 +89,7 @@ function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) 
               <Shield className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">InsurePortal</h1>
+              <h1 className="text-lg font-bold text-white">TourismPay</h1>
               <p className="text-xs text-slate-400">Insurance Platform</p>
             </div>
           </div>
@@ -170,7 +170,7 @@ function Dashboard() {
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-white">Dashboard</h2>
-        <p className="text-sm text-slate-400 mt-1">InsurePortal — Nigerian Insurance Management Platform</p>
+        <p className="text-sm text-slate-400 mt-1">TourismPay — Nigerian Insurance Management Platform</p>
       </div>
 
       {/* Stats Grid */}
@@ -403,7 +403,7 @@ export default function App() {
         {/* Footer */}
         <footer className="border-t border-[#1e293b] px-6 py-3">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>© 2026 InsurePortal — NAICOM Licensed</span>
+            <span>© 2026 TourismPay — NAICOM Licensed</span>
             <span className="flex items-center gap-1">
               <Zap className="w-3 h-3 text-emerald-400" />
               All systems operational

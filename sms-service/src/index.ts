@@ -25,4 +25,4 @@ app.get("/api/v1/sms/status/:messageId", (req, res) => smsRouter.getStatus(req, 
 app.get("/health", (_req, res) => res.json({ status: "healthy", service: "sms-service" }));
 
 const port = process.env.PORT || 8095;
-app.listen(port, () => console.log(`InsurePortal SMS Service on port ${port}`));
+app.listen(port, () => console.log(`TourismPay SMS Service on port ${port}`));

@@ -1,5 +1,5 @@
 /**
- * InsurePortal Hardware SDK Simulation Layer
+ * TourismPay Hardware SDK Simulation Layer
  *
  * Provides a unified interface for:
  *  - ESC/POS receipt printer (WebUSB with print dialog fallback)
@@ -65,7 +65,7 @@ export const printer = {
     const receiptHtml = `
       <html>
       <head>
-        <title>InsurePortal Receipt</title>
+        <title>TourismPay Receipt</title>
         <style>
           body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; margin: 0 auto; padding: 8px; }
           .center { text-align: center; }
@@ -77,7 +77,7 @@ export const printer = {
       </head>
       <body>
         <div class="center">
-          <div class="logo">InsurePortal</div>
+          <div class="logo">TourismPay</div>
           <div>Insurance Management Platform</div>
           <div class="divider"></div>
         </div>
@@ -94,7 +94,7 @@ export const printer = {
         <div class="row"><span>Date:</span><span>${timestamp}</span></div>
         <div class="divider"></div>
         <div class="center bold">TRANSACTION SUCCESSFUL</div>
-        <div class="center" style="font-size:10px;margin-top:4px;">Powered by InsurePortal · CBN Licensed</div>
+        <div class="center" style="font-size:10px;margin-top:4px;">Powered by TourismPay · CBN Licensed</div>
       </body>
       </html>
     `;
@@ -170,7 +170,7 @@ export const biometric = {
       const credential = await navigator.credentials.create({
         publicKey: {
           challenge,
-          rp: { name: "InsurePortal", id: window.location.hostname },
+          rp: { name: "TourismPay", id: window.location.hostname },
           user: {
             id: new TextEncoder().encode(agentId),
             name: customerName,

@@ -467,7 +467,7 @@ const guideSections: GuideSection[] = [
         id: "contact-support",
         title: "Contacting Support",
         content:
-          "If you can't resolve an issue:\n\n1. Use the AI Chat Widget (bottom-right corner) for instant help\n2. Check the Live Chat page for human agent support\n3. Email: support@54link.com\n4. Phone: +234-800-54LINK (0800-545465)\n5. WhatsApp: +234-901-234-5678\n\nSupport hours: Monday-Saturday, 7:00 AM - 10:00 PM WAT\nEmergency support (fraud, system outages): 24/7",
+          "If you can't resolve an issue:\n\n1. Use the AI Chat Widget (bottom-right corner) for instant help\n2. Check the Live Chat page for human agent support\n3. Email: support@tourismpay.com\n4. Phone: +234-800-54LINK (0800-545465)\n5. WhatsApp: +234-901-234-5678\n\nSupport hours: Monday-Saturday, 7:00 AM - 10:00 PM WAT\nEmergency support (fraud, system outages): 24/7",
         tags: ["support", "contact", "help"],
       },
     ],

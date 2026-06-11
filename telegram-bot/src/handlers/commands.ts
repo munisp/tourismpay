@@ -6,7 +6,7 @@ export class InsuranceCommandHandler {
 
   async handleStart(msg: TelegramBot.Message) {
     const name = msg.from?.first_name || "there";
-    const text = `🏦 *Welcome to InsurePortal, ${name}!*\n\nYour insurance companion on Telegram.\n\n*What I can do:*\n📋 /policies — View your insurance policies\n📝 /claims — View your claims\n🆕 /fileclaim — File a new claim\n💳 /premium — Check premium payments\n📍 /agent — Find nearby agents\n🆘 /emergency — Emergency contacts\n🌐 /language en|ha|yo|ig — Change language\n\n_Send me a message and I'll help you with insurance queries!_\n\n🔐 *NAICOM Licensed | NDPR Compliant*`;
+    const text = `🏦 *Welcome to TourismPay, ${name}!*\n\nYour insurance companion on Telegram.\n\n*What I can do:*\n📋 /policies — View your insurance policies\n📝 /claims — View your claims\n🆕 /fileclaim — File a new claim\n💳 /premium — Check premium payments\n📍 /agent — Find nearby agents\n🆘 /emergency — Emergency contacts\n🌐 /language en|ha|yo|ig — Change language\n\n_Send me a message and I'll help you with insurance queries!_\n\n🔐 *NAICOM Licensed | NDPR Compliant*`;
     this.bot.sendMessage(msg.chat.id, text, {
       parse_mode: "Markdown",
       reply_markup: {
@@ -21,7 +21,7 @@ export class InsuranceCommandHandler {
 
   async handleHelp(msg: TelegramBot.Message) {
     this.bot.sendMessage(msg.chat.id,
-      "*InsurePortal Bot Commands:*\n\n" +
+      "*TourismPay Bot Commands:*\n\n" +
       "/start — Welcome & main menu\n" +
       "/policies — List your active policies\n" +
       "/claims — View claim history\n" +
@@ -138,7 +138,7 @@ export class InsuranceCommandHandler {
   async handleEmergency(msg: TelegramBot.Message) {
     this.bot.sendMessage(msg.chat.id,
       "🆘 *Emergency Contacts*\n\n" +
-      "📞 InsurePortal Emergency: +234-800-INSURE-1\n" +
+      "📞 TourismPay Emergency: +234-800-INSURE-1\n" +
       "📞 NAICOM Complaints: +234-9-4620430\n" +
       "👮 Nigeria Police: 199\n" +
       "🚗 FRSC (Road Accidents): 122\n" +

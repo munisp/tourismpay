@@ -38,7 +38,7 @@ interface PurchaseResult {
   expiresAt: string;
 }
 
-class InsurePortalSDK {
+class TourismPaySDK {
   private config: EmbeddedConfig;
   private baseUrl: string;
 
@@ -152,7 +152,7 @@ function renderInsuranceWidget(containerId: string, config: EmbeddedConfig & { c
     </div>
   `;
 
-  const sdk = new InsurePortalSDK(config);
+  const sdk = new TourismPaySDK(config);
   sdk.getOffers({ category: config.category }).then(offers => {
     if (offers.length === 0) {
       container.innerHTML = "";
@@ -170,5 +170,5 @@ function renderInsuranceWidget(containerId: string, config: EmbeddedConfig & { c
   });
 }
 
-export { InsurePortalSDK, renderInsuranceWidget };
+export { TourismPaySDK, renderInsuranceWidget };
 export type { EmbeddedConfig, InsuranceOffer, PurchaseRequest, PurchaseResult };

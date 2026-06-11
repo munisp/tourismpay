@@ -759,14 +759,14 @@ let currentLocale: Locale = "en";
 export function setLocale(locale: Locale): void {
   currentLocale = locale;
   if (typeof window !== "undefined") {
-    localStorage.setItem("54link_locale", locale);
+    localStorage.setItem("tourismpay_locale", locale);
     document.documentElement.lang = locale;
   }
 }
 
 export function getLocale(): Locale {
   if (typeof window !== "undefined") {
-    const stored = localStorage.getItem("54link_locale") as Locale | null;
+    const stored = localStorage.getItem("tourismpay_locale") as Locale | null;
     if (stored && translations[stored]) return stored;
   }
   return currentLocale;

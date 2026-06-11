@@ -1,5 +1,5 @@
 /**
- * Global Search Router — InsurePortal Insurance Platform
+ * Global Search Router — TourismPay Insurance Platform
  *
  * Unified search across agents, transactions, customers, disputes.
  * Features:

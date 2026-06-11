@@ -19,7 +19,7 @@
  *   unavailable, events are buffered in-memory and flushed on reconnect.
  *
  * Environment variables:
- *   FLUVIO_ENDPOINT   — WebSocket endpoint, e.g. wss://fluvio.54link.ng:9003
+ *   FLUVIO_ENDPOINT   — WebSocket endpoint, e.g. wss://fluvio.tourismpay.ng:9003
  *   FLUVIO_API_KEY    — Bearer token for the Fluvio HTTP gateway
  *   FLUVIO_TLS        — "true" to enable TLS verification (default: false in dev)
  */

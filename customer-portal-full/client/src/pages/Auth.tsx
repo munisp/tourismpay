@@ -235,7 +235,7 @@ export default function Auth() {
   const renderDescription = () => {
     switch (view) {
       case "login": return "Sign in to manage your insurance";
-      case "signup": return "Join InsurePortal to get started";
+      case "signup": return "Join TourismPay to get started";
       case "forgot": return "Enter your email to receive a reset code";
       case "reset": return "Enter the OTP code sent to your email";
       case "2fa": return "Enter the 6-digit code from your authenticator app";
@@ -249,7 +249,7 @@ export default function Auth() {
         <Link href="/">
           <div className="flex items-center gap-2 text-white cursor-pointer">
             <Shield className="h-8 w-8" />
-            <span className="text-2xl font-bold">InsurePortal</span>
+            <span className="text-2xl font-bold">TourismPay</span>
           </div>
         </Link>
       </nav>

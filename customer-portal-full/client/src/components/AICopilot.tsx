@@ -341,7 +341,7 @@ function buildSystemPrompt(productType: string, currentStep: number, language: C
     pcm: "Respond for Naija Pidgin English. Use casual Nigerian Pidgin like 'wetin', 'how far', 'abeg', 'no wahala', etc.",
   };
 
-  return `You are an AI insurance assistant for InsurePortal, a Nigerian insurance platform. You help customers complete their ${productType} insurance applications.
+  return `You are an AI insurance assistant for TourismPay, a Nigerian insurance platform. You help customers complete their ${productType} insurance applications.
 
 Current application step: ${currentStep} of 4 (1=Personal Info, 2=Coverage Details, 3=Documents, 4=Review)
 

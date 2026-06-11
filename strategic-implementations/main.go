@@ -14,7 +14,7 @@ import (
 	"context"
 	_ "github.com/jackc/pgx/v5/stdlib")
 
-// strategic-implementations — production microservice for InsurePortal platform
+// strategic-implementations — production microservice for TourismPay platform
 // Integrates with: Kafka, Redis, Postgres
 
 

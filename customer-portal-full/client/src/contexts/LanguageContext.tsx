@@ -283,10 +283,10 @@ const translations: Translations = {
 
   // Onboarding
   "onboarding.welcome": {
-    en: "Welcome to InsurePortal!",
-    yo: "Kaabo si InsurePortal!",
-    ha: "Barka da zuwa InsurePortal!",
-    ig: "Nnọọ na InsurePortal!",
+    en: "Welcome to TourismPay!",
+    yo: "Kaabo si TourismPay!",
+    ha: "Barka da zuwa TourismPay!",
+    ig: "Nnọọ na TourismPay!",
   },
   "onboarding.getStarted": {
     en: "Get Started",

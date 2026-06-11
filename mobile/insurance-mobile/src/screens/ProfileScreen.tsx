@@ -37,7 +37,7 @@ export function ProfileScreen() {
         <TouchableOpacity style={s.settingRow}><Text style={s.settingLabel}>Terms of Service</Text><Text style={s.arrow}>→</Text></TouchableOpacity>
       </View>
       <TouchableOpacity style={s.logoutBtn} onPress={logout}><Text style={s.logoutText}>Sign Out</Text></TouchableOpacity>
-      <Text style={s.version}>InsurePortal v2.0.0 | NAICOM Licensed</Text>
+      <Text style={s.version}>TourismPay v2.0.0 | NAICOM Licensed</Text>
       <View style={{ height: 40 }} />
     </ScrollView>
   );

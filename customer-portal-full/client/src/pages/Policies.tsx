@@ -61,7 +61,7 @@ export default function Policies() {
           <Link href="/dashboard"><Button variant="ghost">← Back to Dashboard</Button></Link>
           <div className="flex items-center gap-2">
             <Shield className="h-8 w-8 text-blue-600" />
-            <span className="text-xl font-bold">InsurePortal</span>
+            <span className="text-xl font-bold">TourismPay</span>
           </div>
         </div>
       </nav>

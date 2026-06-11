@@ -214,7 +214,7 @@ export const usePosStore = create<PosState>()(
       clearOfflineQueue: () => set({ offlineQueue: [] }),
     }),
     {
-      name: "pos54link-store",
+      name: "postourismpay-store",
       storage: createJSONStorage(() => localStorage),
       partialize: state => ({
         agent: state.agent,

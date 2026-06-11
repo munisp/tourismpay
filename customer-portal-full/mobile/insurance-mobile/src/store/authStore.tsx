@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithBiometric = useCallback(async () => {
     const rnBiometrics = new ReactNativeBiometrics();
     const { success, signature } = await rnBiometrics.createSignature({
-      promptMessage: 'Sign in to InsurePortal',
+      promptMessage: 'Sign in to TourismPay',
       payload: `insureportal-auth-${Date.now()}`,
     });
     if (!success) throw new Error('Biometric authentication failed');

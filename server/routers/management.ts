@@ -1255,7 +1255,7 @@ export const managementRouter = router({
       api: { status: "up", latency: 12 },
       database: { status: "up", connections: 5 },
       tigerbeetle: { status: "up", ledgerVersion: "0.16.11" },
-      keycloak: { status: "up", realm: process.env.KEYCLOAK_REALM || "54link" },
+      keycloak: { status: "up", realm: process.env.KEYCLOAK_REALM || "tourismpay" },
       redis: { status: "up" },
       kafka: { status: "up", topics: 12 },
       timestamp: new Date(),

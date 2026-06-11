@@ -371,21 +371,21 @@ function OrchestratorConfigPanel({
     onError: (e: any) => toast.error(e.message),
   });
 
-  const [apiKey, setApiKey] = useState("54link-sim-orchestrator-default-key");
+  const [apiKey, setApiKey] = useState("tourismpay-sim-orchestrator-default-key");
   const [intervalMs, setIntervalMs] = useState(30000);
   const [relayEndpoint, setRelayEndpoint] = useState(
-    "https://api.54link.io/api/trpc/simOrchestrator.ingestProbe"
+    "https://api.tourismpay.io/api/trpc/simOrchestrator.ingestProbe"
   );
   const [enabled, setEnabled] = useState(true);
   const [populated, setPopulated] = useState(false);
 
   useMemo(() => {
     if (cfg && !populated) {
-      setApiKey((cfg as any).apiKey ?? "54link-sim-orchestrator-default-key");
+      setApiKey((cfg as any).apiKey ?? "tourismpay-sim-orchestrator-default-key");
       setIntervalMs(cfg.probeIntervalMs ?? 30000);
       setRelayEndpoint(
         cfg.relayEndpoint ??
-          "https://api.54link.io/api/trpc/simOrchestrator.ingestProbe"
+          "https://api.tourismpay.io/api/trpc/simOrchestrator.ingestProbe"
       );
       setEnabled(cfg.enabled ?? true);
       setPopulated(true);
@@ -725,7 +725,7 @@ export function SimOrchestratorTab() {
                 className="text-xs text-gray-600 mt-1"
                 style={{ fontFamily: MONO }}
               >
-                Default API key: 54link-sim-orchestrator-default-key
+                Default API key: tourismpay-sim-orchestrator-default-key
               </div>
             </div>
           )}

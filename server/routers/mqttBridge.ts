@@ -310,7 +310,7 @@ export const mqttBridgeRouter = router({
       } = input;
 
       const connectors = topicMappings.map((m, i) => {
-        const connectorName = `54link-mqtt-${m.fluvioTopic.replace(/\./g, "-")}-${i}`;
+        const connectorName = `tourismpay-mqtt-${m.fluvioTopic.replace(/\./g, "-")}-${i}`;
         const effectiveUrl = useTls
           ? brokerUrl.replace(/^mqtt:\/\//, "mqtts://")
           : brokerUrl.replace(/^mqtts:\/\//, "mqtt://");

@@ -33,7 +33,7 @@ export const ussdReceiptRouter = router({
       const amount = Number(tx.amount);
       if (input.format === "sms") {
         return {
-          receipt: `InsurePortal Rcpt\nRef:${tx.reference}\nAmt:₦${amount.toLocaleString()}\nDate:${tx.createdAt?.toISOString().split("T")[0]}\nStatus:${tx.status}`,
+          receipt: `TourismPay Rcpt\nRef:${tx.reference}\nAmt:₦${amount.toLocaleString()}\nDate:${tx.createdAt?.toISOString().split("T")[0]}\nStatus:${tx.status}`,
           charCount: 120,
           segments: 1,
         };

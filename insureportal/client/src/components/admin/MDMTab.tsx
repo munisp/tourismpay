@@ -1159,7 +1159,7 @@ export function MDMTab() {
                       <span className="font-mono text-amber-300">
                         {killSwitchTarget?.agentCode}
                       </span>
-                      . The InsurePortal will immediately show a kill-switch
+                      . The TourismPay will immediately show a kill-switch
                       overlay and all transactions will be blocked.
                     </>
                   ) : (
@@ -1172,7 +1172,7 @@ export function MDMTab() {
                       <span className="font-mono text-amber-300">
                         {killSwitchTarget?.agentCode}
                       </span>
-                      . The InsurePortal overlay will dismiss automatically.
+                      . The TourismPay overlay will dismiss automatically.
                     </>
                   )}
                 </p>

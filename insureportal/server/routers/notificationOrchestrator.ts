@@ -44,7 +44,7 @@ const TEMPLATES: Record<string, { subject: string; body: string }> = {
     body: "Unusual activity detected on your account. {{details}}",
   },
   welcome: {
-    subject: "Welcome to InsurePortal",
+    subject: "Welcome to TourismPay",
     body: "Welcome {{name}}! Your account is ready.",
   },
 };

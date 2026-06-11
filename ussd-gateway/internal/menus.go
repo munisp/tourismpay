@@ -16,10 +16,10 @@ type MenuOption struct {
 var MenuTree = map[string]MenuNode{
 	"root": {
 		Text: map[string]string{
-			"en": "Welcome to InsurePortal\n",
-			"ha": "Barka da zuwa InsurePortal\n",
-			"yo": "Kaabo si InsurePortal\n",
-			"ig": "Nnọọ na InsurePortal\n",
+			"en": "Welcome to TourismPay\n",
+			"ha": "Barka da zuwa TourismPay\n",
+			"yo": "Kaabo si TourismPay\n",
+			"ig": "Nnọọ na TourismPay\n",
 		},
 		Options: []MenuOption{
 			{Key: "1", Label: map[string]string{"en": "Check Policy", "ha": "Duba Inshorar"}, Next: "check_policy"},
@@ -62,7 +62,7 @@ var MenuTree = map[string]MenuNode{
 		},
 	},
 	"exit": {
-		Text:  map[string]string{"en": "Thank you for using InsurePortal. Goodbye!", "ha": "Nagode da amfani da InsurePortal. Sai anjima!"},
+		Text:  map[string]string{"en": "Thank you for using TourismPay. Goodbye!", "ha": "Nagode da amfani da TourismPay. Sai anjima!"},
 		IsEnd: true,
 	},
 }

@@ -34,10 +34,10 @@ const KAFKA_CLIENT_ID = process.env.KAFKA_CLIENT_ID ?? "pos-shell-demo";
 // ─── Topic definitions ────────────────────────────────────────────────────────
 
 export const TOPICS = {
-  TX_CREATED: "54link.transactions.created",
-  TX_SETTLED: "54link.settlements.completed",
-  FRAUD_ALERT: "54link.fraud.alert_raised",
-  SIM_FAILOVER: "54link.connectivity.sim_failover",
+  TX_CREATED: "tourismpay.transactions.created",
+  TX_SETTLED: "tourismpay.settlements.completed",
+  FRAUD_ALERT: "tourismpay.fraud.alert_raised",
+  SIM_FAILOVER: "tourismpay.connectivity.sim_failover",
 } as const;
 
 export type KafkaTopic = (typeof TOPICS)[keyof typeof TOPICS];
@@ -194,7 +194,7 @@ export async function kafkaDisconnect(): Promise<void> {
 
 // ─── Re-exports from kafkaClient.ts for consolidation ─────────────────────────
 // Both kafka.ts (legacy POS Shell topics) and kafkaClient.ts (platform-proxy +
-// domain topics) now use the same 54link.{domain}.{action} convention.
+// domain topics) now use the same tourismpay.{domain}.{action} convention.
 // New code should import from kafkaClient.ts; these re-exports exist for
 // backward compatibility.
 export {

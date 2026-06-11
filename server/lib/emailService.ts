@@ -43,7 +43,7 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
       auth: { user: smtpUser, pass: process.env.SMTP_PASS },
     });
     const result = await transporter.sendMail({
-      from: options.from ?? process.env.EMAIL_FROM ?? "noreply@54link.com",
+      from: options.from ?? process.env.EMAIL_FROM ?? "noreply@tourismpay.com",
       to: Array.isArray(options.to) ? options.to.join(", ") : options.to,
       subject: options.subject,
       html: options.html,

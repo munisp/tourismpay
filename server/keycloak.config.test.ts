@@ -42,10 +42,10 @@ describe("Keycloak config — default values (no env vars set)", () => {
     });
   });
 
-  it("defaults realm to '54link'", () => {
+  it("defaults realm to 'tourismpay'", () => {
     withEnv({ KEYCLOAK_REALM: undefined }, () => {
-      const realm = process.env.KEYCLOAK_REALM ?? "54link";
-      expect(realm).toBe("54link");
+      const realm = process.env.KEYCLOAK_REALM ?? "tourismpay";
+      expect(realm).toBe("tourismpay");
     });
   });
 
@@ -66,15 +66,15 @@ describe("Keycloak config — default values (no env vars set)", () => {
 
 describe("Keycloak config — env var overrides", () => {
   it("picks up KEYCLOAK_URL when set", () => {
-    withEnv({ KEYCLOAK_URL: "https://auth.54link.io" }, () => {
+    withEnv({ KEYCLOAK_URL: "https://auth.tourismpay.io" }, () => {
       const url = process.env.KEYCLOAK_URL ?? "";
-      expect(url).toBe("https://auth.54link.io");
+      expect(url).toBe("https://auth.tourismpay.io");
     });
   });
 
   it("picks up custom realm", () => {
     withEnv({ KEYCLOAK_REALM: "production" }, () => {
-      const realm = process.env.KEYCLOAK_REALM ?? "54link";
+      const realm = process.env.KEYCLOAK_REALM ?? "tourismpay";
       expect(realm).toBe("production");
     });
   });
@@ -88,42 +88,42 @@ describe("Keycloak config — env var overrides", () => {
 });
 
 describe("Keycloak OIDC endpoint URL construction", () => {
-  const BASE = "https://auth.54link.io";
-  const REALM = "54link";
+  const BASE = "https://auth.tourismpay.io";
+  const REALM = "tourismpay";
 
   function issuerUrl(url: string, realm: string) {
     return `${url}/realms/${realm}`;
   }
 
   it("builds correct issuer URL", () => {
-    expect(issuerUrl(BASE, REALM)).toBe("https://auth.54link.io/realms/54link");
+    expect(issuerUrl(BASE, REALM)).toBe("https://auth.tourismpay.io/realms/tourismpay");
   });
 
   it("builds correct authorization endpoint", () => {
     const endpoint = `${issuerUrl(BASE, REALM)}/protocol/openid-connect/auth`;
     expect(endpoint).toBe(
-      "https://auth.54link.io/realms/54link/protocol/openid-connect/auth"
+      "https://auth.tourismpay.io/realms/tourismpay/protocol/openid-connect/auth"
     );
   });
 
   it("builds correct token endpoint", () => {
     const endpoint = `${issuerUrl(BASE, REALM)}/protocol/openid-connect/token`;
     expect(endpoint).toBe(
-      "https://auth.54link.io/realms/54link/protocol/openid-connect/token"
+      "https://auth.tourismpay.io/realms/tourismpay/protocol/openid-connect/token"
     );
   });
 
   it("builds correct JWKS URI", () => {
     const endpoint = `${issuerUrl(BASE, REALM)}/protocol/openid-connect/certs`;
     expect(endpoint).toBe(
-      "https://auth.54link.io/realms/54link/protocol/openid-connect/certs"
+      "https://auth.tourismpay.io/realms/tourismpay/protocol/openid-connect/certs"
     );
   });
 
   it("builds correct end-session endpoint", () => {
     const endpoint = `${issuerUrl(BASE, REALM)}/protocol/openid-connect/logout`;
     expect(endpoint).toBe(
-      "https://auth.54link.io/realms/54link/protocol/openid-connect/logout"
+      "https://auth.tourismpay.io/realms/tourismpay/protocol/openid-connect/logout"
     );
   });
 });
@@ -131,7 +131,7 @@ describe("Keycloak OIDC endpoint URL construction", () => {
 describe("Keycloak — buildAuthorizationUrl", () => {
   it("produces a valid URL with required OAuth2 params", () => {
     const base =
-      "https://auth.54link.io/realms/54link/protocol/openid-connect/auth";
+      "https://auth.tourismpay.io/realms/tourismpay/protocol/openid-connect/auth";
     const params = new URLSearchParams({
       client_id: "pos-shell",
       redirect_uri: "https://pos-shell.manus.space/api/auth/keycloak/callback",
@@ -196,7 +196,7 @@ describe("Keycloak — role mapping", () => {
 describe("Keycloak — graceful fallback when KEYCLOAK_URL is absent", () => {
   it("does not throw when building endpoint URLs with empty base URL", () => {
     const url = "";
-    const realm = "54link";
+    const realm = "tourismpay";
     expect(() => {
       const issuer = `${url}/realms/${realm}`;
       const auth = `${issuer}/protocol/openid-connect/auth`;
@@ -207,10 +207,10 @@ describe("Keycloak — graceful fallback when KEYCLOAK_URL is absent", () => {
 
   it("produces relative-looking paths (not valid URLs) when base is empty — callers must guard", () => {
     const url = "";
-    const realm = "54link";
+    const realm = "tourismpay";
     const issuer = `${url}/realms/${realm}`;
     // The result is a relative path, not a valid absolute URL
-    expect(issuer).toBe("/realms/54link");
+    expect(issuer).toBe("/realms/tourismpay");
     // Callers should check for empty KEYCLOAK_URL before using these endpoints
     expect(url).toBeFalsy();
   });

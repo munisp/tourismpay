@@ -93,7 +93,7 @@ func handleUSSD(w http.ResponseWriter, r *http.Request) {
 		Input     string `json:"input"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
-	response := "Welcome to InsurePortal\n1. Check Policy\n2. File Claim\n3. Pay Premium\n4. Find Agent\n5. Change Language"
+	response := "Welcome to TourismPay\n1. Check Policy\n2. File Claim\n3. Pay Premium\n4. Find Agent\n5. Change Language"
 	if body.Input == "1" { response = "Enter Policy Number:" }
 	if body.Input == "2" { response = "Enter Claim Type:\n1. Motor\n2. Health\n3. Property\n4. Life" }
 	json.NewEncoder(w).Encode(map[string]interface{}{

@@ -1,5 +1,5 @@
 /**
- * Analytics Query Router — InsurePortal (Sprint 89)
+ * Analytics Query Router — TourismPay (Sprint 89)
  *
  * tRPC router for querying transaction analytics from OpenSearch.
  * Provides aggregated metrics, time-series data, and search capabilities

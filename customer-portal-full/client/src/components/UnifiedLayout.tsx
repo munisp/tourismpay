@@ -605,7 +605,7 @@ function UnifiedLayoutContent({ children }: { children: ReactNode }) {
             {!isCollapsed && (
               <div className="flex flex-col min-w-0">
                 <span className="font-bold text-lg tracking-tight truncate">
-                  InsurePortal
+                  TourismPay
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Unified Platform

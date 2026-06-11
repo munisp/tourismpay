@@ -149,7 +149,7 @@ func validateDeviceToken(token string) (deviceSerial string, valid bool) {
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":    "ok",
-		"service":   "54link-ota",
+		"service":   "tourismpay-ota",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
 }
@@ -205,7 +205,7 @@ func handleLatest(w http.ResponseWriter, r *http.Request) {
 func generatePresignedURL(s3Key string) (string, time.Time) {
 	bucket := os.Getenv("S3_BUCKET")
 	if bucket == "" {
-		bucket = "54link-firmware"
+		bucket = "tourismpay-firmware"
 	}
 	expiryStr := os.Getenv("S3_PRESIGN_EXPIRY_SECS")
 	expirySecs, _ := strconv.ParseInt(expiryStr, 10, 64)

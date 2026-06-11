@@ -20,8 +20,8 @@
 //
 // Environment variables:
 //   PORT              — HTTP listen port (default: 8083)
-//   FIDO2_RP_ID       — Relying Party ID (e.g. "54link.ng")
-//   FIDO2_RP_ORIGIN   — Relying Party origin (e.g. "https://app.54link.ng")
+//   FIDO2_RP_ID       — Relying Party ID (e.g. "tourismpay.ng")
+//   FIDO2_RP_ORIGIN   — Relying Party origin (e.g. "https://app.tourismpay.ng")
 //   FIDO2_RP_NAME     — Relying Party display name (default: "54Link POS")
 //   FIDO2_ADMIN_KEY   — Shared secret for admin endpoints
 
@@ -165,7 +165,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":    "ok",
-		"service":   "54link-fido2",
+		"service":   "tourismpay-fido2",
 		"rpId":      rpID,
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})

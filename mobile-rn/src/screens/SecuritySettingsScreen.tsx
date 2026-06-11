@@ -16,7 +16,7 @@ import { APIClient } from '../api/APIClient';
 const apiClient = new APIClient();
 
 
-const API_BASE_URL = 'https://api.54link.io/v1';
+const API_BASE_URL = 'https://api.tourismpay.io/v1';
 const PRIMARY_COLOR = '#6C63FF';
 const BACKGROUND_COLOR = '#1A1A2E';
 const CARD_COLOR = '#FFFFFF';

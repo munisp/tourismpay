@@ -1,5 +1,5 @@
 /**
- * InsurePortal Insurance Platform — Developer Portal
+ * TourismPay Insurance Platform — Developer Portal
  * API key management, usage dashboard, and documentation for third-party integrators.
  * Enhanced with search/filter, pagination, usage stats, and webhook management.
  */
@@ -325,7 +325,7 @@ export default function DeveloperPortal() {
             className="text-xs px-2 py-0.5 rounded-full font-semibold"
             style={{ background: "oklch(0.65 0.22 260 / 0.15)", color: BLUE }}
           >
-            InsurePortal API v1
+            TourismPay API v1
           </span>
         </div>
         <div className="flex items-center gap-3">

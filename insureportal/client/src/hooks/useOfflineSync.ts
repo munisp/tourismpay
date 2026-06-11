@@ -1,5 +1,5 @@
 /**
- * useOfflineSync — Auto-sync hook for InsurePortal
+ * useOfflineSync — Auto-sync hook for TourismPay
  *
  * Drains two queues on reconnect:
  *   1. Zustand in-memory offlineQueue (current session)

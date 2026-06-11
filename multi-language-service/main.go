@@ -23,11 +23,11 @@ import (
 // - Fallback: English if translation unavailable
 
 var translations = map[string]map[string]string{
-	"en": {"welcome": "Welcome to InsurePortal", "policy": "Insurance Policy", "claim": "File a Claim", "premium": "Premium Payment"},
-	"yo": {"welcome": "E kaabo si InsurePortal", "policy": "Iwe Adehun Insora", "claim": "Fi Ejo Sile", "premium": "Owo Isanwo"},
-	"ig": {"welcome": "Nnoo na InsurePortal", "policy": "Akwukwo Insora", "claim": "Tinye Ariro", "premium": "Ugwo Insora"},
-	"ha": {"welcome": "Barka da zuwa InsurePortal", "policy": "Takaddama Insora", "claim": "Shigar da Kara", "premium": "Biyan Insora"},
-	"pcm": {"welcome": "You don reach InsurePortal", "policy": "Insurance Paper", "claim": "Make Claim", "premium": "Pay Premium"},
+	"en": {"welcome": "Welcome to TourismPay", "policy": "Insurance Policy", "claim": "File a Claim", "premium": "Premium Payment"},
+	"yo": {"welcome": "E kaabo si TourismPay", "policy": "Iwe Adehun Insora", "claim": "Fi Ejo Sile", "premium": "Owo Isanwo"},
+	"ig": {"welcome": "Nnoo na TourismPay", "policy": "Akwukwo Insora", "claim": "Tinye Ariro", "premium": "Ugwo Insora"},
+	"ha": {"welcome": "Barka da zuwa TourismPay", "policy": "Takaddama Insora", "claim": "Shigar da Kara", "premium": "Biyan Insora"},
+	"pcm": {"welcome": "You don reach TourismPay", "policy": "Insurance Paper", "claim": "Make Claim", "premium": "Pay Premium"},
 }
 
 

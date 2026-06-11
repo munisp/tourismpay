@@ -16,7 +16,7 @@ export function LoginScreen() {
 
   return (
     <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View style={s.logoContainer}><Text style={s.logo}>InsurePortal</Text><Text style={s.tagline}>Your Insurance, Simplified</Text></View>
+      <View style={s.logoContainer}><Text style={s.logo}>TourismPay</Text><Text style={s.tagline}>Your Insurance, Simplified</Text></View>
       <View style={s.form}>
         {error ? <Text style={s.error}>{error}</Text> : null}
         <TextInput style={s.input} placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#94a3b8" />

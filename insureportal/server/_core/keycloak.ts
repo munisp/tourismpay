@@ -1,5 +1,5 @@
 /**
- * keycloak.ts — Keycloak OIDC integration for InsurePortal
+ * keycloak.ts — Keycloak OIDC integration for TourismPay
  *
  * Responsibilities:
  *  1. Discover Keycloak OIDC configuration (JWKS, endpoints)

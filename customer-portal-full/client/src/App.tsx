@@ -134,7 +134,7 @@ function Router() {
             <div className="container mx-auto flex justify-between items-center">
               <Link href="/" className="flex items-center gap-2 text-xl font-bold">
                 <Shield className="h-6 w-6" />
-                InsurePortal
+                TourismPay
               </Link>
               <Link href="/auth">
                 <Button variant="secondary" size="sm">Login / Sign Up</Button>
@@ -152,7 +152,7 @@ function Router() {
             <div className="container mx-auto flex justify-between items-center">
               <Link href="/" className="flex items-center gap-2 text-xl font-bold">
                 <Shield className="h-6 w-6" />
-                InsurePortal
+                TourismPay
               </Link>
               <Link href="/auth">
                 <Button variant="secondary" size="sm">Login / Sign Up</Button>
