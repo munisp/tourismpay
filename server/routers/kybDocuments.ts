@@ -58,8 +58,8 @@ export const kybDocumentsRouter = router({
         fileName: z.string().min(1).max(255),
         mimeType: z.string(),
         fileSizeBytes: z.number().min(1).max(MAX_FILE_SIZE_BYTES),
-        // Base64-encoded file content
-        fileDataBase64: z.string(),
+        // Base64-encoded file content (max ~14MB base64 for 10MB binary)
+        fileDataBase64: z.string().max(14_000_000),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -87,6 +87,20 @@ export const kybDocumentsRouter = router({
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Invalid file data encoding.",
+        });
+      }
+
+      // Verify actual decoded size against declared fileSizeBytes and hard limit
+      if (fileBuffer.length > MAX_FILE_SIZE_BYTES) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Decoded file exceeds the 10 MB limit.`,
+        });
+      }
+      if (Math.abs(fileBuffer.length - input.fileSizeBytes) > 1024) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Declared file size does not match actual file content.",
         });
       }
 

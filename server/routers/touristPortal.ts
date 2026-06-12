@@ -40,11 +40,7 @@ import { eq, desc, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM } from "../_core/llm";
 import { sendPushToUser } from "../_core/webPush";
-import Stripe from "stripe";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
-  apiVersion: "2024-06-20" as any,
-});
+import { stripe } from "../_core/stripe";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

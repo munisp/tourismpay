@@ -68,8 +68,10 @@ async function startServer() {
   registerStripeWebhook(app);
 
   // ─── Request ID / Distributed Tracing ──────────────────────────────────────
-  app.use((req, _res, next) => {
-    req.headers["x-request-id"] = req.headers["x-request-id"] || crypto.randomUUID();
+  app.use((req, res, next) => {
+    const requestId = (req.headers["x-request-id"] as string) || crypto.randomUUID();
+    req.headers["x-request-id"] = requestId;
+    res.setHeader("x-request-id", requestId);
     next();
   });
 
@@ -316,6 +318,12 @@ async function startServer() {
     createExpressMiddleware({
       router: appRouter,
       createContext,
+      onError({ error, path }) {
+        if (process.env.NODE_ENV === "production" && error.code === "INTERNAL_SERVER_ERROR") {
+          logger.error(`[tRPC] ${path}:`, { message: error.message, stack: error.stack });
+          error.message = "An internal error occurred. Please try again later.";
+        }
+      },
     })
   );
   // development mode uses Vite, production mode uses static files
