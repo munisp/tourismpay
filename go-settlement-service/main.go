@@ -32,9 +32,13 @@ func main() {
 	inventoryService := services.NewInventorySyncService()
 	settlementService := services.NewSettlementService(ledgerService, mojaloopService)
 	cryptoService := services.NewCryptoService()
+	nfcService := services.NewOfflineNFCService()
+	cbdcBridge := services.NewCBDCBridge()
 
 	h := handlers.NewHandlers(ledgerService, mojaloopService, inventoryService, settlementService)
 	cryptoHandlers := handlers.NewCryptoHandlers(cryptoService)
+	nfcHandlers := services.NewNFCHandlers(nfcService)
+	cbdcHandlers := services.NewCBDCHandlers(cbdcBridge)
 
 	router := gin.Default()
 
@@ -148,6 +152,22 @@ func main() {
 			crypto.POST("/pay", cryptoHandlers.PayWithCrypto)
 			crypto.GET("/coins", cryptoHandlers.GetSupportedCoins)
 			crypto.GET("/health", cryptoHandlers.GetCryptoStatus)
+		}
+
+		// Offline NFC Payments (4.1)
+		nfc := api.Group("/nfc")
+		{
+			nfc.POST("/vouchers", nfcHandlers.CreateVoucherHandler)
+			nfc.POST("/tap", nfcHandlers.ProcessTapHandler)
+			nfc.POST("/sync", nfcHandlers.SyncVoucherHandler)
+		}
+
+		// CBDC Bridge (4.5) — eNaira, eCedi, South African Digital Rand
+		cbdc := api.Group("/cbdc")
+		{
+			cbdc.POST("/wallets", cbdcHandlers.CreateWalletHandler)
+			cbdc.POST("/swap/quote", cbdcHandlers.GetSwapQuoteHandler)
+			cbdc.POST("/swap/execute", cbdcHandlers.ExecuteSwapHandler)
 		}
 	}
 

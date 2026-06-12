@@ -1,4 +1,5 @@
 mod auth;
+mod biometric_pay;
 mod db;
 mod handlers;
 mod models;
