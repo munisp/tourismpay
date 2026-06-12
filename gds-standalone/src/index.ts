@@ -26,6 +26,8 @@ import { searchRouter } from "./routes/search";
 import { analyticsRouter } from "./routes/analytics";
 import { distributionRouter } from "./routes/distribution";
 import { healthRouter } from "./routes/health";
+import meteringRouter from "./routes/metering";
+import sandboxRouter from "./routes/sandbox";
 import { config } from "./config";
 
 const app = express();
@@ -59,6 +61,8 @@ app.use("/api/v1/gds/settlement", settlementRouter);
 app.use("/api/v1/gds/search", searchRouter);
 app.use("/api/v1/gds/analytics", analyticsRouter);
 app.use("/api/v1/gds/distribution", distributionRouter);
+app.use("/api/v1/gds/metering", meteringRouter);
+app.use("/api/v1/gds/sandbox", sandboxRouter);
 
 // --- Error Handler ---
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -25,6 +25,7 @@ export interface GDSClientConfig {
   bearerToken?: string;
   tenantId?: string;
   timeout?: number;
+  sandbox?: boolean;
 }
 
 export interface SearchParams {
@@ -307,6 +308,76 @@ export class GDSClient {
     if (!response.ok) throw new GDSError(response.status, await response.text());
     return response.json();
   }
+
+  private async del(path: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: "DELETE",
+      headers: this.headers,
+      signal: AbortSignal.timeout(this.timeout),
+    });
+    if (!response.ok) throw new GDSError(response.status, await response.text());
+    return response.json();
+  }
+
+  // ─── Metering ─────────────────────────────────────────────────
+
+  /** Get current metered token usage. */
+  async getMeteredUsage(): Promise<any> { return this.get("/api/v1/gds/metering/usage"); }
+
+  /** Get quota status and remaining tokens. */
+  async getQuota(): Promise<any> { return this.get("/api/v1/gds/metering/quota"); }
+
+  /** List available metering plans. */
+  async getMeteringPlans(): Promise<any> { return this.get("/api/v1/gds/metering/plans"); }
+
+  /** Get token costs per operation. */
+  async getTokenCosts(): Promise<any> { return this.get("/api/v1/gds/metering/costs"); }
+
+  /** Upgrade metering plan. */
+  async upgradePlan(plan: string): Promise<any> { return this.post("/api/v1/gds/metering/upgrade", { plan }); }
+
+  /** Purchase additional tokens. */
+  async purchaseTokens(amount: number): Promise<any> { return this.post("/api/v1/gds/metering/tokens/purchase", { amount }); }
+
+  /** Get current period invoice. */
+  async getInvoice(): Promise<any> { return this.get("/api/v1/gds/metering/invoice"); }
+
+  // ─── Sandbox ──────────────────────────────────────────────────
+
+  /** Create a sandbox API key. */
+  async createSandboxKey(name: string, role: string = "agent"): Promise<any> { return this.post("/api/v1/gds/sandbox/keys", { name, role }); }
+
+  /** List sandbox API keys. */
+  async listSandboxKeys(): Promise<any> { return this.get("/api/v1/gds/sandbox/keys"); }
+
+  /** Revoke a sandbox API key. */
+  async revokeSandboxKey(id: string): Promise<any> { return this.del(`/api/v1/gds/sandbox/keys/${id}`); }
+
+  /** Get all sandbox mock data. */
+  async getSandboxData(): Promise<any> { return this.get("/api/v1/gds/sandbox/data"); }
+
+  /** Get sandbox properties. */
+  async getSandboxProperties(country?: string, type?: string): Promise<any> {
+    const params = new URLSearchParams();
+    if (country) params.set("country", country);
+    if (type) params.set("type", type);
+    const qs = params.toString();
+    return this.get(`/api/v1/gds/sandbox/data/properties${qs ? `?${qs}` : ""}`);
+  }
+
+  /** Reset sandbox to initial state. */
+  async resetSandbox(): Promise<any> { return this.post("/api/v1/gds/sandbox/reset", {}); }
+
+  /** Get sandbox test card numbers. */
+  async getTestCards(): Promise<any> { return this.get("/api/v1/gds/sandbox/test-cards"); }
+
+  /** Test webhook delivery. */
+  async testWebhook(url: string, event: string = "reservation.created"): Promise<any> {
+    return this.post("/api/v1/gds/sandbox/webhooks/test", { url, event });
+  }
+
+  /** Get developer quick-start guide. */
+  async getSandboxGuide(): Promise<any> { return this.get("/api/v1/gds/sandbox/guide"); }
 }
 
 export class GDSError extends Error {
