@@ -410,4 +410,171 @@ export const kybDocumentsRouter = router({
       const optional = base.filter((d) => !d.required);
       return [...required, ...extra, ...optional];
     }),
+
+  // ─── Gap 6: Document Expiration & Renewal Tracking ─────────────────────────
+  setExpiration: adminProcedure
+    .input(
+      z.object({
+        documentId: z.number().int().positive(),
+        expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD"),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const { kybDocuments: kybDocsTable } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const [doc] = await db
+        .select()
+        .from(kybDocsTable)
+        .where(eq(kybDocsTable.id, input.documentId))
+        .limit(1);
+
+      if (!doc) throw new TRPCError({ code: "NOT_FOUND", message: "Document not found" });
+
+      await db
+        .update(kybDocsTable)
+        .set({ expiresAt: new Date(input.expiresAt + "T00:00:00Z"), updatedAt: new Date() })
+        .where(eq(kybDocsTable.id, input.documentId));
+
+      // Audit
+      await createAuditLog({
+        actorId: ctx.user.id,
+        actorName: ctx.user.name ?? undefined,
+        actorEmail: ctx.user.email ?? undefined,
+        action: "kyb.document.set_expiration",
+        entityType: "kyb_document",
+        entityId: String(input.documentId),
+        description: `Set expiration ${input.expiresAt} for document #${input.documentId}`,
+        before: { expiresAt: doc.expiresAt?.toISOString() ?? null },
+        after: { expiresAt: input.expiresAt },
+      }).catch(() => {});
+
+      return { success: true, expiresAt: input.expiresAt };
+    }),
+
+  // Get documents nearing expiration (admin dashboard)
+  expiringDocuments: adminProcedure
+    .input(z.object({ withinDays: z.number().int().min(1).max(365).default(60) }).optional())
+    .query(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) return [];
+
+      const { kybDocuments: kybDocsTable } = await import("../../drizzle/schema");
+      const { eq, gte, lte, and: andOp, isNotNull } = await import("drizzle-orm");
+
+      const withinDays = input?.withinDays ?? 60;
+      const now = new Date();
+      const threshold = new Date(now.getTime() + withinDays * 24 * 60 * 60 * 1000);
+
+      // Fetch verified docs that expire within the threshold
+      const expiringDocs = await db
+        .select({
+          id: kybDocsTable.id,
+          documentType: kybDocsTable.documentType,
+          fileName: kybDocsTable.fileName,
+          establishmentId: kybDocsTable.establishmentId,
+          expiresAt: kybDocsTable.expiresAt,
+          status: kybDocsTable.status,
+        })
+        .from(kybDocsTable)
+        .where(
+          andOp(
+            eq(kybDocsTable.status, "verified"),
+            isNotNull(kybDocsTable.expiresAt),
+            lte(kybDocsTable.expiresAt, threshold)
+          )
+        )
+        .orderBy(kybDocsTable.expiresAt)
+        .limit(200);
+
+      return expiringDocs.map((doc) => ({
+        documentId: doc.id,
+        documentType: doc.documentType,
+        fileName: doc.fileName ?? "unknown",
+        establishmentId: doc.establishmentId ?? 0,
+        expiresAt: doc.expiresAt?.toISOString().slice(0, 10) ?? "",
+        daysUntilExpiry: doc.expiresAt ? Math.ceil((doc.expiresAt.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)) : 0,
+        isExpired: doc.expiresAt ? doc.expiresAt.getTime() <= now.getTime() : false,
+      }));
+    }),
+
+  // Merchant: request renewal by re-uploading a document to replace an expired one
+  requestRenewal: protectedProcedure
+    .input(
+      z.object({
+        documentId: z.number().int().positive(),
+        applicationId: z.number().int().positive(),
+        establishmentId: z.number().int().positive(),
+        /** Base64-encoded new file */
+        fileDataBase64: z.string().max(14_000_000),
+        fileName: z.string().min(1).max(255),
+        mimeType: z.string(),
+        fileSizeBytes: z.number().min(1).max(MAX_FILE_SIZE_BYTES),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      if (!ALLOWED_MIME_TYPES.includes(input.mimeType)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "File type not allowed" });
+      }
+
+      let fileBuffer: Buffer;
+      try { fileBuffer = Buffer.from(input.fileDataBase64, "base64"); }
+      catch { throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid file encoding" }); }
+
+      if (fileBuffer.length > MAX_FILE_SIZE_BYTES) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "File exceeds 10 MB limit" });
+      }
+
+      // Upload replacement
+      const ext = input.fileName.split(".").pop() ?? "bin";
+      const sanitizedName = input.fileName.replace(/[^a-zA-Z0-9._-]/g, "_").substring(0, 100);
+      const fileKey = `kyb-documents/est-${input.establishmentId}/renewal-${randomSuffix()}-${sanitizedName}`;
+
+      let fileUrl: string;
+      try {
+        const result = await storagePut(fileKey, fileBuffer, input.mimeType);
+        fileUrl = result.url;
+      } catch (err) {
+        logger.error("[KYB Renewal] Upload failed:", err);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Upload failed" });
+      }
+
+      // Mark old document as expired, create new one as pending
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const { kybDocuments: kybDocsTable } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+
+      // Get old doc type
+      const [oldDoc] = await db.select({ documentType: kybDocsTable.documentType }).from(kybDocsTable).where(eq(kybDocsTable.id, input.documentId)).limit(1);
+      if (!oldDoc) throw new TRPCError({ code: "NOT_FOUND", message: "Original document not found" });
+
+      // Mark old as expired
+      await db.update(kybDocsTable).set({ status: "expired" as any, updatedAt: new Date() }).where(eq(kybDocsTable.id, input.documentId));
+
+      // Create new document record
+      const newDoc = await createKybDocument({
+        applicationId: input.applicationId,
+        establishmentId: input.establishmentId,
+        uploadedBy: ctx.user.id,
+        documentType: oldDoc.documentType,
+        status: "pending",
+        fileName: input.fileName,
+        fileKey,
+        fileUrl,
+        mimeType: input.mimeType,
+        fileSizeBytes: input.fileSizeBytes,
+      });
+
+      logger.info(`[KYB] Document renewal: old #${input.documentId} → new #${(newDoc as any)?.id} for establishment #${input.establishmentId}`);
+
+      return { success: true, newDocument: newDoc, replacedDocumentId: input.documentId };
+    }),
 });
