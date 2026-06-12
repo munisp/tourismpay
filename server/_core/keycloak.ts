@@ -53,7 +53,7 @@ async function fetchJWKS(config: KeycloakConfig): Promise<JWK[]> {
     return jwksCache;
   }
   const certsUrl = `${config.url}/realms/${config.realm}/protocol/openid-connect/certs`;
-  const res = await fetch(certsUrl);
+  const res = await fetch(certsUrl, { signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error(`JWKS fetch failed: ${res.status}`);
   const body = (await res.json()) as { keys: JWK[] };
   jwksCache = body.keys;
@@ -107,6 +107,7 @@ export async function validateKeycloakToken(token: string): Promise<TokenPayload
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params.toString(),
+      signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) return null;
     const body = (await res.json()) as { active: boolean };
@@ -179,7 +180,7 @@ export async function getOIDCConfig(): Promise<Record<string, unknown> | null> {
   if (!config) return null;
   try {
     const url = `${config.url}/realms/${config.realm}/.well-known/openid-configuration`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
     return res.ok ? (await res.json()) as Record<string, unknown> : null;
   } catch {
     return null;

@@ -77,6 +77,7 @@ export async function makeRequest<T = unknown>(
       "Content-Type": "application/json",
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
+    signal: AbortSignal.timeout(15000),
   });
 
   if (!response.ok) {

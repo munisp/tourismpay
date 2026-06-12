@@ -95,6 +95,7 @@ export async function notifyOwner(
         "connect-protocol-version": "1",
       },
       body: JSON.stringify({ title, content }),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
