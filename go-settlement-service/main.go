@@ -11,6 +11,7 @@ import (
 	"github.com/tourismpay/settlement-service/internal/handlers"
 	"github.com/tourismpay/settlement-service/internal/middleware"
 	"github.com/tourismpay/settlement-service/internal/services"
+	"github.com/tourismpay/settlement-service/internal/services/channels"
 )
 
 func main() {
@@ -169,6 +170,26 @@ func main() {
 			cbdc.POST("/swap/quote", cbdcHandlers.GetSwapQuoteHandler)
 			cbdc.POST("/swap/execute", cbdcHandlers.ExecuteSwapHandler)
 		}
+	}
+
+	// ─── Channel Manager (GDS/OTA distribution) ─────────────────────────────
+	channelManager := channels.NewManager(database.DB)
+	if database.DB != nil {
+		if err := channels.RunMigrations(database.DB); err != nil {
+			log.Printf("[WARN] Channel manager migrations failed: %v", err)
+		}
+	}
+	channelManager.Start(5 * time.Minute) // Sync every 5 minutes
+	defer channelManager.Stop()
+
+	channelAPI := api.Group("/channels")
+	{
+		channelAPI.GET("", channelManager.ListChannelsHandler)
+		channelAPI.POST("/connect", channelManager.ConnectChannelHandler)
+		channelAPI.DELETE("/:channelId", channelManager.DisconnectChannelHandler)
+		channelAPI.POST("/:channelId/sync", channelManager.SyncChannelHandler)
+		channelAPI.GET("/stats", channelManager.ChannelStatsHandler)
+		channelAPI.POST("/webhooks/:channel", channelManager.WebhookHandler)
 	}
 
 	log.Printf("[INFO] Settlement service starting on :%s", port)

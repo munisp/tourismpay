@@ -57,6 +57,7 @@ import { analyticsRouter as crossPlatformAnalyticsRouter } from "./routers/analy
 import { emailPreviewRouter } from "./routers/emailPreview";
 import { kycRouter } from "./routers/kyc";
 import { nocDashboardRouter } from "./routers/nocDashboard";
+import { channelManagerRouter } from "./routers/channelManager";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -178,6 +179,7 @@ export const appRouter = router({
   pythonServices: pythonServicesRouter,
   emailPreview: emailPreviewRouter,
   kyc: kycRouter,
+  channelManager: channelManagerRouter,
 });
 
 export type AppRouter = typeof appRouter;

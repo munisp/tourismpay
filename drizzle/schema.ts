@@ -2211,3 +2211,28 @@ export const kycVerificationRecords = pgTable(
 );
 export type KycVerificationRecord = typeof kycVerificationRecords.$inferSelect;
 export type InsertKycVerificationRecord = typeof kycVerificationRecords.$inferInsert;
+
+
+// ─── Channel Manager ─────────────────────────────────────────────────────────
+export const channelConnections = pgTable(
+  "channel_connections",
+  {
+    id: serial("id").primaryKey(),
+    establishmentId: integer("establishment_id")
+      .references(() => establishments.id)
+      .notNull(),
+    channelName: varchar("channel_name", { length: 50 }).notNull(),
+    displayName: varchar("display_name", { length: 100 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("active"),
+    config: jsonb("config").default({}),
+    lastSyncAt: timestamp("last_sync_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("channel_conn_est_idx").on(t.establishmentId),
+    index("channel_conn_name_idx").on(t.channelName),
+  ]
+);
+export type ChannelConnection = typeof channelConnections.$inferSelect;
+export type InsertChannelConnection = typeof channelConnections.$inferInsert;
