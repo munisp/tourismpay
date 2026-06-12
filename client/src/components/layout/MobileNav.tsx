@@ -39,7 +39,7 @@ const touristRightItems: NavItem[] = [
 const merchantNavItems: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, href: "/merchant/revenue" },
   { label: "QR Codes",  icon: QrCode,          href: "/merchant/qr" },
-  { label: "Payouts",   icon: Banknote,         href: "/merchant/payouts" },
+  { label: "Channels",  icon: Globe,           href: "/merchant/channels" },
   { label: "Products",  icon: Package,          href: "/merchant/products" },
   { label: "Profile",   icon: User,             href: "/settings/privacy" },
 ];

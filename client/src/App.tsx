@@ -103,6 +103,7 @@ import MerchantBisStatus from "@/pages/merchant/MerchantBisStatus";
 import DealLeaderboard from "@/pages/merchant/DealLeaderboard";
 import MerchantKpiLeaderboard from "@/pages/merchant/MerchantKpiLeaderboard";
 import ServiceAvailabilityCalendar from "@/pages/merchant/ServiceAvailabilityCalendar";
+import ChannelManager from "@/pages/merchant/ChannelManager";
 import InviteAccept from "@/pages/InviteAccept";
 import TouristProductCatalog from "@/pages/tourist/TouristProductCatalog";
 import TouristOrderConfirm from "@/pages/tourist/TouristOrderConfirm";
@@ -227,6 +228,7 @@ function Router() {
             <Route path="/merchant/leaderboard" component={MerchantKpiLeaderboard} />
             <Route path="/merchant/availability" component={ServiceAvailabilityCalendar} />
             <Route path="/merchant/bis-status" component={MerchantBisStatus} />
+            <Route path="/merchant/channels" component={ChannelManager} />
             {/* Compliance */}
             <Route path="/compliance" component={ComplianceDashboard} />
             {/* Settlement */}

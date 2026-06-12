@@ -63,6 +63,7 @@ const navItems: NavItem[] = [
   { label: "Payout History", icon: Banknote, href: "/merchant/payouts", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Stripe Connect", icon: CreditCard, href: "/merchant/stripe-connect", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Product Catalog", icon: Package, href: "/merchant/products", section: "merchant", roles: ["merchant", "admin"] },
+  { label: "Channel Manager", icon: Globe, href: "/merchant/channels", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Employee BIS Checks", icon: UserSearch, href: "/merchant/employee-bis", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Staff Management", icon: Users2, href: "/merchant/staff", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Cashier Terminal", icon: Terminal, href: "/merchant/cashier", section: "merchant", roles: ["merchant", "admin"] },
