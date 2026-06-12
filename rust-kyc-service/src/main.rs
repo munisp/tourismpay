@@ -1,10 +1,16 @@
+#[allow(dead_code)]
 mod auth;
+#[allow(dead_code)]
 mod biometric_pay;
 mod db;
+#[allow(dead_code)]
 mod gds_registry;
 mod handlers;
+#[allow(dead_code)]
 mod models;
+#[allow(dead_code)]
 mod permify;
+#[allow(dead_code)]
 mod verification;
 
 use actix_web::{web, App, HttpServer, middleware::Logger};

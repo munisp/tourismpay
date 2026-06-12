@@ -8,7 +8,6 @@
 //! PostgreSQL (persistence), Permify (access control)
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// African country codes supported by the GDS
@@ -297,7 +296,7 @@ impl PropertyRegistry {
     }
 
     /// Search properties by criteria
-    pub fn search(&self, country: Option<&str>, property_type: Option<&PropertyType>, max_results: usize) -> Vec<&PropertyContent> {
+    pub fn search(&self, country: Option<&str>, _property_type: Option<&PropertyType>, max_results: usize) -> Vec<&PropertyContent> {
         self.properties
             .values()
             .filter(|p| {
@@ -322,7 +321,7 @@ impl PropertyRegistry {
     }
 
     /// Get all active parity alerts
-    pub fn get_parity_alerts(&self, severity: Option<&ParitySeverity>) -> &[ParityAlert] {
+    pub fn get_parity_alerts(&self, _severity: Option<&ParitySeverity>) -> &[ParityAlert] {
         &self.parity_alerts
     }
 

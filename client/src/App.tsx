@@ -108,6 +108,8 @@ import InviteAccept from "@/pages/InviteAccept";
 import TouristProductCatalog from "@/pages/tourist/TouristProductCatalog";
 import TouristOrderConfirm from "@/pages/tourist/TouristOrderConfirm";
 import ComplianceDashboard from "@/pages/compliance/ComplianceDashboard";
+import GDSAgentPortal from "@/pages/gds/GDSAgentPortal";
+import GDSPropertyManager from "@/pages/gds/GDSPropertyManager";
 import EmailPreview from "@/pages/admin/EmailPreview";
 import SettlementConsole from "@/pages/settlement/SettlementConsole";
 import PaymentReceipt from "@/pages/tourist/PaymentReceipt";
@@ -231,6 +233,9 @@ function Router() {
             <Route path="/merchant/channels" component={ChannelManager} />
             {/* Compliance */}
             <Route path="/compliance" component={ComplianceDashboard} />
+            {/* GDS */}
+            <Route path="/gds/agent" component={GDSAgentPortal} />
+            <Route path="/gds/property" component={GDSPropertyManager} />
             {/* Settlement */}
             <Route path="/settlement" component={SettlementConsole} />
             {/* QR Payment Receipt — public-ish, auth required for data */}

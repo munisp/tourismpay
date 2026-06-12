@@ -83,6 +83,10 @@ const navItems: NavItem[] = [
   { label: "KYB Doc Review", icon: FileCheck, href: "/admin/kyb-documents", section: "compliance", roles: ["compliance_officer", "admin"] },
   { label: "Exchange Rate Overrides", icon: TrendingUp, href: "/admin/exchange-rates", section: "compliance", roles: ["admin"] },
 
+  // ─── GDS (agents + property managers + admin) ──────────────────────────────
+  { label: "Agent Portal", icon: Globe, href: "/gds/agent", section: "gds", roles: ["merchant", "admin"] },
+  { label: "Property Manager", icon: Building2, href: "/gds/property", section: "gds", roles: ["merchant", "admin"] },
+
   // ─── Africa ──────────────────────────────────────────────────────────────────
   { label: "Africa Registry", icon: Globe, href: "/africa/registry", section: "africa", roles: ["admin", "compliance_officer", "merchant"] },
   { label: "KYB Onboarding", icon: Building2, href: "/africa/kyb", section: "africa", roles: ["admin", "compliance_officer", "merchant"] },
@@ -156,6 +160,7 @@ const sectionLabels: Record<string, string> = {
   admin: "Administration",
   settings: "Settings",
   paymentswitch: "Payment Switch",
+  gds: "Africa GDS",
 };
 
 interface AppShellProps {

@@ -442,6 +442,13 @@
       "when": 1772413994709,
       "tag": "0062_naive_lyja",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1781279415920,
+      "tag": "0063_tidy_swordsman",
+      "breakpoints": true
     }
   ]
 }

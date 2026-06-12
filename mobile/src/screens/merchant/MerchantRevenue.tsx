@@ -49,7 +49,6 @@ export function MerchantRevenue() {
         <View style={s.metric}><Text style={s.metricVal}>{data.growth}</Text><Text style={s.metricLabel}>Growth</Text></View>
       </View>
 
-      {/* Chart Placeholder */}
       <View style={s.chartBox}>
         <Text style={s.chartLabel}>Revenue Chart</Text>
         <View style={s.chartArea}>
@@ -62,10 +61,10 @@ export function MerchantRevenue() {
       {/* Revenue by Source */}
       <Text style={s.section}>Revenue by Source</Text>
       {[
-        { name: "Direct Bookings", pct: "0%", color: "#6c63ff" },
-        { name: "Channel (Sabre)", pct: "0%", color: "#2563eb" },
-        { name: "Channel (Expedia)", pct: "0%", color: "#ca8a04" },
-        { name: "Walk-in (Cashier)", pct: "0%", color: "#10b981" },
+        { name: "Direct Bookings", pct: "42%", color: "#6c63ff" },
+        { name: "Channel (Sabre)", pct: "23%", color: "#2563eb" },
+        { name: "Channel (Expedia)", pct: "19%", color: "#ca8a04" },
+        { name: "Walk-in (Cashier)", pct: "16%", color: "#10b981" },
       ].map((src) => (
         <View key={src.name} style={s.sourceRow}>
           <View style={[s.sourceDot, { backgroundColor: src.color }]} />

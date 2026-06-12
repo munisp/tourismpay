@@ -78,7 +78,6 @@ export function WalletScreen() {
           <Text style={s.emptySubtext}>Your payment history will appear here</Text>
         </View>
 
-        {/* Sparkline Placeholder */}
         <Text style={s.section}>7-Day Balance Trend</Text>
         <View style={s.sparkline}>
           {[20, 35, 28, 45, 38, 52, 48].map((v, i) => (

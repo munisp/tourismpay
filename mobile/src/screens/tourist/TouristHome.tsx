@@ -35,12 +35,20 @@ export function TouristHome({ navigation }: any) {
 
       {/* Featured */}
       <Text style={s.section}>Featured Experiences</Text>
-      {["Safari at Masai Mara", "Cape Town Wine Tour", "Zanzibar Beach Resort", "Victoria Falls Adventure"].map((item) => (
-        <TouchableOpacity key={item} style={s.featCard}>
-          <View style={s.featImage}><Text style={s.featPlaceholder}>🌍</Text></View>
+      {[
+        { name: "Safari at Masai Mara", emoji: "🦁", price: "$280/night", rating: "4.9" },
+        { name: "Cape Town Wine Tour", emoji: "🍷", price: "$95/person", rating: "4.8" },
+        { name: "Zanzibar Beach Resort", emoji: "🏖️", price: "$180/night", rating: "4.7" },
+        { name: "Victoria Falls Adventure", emoji: "🌊", price: "$150/person", rating: "4.9" },
+      ].map((item) => (
+        <TouchableOpacity key={item.name} style={s.featCard}>
+          <View style={s.featImage}><Text style={s.featEmoji}>{item.emoji}</Text></View>
           <View style={s.featInfo}>
-            <Text style={s.featTitle}>{item}</Text>
-            <Text style={s.featPrice}>From $120/night</Text>
+            <Text style={s.featTitle}>{item.name}</Text>
+            <View style={s.featMeta}>
+              <Text style={s.featPrice}>From {item.price}</Text>
+              <Text style={s.featRating}>⭐ {item.rating}</Text>
+            </View>
           </View>
         </TouchableOpacity>
       ))}
@@ -62,8 +70,10 @@ const s = StyleSheet.create({
   catCount: { fontSize: 10, color: "#888", marginTop: 2 },
   featCard: { flexDirection: "row", backgroundColor: "#1a1a2e", borderRadius: 12, marginBottom: 10, overflow: "hidden" },
   featImage: { width: 80, height: 80, backgroundColor: "#2d2d44", alignItems: "center", justifyContent: "center" },
-  featPlaceholder: { fontSize: 30 },
+  featEmoji: { fontSize: 30 },
   featInfo: { flex: 1, padding: 12, justifyContent: "center" },
   featTitle: { fontSize: 14, fontWeight: "600", color: "#fff" },
-  featPrice: { fontSize: 12, color: "#6c63ff", marginTop: 4 },
+  featMeta: { flexDirection: "row", alignItems: "center", marginTop: 4, gap: 8 },
+  featPrice: { fontSize: 12, color: "#6c63ff" },
+  featRating: { fontSize: 11, color: "#fbbf24" },
 });

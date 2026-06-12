@@ -1,0 +1,23 @@
+{
+  "name": "@tourismpay/gds-sdk",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for the Africa-first Global Distribution System",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["gds", "tourism", "africa", "booking", "travel", "sdk"],
+  "author": "TourismPay <dev@tourismpay.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/munisp/tourismpay.git",
+    "directory": "gds-standalone/sdk"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

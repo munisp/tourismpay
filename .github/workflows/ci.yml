@@ -50,9 +50,13 @@ jobs:
       - run: pip install fastapi pydantic uvicorn httpx asyncpg opensearch-py
       - run: python -c "import main; import db; import auth; import opensearch_client; import lakehouse; import fluvio_consumer"
       - run: python -m py_compile main.py
+      - run: python -m py_compile gds_search.py
+      - run: python -m py_compile gds_analytics.py
       - run: python -m py_compile fraud-ml-service/main.py
       - run: python -m py_compile bis-ai-engine/main.py
       - run: python -m py_compile pdf-report-generator/main.py
+      - run: python -m py_compile compliance-risk-engine/main.py
+      - run: python -m py_compile exchange-rate-ml/main.py
 
   rust:
     name: Rust (check)
