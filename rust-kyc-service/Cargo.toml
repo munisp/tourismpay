@@ -16,7 +16,8 @@ chrono = { version = "0.4", features = ["serde"] }
 hmac = "0.12"
 sha2 = "0.10"
 base64 = "0.22"
-rand = "0.8"
+# rand removed — using ring::rand::SystemRandom for all crypto operations
+tonic = "0.12"
 ring = "0.17"
 image = "0.25"
 reqwest = { version = "0.12", features = ["json"] }

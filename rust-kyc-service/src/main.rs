@@ -2,6 +2,7 @@ mod auth;
 mod db;
 mod handlers;
 mod models;
+mod permify;
 mod verification;
 
 use actix_web::{web, App, HttpServer, middleware::Logger};

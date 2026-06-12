@@ -1,0 +1,227 @@
+/**
+ * Kafka Runtime Client
+ *
+ * Event-driven architecture for TourismPay.
+ * Publishes domain events for: remittances, settlements, fraud alerts,
+ * KYB status changes, kill switch toggles, NOC events.
+ *
+ * Falls back gracefully when Kafka brokers are unavailable.
+ */
+import { Kafka, Producer, Consumer, logLevel, CompressionTypes } from "kafkajs";
+import { logger } from "./logger";
+
+// ─── Topics ──────────────────────────────────────────────────────────────────
+
+export const TOPICS = {
+  REMITTANCES: "tourismpay.remittances",
+  SETTLEMENTS: "tourismpay.settlements",
+  FRAUD_ALERTS: "tourismpay.fraud.alerts",
+  KYB_STATUS: "tourismpay.kyb.status",
+  KILL_SWITCH: "tourismpay.kill-switch",
+  NOC_EVENTS: "tourismpay.noc.events",
+  WALLET_TRANSACTIONS: "tourismpay.wallet.transactions",
+  AUDIT_LOG: "tourismpay.audit.log",
+} as const;
+
+export type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
+
+// ─── Connection ──────────────────────────────────────────────────────────────
+
+let kafka: Kafka | null = null;
+let producer: Producer | null = null;
+let consumers: Consumer[] = [];
+
+function getBrokers(): string[] {
+  const brokersEnv = process.env.KAFKA_BROKERS;
+  if (brokersEnv) return brokersEnv.split(",").map(b => b.trim());
+  return ["localhost:9092"];
+}
+
+function getKafkaInstance(): Kafka | null {
+  if (kafka) return kafka;
+  try {
+    kafka = new Kafka({
+      clientId: "tourismpay-pwa",
+      brokers: getBrokers(),
+      connectionTimeout: 5000,
+      requestTimeout: 30000,
+      retry: { retries: 3, initialRetryTime: 300 },
+      logLevel: logLevel.WARN,
+      ssl: process.env.KAFKA_SSL === "true" ? true : undefined,
+      sasl: process.env.KAFKA_SASL_USERNAME ? {
+        mechanism: "plain",
+        username: process.env.KAFKA_SASL_USERNAME,
+        password: process.env.KAFKA_SASL_PASSWORD || "",
+      } : undefined,
+    });
+    return kafka;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Producer ────────────────────────────────────────────────────────────────
+
+let producerReady = false;
+let producerConnecting = false;
+
+async function ensureProducer(): Promise<Producer | null> {
+  if (producer && producerReady) return producer;
+  if (producerConnecting) return null;
+  producerConnecting = true;
+  try {
+    const k = getKafkaInstance();
+    if (!k) { producerConnecting = false; return null; }
+    producer = k.producer({
+      allowAutoTopicCreation: true,
+      idempotent: true,
+      maxInFlightRequests: 5,
+    });
+    await producer.connect();
+    producerReady = true;
+    producer.on("producer.disconnect", () => { producerReady = false; });
+    logger.info("[Kafka] Producer connected");
+    return producer;
+  } catch (err) {
+    logger.warn(`[Kafka] Producer connection failed: ${(err as Error).message}`);
+    producer = null;
+    return null;
+  } finally {
+    producerConnecting = false;
+  }
+}
+
+// ─── Publish ─────────────────────────────────────────────────────────────────
+
+export interface DomainEvent {
+  type: string;
+  payload: Record<string, unknown>;
+  timestamp?: string;
+  correlationId?: string;
+}
+
+export async function publishEvent(topic: TopicName, event: DomainEvent): Promise<boolean> {
+  const p = await ensureProducer();
+  if (!p) {
+    logger.warn(`[Kafka] Cannot publish to ${topic} — producer unavailable`);
+    return false;
+  }
+  try {
+    const message = {
+      key: event.correlationId || undefined,
+      value: JSON.stringify({
+        ...event,
+        timestamp: event.timestamp || new Date().toISOString(),
+      }),
+      headers: {
+        "content-type": Buffer.from("application/json"),
+        source: Buffer.from("tourismpay-pwa"),
+      },
+    };
+    await p.send({
+      topic,
+      messages: [message],
+      compression: CompressionTypes.GZIP,
+    });
+    return true;
+  } catch (err) {
+    logger.error(`[Kafka] Publish to ${topic} failed: ${(err as Error).message}`);
+    return false;
+  }
+}
+
+// Convenience helpers
+
+export async function publishRemittanceEvent(
+  type: "created" | "processing" | "completed" | "failed" | "reversed",
+  payload: Record<string, unknown>,
+  correlationId?: string,
+): Promise<boolean> {
+  return publishEvent(TOPICS.REMITTANCES, { type: `remittance.${type}`, payload, correlationId });
+}
+
+export async function publishSettlementEvent(
+  type: "initiated" | "completed" | "failed",
+  payload: Record<string, unknown>,
+  correlationId?: string,
+): Promise<boolean> {
+  return publishEvent(TOPICS.SETTLEMENTS, { type: `settlement.${type}`, payload, correlationId });
+}
+
+export async function publishFraudAlert(
+  payload: Record<string, unknown>,
+  correlationId?: string,
+): Promise<boolean> {
+  return publishEvent(TOPICS.FRAUD_ALERTS, { type: "fraud.alert.created", payload, correlationId });
+}
+
+export async function publishKybStatusChange(
+  payload: Record<string, unknown>,
+  correlationId?: string,
+): Promise<boolean> {
+  return publishEvent(TOPICS.KYB_STATUS, { type: "kyb.status.changed", payload, correlationId });
+}
+
+export async function publishAuditEvent(
+  type: string,
+  payload: Record<string, unknown>,
+  correlationId?: string,
+): Promise<boolean> {
+  return publishEvent(TOPICS.AUDIT_LOG, { type, payload, correlationId });
+}
+
+// ─── Consumer ────────────────────────────────────────────────────────────────
+
+export type EventHandler = (event: DomainEvent, topic: string) => Promise<void>;
+
+export async function createConsumer(
+  groupId: string,
+  topics: TopicName[],
+  handler: EventHandler,
+): Promise<Consumer | null> {
+  const k = getKafkaInstance();
+  if (!k) return null;
+  try {
+    const consumer = k.consumer({
+      groupId,
+      sessionTimeout: 30000,
+      heartbeatInterval: 3000,
+    });
+    await consumer.connect();
+    for (const topic of topics) {
+      await consumer.subscribe({ topic, fromBeginning: false });
+    }
+    await consumer.run({
+      eachMessage: async ({ topic, message }) => {
+        if (!message.value) return;
+        try {
+          const event = JSON.parse(message.value.toString()) as DomainEvent;
+          await handler(event, topic);
+        } catch (err) {
+          logger.error(`[Kafka] Consumer error on ${topic}: ${(err as Error).message}`);
+        }
+      },
+    });
+    consumers.push(consumer);
+    logger.info(`[Kafka] Consumer ${groupId} subscribed to: ${topics.join(", ")}`);
+    return consumer;
+  } catch (err) {
+    logger.warn(`[Kafka] Consumer ${groupId} failed: ${(err as Error).message}`);
+    return null;
+  }
+}
+
+// ─── Shutdown ────────────────────────────────────────────────────────────────
+
+export async function closeKafka(): Promise<void> {
+  if (producer) {
+    await producer.disconnect().catch(() => {});
+    producer = null;
+    producerReady = false;
+  }
+  for (const c of consumers) {
+    await c.disconnect().catch(() => {});
+  }
+  consumers = [];
+  kafka = null;
+}

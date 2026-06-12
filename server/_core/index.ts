@@ -2,9 +2,11 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import crypto from "crypto";
 import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerSSERoutes } from "../sse";
@@ -34,6 +36,11 @@ import { startSentimentAlertJob } from "../jobs/sentimentAlertJob";
 import { startLeaderboardSnapshotJob } from "../jobs/leaderboardSnapshotJob";
 import { startOnboardingNudgeJob } from "../jobs/onboardingNudgeJob";
 import { logger } from "./logger";
+import { getRedis, closeRedis } from "./redis";
+import { closeKafka } from "./kafka";
+import { keycloakAuthMiddleware } from "./keycloak";
+import { syncRoutes as syncApisixRoutes } from "./apisix";
+import { ensureIndices as ensureOpenSearchIndices } from "./opensearch";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -60,18 +67,69 @@ async function startServer() {
   // Stripe webhook MUST be registered before express.json() for raw body access
   registerStripeWebhook(app);
 
+  // ─── Request ID / Distributed Tracing ──────────────────────────────────────
+  app.use((req, _res, next) => {
+    req.headers["x-request-id"] = req.headers["x-request-id"] || crypto.randomUUID();
+    next();
+  });
+
   // ─── Security middleware ─────────────────────────────────────────────────────
   app.use(helmet({
-    contentSecurityPolicy: process.env.NODE_ENV === "production" ? undefined : false,
+    contentSecurityPolicy: process.env.NODE_ENV === "production" ? {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        connectSrc: ["'self'", "https://api.stripe.com", "wss:", process.env.CORS_ORIGIN || "'self'"],
+        frameSrc: ["'self'", "https://js.stripe.com"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    } : false,
     crossOriginEmbedderPolicy: false,
   }));
 
+  // CORS: restrict origins in production (env var required)
+  const corsOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",").map(o => o.trim())
+    : (process.env.NODE_ENV === "production" ? ["https://tourismpay.com"] : true);
   app.use(cors({
-    origin: process.env.CORS_ORIGIN || true,
+    origin: corsOrigins as string[] | boolean,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-API-Key", "X-Request-ID"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-API-Key", "X-Request-ID", "X-CSRF-Token"],
   }));
+
+  app.use(cookieParser());
+
+  // ─── CSRF Protection (double-submit cookie pattern) ────────────────────────
+  // Stateless CSRF: server sets a random token in a cookie; client echoes it in X-CSRF-Token header.
+  // Safe methods (GET/HEAD/OPTIONS) and webhook endpoints are exempt.
+  app.use((req, res, next) => {
+    const exempt = ["GET", "HEAD", "OPTIONS"].includes(req.method)
+      || req.path === "/health"
+      || req.path.startsWith("/api/stripe-webhook")
+      || req.path.startsWith("/api/oauth/")
+      || req.path.startsWith("/api/dev/");
+    if (exempt) {
+      // Set CSRF cookie if not present (for SPA to read)
+      if (!req.cookies?.["csrf-token"]) {
+        const token = crypto.randomBytes(32).toString("hex");
+        res.cookie("csrf-token", token, { httpOnly: false, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/" });
+      }
+      return next();
+    }
+    const cookieToken = req.cookies?.["csrf-token"];
+    const headerToken = req.headers["x-csrf-token"];
+    if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+      res.status(403).json({ error: "CSRF token mismatch" });
+      return;
+    }
+    next();
+  });
 
   // Rate limit API endpoints (100 req/min per IP by default)
   const apiLimiter = rateLimit({
@@ -247,6 +305,9 @@ async function startServer() {
     });
   }
 
+  // ─── Keycloak OIDC middleware (when configured) ──────────────────────────
+  app.use(keycloakAuthMiddleware());
+
   // Real-time SSE streams for Fraud Monitor, SOC Dashboard, and BIS
   registerSSERoutes(app);
   // tRPC API
@@ -275,8 +336,15 @@ async function startServer() {
     logger.info(`Server running on http://localhost:${port}/`);
 
     // ─── Graceful shutdown ────────────────────────────────────────────────────
-    const shutdown = (signal: string) => {
+    // ─── Initialize middleware connections ─────────────────────────────────
+    getRedis(); // Connect Redis cache (non-blocking)
+    syncApisixRoutes().catch(() => {}); // Sync APISIX routes (non-blocking)
+    ensureOpenSearchIndices().catch(() => {}); // Create OpenSearch indices (non-blocking)
+
+    const shutdown = async (signal: string) => {
       logger.info(`${signal} received — shutting down gracefully`);
+      await closeRedis().catch(() => {});
+      await closeKafka().catch(() => {});
       server.close(() => {
         logger.info("HTTP server closed");
         process.exit(0);

@@ -1,9 +1,9 @@
 /**
- * PaymentSwitch Stub Routers
+ * PaymentSwitch Module Routers
  *
- * Production-ready stubs that match the PaymentSwitch AppRouter type exactly.
- * Each router covers all procedures used by the ported PaymentSwitch pages.
- * Replace individual stubs with real implementations as services are integrated.
+ * Production routers for the PaymentSwitch module.
+ * Each router covers all procedures used by the PaymentSwitch pages.
+ * All procedures are DB-backed via Drizzle ORM.
  */
 import { z } from "zod";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
