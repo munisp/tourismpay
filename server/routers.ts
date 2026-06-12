@@ -58,6 +58,7 @@ import { emailPreviewRouter } from "./routers/emailPreview";
 import { kycRouter } from "./routers/kyc";
 import { nocDashboardRouter } from "./routers/nocDashboard";
 import { channelManagerRouter } from "./routers/channelManager";
+import { gdsPortalRouter } from "./routers/gdsPortal";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -180,6 +181,7 @@ export const appRouter = router({
   emailPreview: emailPreviewRouter,
   kyc: kycRouter,
   channelManager: channelManagerRouter,
+  gdsPortal: gdsPortalRouter,
 });
 
 export type AppRouter = typeof appRouter;

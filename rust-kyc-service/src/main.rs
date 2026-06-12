@@ -1,6 +1,7 @@
 mod auth;
 mod biometric_pay;
 mod db;
+mod gds_registry;
 mod handlers;
 mod models;
 mod permify;
