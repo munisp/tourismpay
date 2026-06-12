@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TourismPay & Africa-First GDS — Slide Deck</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  :root {
+    --bg-dark: #0a0a1a;
+    --bg-slide: #0f0f23;
+    --bg-card: #161633;
+    --bg-card-hover: #1c1c44;
+    --accent: #f59e0b;
+    --accent2: #10b981;
+    --accent3: #6366f1;
+    --accent4: #ec4899;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-bright: #ffffff;
+    --border: #2d2d5e;
+    --gradient1: linear-gradient(135deg, #f59e0b, #ef4444);
+    --gradient2: linear-gradient(135deg, #10b981, #06b6d4);
+    --gradient3: linear-gradient(135deg, #6366f1, #8b5cf6);
+    --gradient4: linear-gradient(135deg, #ec4899, #f43f5e);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ── Slide Container ── */
+  .deck {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+
+  .slide {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: none;
+    flex-direction: column;
+    padding: 48px 64px;
+    background: var(--bg-slide);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .slide::-webkit-scrollbar { width: 6px; }
+  .slide::-webkit-scrollbar-track { background: transparent; }
+  .slide::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .slide.active { display: flex; }
+
+  /* ── Typography ── */
+  .slide-number {
+    position: absolute;
+    top: 20px; right: 32px;
+    font-size: 13px;
+    color: var(--text-dim);
+    font-weight: 500;
+    letter-spacing: 1px;
+  }
+
+  h1 {
+    font-size: 42px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    line-height: 1.1;
+  }
+  h1 .gradient { background: var(--gradient1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  h1 .gradient2 { background: var(--gradient2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  h1 .gradient3 { background: var(--gradient3); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+  h2 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: var(--text-bright);
+  }
+
+  h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 18px 0 10px;
+  }
+
+  p, li {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+
+  .subtitle {
+    font-size: 20px;
+    color: var(--text-dim);
+    margin-bottom: 32px;
+    font-weight: 400;
+  }
+
+  .lead {
+    font-size: 18px;
+    line-height: 1.7;
+    color: var(--text);
+    margin-bottom: 24px;
+  }
+
+  ul { list-style: none; padding: 0; }
+  ul li {
+    padding: 6px 0 6px 24px;
+    position: relative;
+  }
+  ul li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+
+  blockquote {
+    border-left: 3px solid var(--accent);
+    padding: 12px 20px;
+    margin: 16px 0;
+    background: rgba(245, 158, 11, 0.06);
+    border-radius: 0 8px 8px 0;
+    font-style: italic;
+    color: var(--text-dim);
+    font-size: 15px;
+  }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  th {
+    background: var(--bg-card);
+    color: var(--accent);
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 2px solid var(--border);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td {
+    padding: 9px 14px;
+    border-bottom: 1px solid rgba(45,45,94,0.5);
+    color: var(--text);
+    vertical-align: top;
+  }
+  tr:hover td { background: rgba(99,102,241,0.04); }
+
+  /* ── Cards ── */
+  .cards { display: grid; gap: 16px; margin: 16px 0; }
+  .cards-2 { grid-template-columns: 1fr 1fr; }
+  .cards-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .cards-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.2s;
+  }
+  .card:hover { background: var(--bg-card-hover); border-color: var(--accent); }
+  .card .card-icon { font-size: 28px; margin-bottom: 8px; }
+  .card .card-title { font-size: 16px; font-weight: 700; color: var(--text-bright); margin-bottom: 4px; }
+  .card .card-desc { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+
+  /* ── Stat Boxes ── */
+  .stats { display: flex; gap: 16px; margin: 16px 0; flex-wrap: wrap; }
+  .stat {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 24px;
+    text-align: center;
+    flex: 1;
+    min-width: 120px;
+  }
+  .stat-value {
+    font-size: 32px;
+    font-weight: 800;
+    background: var(--gradient1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .stat-label { font-size: 12px; color: var(--text-dim); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ── Comparison Bars ── */
+  .comparison { margin: 16px 0; }
+  .compare-row { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+  .compare-label { width: 140px; font-size: 13px; color: var(--text-dim); text-align: right; flex-shrink: 0; }
+  .compare-bar { height: 32px; border-radius: 6px; display: flex; align-items: center; padding: 0 12px; font-size: 13px; font-weight: 600; color: #fff; }
+  .bar-red { background: linear-gradient(90deg, #ef4444, #dc2626); }
+  .bar-green { background: linear-gradient(90deg, #10b981, #059669); }
+
+  /* ── Flow Diagram ── */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0;
+    flex-wrap: wrap;
+  }
+  .flow-step {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .flow-arrow { color: var(--accent); font-size: 18px; font-weight: 700; }
+  .flow-step.highlight { border-color: var(--accent); background: rgba(245,158,11,0.1); color: var(--accent); }
+  .flow-step.bad { border-color: #ef4444; background: rgba(239,68,68,0.1); color: #fca5a5; }
+
+  /* ── Architecture ── */
+  .arch-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 6px 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .arch-box .label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent);
+    font-weight: 700;
+    width: 120px;
+    flex-shrink: 0;
+  }
+  .arch-box .content { font-size: 14px; color: var(--text); }
+
+  /* ── Pill Tags ── */
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .pill {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+  }
+  .pill.gold { border-color: var(--accent); color: var(--accent); }
+  .pill.green { border-color: var(--accent2); color: var(--accent2); }
+  .pill.purple { border-color: var(--accent3); color: var(--accent3); }
+  .pill.pink { border-color: var(--accent4); color: var(--accent4); }
+
+  /* ── Code Block ── */
+  .code-block {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #c9d1d9;
+    overflow-x: auto;
+    margin: 12px 0;
+    white-space: pre;
+  }
+  .code-block .kw { color: #ff7b72; }
+  .code-block .str { color: #a5d6ff; }
+  .code-block .fn { color: #d2a8ff; }
+  .code-block .cm { color: #8b949e; }
+  .code-block .num { color: #79c0ff; }
+
+  /* ── Navigation ── */
+  .nav {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: rgba(15,15,35,0.9);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 40px;
+    padding: 8px 24px;
+    z-index: 100;
+  }
+  .nav button {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .nav button:hover { background: var(--accent); color: #000; border-color: var(--accent); }
+  .nav .page-info { font-size: 13px; color: var(--text-dim); min-width: 80px; text-align: center; }
+
+  /* ── Progress Bar ── */
+  .progress-bar {
+    position: fixed;
+    top: 0; left: 0;
+    height: 3px;
+    background: var(--gradient1);
+    transition: width 0.3s ease;
+    z-index: 101;
+  }
+
+  /* ── Title Slide Special ── */
+  .title-slide {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    background: radial-gradient(ellipse at 50% 30%, rgba(245,158,11,0.08), transparent 60%), var(--bg-slide);
+  }
+  .title-slide h1 { font-size: 56px; margin-bottom: 16px; }
+  .title-slide .subtitle { font-size: 24px; }
+
+  /* ── Section divider ── */
+  .section-divider {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .section-divider h1 { font-size: 48px; }
+
+  /* ── Two Column Layout ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .two-col.wide-left { grid-template-columns: 1.3fr 0.7fr; }
+
+  /* ── Tag line ── */
+  .tagline {
+    font-size: 28px;
+    font-weight: 300;
+    color: var(--text-dim);
+    margin-top: 40px;
+    font-style: italic;
+  }
+
+  .highlight-box {
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 12px 0;
+  }
+
+  .green-box {
+    background: rgba(16,185,129,0.08);
+    border: 1px solid rgba(16,185,129,0.3);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 12px 0;
+  }
+
+  .red-box {
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 12px 0;
+  }
+
+  .small { font-size: 13px; }
+  .dim { color: var(--text-dim); }
+  .mb { margin-bottom: 16px; }
+  .mt { margin-top: 16px; }
+  .gap-sm { gap: 10px; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .slide { padding: 24px 28px; }
+    h1 { font-size: 28px; }
+    h2 { font-size: 20px; }
+    .cards-2, .cards-3, .cards-4 { grid-template-columns: 1fr; }
+    .two-col { grid-template-columns: 1fr; }
+    .stats { flex-direction: column; }
+    .title-slide h1 { font-size: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<div class="deck" id="deck">
+
+<!-- ========== SLIDE 1: Title ========== -->
+<div class="slide title-slide active">
+  <div>
+    <div style="font-size:64px; margin-bottom:16px;">🌍</div>
+    <h1><span class="gradient">TourismPay</span> & <span class="gradient2">Africa-First GDS</span></h1>
+    <p class="subtitle">The Complete Tourism Payment & Distribution Platform for Africa</p>
+    <div class="pills" style="justify-content:center; margin-top:24px;">
+      <span class="pill gold">Multi-Currency Wallets</span>
+      <span class="pill green">CBDC Bridge</span>
+      <span class="pill purple">Africa-First GDS</span>
+      <span class="pill pink">Offline NFC</span>
+      <span class="pill gold">14 Middleware</span>
+      <span class="pill green">4 Languages</span>
+    </div>
+    <p class="dim mt" style="font-size:14px;">TypeScript · Go · Rust · Python &nbsp;|&nbsp; 20 African Countries &nbsp;|&nbsp; 200+ API Endpoints</p>
+  </div>
+</div>
+
+<!-- ========== SLIDE 2: The Problem ========== -->
+<div class="slide">
+  <span class="slide-number">02 / 24</span>
+  <h1>Africa's $200B Tourism Economy Has a <span class="gradient">Payment Crisis</span></h1>
+  <p class="subtitle">70% of tourism revenue leaks offshore</p>
+
+  <div class="cards cards-3">
+    <div class="card">
+      <div class="card-icon">💸</div>
+      <div class="card-title">Revenue Leakage</div>
+      <div class="card-desc">Foreign OTAs, GDS platforms, and payment processors siphon 3-25% commission out of African economies on every booking</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🏚️</div>
+      <div class="card-title">Excluded Merchants</div>
+      <div class="card-desc">Small safari operators, guesthouses, and tour guides can't afford Sabre/Amadeus GDS fees — locked out of global distribution</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">📵</div>
+      <div class="card-title">No Digital Payments</div>
+      <div class="card-desc">Mobile money is #1 in Africa, yet no major tourism platform supports M-Pesa, MTN, or CBDCs natively</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">💵</div>
+      <div class="card-title">Cash Dependency</div>
+      <div class="card-desc">Tourists carry USD/EUR cash because digital payment infrastructure doesn't reach safari lodges or island resorts</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🐢</div>
+      <div class="card-title">Slow Cross-Border</div>
+      <div class="card-desc">Kenya → Tanzania payments go through SWIFT: 2-5 days, $25+ fee. Slower than sending money to Europe</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">👁️‍🗨️</div>
+      <div class="card-title">Zero Visibility</div>
+      <div class="card-desc">Tourism boards have no real-time data on spending, compliance, or revenue distribution across their sector</div>
+    </div>
+  </div>
+
+  <blockquote>A tourist in Kenya paying a Tanzanian safari guide goes through SWIFT (2-5 days, $25+ fee).<br>The same transaction on TourismPay settles in <strong>seconds for &lt; 1%</strong>.</blockquote>
+</div>
+
+<!-- ========== SLIDE 3: The Solution ========== -->
+<div class="slide">
+  <span class="slide-number">03 / 24</span>
+  <h1>The Solution — <span class="gradient">TourismPay</span></h1>
+  <p class="subtitle">Africa-Built. Africa-Owned. Africa-First.</p>
+
+  <p class="lead">A <strong>full-stack tourism payment, compliance, and distribution platform</strong> purpose-built for African tourism economies.</p>
+
+  <div class="cards cards-3">
+    <div class="card" style="border-top: 3px solid var(--accent);">
+      <div class="card-icon">💳</div>
+      <div class="card-title">PAY</div>
+      <div class="card-desc">Multi-currency digital wallets, CBDC bridges (eNaira, eCedi), offline NFC tap-to-pay, cross-border mesh routing across 6 African corridors</div>
+    </div>
+    <div class="card" style="border-top: 3px solid var(--accent2);">
+      <div class="card-icon">🛡️</div>
+      <div class="card-title">COMPLY</div>
+      <div class="card-desc">KYB merchant onboarding (5-step wizard), background investigations (BIS), AML screening, PII encryption (AES-256-GCM), regulatory reporting</div>
+    </div>
+    <div class="card" style="border-top: 3px solid var(--accent3);">
+      <div class="card-icon">🌐</div>
+      <div class="card-title">DISTRIBUTE</div>
+      <div class="card-desc">Africa-first GDS connecting properties directly to travel agents. Channel manager syncs with Sabre, Amadeus, Expedia, Booking.com, Travelport</div>
+    </div>
+  </div>
+
+  <div class="green-box mt">
+    <strong>The result:</strong> Tourism revenue stays local. Merchants keep 97%+ of earnings. Tourists get seamless digital payments from booking to checkout.
+  </div>
+</div>
+
+<!-- ========== SLIDE 4: Who Benefits ========== -->
+<div class="slide">
+  <span class="slide-number">04 / 24</span>
+  <h1>Who <span class="gradient2">Benefits</span></h1>
+  <p class="subtitle">Every stakeholder in the African tourism value chain</p>
+
+  <table>
+    <thead>
+      <tr><th>Stakeholder</th><th>Pain Today</th><th>TourismPay Solution</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>🏛️ Tourism Boards</strong></td><td>No visibility into spend data, can't enforce quality, revenue leaks offshore</td><td>Real-time analytics dashboard, compliance enforcement, local settlement</td></tr>
+      <tr><td><strong>🌍 African Diaspora</strong></td><td>Expensive remittances (5-8%), can't easily book authentic African experiences</td><td>Low-cost mesh payments (0.4-0.7%), direct booking with local operators, CBDC bridge</td></tr>
+      <tr><td><strong>✈️ International Travelers</strong></td><td>Cash-dependent in rural areas, no price transparency, overbooking risk</td><td>Digital wallet with offline NFC, transparent FX, verified merchants</td></tr>
+      <tr><td><strong>🏨 Merchants</strong></td><td>High OTA commissions (15-25%), slow payouts (30+ days), excluded from GDS</td><td>Direct distribution (2-5% fee), daily/weekly payouts, global visibility</td></tr>
+      <tr><td><strong>🧳 Travel Agents</strong></td><td>Sabre/Amadeus expensive, limited African inventory, no mobile money</td><td>Africa-first GDS, tiered commissions (10-18%), local currency settlement</td></tr>
+      <tr><td><strong>🏛️ Governments</strong></td><td>Tax leakage, informal tourism economy, no audit trail</td><td>KYB compliance, digital receipts, full audit log, regulatory exports</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ========== SLIDE 5: Architecture ========== -->
+<div class="slide">
+  <span class="slide-number">05 / 24</span>
+  <h1>Platform <span class="gradient3">Architecture</span></h1>
+  <p class="subtitle">4 languages, 14 middleware integrations, enterprise-grade</p>
+
+  <div class="arch-box" style="border-left: 3px solid var(--accent);">
+    <span class="label">Gateway</span>
+    <span class="content"><strong>APISIX</strong> — Rate limiting, routing, JWT validation, plugins &nbsp;→&nbsp; <strong>OpenAppSec WAF</strong> — OWASP Top 10, bot protection, DDoS</span>
+  </div>
+  <div class="arch-box" style="border-left: 3px solid var(--accent2);">
+    <span class="label">Auth</span>
+    <span class="content"><strong>Keycloak</strong> — OIDC/OAuth2, MFA, brute-force protection &nbsp;|&nbsp; <strong>Permify</strong> — Relationship-based access control (ReBAC)</span>
+  </div>
+
+  <div class="cards cards-4 mt">
+    <div class="card" style="border-top: 2px solid #3b82f6;">
+      <div class="card-title" style="color:#3b82f6;">TypeScript</div>
+      <div class="card-desc">React PWA (50+ pages), React Native (89 screens), tRPC API, Express server</div>
+    </div>
+    <div class="card" style="border-top: 2px solid #06b6d4;">
+      <div class="card-title" style="color:#06b6d4;">Go</div>
+      <div class="card-desc">Settlement engine, GDS engine, Channel Manager, Offline NFC, CBDC bridge</div>
+    </div>
+    <div class="card" style="border-top: 2px solid #f97316;">
+      <div class="card-title" style="color:#f97316;">Rust</div>
+      <div class="card-desc">Property registry, content aggregation, high-perf rate engine</div>
+    </div>
+    <div class="card" style="border-top: 2px solid #a855f7;">
+      <div class="card-title" style="color:#a855f7;">Python</div>
+      <div class="card-desc">ML FX prediction, OpenSearch, analytics, carbon credits, fraud ML</div>
+    </div>
+  </div>
+
+  <div class="arch-box mt" style="border-left: 3px solid var(--accent3);">
+    <span class="label">Middleware</span>
+    <span class="content">
+      <span class="pills gap-sm">
+        <span class="pill">Kafka</span><span class="pill">Redis</span><span class="pill">PostgreSQL</span>
+        <span class="pill">TigerBeetle</span><span class="pill">Mojaloop</span><span class="pill">Temporal</span>
+        <span class="pill">OpenSearch</span><span class="pill">Dapr</span><span class="pill">Fluvio</span><span class="pill">Lakehouse</span>
+      </span>
+    </span>
+  </div>
+</div>
+
+<!-- ========== SLIDE 6: Payment Infrastructure ========== -->
+<div class="slide">
+  <span class="slide-number">06 / 24</span>
+  <h1>Multi-Currency <span class="gradient">Digital Wallet</span></h1>
+  <p class="subtitle">11 currencies, atomic transactions, AI-powered FX</p>
+
+  <div class="two-col">
+    <div>
+      <table>
+        <thead><tr><th>Feature</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td><strong>11 Currencies</strong></td><td>USD, USDC, NGN, KES, GHS, ZAR, XLM, CBDC-NG, CBDC-KE, CBDC-GH, CBDC-ZA</td></tr>
+          <tr><td><strong>Send / Receive</strong></td><td>P2P with 0.1% fee, DB transactions + FOR UPDATE row locks</td></tr>
+          <tr><td><strong>Currency Swap</strong></td><td>Real-time FX, 0.2-0.5% spread, AI "Smart Convert"</td></tr>
+          <tr><td><strong>QR Payments</strong></td><td>Generate/scan QR for instant merchant payments</td></tr>
+          <tr><td><strong>Scheduled Payments</strong></td><td>Recurring daily/weekly/monthly auto-execution</td></tr>
+          <tr><td><strong>Balance Alerts</strong></td><td>Configurable low-balance notifications</td></tr>
+          <tr><td><strong>Spending Limits</strong></td><td>Per-currency daily/monthly with admin override</td></tr>
+          <tr><td><strong>Export</strong></td><td>CSV/PDF with date, currency, type filters</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Security Controls</h3>
+      <div class="card mb">
+        <div class="card-title">Rate Limiting</div>
+        <div class="card-desc">10 sends/min, 5 swaps/min per user via Redis</div>
+      </div>
+      <div class="card mb">
+        <div class="card-title">Biometric Verification</div>
+        <div class="card-desc">Required for high-value TX (configurable threshold)</div>
+      </div>
+      <div class="card mb">
+        <div class="card-title">Kill Switch</div>
+        <div class="card-desc">Emergency corridor blocking for any currency pair</div>
+      </div>
+      <div class="card">
+        <div class="card-title">PII Encryption</div>
+        <div class="card-desc">AES-256-GCM on all personal and financial data</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 7: Offline NFC + CBDC ========== -->
+<div class="slide">
+  <span class="slide-number">07 / 24</span>
+  <h1>Offline NFC & <span class="gradient2">CBDC Bridge</span></h1>
+  <p class="subtitle">Payments where there's no internet. Settlements in central bank money.</p>
+
+  <div class="two-col">
+    <div>
+      <h3>Offline NFC Tap-to-Pay</h3>
+      <p class="small dim mb">Go service with Ed25519 cryptographic vouchers</p>
+      <div class="flow">
+        <div class="flow-step">Tourist pre-loads vouchers online</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step highlight">NFC tap at merchant (no internet)</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">Vouchers queue locally</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step highlight">Settle via TigerBeetle on reconnect</div>
+      </div>
+      <ul class="mt">
+        <li><strong>Ed25519 signed</strong> — cryptographic proof of payment</li>
+        <li><strong>Double-spend protection</strong> via voucher serial numbers</li>
+        <li><strong>Temporal workflows</strong> for reconciliation</li>
+        <li><strong>Zero hardware cost</strong> — merchant's phone is the POS</li>
+      </ul>
+    </div>
+    <div>
+      <h3>CBDC Bridge (Go Service)</h3>
+      <table>
+        <thead><tr><th>Network</th><th>Currency</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><strong>eNaira</strong></td><td>NGN</td><td><span class="pill green">Live</span></td></tr>
+          <tr><td><strong>eCedi</strong></td><td>GHS</td><td><span class="pill green">Live</span></td></tr>
+          <tr><td><strong>Digital Rand</strong></td><td>ZAR</td><td><span class="pill purple">Sandbox</span></td></tr>
+        </tbody>
+      </table>
+      <ul class="mt">
+        <li><strong>Cross-CBDC atomic swaps</strong> via Mojaloop ILP</li>
+        <li><strong>Ed25519 keypair wallets</strong> per user per network</li>
+        <li><strong>Real-time settlement</strong> (&lt; 2 seconds)</li>
+        <li><strong>Zero conversion spread</strong> on local currency</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 8: Cross-Border Mesh ========== -->
+<div class="slide">
+  <span class="slide-number">08 / 24</span>
+  <h1>Cross-Border <span class="gradient">Mesh Payments</span></h1>
+  <p class="subtitle">Pan-African corridors: &lt; 1 minute, 0.4-0.7% fee</p>
+
+  <div class="two-col">
+    <div>
+      <table>
+        <thead><tr><th>Corridor</th><th>Route</th><th>Fee</th></tr></thead>
+        <tbody>
+          <tr><td>🇳🇬→🇬🇭</td><td>Nigeria → Ghana</td><td>0.5%</td></tr>
+          <tr><td>🇰🇪→🇹🇿</td><td>Kenya → Tanzania</td><td>0.4%</td></tr>
+          <tr><td>🇿🇦→🇿🇼</td><td>South Africa → Zimbabwe</td><td>0.6%</td></tr>
+          <tr><td>🇬🇭→🇨🇮</td><td>Ghana → Côte d'Ivoire</td><td>0.5%</td></tr>
+          <tr><td>🇳🇬→🇰🇪</td><td>Nigeria → Kenya</td><td>0.7%</td></tr>
+          <tr><td>🇪🇬→🇳🇬</td><td>Egypt → Nigeria</td><td>0.6%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>vs. Traditional Methods</h3>
+      <div class="comparison">
+        <div class="compare-row">
+          <span class="compare-label">SWIFT</span>
+          <div class="compare-bar bar-red" style="width:80%;">2-5 days · $25-50 per transfer</div>
+        </div>
+        <div class="compare-row">
+          <span class="compare-label">Western Union</span>
+          <div class="compare-bar bar-red" style="width:65%;">1-3 days · 5-8% fee</div>
+        </div>
+        <div class="compare-row">
+          <span class="compare-label">TourismPay Mesh</span>
+          <div class="compare-bar bar-green" style="width:30%;">&lt; 1 min · 0.4-0.7%</div>
+        </div>
+      </div>
+      <div class="green-box mt">
+        <strong>How:</strong> Wallet-to-wallet, auto FX at live rates, TigerBeetle double-entry ledger, Mojaloop ILP for interbank routing
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 9: Merchant Ecosystem ========== -->
+<div class="slide">
+  <span class="slide-number">09 / 24</span>
+  <h1>Merchant <span class="gradient3">Ecosystem</span></h1>
+  <p class="subtitle">18 establishment types, 12 tools, KYB-verified</p>
+
+  <div class="two-col">
+    <div>
+      <h3>5-Step KYB Onboarding</h3>
+      <div class="flow" style="flex-direction:column; align-items:flex-start;">
+        <div class="flow-step" style="width:100%;">① Business Identity — Name, registration, type (18 categories)</div>
+        <div class="flow-step" style="width:100%;">② Ownership & Directors — Beneficial owners, UBO declarations</div>
+        <div class="flow-step" style="width:100%;">③ Financial Profile — Bank details, revenue, tax ID</div>
+        <div class="flow-step" style="width:100%;">④ Compliance/AML — Source of funds, PEP, sanctions</div>
+        <div class="flow-step highlight" style="width:100%;">⑤ BIS Background Investigation auto-triggered</div>
+      </div>
+    </div>
+    <div>
+      <h3>Merchant Tools</h3>
+      <div class="cards cards-2 gap-sm">
+        <div class="card" style="padding:10px 14px;"><div class="card-title small">Revenue Dashboard</div><div class="card-desc">Real-time earnings & trends</div></div>
+        <div class="card" style="padding:10px 14px;"><div class="card-title small">QR Code Generator</div><div class="card-desc">Per-product scan-to-pay</div></div>
+        <div class="card" style="padding:10px 14px;"><div class="card-title small">Cashier Terminal</div><div class="card-desc">Walk-in POS interface</div></div>
+        <div class="card" style="padding:10px 14px;"><div class="card-title small">Product Catalog</div><div class="card-desc">CRUD + bulk CSV import</div></div>
+        <div class="card" style="padding:10px 14px;"><div class="card-title small">Booking Manager</div><div class="card-desc">Full status machine</div></div>
+        <div class="card" style="padding:10px 14px;"><div class="card-title small">Availability Calendar</div><div class="card-desc">Per-date slot management</div></div>
+        <div class="card" style="padding:10px 14px;"><div class="card-title small">Dynamic Pricing</div><div class="card-desc">Demand/seasonal/bundle</div></div>
+        <div class="card" style="padding:10px 14px;"><div class="card-title small">Payout Scheduler</div><div class="card-desc">Daily/weekly/monthly</div></div>
+        <div class="card" style="padding:10px 14px;"><div class="card-title small">Staff Management</div><div class="card-desc">Roles + employee BIS</div></div>
+        <div class="card" style="padding:10px 14px;"><div class="card-title small">Channel Manager</div><div class="card-desc">6 global platforms</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 10: Tourist Experience ========== -->
+<div class="slide">
+  <span class="slide-number">10 / 24</span>
+  <h1>Tourist <span class="gradient2">Experience</span></h1>
+  <p class="subtitle">Discover → Book → Pay → Review — all digital</p>
+
+  <div class="cards cards-4">
+    <div class="card"><div class="card-icon">🔍</div><div class="card-title">Discover</div><div class="card-desc">Browse verified establishments by category, location, rating. OpenSearch-powered.</div></div>
+    <div class="card"><div class="card-icon">📅</div><div class="card-title">Book</div><div class="card-desc">Real-time availability, instant confirmation, overbooking protection.</div></div>
+    <div class="card"><div class="card-icon">💳</div><div class="card-title">Pay</div><div class="card-desc">11 currencies, QR scan, NFC offline, Stripe cards, scheduled payments.</div></div>
+    <div class="card"><div class="card-icon">🧾</div><div class="card-title">Receipt</div><div class="card-desc">Digital receipt with QR verification code.</div></div>
+    <div class="card"><div class="card-icon">🗺️</div><div class="card-title">Itinerary</div><div class="card-desc">AI Copilot generates personalized multi-day trip plans.</div></div>
+    <div class="card"><div class="card-icon">🔗</div><div class="card-title">Share</div><div class="card-desc">Public shareable itinerary links for travel companions.</div></div>
+    <div class="card"><div class="card-icon">🌱</div><div class="card-title">Offset</div><div class="card-desc">One-tap carbon offset from 5 verified African projects.</div></div>
+    <div class="card"><div class="card-icon">🆔</div><div class="card-title">Identity</div><div class="card-desc">DID wallet for reusable verifiable travel credentials.</div></div>
+  </div>
+
+  <div class="highlight-box mt">
+    <h3 style="margin-top:0;">AI Copilot</h3>
+    <p class="small">"Plan my 7-day Kenya trip on a $2,000 budget" → Full itinerary with bookings, transport, and local recommendations. Local LLM (Ollama) with cloud fallback.</p>
+  </div>
+</div>
+
+<!-- ========== SLIDE 11: Africa-First GDS ========== -->
+<div class="slide">
+  <span class="slide-number">11 / 24</span>
+  <h1>Africa-First <span class="gradient">GDS</span></h1>
+  <p class="subtitle">The world's first Global Distribution System built for African tourism</p>
+
+  <div class="two-col">
+    <div>
+      <h3>Why Not Just Use Sabre/Amadeus?</h3>
+      <ul>
+        <li>$2-5 per booking segment + annual fees</li>
+        <li>Limited African property inventory (chain hotels only)</li>
+        <li>No mobile money, CBDCs, or local currencies</li>
+        <li>No integration with African tourism boards</li>
+        <li>Commission structures favor large OTAs</li>
+      </ul>
+
+      <h3>GDS Components</h3>
+      <table class="small">
+        <thead><tr><th>Module</th><th>Tech</th><th>Function</th></tr></thead>
+        <tbody>
+          <tr><td>Reservation Engine</td><td>Go</td><td>Registry, availability, rate plans, booking machine</td></tr>
+          <tr><td>Distribution</td><td>Go</td><td>Push rates/availability to agents</td></tr>
+          <tr><td>Content Aggregation</td><td>Rust</td><td>Bedbank connectors, tourism board feeds</td></tr>
+          <tr><td>Search & Discovery</td><td>Python</td><td>OpenSearch, ML pricing, recommendations</td></tr>
+          <tr><td>Analytics</td><td>Python</td><td>Lakehouse, ADR/RevPAR, market intelligence</td></tr>
+          <tr><td>Agent Portal</td><td>TypeScript</td><td>Search, book, cancel, commissions</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Agent Commission Tiers</h3>
+      <div class="card mb" style="border-left:3px solid #cd7f32;"><div class="card-title">🥉 Bronze (0-50 bookings/mo)</div><div class="card-desc" style="font-size:24px; font-weight:800; color:var(--accent);">10%</div></div>
+      <div class="card mb" style="border-left:3px solid #c0c0c0;"><div class="card-title">🥈 Silver (51-200 bookings/mo)</div><div class="card-desc" style="font-size:24px; font-weight:800; color:var(--accent);">12%</div></div>
+      <div class="card mb" style="border-left:3px solid #ffd700;"><div class="card-title">🥇 Gold (201-500 bookings/mo)</div><div class="card-desc" style="font-size:24px; font-weight:800; color:var(--accent);">15%</div></div>
+      <div class="card" style="border-left:3px solid #e5e4e2;"><div class="card-title">💎 Platinum (500+ bookings/mo)</div><div class="card-desc" style="font-size:24px; font-weight:800; color:var(--accent);">18%</div></div>
+
+      <div class="green-box mt">
+        <strong>20 African countries</strong> supported with property registry, local agent network, and mobile money settlement
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 12: Channel Manager ========== -->
+<div class="slide">
+  <span class="slide-number">12 / 24</span>
+  <h1>Channel Manager — <span class="gradient3">Global Distribution</span></h1>
+  <p class="subtitle">Bidirectional sync with 6 major platforms</p>
+
+  <div class="cards cards-3">
+    <div class="card"><div class="card-icon">🔵</div><div class="card-title">Sabre</div><div class="card-desc">SynXis hotel rates, OTA_HotelRatePlanNotif, OTA_HotelAvailNotif</div></div>
+    <div class="card"><div class="card-icon">🟣</div><div class="card-title">Amadeus</div><div class="card-desc">Self-Service APIs — rates, availability, Hotel Booking API</div></div>
+    <div class="card"><div class="card-icon">🟡</div><div class="card-title">Expedia</div><div class="card-desc">EPC Connectivity Partner API, occupancy-based pricing</div></div>
+    <div class="card"><div class="card-icon">🔵</div><div class="card-title">Booking.com</div><div class="card-desc">Connectivity Partner JSON API for rates & availability</div></div>
+    <div class="card"><div class="card-icon">🟤</div><div class="card-title">Little Emperors</div><div class="card-desc">Luxury flash-sale deals, member/rack rates</div></div>
+    <div class="card"><div class="card-icon">🟢</div><div class="card-title">Travelport</div><div class="card-desc">Universal API (Galileo/Apollo/Worldspan)</div></div>
+  </div>
+
+  <div class="highlight-box mt">
+    <strong>Result:</strong> A small safari lodge in Maasai Mara appears on Expedia, Booking.com, and Sabre — without paying Sabre's annual fee. Go sync engine pushes rates/availability every 5 minutes. Inbound bookings auto-create reservations.
+  </div>
+</div>
+
+<!-- ========== SLIDE 13: White-Label GDS ========== -->
+<div class="slide">
+  <span class="slide-number">13 / 24</span>
+  <h1>Standalone <span class="gradient2">GDS-as-a-Service</span></h1>
+  <p class="subtitle">White-label deployable by any platform — SDKs in 3 languages</p>
+
+  <div class="two-col">
+    <div>
+      <h3>What's Included</h3>
+      <table class="small">
+        <thead><tr><th>Component</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td><strong>REST API</strong></td><td>OpenAPI 3.1, APISIX gateway + Keycloak JWT + OpenAppSec WAF</td></tr>
+          <tr><td><strong>SDKs</strong></td><td>Python, TypeScript, Go — published packages</td></tr>
+          <tr><td><strong>Developer Sandbox</strong></td><td>10 pre-seeded properties, test cards, 10K free tokens</td></tr>
+          <tr><td><strong>Multi-Tenant</strong></td><td>tenant_id isolation on all 12 tables</td></tr>
+          <tr><td><strong>Docker Compose</strong></td><td>7-service stack, one command deploy</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Metered Token Plans</h3>
+      <table class="small">
+        <thead><tr><th>Plan</th><th>Tokens/Mo</th><th>Price</th></tr></thead>
+        <tbody>
+          <tr><td>Sandbox</td><td>10,000</td><td>Free</td></tr>
+          <tr><td>Starter</td><td>100,000</td><td>$49/mo</td></tr>
+          <tr><td>Professional</td><td>1,000,000</td><td>$199/mo</td></tr>
+          <tr><td>Enterprise</td><td>Unlimited</td><td>$999/mo</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Who Can Use It</h3>
+      <div class="card mb"><div class="card-title">🏛️ Tourism Boards</div><div class="card-desc">Run their own branded booking portal</div></div>
+      <div class="card mb"><div class="card-title">💰 Fintech Platforms</div><div class="card-desc">Serve travel agents with booking APIs</div></div>
+      <div class="card mb"><div class="card-title">🏨 Hotel Chains</div><div class="card-desc">Use as distribution backbone (Serena, Mantis)</div></div>
+      <div class="card"><div class="card-title">🚀 OTA Startups</div><div class="card-desc">Booking engine without building from scratch</div></div>
+
+      <div class="code-block mt" style="font-size:12px;">
+<span class="kw">from</span> gds_client <span class="kw">import</span> GDSClient
+<span class="kw">with</span> <span class="fn">GDSClient</span>(base_url=<span class="str">"https://gds.yourdomain.com"</span>,
+              api_key=<span class="str">"gds_xxx"</span>) <span class="kw">as</span> gds:
+    results = gds.<span class="fn">search</span>(destination=<span class="str">"Masai Mara"</span>)
+    booking = gds.<span class="fn">create_reservation</span>(...)
+</div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 14: Security ========== -->
+<div class="slide">
+  <span class="slide-number">14 / 24</span>
+  <h1>Security & <span class="gradient">Compliance</span></h1>
+  <p class="subtitle">Enterprise-grade. Audit score: 100/100</p>
+
+  <div class="cards cards-4">
+    <div class="card"><div class="card-title" style="color:var(--accent);">APISIX</div><div class="card-desc">Rate limiting, JWT validation, API keys, circuit breaker</div></div>
+    <div class="card"><div class="card-title" style="color:var(--accent);">OpenAppSec</div><div class="card-desc">WAF: OWASP Top 10, anti-bot, SQL injection, XSS</div></div>
+    <div class="card"><div class="card-title" style="color:var(--accent);">Keycloak</div><div class="card-desc">OIDC/OAuth2, MFA, brute-force, session mgmt</div></div>
+    <div class="card"><div class="card-title" style="color:var(--accent);">Permify</div><div class="card-desc">ReBAC authorization, maker-checker settlements</div></div>
+  </div>
+
+  <div class="two-col mt">
+    <div>
+      <h3>Data Protection</h3>
+      <ul>
+        <li><strong>AES-256-GCM</strong> encryption on all PII</li>
+        <li><strong>TLS 1.3</strong> on all inter-service communication</li>
+        <li><strong>1,500+ Zod validations</strong> on tRPC inputs</li>
+        <li><strong>Helmet</strong> — CSP, HSTS, X-Frame-Options</li>
+        <li><strong>CSRF</strong> double-submit cookie verification</li>
+        <li><strong>httpOnly + secure + sameSite</strong> cookies</li>
+        <li><strong>crypto.randomBytes()</strong> for all key generation</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Compliance</h3>
+      <ul>
+        <li><strong>KYB verification</strong> — 5-step onboarding</li>
+        <li><strong>BIS investigations</strong> — auto background checks</li>
+        <li><strong>AML screening</strong> — PEP, sanctions, adverse media</li>
+        <li><strong>Audit logging</strong> — every action immutably logged</li>
+        <li><strong>Kill switch</strong> — emergency corridor blocking</li>
+        <li><strong>Fraud ML</strong> — anomaly detection (Python)</li>
+        <li><strong>SAR generation</strong> — suspicious activity reports</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 15: KEY SLIDE — Keeping Earnings Local ========== -->
+<div class="slide">
+  <span class="slide-number">15 / 24</span>
+  <h1>How Payments <span class="gradient">Keep Earnings Local</span></h1>
+  <p class="subtitle">The core value proposition: $97 stays vs $47 stays per $100 spent</p>
+
+  <h3>Traditional Flow (tourist pays $100)</h3>
+  <div class="flow">
+    <div class="flow-step">Tourist</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step bad">Expedia (25%)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step bad">Stripe (2.9%)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step bad">SWIFT ($25)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">Merchant gets <strong>$47</strong></div>
+  </div>
+
+  <h3>TourismPay Flow (tourist pays $100)</h3>
+  <div class="flow">
+    <div class="flow-step">Tourist</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step highlight">TourismPay Wallet</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step highlight">TigerBeetle Ledger</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step highlight">Merchant gets <strong>$97</strong></div>
+  </div>
+
+  <table class="mt">
+    <thead><tr><th>Mechanism</th><th>How It Works</th><th>Impact</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Local Settlement</strong></td><td>TigerBeetle ledger — no SWIFT, no correspondent banks</td><td>Eliminates $25+ offshore fees</td></tr>
+      <tr><td><strong>Direct Distribution</strong></td><td>GDS connects merchants to agents directly</td><td>Saves 3-8% GDS commission</td></tr>
+      <tr><td><strong>Low Commission</strong></td><td>2-5% vs. Expedia's 15-25%</td><td>20%+ more per booking</td></tr>
+      <tr><td><strong>CBDC Bridge</strong></td><td>eNaira/eCedi — central bank money</td><td>Zero conversion spread</td></tr>
+      <tr><td><strong>Mesh Payments</strong></td><td>Intra-African at 0.4-0.7%</td><td>vs. SWIFT 5-8%</td></tr>
+      <tr><td><strong>Offline NFC</strong></td><td>No POS rental, no Visa/MC fees</td><td>Zero hardware cost</td></tr>
+      <tr><td><strong>Daily Payouts</strong></td><td>Configurable settlement frequency</td><td>vs. OTA 30-day holdbacks</td></tr>
+    </tbody>
+  </table>
+
+  <div class="stats mt">
+    <div class="stat"><div class="stat-value">97%</div><div class="stat-label">Local Retention (TourismPay)</div></div>
+    <div class="stat"><div class="stat-value" style="background:linear-gradient(135deg,#ef4444,#dc2626);-webkit-background-clip:text;">47%</div><div class="stat-label">Local Retention (Traditional)</div></div>
+    <div class="stat"><div class="stat-value">50%</div><div class="stat-label">More Revenue Per Merchant</div></div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 16: Tourism Board Benefits ========== -->
+<div class="slide">
+  <span class="slide-number">16 / 24</span>
+  <h1>Tourism Board <span class="gradient3">Benefits</span></h1>
+  <p class="subtitle">Real-time visibility into the entire tourism economy</p>
+
+  <div class="two-col">
+    <div>
+      <h3>Dashboard Capabilities</h3>
+      <table class="small">
+        <thead><tr><th>Feature</th><th>What You Get</th></tr></thead>
+        <tbody>
+          <tr><td>Admin Dashboard</td><td>Live transaction volume, active merchants, booking trends</td></tr>
+          <tr><td>KYB Oversight</td><td>Every merchant verified — identity, directors, financials, BIS</td></tr>
+          <tr><td>Finance Dashboard</td><td>Revenue by country, currency, merchant type</td></tr>
+          <tr><td>Audit Log</td><td>Every transaction immutably logged</td></tr>
+          <tr><td>FX Management</td><td>Override and monitor exchange rates</td></tr>
+          <tr><td>User Management</td><td>Role-based access for board staff</td></tr>
+          <tr><td>Service Health</td><td>Real-time monitoring of all services</td></tr>
+          <tr><td>Africa Registry</td><td>Centralized registry of verified establishments</td></tr>
+          <tr><td>ML Analytics</td><td>Demand forecasting, RevPAR, occupancy</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Policy Levers</h3>
+      <div class="card mb"><div class="card-title">🔴 Kill Switch</div><div class="card-desc">Block specific corridors or currencies instantly</div></div>
+      <div class="card mb"><div class="card-title">💱 FX Overrides</div><div class="card-desc">Set floor/ceiling rates for tourist protection</div></div>
+      <div class="card mb"><div class="card-title">🛡️ BIS Enforcement</div><div class="card-desc">No merchant goes live without background investigation</div></div>
+      <div class="card mb"><div class="card-title">📄 Doc Expiration</div><div class="card-desc">Auto-flag merchants with expired licenses</div></div>
+      <div class="card"><div class="card-title">🌱 Sustainability</div><div class="card-desc">Track carbon offset adoption across the sector</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 17: Diaspora Benefits ========== -->
+<div class="slide">
+  <span class="slide-number">17 / 24</span>
+  <h1>Diaspora <span class="gradient">Benefits</span></h1>
+  <p class="subtitle">Connecting the African diaspora to home — affordably</p>
+
+  <div class="two-col">
+    <div>
+      <table>
+        <thead><tr><th>Feature</th><th>Use Case</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Multi-Currency Wallet</strong></td><td>Hold USD + NGN + KES — convert at AI-optimized rates</td></tr>
+          <tr><td><strong>Mesh Payments</strong></td><td>Send to family/business at 0.4-0.7%</td></tr>
+          <tr><td><strong>CBDC Bridge</strong></td><td>Direct eNaira/eCedi — no commercial bank markup</td></tr>
+          <tr><td><strong>Smart FX Convert</strong></td><td>ML predicts optimal conversion windows</td></tr>
+          <tr><td><strong>Direct Booking</strong></td><td>Book authentic local experiences — no Expedia markup</td></tr>
+          <tr><td><strong>GDS Agent Access</strong></td><td>Diaspora agents earn 10-18% commissions</td></tr>
+          <tr><td><strong>Itinerary Builder</strong></td><td>AI plans homecoming trips</td></tr>
+          <tr><td><strong>Carbon Offsets</strong></td><td>Offset flight emissions via African projects</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Remittance Comparison: $200 Nigeria → Kenya</h3>
+      <div class="comparison">
+        <div class="compare-row">
+          <span class="compare-label">Western Union</span>
+          <div class="compare-bar bar-red" style="width:80%;">$12-16 fee (6-8%) · 1-3 days</div>
+        </div>
+        <div class="compare-row">
+          <span class="compare-label">Bank Wire</span>
+          <div class="compare-bar bar-red" style="width:90%;">$25-50 fee · 2-5 days</div>
+        </div>
+        <div class="compare-row">
+          <span class="compare-label">TourismPay</span>
+          <div class="compare-bar bar-green" style="width:25%;">$1.40 fee (0.7%) · &lt; 1 min</div>
+        </div>
+      </div>
+
+      <div class="green-box mt">
+        <strong>$200 sent → $198.60 received</strong><br>
+        <span class="small dim">vs. Western Union: $200 sent → $184-188 received</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 18: Traveler Benefits ========== -->
+<div class="slide">
+  <span class="slide-number">18 / 24</span>
+  <h1>Traveler <span class="gradient2">Benefits</span></h1>
+  <p class="subtitle">From booking to checkout — all digital, even offline</p>
+
+  <div class="cards cards-4">
+    <div class="card"><div class="card-icon">📱</div><div class="card-title">No Cash Needed</div><div class="card-desc">Pay digitally even at remote safari lodges (offline NFC tap-to-pay)</div></div>
+    <div class="card"><div class="card-icon">💹</div><div class="card-title">Transparent Pricing</div><div class="card-desc">Exact FX rates, fees, and merchant ratings visible before paying</div></div>
+    <div class="card"><div class="card-icon">✅</div><div class="card-title">Verified Merchants</div><div class="card-desc">Every business KYB-checked with background investigation</div></div>
+    <div class="card"><div class="card-icon">🎁</div><div class="card-title">Loyalty Rewards</div><div class="card-desc">Earn points on every transaction, redeem for discounts</div></div>
+  </div>
+  <div class="cards cards-4 mt">
+    <div class="card"><div class="card-icon">🤖</div><div class="card-title">AI Travel Assistant</div><div class="card-desc">"What should I do in Zanzibar for 3 days on a $500 budget?"</div></div>
+    <div class="card"><div class="card-icon">🌱</div><div class="card-title">Sustainability</div><div class="card-desc">Know and offset your carbon footprint with African projects</div></div>
+    <div class="card"><div class="card-icon">🔐</div><div class="card-title">DID Identity</div><div class="card-desc">Decentralized identity wallet for reusable travel credentials</div></div>
+    <div class="card"><div class="card-icon">📋</div><div class="card-title">Trip Sharing</div><div class="card-desc">Shareable itineraries and trip summaries for companions</div></div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 19: Competitive Differentiation ========== -->
+<div class="slide">
+  <span class="slide-number">19 / 24</span>
+  <h1>Technical <span class="gradient3">Differentiators</span></h1>
+  <p class="subtitle">What TourismPay does that nobody else can</p>
+
+  <table>
+    <thead><tr><th>Capability</th><th style="color:var(--accent);">TourismPay</th><th>Sabre/Amadeus</th><th>Expedia</th><th>Flutterwave</th></tr></thead>
+    <tbody>
+      <tr><td>African CBDC support</td><td><strong>eNaira, eCedi, Digital Rand</strong></td><td>No</td><td>No</td><td>No</td></tr>
+      <tr><td>Offline NFC payments</td><td><strong>Ed25519 signed vouchers</strong></td><td>No</td><td>No</td><td>No</td></tr>
+      <tr><td>Intra-Africa mesh</td><td><strong>6 corridors, &lt; 1 min</strong></td><td>No</td><td>No</td><td>Limited</td></tr>
+      <tr><td>Africa-first GDS</td><td><strong>20 countries, local agents</strong></td><td>Global (weak Africa)</td><td>OTA only</td><td>No</td></tr>
+      <tr><td>Mobile money native</td><td><strong>M-Pesa, MTN, Airtel ready</strong></td><td>No</td><td>Limited</td><td>Yes</td></tr>
+      <tr><td>Carbon offset integration</td><td><strong>5 African projects</strong></td><td>No</td><td>No</td><td>No</td></tr>
+      <tr><td>TigerBeetle ledger</td><td><strong>Double-entry, ACID</strong></td><td>Proprietary</td><td>Proprietary</td><td>No</td></tr>
+      <tr><td>White-label GDS SDK</td><td><strong>Python, Go, TypeScript</strong></td><td>No</td><td>Affiliate only</td><td>No</td></tr>
+      <tr><td>KYB + BIS compliance</td><td><strong>5-step + background check</strong></td><td>Minimal</td><td>Minimal</td><td>KYC only</td></tr>
+      <tr><td>AI FX optimization</td><td><strong>ML prediction + limit orders</strong></td><td>No</td><td>No</td><td>No</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ========== SLIDE 20: 20 African Countries ========== -->
+<div class="slide">
+  <span class="slide-number">20 / 24</span>
+  <h1>20 African <span class="gradient">Countries</span></h1>
+  <p class="subtitle">Tailored features for each tourism market</p>
+
+  <div class="cards cards-4" style="font-size:13px;">
+    <div class="card" style="padding:12px;"><div class="card-title small">🇰🇪 Kenya</div><div class="card-desc">Maasai Mara, Amboseli · M-Pesa, KES wallet</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇹🇿 Tanzania</div><div class="card-desc">Serengeti, Zanzibar · KE-TZ corridor, offline NFC</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇿🇦 South Africa</div><div class="card-desc">Cape Town, Kruger · Digital Rand CBDC, ZAR</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇳🇬 Nigeria</div><div class="card-desc">Lagos, Calabar · eNaira CBDC, NGN wallet</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇬🇭 Ghana</div><div class="card-desc">Cape Coast, Accra · eCedi CBDC, GH-CI corridor</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇷🇼 Rwanda</div><div class="card-desc">Gorilla trekking · Cross-border KE/TZ</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇲🇦 Morocco</div><div class="card-desc">Marrakech, Fes · EUR/MAD corridors</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇪🇬 Egypt</div><div class="card-desc">Pyramids, Red Sea · EG-NG corridor</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇪🇹 Ethiopia</div><div class="card-desc">Lalibela, Simien · Offline NFC critical</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇺🇬 Uganda</div><div class="card-desc">Bwindi gorillas · EAC corridors</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇿🇼 Zimbabwe</div><div class="card-desc">Victoria Falls · ZA-ZW corridor, USD/ZWL</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇧🇼 Botswana</div><div class="card-desc">Okavango Delta · Premium safari tools</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇳🇦 Namibia</div><div class="card-desc">Etosha, Sossusvlei · NAD wallet, SA corridor</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇲🇿 Mozambique</div><div class="card-desc">Bazaruto, Tofo · MZN wallet, ZA-MZ</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇸🇳 Senegal</div><div class="card-desc">Dakar, Gorée · XOF, Francophone portal</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇨🇮 Côte d'Ivoire</div><div class="card-desc">Abidjan · GH-CI corridor, XOF</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇲🇺 Mauritius</div><div class="card-desc">Beach resorts · MUR wallet, EUR corridor</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇸🇨 Seychelles</div><div class="card-desc">Island tourism · SCR wallet, premium</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇲🇬 Madagascar</div><div class="card-desc">Lemurs, rainforest · MGA, offline NFC</div></div>
+    <div class="card" style="padding:12px;"><div class="card-title small">🇨🇻 Cape Verde</div><div class="card-desc">Island hopping · CVE wallet, EUR</div></div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 21: Platform Numbers ========== -->
+<div class="slide">
+  <span class="slide-number">21 / 24</span>
+  <h1>By the <span class="gradient2">Numbers</span></h1>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-value">50+</div><div class="stat-label">PWA Pages</div></div>
+    <div class="stat"><div class="stat-value">89</div><div class="stat-label">Mobile Screens</div></div>
+    <div class="stat"><div class="stat-value">200+</div><div class="stat-label">API Endpoints</div></div>
+    <div class="stat"><div class="stat-value">1,500+</div><div class="stat-label">Zod Validations</div></div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="stat-value">11</div><div class="stat-label">Currencies</div></div>
+    <div class="stat"><div class="stat-value">20</div><div class="stat-label">African Countries</div></div>
+    <div class="stat"><div class="stat-value">6</div><div class="stat-label">Mesh Corridors</div></div>
+    <div class="stat"><div class="stat-value">6</div><div class="stat-label">Channel Connectors</div></div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="stat-value">14</div><div class="stat-label">Middleware</div></div>
+    <div class="stat"><div class="stat-value">4</div><div class="stat-label">Languages</div></div>
+    <div class="stat"><div class="stat-value">18</div><div class="stat-label">Merchant Types</div></div>
+    <div class="stat"><div class="stat-value">3</div><div class="stat-label">SDK Languages</div></div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="stat-value">100</div><div class="stat-label">Security Audit Score</div></div>
+    <div class="stat"><div class="stat-value">5</div><div class="stat-label">Carbon Projects</div></div>
+    <div class="stat"><div class="stat-value">3</div><div class="stat-label">CBDC Networks</div></div>
+    <div class="stat"><div class="stat-value">5</div><div class="stat-label">KYB Onboarding Steps</div></div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 22: Go-to-Market ========== -->
+<div class="slide">
+  <span class="slide-number">22 / 24</span>
+  <h1>Go-to-Market <span class="gradient">Strategy</span></h1>
+
+  <div class="cards cards-4">
+    <div class="card" style="border-top:3px solid var(--accent);">
+      <div class="card-title">Phase 1: East Africa</div>
+      <div class="card-desc" style="color:var(--text-dim);">Months 1-6</div>
+      <ul class="mt small">
+        <li>Kenya + Tanzania launch</li>
+        <li>500 properties onboarded</li>
+        <li>KE-TZ mesh corridor</li>
+        <li>Tourism board partnership</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid var(--accent2);">
+      <div class="card-title">Phase 2: Expand</div>
+      <div class="card-desc" style="color:var(--text-dim);">Months 6-12</div>
+      <ul class="mt small">
+        <li>South Africa, Ghana, Nigeria</li>
+        <li>CBDC bridge (eNaira + eCedi)</li>
+        <li>2,000+ properties</li>
+        <li>GDS agent portal launch</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid var(--accent3);">
+      <div class="card-title">Phase 3: Pan-African</div>
+      <div class="card-desc" style="color:var(--text-dim);">Months 12-24</div>
+      <ul class="mt small">
+        <li>All 20 countries live</li>
+        <li>Diaspora marketing (UK/US/CA)</li>
+        <li>White-label GDS licensing</li>
+        <li>Sabre/Amadeus channel sync</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid var(--accent4);">
+      <div class="card-title">Phase 4: Global</div>
+      <div class="card-desc" style="color:var(--text-dim);">Months 24-36</div>
+      <ul class="mt small">
+        <li>GDS-as-a-Service for external platforms</li>
+        <li>Enterprise API tier</li>
+        <li>50,000+ properties</li>
+        <li>$1B+ annual volume</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 23: Revenue Model ========== -->
+<div class="slide">
+  <span class="slide-number">23 / 24</span>
+  <h1>Revenue <span class="gradient2">Model</span></h1>
+
+  <div class="two-col">
+    <div>
+      <table>
+        <thead><tr><th>Stream</th><th>How</th><th>Share</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Transaction fees</strong></td><td>0.1-0.7% on wallet ops</td><td>60%</td></tr>
+          <tr><td><strong>GDS booking fees</strong></td><td>$1-3 per reservation</td><td>20%</td></tr>
+          <tr><td><strong>Channel manager</strong></td><td>$29-99/mo per property</td><td>10%</td></tr>
+          <tr><td><strong>SDK metering</strong></td><td>$49-999/mo tiered</td><td>5%</td></tr>
+          <tr><td><strong>White-label</strong></td><td>Tourism board deployments</td><td>5%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Unit Economics (Per $100 Tourist TX)</h3>
+      <div class="comparison">
+        <div class="compare-row">
+          <span class="compare-label">TourismPay revenue</span>
+          <div class="compare-bar bar-green" style="width:20%;">$1-3 (1-3%)</div>
+        </div>
+        <div class="compare-row">
+          <span class="compare-label">Merchant receives</span>
+          <div class="compare-bar bar-green" style="width:90%;">$97-99</div>
+        </div>
+        <div class="compare-row">
+          <span class="compare-label" style="color:#fca5a5;">Traditional merchant</span>
+          <div class="compare-bar bar-red" style="width:50%;">$47-70</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 24: Vision ========== -->
+<div class="slide section-divider" style="background: radial-gradient(ellipse at 50% 40%, rgba(245,158,11,0.1), transparent 60%), var(--bg-slide);">
+  <span class="slide-number">24 / 24</span>
+  <div>
+    <div style="font-size:64px; margin-bottom:24px;">🌍</div>
+    <h1>Making Africa the Most Digitally Accessible<br><span class="gradient">Tourism Destination</span> in the World</h1>
+    <p class="tagline">"Every dollar spent on African tourism should benefit African communities first."</p>
+    <p class="dim mt" style="font-size:16px; max-width:700px; margin-left:auto; margin-right:auto;">
+      <strong>Today:</strong> A tourist at a Maasai Mara safari lodge pays with cash. Booking was through Expedia (25% commission). Money takes 30 days to settle.
+    </p>
+    <p class="mt" style="font-size:16px; max-width:700px; margin-left:auto; margin-right:auto;">
+      <strong style="color:var(--accent);">With TourismPay:</strong> The tourist taps their phone (offline NFC). Payment settles in seconds. The lodge appears on global channels at 3% commission. Carbon footprint is offset through a Kenyan wind energy project.
+    </p>
+    <div class="pills mt" style="justify-content:center;">
+      <span class="pill gold">TypeScript</span>
+      <span class="pill green">Go</span>
+      <span class="pill pink">Rust</span>
+      <span class="pill purple">Python</span>
+    </div>
+    <p class="dim mt" style="font-size:14px;"><strong>TourismPay</strong> — Built in Africa. For Africa. By Africa.</p>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<!-- Navigation -->
+<div class="nav">
+  <button id="prevBtn" onclick="navigate(-1)">‹</button>
+  <span class="page-info" id="pageInfo">1 / 24</span>
+  <button id="nextBtn" onclick="navigate(1)">›</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const pageInfo = document.getElementById('pageInfo');
+  const progressBar = document.getElementById('progressBar');
+  let current = 0;
+
+  function showSlide(index) {
+    slides.forEach(s => s.classList.remove('active'));
+    slides[index].classList.add('active');
+    current = index;
+    pageInfo.textContent = `${index + 1} / ${slides.length}`;
+    progressBar.style.width = `${((index + 1) / slides.length) * 100}%`;
+  }
+
+  function navigate(dir) {
+    const next = current + dir;
+    if (next >= 0 && next < slides.length) showSlide(next);
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); navigate(1); }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); navigate(-1); }
+    if (e.key === 'Home') { e.preventDefault(); showSlide(0); }
+    if (e.key === 'End') { e.preventDefault(); showSlide(slides.length - 1); }
+  });
+
+  // Touch swipe support
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', (e) => {
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) navigate(diff > 0 ? 1 : -1);
+  });
+
+  showSlide(0);
+</script>
+
+</body>
+</html>
