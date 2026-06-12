@@ -8,6 +8,7 @@
  * Keycloak (agent auth), Permify (RBAC), PostgreSQL (persistence)
  */
 import { z } from "zod";
+import crypto from "crypto";
 import { router, protectedProcedure } from "../_core/trpc";
 
 // --- Schemas ---
@@ -247,7 +248,7 @@ export const gdsPortalRouter = router({
     .mutation(async ({ input }) => {
       return {
         agentId: `agent_${Date.now()}`,
-        apiKey: `gds_${Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}`,
+        apiKey: `gds_${crypto.randomBytes(32).toString("hex")}`,
         status: "pending",
         message: "Registration submitted. Verification typically takes 24-48 hours.",
       };

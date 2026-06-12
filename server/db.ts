@@ -39,8 +39,9 @@ export async function getDb() {
     try {
       const dbUrl = ENV.databaseUrl;
       const sslRequired = dbUrl.includes("sslmode=require") || dbUrl.includes("ssl=true") || (!dbUrl.includes("localhost") && !dbUrl.includes("127.0.0.1"));
+      const poolSize = parseInt(process.env.DB_POOL_SIZE || "20", 10);
       _client = postgres(dbUrl, {
-        max: 10,
+        max: poolSize,
         idle_timeout: 30,
         connect_timeout: 10,
         ssl: sslRequired ? { rejectUnauthorized: false } : false,
@@ -52,6 +53,42 @@ export async function getDb() {
     }
   }
   return _db;
+}
+
+/** Raw postgres.js client for SQL transactions with row-level locking. */
+export function getRawClient() {
+  // Ensure getDb() has been called at least once to initialise _client
+  if (!_client && ENV.databaseUrl) {
+    const dbUrl = ENV.databaseUrl;
+    const sslRequired = dbUrl.includes("sslmode=require") || dbUrl.includes("ssl=true") || (!dbUrl.includes("localhost") && !dbUrl.includes("127.0.0.1"));
+    const poolSize = parseInt(process.env.DB_POOL_SIZE || "20", 10);
+    _client = postgres(dbUrl, {
+      max: poolSize,
+      idle_timeout: 30,
+      connect_timeout: 10,
+      ssl: sslRequired ? { rejectUnauthorized: false } : false,
+    });
+    _db = drizzle(_client);
+  }
+  return _client;
+}
+
+export type RawSql = ReturnType<typeof postgres>;
+
+/**
+ * Run a callback inside a PostgreSQL transaction with proper row-level locking.
+ * The callback receives the raw `sql` tagged template function for direct queries.
+ */
+export async function withTransaction<T>(
+  fn: (sql: RawSql) => Promise<T>,
+): Promise<T> {
+  const client = getRawClient();
+  if (!client) throw new Error("Database unavailable");
+  // postgres.js begin() handles BEGIN/COMMIT/ROLLBACK automatically.
+  // We cast through unknown because TransactionSql omits some Sql props but
+  // retains the tagged-template call signature we need.
+  const result = await client.begin((tx) => fn(tx as unknown as RawSql));
+  return result as T;
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────

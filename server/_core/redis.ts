@@ -26,21 +26,45 @@ function getRedisUrl(): string {
 export function getRedis(): Redis | null {
   if (redis) return redis;
   try {
-    redis = new Redis(getRedisUrl(), {
-      maxRetriesPerRequest: 3,
-      retryStrategy(times) {
-        if (times > 5) return null; // Stop retrying after 5 attempts
-        return Math.min(times * 200, 2000);
-      },
-      lazyConnect: true,
-      enableReadyCheck: true,
-      connectTimeout: 5000,
-    });
-    redis.on("error", (err) => {
+    // Sentinel HA mode: set REDIS_SENTINELS="host1:26379,host2:26379" and REDIS_SENTINEL_NAME="mymaster"
+    if (process.env.REDIS_SENTINELS) {
+      redis = new Redis({
+        sentinels: process.env.REDIS_SENTINELS.split(",").map(s => {
+          const parts = s.trim().split(":");
+          return { host: parts[0], port: parseInt(parts[1] || "26379", 10) };
+        }),
+        name: process.env.REDIS_SENTINEL_NAME || "mymaster",
+        password: process.env.REDIS_PASSWORD || undefined,
+        sentinelPassword: process.env.REDIS_SENTINEL_PASSWORD || undefined,
+        maxRetriesPerRequest: 3,
+        retryStrategy(times: number) {
+          if (times > 5) return null;
+          return Math.min(times * 200, 2000);
+        },
+        lazyConnect: true,
+        enableReadyCheck: true,
+        connectTimeout: 5000,
+        tls: process.env.REDIS_TLS === "true" ? { rejectUnauthorized: false } : undefined,
+      });
+    } else {
+      redis = new Redis(getRedisUrl(), {
+        maxRetriesPerRequest: 3,
+        retryStrategy(times: number) {
+          if (times > 5) return null;
+          return Math.min(times * 200, 2000);
+        },
+        lazyConnect: true,
+        enableReadyCheck: true,
+        connectTimeout: 5000,
+        password: process.env.REDIS_PASSWORD || undefined,
+        tls: process.env.REDIS_TLS === "true" ? { rejectUnauthorized: false } : undefined,
+      });
+    }
+    redis.on("error", (err: Error) => {
       logger.warn(`[Redis] Connection error: ${err.message}`);
     });
     redis.on("connect", () => {
-      logger.info("[Redis] Connected");
+      logger.info(`[Redis] Connected${process.env.REDIS_SENTINELS ? " (Sentinel HA)" : ""}`);
     });
     redis.connect().catch(() => {
       logger.warn("[Redis] Initial connection failed — operating without cache");

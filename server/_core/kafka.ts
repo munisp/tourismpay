@@ -21,6 +21,7 @@ export const TOPICS = {
   NOC_EVENTS: "tourismpay.noc.events",
   WALLET_TRANSACTIONS: "tourismpay.wallet.transactions",
   AUDIT_LOG: "tourismpay.audit.log",
+  DEAD_LETTER: "tourismpay.dlq",
 } as const;
 
 export type TopicName = (typeof TOPICS)[keyof typeof TOPICS];
@@ -100,7 +101,26 @@ export interface DomainEvent {
   correlationId?: string;
 }
 
+/** Validate event schema before publishing. */
+function validateEvent(event: DomainEvent): string | null {
+  if (!event.type || typeof event.type !== "string" || event.type.length === 0) {
+    return "Event type is required and must be a non-empty string";
+  }
+  if (!event.payload || typeof event.payload !== "object" || Array.isArray(event.payload)) {
+    return "Event payload is required and must be an object";
+  }
+  if (event.type.length > 256) return "Event type exceeds 256 characters";
+  return null;
+}
+
 export async function publishEvent(topic: TopicName, event: DomainEvent): Promise<boolean> {
+  // Schema validation gate
+  const validationError = validateEvent(event);
+  if (validationError) {
+    logger.error(`[Kafka] Event validation failed for ${topic}: ${validationError}`);
+    return false;
+  }
+
   const p = await ensureProducer();
   if (!p) {
     logger.warn(`[Kafka] Cannot publish to ${topic} — producer unavailable`);
@@ -126,6 +146,39 @@ export async function publishEvent(topic: TopicName, event: DomainEvent): Promis
     return true;
   } catch (err) {
     logger.error(`[Kafka] Publish to ${topic} failed: ${(err as Error).message}`);
+    return false;
+  }
+}
+
+/** Publish a failed event to the dead letter queue for manual inspection. */
+export async function publishToDLQ(
+  originalTopic: string,
+  event: DomainEvent,
+  error: string,
+): Promise<boolean> {
+  const p = await ensureProducer();
+  if (!p) return false;
+  try {
+    await p.send({
+      topic: TOPICS.DEAD_LETTER,
+      messages: [{
+        key: event.correlationId || undefined,
+        value: JSON.stringify({
+          originalTopic,
+          event,
+          error,
+          failedAt: new Date().toISOString(),
+        }),
+        headers: {
+          "content-type": Buffer.from("application/json"),
+          "x-original-topic": Buffer.from(originalTopic),
+          "x-error": Buffer.from(error.slice(0, 500)),
+        },
+      }],
+    });
+    return true;
+  } catch (dlqErr) {
+    logger.error(`[Kafka] DLQ publish failed: ${(dlqErr as Error).message}`);
     return false;
   }
 }
@@ -199,6 +252,13 @@ export async function createConsumer(
           await handler(event, topic);
         } catch (err) {
           logger.error(`[Kafka] Consumer error on ${topic}: ${(err as Error).message}`);
+          // Send failed message to dead letter queue
+          try {
+            const failedEvent = message.value ? JSON.parse(message.value.toString()) : { type: "unknown", payload: {} };
+            await publishToDLQ(topic, failedEvent, (err as Error).message);
+          } catch {
+            logger.error(`[Kafka] Could not parse failed message for DLQ on ${topic}`);
+          }
         }
       },
     });
