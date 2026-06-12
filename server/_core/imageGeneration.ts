@@ -62,6 +62,7 @@ export async function generateImage(
       prompt: options.prompt,
       original_images: options.originalImages || [],
     }),
+    signal: AbortSignal.timeout(60000),
   });
 
   if (!response.ok) {
