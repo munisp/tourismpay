@@ -67,7 +67,7 @@ class WebSocketManager {
     }
 
     (this.wss as any).on("connection", (ws: WebSocketLike, req: { url?: string }) => {
-      const clientId = `ws_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const clientId = `ws_${Date.now()}_${globalThis.crypto.randomUUID().slice(0, 6)}`;
       const userId = new URL(req.url || "/", "http://localhost").searchParams.get("userId") || "anonymous";
       const role = new URL(req.url || "/", "http://localhost").searchParams.get("role") || "tourist";
 

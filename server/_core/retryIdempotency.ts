@@ -97,7 +97,7 @@ export async function withRetry<T>(
 
       // Exponential backoff with jitter
       const baseDelay = cfg.baseDelayMs * Math.pow(2, attempt);
-      const jitter = baseDelay * 0.1 * Math.random();
+      const jitterBuf = new Uint8Array(4); globalThis.crypto.getRandomValues(jitterBuf); const jitter = baseDelay * 0.1 * (new DataView(jitterBuf.buffer).getUint32(0) / 0xffffffff);
       const delay = Math.min(baseDelay + jitter, cfg.maxDelayMs);
 
       logger.warn(`[Retry] ${operationName} attempt ${attempt + 1}/${cfg.maxRetries} failed (${statusCode}). Retrying in ${Math.round(delay)}ms`);

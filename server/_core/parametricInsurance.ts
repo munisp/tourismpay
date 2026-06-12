@@ -136,7 +136,7 @@ export async function purchasePolicy(userId: string, tripId: string, type: Insur
   if (!template) throw new Error(`Unknown policy type: ${type}`);
 
   const policy: InsurancePolicy = {
-    id: `pol_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `pol_${Date.now()}_${globalThis.crypto.randomUUID().slice(0, 8)}`,
     userId,
     tripId,
     type,
