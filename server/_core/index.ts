@@ -7,6 +7,7 @@ import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
+import compression from "compression";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerSSERoutes } from "../sse";
@@ -63,6 +64,12 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   const app = express();
+
+  // Trust proxy for correct client IP behind load balancer (rate limiting, X-Forwarded-*)
+  if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
+
   const server = createServer(app);
   // Stripe webhook MUST be registered before express.json() for raw body access
   registerStripeWebhook(app);
@@ -150,9 +157,12 @@ async function startServer() {
     res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
   });
 
+  // ─── Response compression ──────────────────────────────────────────────────
+  app.use(compression());
+
   // ─── Body parsers ───────────────────────────────────────────────────────────
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(express.json({ limit: "16mb" }));
+  app.use(express.urlencoded({ limit: "16mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
 
