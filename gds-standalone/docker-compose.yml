@@ -1,31 +1,39 @@
 # Africa-first GDS — Standalone Docker Compose
-# Deploy independently of TourismPay or alongside it.
+# Uses APISIX (gateway) + Keycloak (auth) + OpenAppSec (WAF) instead of Express.
+#
+# Architecture:
+#   External → APISIX (routing, rate limit, JWT) → OpenAppSec (WAF) → Backend Services
+#   Keycloak handles all identity/auth (agents, property managers, API clients)
 #
 # Services:
-#   - gds-gateway: TypeScript API gateway (port 8090)
+#   - apisix: API Gateway (port 9080 HTTP, 9443 HTTPS)
+#   - keycloak: Identity & Access Management (port 8180)
+#   - openappsec: Web Application Firewall
 #   - gds-engine: Go reservation/settlement engine (port 8080)
 #   - gds-search: Python search/pricing service (port 8010)
 #   - gds-analytics: Python analytics/lakehouse service (port 8011)
 #   - postgres: PostgreSQL database
 #   - redis: Cache + session store
 #   - kafka: Event streaming
-#   - zookeeper: Kafka coordinator
 
 version: "3.9"
 
 services:
-  # --- Infrastructure ---
+  # ═══════════════════════════════════════════════════════════════════
+  # INFRASTRUCTURE
+  # ═══════════════════════════════════════════════════════════════════
+
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: gds
       POSTGRES_USER: gds_user
-      POSTGRES_PASSWORD: gds_pass
+      POSTGRES_PASSWORD: ${GDS_DB_PASSWORD:-gds_pass}
     ports:
       - "5433:5432"
     volumes:
       - gds_pgdata:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gds_user -d gds"]
       interval: 5s
@@ -47,8 +55,6 @@ services:
     image: confluentinc/cp-zookeeper:7.5.0
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
-    ports:
-      - "2181:2181"
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -63,37 +69,83 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
-  # --- GDS Services ---
-  gds-gateway:
-    build:
-      context: .
-      dockerfile: Dockerfile.gateway
+  # ═══════════════════════════════════════════════════════════════════
+  # GATEWAY + AUTH + WAF (replaces Express gateway)
+  # ═══════════════════════════════════════════════════════════════════
+
+  apisix:
+    image: apache/apisix:3.8.0-debian
     ports:
-      - "8090:8090"
+      - "9080:9080"   # HTTP (main entry point for external apps)
+      - "9443:9443"   # HTTPS
+      - "9180:9180"   # Admin API
+      - "9091:9091"   # Prometheus metrics
+    volumes:
+      - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+      - ./apisix/routes.yaml:/usr/local/apisix/conf/routes.yaml:ro
     environment:
-      GDS_PORT: "8090"
-      NODE_ENV: production
-      GDS_MULTI_TENANT: "true"
-      GDS_DATABASE_URL: postgresql://gds_user:gds_pass@postgres:5432/gds
-      GDS_REDIS_URL: redis://redis:6379/1
-      GDS_KAFKA_BROKERS: kafka:9092
-      GDS_ENGINE_URL: http://gds-engine:8080
-      GDS_SEARCH_URL: http://gds-search:8010
-      GDS_ANALYTICS_URL: http://gds-analytics:8011
-      GDS_CORS_ORIGINS: "http://localhost:3000,http://localhost:5173"
-      GDS_BRAND_NAME: "Africa GDS"
+      APISIX_ADMIN_KEY: ${APISIX_ADMIN_KEY:-edd1c9f034335f136f87ad84b625c8f1}
+      KEYCLOAK_GDS_CLIENT_ID: gds-api-gateway
+      KEYCLOAK_GDS_CLIENT_SECRET: ${KEYCLOAK_GDS_CLIENT_SECRET:-change-me-in-production}
+      KEYCLOAK_DISCOVERY_URL: http://keycloak:8080/realms/gds/.well-known/openid-configuration
+      GDS_CORS_ORIGINS: ${GDS_CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
     depends_on:
-      postgres:
+      keycloak:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
+      gds-engine:
+        condition: service_started
+      gds-search:
         condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:9080/health"]
       interval: 10s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    command: start-dev --import-realm
+    ports:
+      - "8180:8080"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/gds
+      KC_DB_USERNAME: gds_user
+      KC_DB_PASSWORD: ${GDS_DB_PASSWORD:-gds_pass}
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+    volumes:
+      - ./keycloak/gds-realm.json:/opt/keycloak/data/import/gds-realm.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  openappsec:
+    image: ghcr.io/openappsec/agent:latest
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./openappsec/policy.yaml:/etc/cp/conf/policy.yaml:ro
+    environment:
+      LEARNING_MODE: "false"
+      POLICY_MODE: prevent
+    depends_on:
+      - apisix
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════════════
+  # GDS BACKEND SERVICES
+  # ═══════════════════════════════════════════════════════════════════
 
   gds-engine:
     build:
@@ -102,13 +154,20 @@ services:
     ports:
       - "8080:8080"
     environment:
-      GDS_DATABASE_URL: postgresql://gds_user:gds_pass@postgres:5432/gds
+      GDS_DATABASE_URL: postgresql://gds_user:${GDS_DB_PASSWORD:-gds_pass}@postgres:5432/gds
       REDIS_URL: redis://redis:6379/0
       KAFKA_BROKERS: kafka:9092
+      KEYCLOAK_URL: http://keycloak:8080
+      PERMIFY_ENDPOINT: permify:3478
+      TIGERBEETLE_ADDRESSES: tigerbeetle:3000
+      MOJALOOP_HUB_URL: http://mojaloop:4000
       PORT: "8080"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
   gds-search:
     build:
@@ -117,13 +176,14 @@ services:
     ports:
       - "8010:8010"
     environment:
-      GDS_DATABASE_URL: postgresql://gds_user:gds_pass@postgres:5432/gds
+      GDS_DATABASE_URL: postgresql://gds_user:${GDS_DB_PASSWORD:-gds_pass}@postgres:5432/gds
       REDIS_URL: redis://redis:6379/2
       KAFKA_BROKERS: kafka:9092
       OPENSEARCH_URL: http://opensearch:9200
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
 
   gds-analytics:
     build:
@@ -132,12 +192,13 @@ services:
     ports:
       - "8011:8011"
     environment:
-      GDS_DATABASE_URL: postgresql://gds_user:gds_pass@postgres:5432/gds
+      GDS_DATABASE_URL: postgresql://gds_user:${GDS_DB_PASSWORD:-gds_pass}@postgres:5432/gds
       KAFKA_BROKERS: kafka:9092
       LAKEHOUSE_URL: http://lakehouse:8181
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   gds_pgdata:
