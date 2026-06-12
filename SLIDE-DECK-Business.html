@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TourismPay — Keeping Africa's Tourism Revenue in Africa</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  :root {
+    --bg-dark: #0a0a1a;
+    --bg-slide: #0f0f23;
+    --bg-card: #161633;
+    --bg-card-hover: #1c1c44;
+    --accent: #f59e0b;
+    --accent2: #10b981;
+    --accent3: #6366f1;
+    --accent4: #ec4899;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-bright: #ffffff;
+    --border: #2d2d5e;
+    --gradient1: linear-gradient(135deg, #f59e0b, #ef4444);
+    --gradient2: linear-gradient(135deg, #10b981, #06b6d4);
+    --gradient3: linear-gradient(135deg, #6366f1, #8b5cf6);
+    --gradient4: linear-gradient(135deg, #ec4899, #f43f5e);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg-dark);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  .deck { width: 100vw; height: 100vh; position: relative; }
+
+  .slide {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: none;
+    flex-direction: column;
+    padding: 48px 64px;
+    background: var(--bg-slide);
+    overflow-y: auto;
+  }
+  .slide.active { display: flex; }
+
+  /* Progress bar */
+  .progress { position: fixed; top: 0; left: 0; height: 3px; background: var(--gradient2); z-index: 100; transition: width 0.3s; }
+
+  /* Navigation */
+  .nav-controls {
+    position: fixed; bottom: 24px; right: 32px; z-index: 50;
+    display: flex; gap: 12px; align-items: center;
+  }
+  .nav-btn {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--bg-card); border: 1px solid var(--border);
+    color: var(--text); font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .nav-btn:hover { background: var(--bg-card-hover); border-color: var(--accent); }
+  .slide-num { font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+  /* Typography */
+  .slide-title {
+    font-size: 42px; font-weight: 800; line-height: 1.1;
+    margin-bottom: 8px; color: var(--text-bright);
+  }
+  .slide-subtitle {
+    font-size: 20px; font-weight: 400; color: var(--text-dim);
+    margin-bottom: 36px; line-height: 1.5;
+  }
+  h3 { font-size: 22px; font-weight: 700; margin-bottom: 16px; color: var(--text-bright); }
+
+  /* Cards grid */
+  .cards { display: grid; gap: 20px; }
+  .cards-2 { grid-template-columns: repeat(2, 1fr); }
+  .cards-3 { grid-template-columns: repeat(3, 1fr); }
+  .cards-4 { grid-template-columns: repeat(4, 1fr); }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 24px;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .card-icon { font-size: 32px; margin-bottom: 12px; }
+  .card h4 { font-size: 17px; font-weight: 700; margin-bottom: 8px; color: var(--text-bright); }
+  .card p { font-size: 14px; color: var(--text-dim); line-height: 1.6; }
+
+  /* Stat boxes */
+  .stat-row { display: flex; gap: 20px; flex-wrap: wrap; margin: 20px 0; }
+  .stat-box {
+    flex: 1; min-width: 180px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px; text-align: center;
+  }
+  .stat-number {
+    font-size: 36px; font-weight: 800;
+    background: var(--gradient2); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .stat-label { font-size: 13px; color: var(--text-dim); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* Comparison bars */
+  .comparison { margin: 24px 0; }
+  .compare-row {
+    display: flex; align-items: center; margin-bottom: 16px;
+    background: var(--bg-card); border-radius: 10px; padding: 16px 20px;
+    border: 1px solid var(--border);
+  }
+  .compare-label { width: 160px; font-weight: 600; font-size: 15px; flex-shrink: 0; }
+  .compare-bar-wrap { flex: 1; background: rgba(255,255,255,0.05); border-radius: 6px; height: 28px; position: relative; overflow: hidden; }
+  .compare-bar { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 12px; font-weight: 700; font-size: 14px; color: #fff; }
+  .compare-bar.green { background: var(--gradient2); }
+  .compare-bar.red { background: linear-gradient(90deg, #ef4444, #dc2626); }
+  .compare-bar.amber { background: var(--gradient1); }
+
+  /* Screenshot frame */
+  .screenshot-frame {
+    border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    max-width: 100%;
+  }
+  .screenshot-frame img {
+    width: 100%; display: block;
+    border-radius: 12px;
+  }
+  .screenshot-grid { display: grid; gap: 20px; grid-template-columns: repeat(2, 1fr); }
+  .screenshot-grid.three-col { grid-template-columns: repeat(3, 1fr); }
+  .screenshot-caption {
+    text-align: center; font-size: 13px; color: var(--text-dim);
+    margin-top: 8px; font-weight: 500;
+  }
+
+  /* Flow diagram */
+  .flow { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin: 24px 0; }
+  .flow-step {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 20px; text-align: center; min-width: 140px;
+  }
+  .flow-step .emoji { font-size: 24px; margin-bottom: 4px; }
+  .flow-step .label { font-size: 13px; font-weight: 600; }
+  .flow-arrow { font-size: 20px; color: var(--accent2); }
+
+  /* Pills */
+  .pill {
+    display: inline-block; padding: 4px 14px; border-radius: 20px;
+    font-size: 12px; font-weight: 600; margin: 3px;
+  }
+  .pill-green { background: rgba(16,185,129,0.15); color: #10b981; }
+  .pill-amber { background: rgba(245,158,11,0.15); color: #f59e0b; }
+  .pill-purple { background: rgba(99,102,241,0.15); color: #6366f1; }
+  .pill-pink { background: rgba(236,72,153,0.15); color: #ec4899; }
+  .pill-blue { background: rgba(59,130,246,0.15); color: #3b82f6; }
+
+  /* Two-column layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+  .two-col.wide-right { grid-template-columns: 2fr 3fr; }
+  .two-col.wide-left { grid-template-columns: 3fr 2fr; }
+
+  /* List styles */
+  .feature-list { list-style: none; }
+  .feature-list li {
+    padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 15px; display: flex; align-items: flex-start; gap: 10px;
+  }
+  .feature-list li::before { content: ''; display: none; }
+  .check { color: var(--accent2); font-weight: bold; flex-shrink: 0; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { color: var(--text); }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* Beneficiary section */
+  .benefit-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px; margin-bottom: 16px;
+  }
+  .benefit-card h4 { color: var(--accent); font-size: 18px; margin-bottom: 10px; }
+
+  /* Title slide */
+  .title-slide { justify-content: center; align-items: center; text-align: center; padding: 48px 80px; }
+  .title-slide .slide-title { font-size: 56px; margin-bottom: 16px; }
+  .title-slide .slide-subtitle { font-size: 24px; max-width: 800px; }
+  .tagline { font-size: 16px; color: var(--accent); font-weight: 600; margin-bottom: 20px; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* Highlight number */
+  .highlight-num {
+    font-size: 72px; font-weight: 900; line-height: 1;
+    background: var(--gradient1); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  /* Country flags grid */
+  .country-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .country-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px; text-align: center;
+    font-size: 13px;
+  }
+  .country-card .flag { font-size: 28px; margin-bottom: 4px; }
+
+  @media (max-width: 900px) {
+    .slide { padding: 24px 20px; }
+    .slide-title { font-size: 28px; }
+    .cards-2, .cards-3, .cards-4 { grid-template-columns: 1fr; }
+    .two-col { grid-template-columns: 1fr; }
+    .screenshot-grid { grid-template-columns: 1fr; }
+    .country-grid { grid-template-columns: repeat(3, 1fr); }
+    .title-slide .slide-title { font-size: 36px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<div class="deck" id="deck">
+
+<!-- ═══════════ SLIDE 1: TITLE ═══════════ -->
+<div class="slide title-slide active">
+  <div class="tagline">Africa's Tourism Payment & Distribution Platform</div>
+  <div class="slide-title">TourismPay</div>
+  <div class="slide-subtitle">Keeping tourism revenue where it belongs — in African communities</div>
+  <div style="margin-top:40px; display:flex; gap:24px; justify-content:center; flex-wrap:wrap;">
+    <div class="stat-box" style="min-width:140px;"><div class="stat-number">$97</div><div class="stat-label">Retained per $100 spent</div></div>
+    <div class="stat-box" style="min-width:140px;"><div class="stat-number">20</div><div class="stat-label">African Countries</div></div>
+    <div class="stat-box" style="min-width:140px;"><div class="stat-number">11</div><div class="stat-label">Currencies Supported</div></div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 2: THE PROBLEM ═══════════ -->
+<div class="slide">
+  <div class="slide-title">The Problem</div>
+  <div class="slide-subtitle">Africa's tourism revenue doesn't stay in Africa</div>
+  <div class="two-col">
+    <div>
+      <div style="margin-bottom:24px;">
+        <div class="highlight-num">70%</div>
+        <p style="font-size:18px; margin-top:8px;">of tourist spending in Africa <strong>leaves the continent</strong> through international payment processors, foreign-owned booking platforms, and cross-border fees.</p>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <h4>Where Does the Money Go?</h4>
+        <ul class="feature-list">
+          <li><span class="check" style="color:#ef4444;">✗</span> 5–8% lost to international card processing fees</li>
+          <li><span class="check" style="color:#ef4444;">✗</span> 15–25% commission to foreign booking platforms (Booking.com, Expedia)</li>
+          <li><span class="check" style="color:#ef4444;">✗</span> 3–7 day settlement delays</li>
+          <li><span class="check" style="color:#ef4444;">✗</span> Currency conversion losses at every step</li>
+          <li><span class="check" style="color:#ef4444;">✗</span> No visibility or control for tourism boards</li>
+        </ul>
+      </div>
+    </div>
+    <div>
+      <h3>Revenue Leakage: Traditional vs. TourismPay</h3>
+      <div class="comparison">
+        <p style="font-size:14px; color:var(--text-dim); margin-bottom:16px;">What happens to every $100 a tourist spends:</p>
+        <div class="compare-row">
+          <div class="compare-label">Traditional</div>
+          <div class="compare-bar-wrap">
+            <div class="compare-bar red" style="width:47%;">$47 kept locally</div>
+          </div>
+        </div>
+        <div class="compare-row">
+          <div class="compare-label">TourismPay</div>
+          <div class="compare-bar-wrap">
+            <div class="compare-bar green" style="width:97%;">$97 kept locally</div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px; border-color: var(--accent2);">
+        <h4 style="color:var(--accent2);">The Opportunity</h4>
+        <p>Africa welcomed <strong>67 million</strong> international tourists in 2023, generating <strong>$73 billion</strong> in receipts. With TourismPay, an additional <strong>$36 billion</strong> could stay within African economies annually.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 3: THE SOLUTION ═══════════ -->
+<div class="slide">
+  <div class="slide-title">The Solution</div>
+  <div class="slide-subtitle">A complete payment, compliance, and distribution platform built for African tourism</div>
+  <div class="cards cards-3">
+    <div class="card" style="border-top: 3px solid #f59e0b;">
+      <div class="card-icon">💳</div>
+      <h4>PAY</h4>
+      <p>Multi-currency digital wallet with 11 currencies. Accept payments via mobile money, cards, QR codes, NFC — even offline. Instant settlement to merchants in their local currency.</p>
+    </div>
+    <div class="card" style="border-top: 3px solid #10b981;">
+      <div class="card-icon">📋</div>
+      <h4>COMPLY</h4>
+      <p>Automated KYB onboarding, background investigation service (BIS), AML screening, and document verification. Tourism boards get real-time compliance dashboards.</p>
+    </div>
+    <div class="card" style="border-top: 3px solid #6366f1;">
+      <div class="card-icon">🌍</div>
+      <h4>DISTRIBUTE</h4>
+      <p>Africa-first Global Distribution System (GDS). Connect properties to Sabre, Amadeus, Expedia, Booking.com — or use the standalone agent network at a fraction of the cost.</p>
+    </div>
+  </div>
+  <div style="margin-top:32px;">
+    <div class="screenshot-frame">
+      <img src="https://app.devin.ai/attachments/3d776f5b-eee4-41c4-a081-c8fef3a9c6dc/01-dashboard.png" alt="TourismPay Operations Dashboard">
+    </div>
+    <div class="screenshot-caption">TourismPay Operations Dashboard — Real-time overview of all African market activity</div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 4: WHO BENEFITS ═══════════ -->
+<div class="slide">
+  <div class="slide-title">Who Benefits</div>
+  <div class="slide-subtitle">Every participant in the African tourism value chain</div>
+  <div class="cards cards-3">
+    <div class="card">
+      <div class="card-icon">🏛️</div>
+      <h4>Government & Tourism Boards</h4>
+      <ul class="feature-list">
+        <li><span class="check">→</span> Real-time revenue tracking across all sectors</li>
+        <li><span class="check">→</span> Tax compliance with automated reporting</li>
+        <li><span class="check">→</span> Fraud detection and AML monitoring</li>
+        <li><span class="check">→</span> Data-driven policy decisions</li>
+        <li><span class="check">→</span> Control over who operates in their market</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-icon">🏨</div>
+      <h4>Hotels, Lodges & Tour Operators</h4>
+      <ul class="feature-list">
+        <li><span class="check">→</span> Accept payments in any currency, settle in local currency</li>
+        <li><span class="check">→</span> 97% revenue retention vs. 47% with foreign platforms</li>
+        <li><span class="check">→</span> Distribute inventory to global booking sites</li>
+        <li><span class="check">→</span> Manage QR codes, bookings, and availability in one place</li>
+        <li><span class="check">→</span> Instant settlement — no 7-day waits</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-icon">🧳</div>
+      <h4>Travelers & Diaspora</h4>
+      <ul class="feature-list">
+        <li><span class="check">→</span> One wallet for all African currencies</li>
+        <li><span class="check">→</span> Pay with what's convenient: card, mobile money, crypto, NFC</li>
+        <li><span class="check">→</span> Loyalty rewards redeemable across the network</li>
+        <li><span class="check">→</span> AI trip planning and itinerary building</li>
+        <li><span class="check">→</span> Know your money supports local communities</li>
+      </ul>
+    </div>
+  </div>
+  <div class="cards cards-3" style="margin-top:20px;">
+    <div class="card">
+      <div class="card-icon">🧑‍💼</div>
+      <h4>Travel Agents</h4>
+      <p>Earn commissions (10–18%) via the GDS agent portal. Search, book, and manage properties across 20 countries. Tiered rewards for volume.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🏦</div>
+      <h4>Financial Institutions</h4>
+      <p>Embed tourism-specific financial products: micro-loans for merchants, savings for travelers, insurance integration. CBDC bridge for central banks.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📊</div>
+      <h4>Regional Economic Bodies</h4>
+      <p>Cross-border payment corridors between member states. Track tourism's GDP contribution with real data. Harmonize regulations with shared compliance tools.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 5: DIGITAL WALLET ═══════════ -->
+<div class="slide">
+  <div class="slide-title">Multi-Currency Digital Wallet</div>
+  <div class="slide-subtitle">One wallet for all of Africa — 11 currencies, instant conversion, zero friction</div>
+  <div class="two-col wide-right">
+    <div>
+      <h3>For Travelers</h3>
+      <ul class="feature-list">
+        <li><span class="check">✓</span> Load wallet via card, bank transfer, or mobile money</li>
+        <li><span class="check">✓</span> Hold and swap between 11 currencies instantly</li>
+        <li><span class="check">✓</span> Pay anywhere — QR scan, NFC tap, or in-app</li>
+        <li><span class="check">✓</span> Live exchange rates with transparent pricing</li>
+        <li><span class="check">✓</span> Export transaction history (CSV, PDF statements)</li>
+        <li><span class="check">✓</span> Schedule recurring payments</li>
+      </ul>
+      <h3 style="margin-top:24px;">Supported Currencies</h3>
+      <div style="margin-top:8px;">
+        <span class="pill pill-green">USD</span>
+        <span class="pill pill-green">USDC</span>
+        <span class="pill pill-amber">NGN</span>
+        <span class="pill pill-amber">KES</span>
+        <span class="pill pill-amber">GHS</span>
+        <span class="pill pill-amber">ZAR</span>
+        <span class="pill pill-purple">eNaira</span>
+        <span class="pill pill-purple">eCedi</span>
+        <span class="pill pill-purple">CBDC-KE</span>
+        <span class="pill pill-purple">CBDC-ZA</span>
+        <span class="pill pill-blue">XLM</span>
+      </div>
+    </div>
+    <div>
+      <div class="screenshot-frame">
+        <img src="https://app.devin.ai/attachments/f8e3d586-0437-4c46-b3a9-a6f40dcdaf08/02-wallet.png" alt="Digital Currency Wallet">
+      </div>
+      <div class="screenshot-caption">Digital Wallet — Send, receive, swap, deposit, top up, schedule & convert</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 6: MERCHANT TOOLS ═══════════ -->
+<div class="slide">
+  <div class="slide-title">Merchant Tools</div>
+  <div class="slide-subtitle">Everything a hotel, lodge, safari operator, or restaurant needs — in one platform</div>
+  <div class="screenshot-grid">
+    <div>
+      <div class="screenshot-frame">
+        <img src="https://app.devin.ai/attachments/c0cfffc5-39b7-465b-b2c1-b51886b7b23c/07-merchant-cashier.png" alt="Cashier Terminal">
+      </div>
+      <div class="screenshot-caption">Cashier Terminal — Accept in-person payments</div>
+    </div>
+    <div>
+      <div class="screenshot-frame">
+        <img src="https://app.devin.ai/attachments/c76d881e-8a33-4dc3-b554-d190a1875a9e/09-merchant-qr.png" alt="QR Code Payments">
+      </div>
+      <div class="screenshot-caption">QR Code Generation — Scan-to-pay</div>
+    </div>
+    <div>
+      <div class="screenshot-frame">
+        <img src="https://app.devin.ai/attachments/60c9a098-3ed6-4b3a-903e-48d853a38fa0/05-merchant-products.png" alt="Product Catalog">
+      </div>
+      <div class="screenshot-caption">Product Catalog — Rooms, tours, activities</div>
+    </div>
+    <div>
+      <div class="screenshot-frame">
+        <img src="https://app.devin.ai/attachments/90ac4fc9-8287-43a9-a18c-de95fdd78ed1/06-merchant-bookings.png" alt="Booking Management">
+      </div>
+      <div class="screenshot-caption">Booking Inbox — Manage reservations</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 7: CHANNEL MANAGER ═══════════ -->
+<div class="slide">
+  <div class="slide-title">Global Distribution</div>
+  <div class="slide-subtitle">Connect your property to the world's largest booking platforms — from one dashboard</div>
+  <div class="two-col wide-right">
+    <div>
+      <h3>Connected Platforms</h3>
+      <div class="cards" style="gap:12px;">
+        <div class="card" style="padding:14px 18px;"><h4 style="margin:0;">Sabre GDS</h4><p>400,000+ travel agents worldwide</p></div>
+        <div class="card" style="padding:14px 18px;"><h4 style="margin:0;">Amadeus</h4><p>Self-service hotel distribution</p></div>
+        <div class="card" style="padding:14px 18px;"><h4 style="margin:0;">Expedia</h4><p>World's largest OTA group</p></div>
+        <div class="card" style="padding:14px 18px;"><h4 style="margin:0;">Booking.com</h4><p>28+ million listings, 226 countries</p></div>
+        <div class="card" style="padding:14px 18px;"><h4 style="margin:0;">Little Emperors</h4><p>Luxury flash-sale inventory</p></div>
+        <div class="card" style="padding:14px 18px;"><h4 style="margin:0;">Travelport</h4><p>Galileo, Apollo, Worldspan</p></div>
+      </div>
+    </div>
+    <div>
+      <div class="screenshot-frame">
+        <img src="https://app.devin.ai/attachments/0a28876d-df64-4d92-b771-2d52ab69821a/08-channel-manager.png" alt="Channel Manager">
+      </div>
+      <div class="screenshot-caption">Channel Manager — One-click connect, real-time sync, rate parity monitoring</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 8: OFFLINE & REMOTE PAYMENTS ═══════════ -->
+<div class="slide">
+  <div class="slide-title">Works Everywhere</div>
+  <div class="slide-subtitle">From Nairobi hotels to Masai Mara bush camps — payments work with or without internet</div>
+  <div class="cards cards-3">
+    <div class="card" style="border-top: 3px solid #f59e0b;">
+      <div class="card-icon">📶</div>
+      <h4>Offline NFC Payments</h4>
+      <p>Cryptographically signed vouchers stored on device. Tourist taps phone → payment recorded locally → syncs when connectivity returns. Perfect for safaris, national parks, and rural areas.</p>
+    </div>
+    <div class="card" style="border-top: 3px solid #10b981;">
+      <div class="card-icon">📱</div>
+      <h4>Mobile Money Integration</h4>
+      <p>Accept M-Pesa, MTN Mobile Money, Airtel Money, and other popular African mobile payment methods. Tourists don't need a bank account — just a phone.</p>
+    </div>
+    <div class="card" style="border-top: 3px solid #6366f1;">
+      <div class="card-icon">🏦</div>
+      <h4>CBDC Bridge</h4>
+      <p>First platform to integrate Africa's Central Bank Digital Currencies — eNaira and eCedi. Ready for future digital currencies as central banks launch them.</p>
+    </div>
+  </div>
+  <div style="margin-top:32px;">
+    <h3>Cross-Border Mesh Payments</h3>
+    <p style="color:var(--text-dim); margin-bottom:16px;">Direct country-to-country payment corridors — bypassing SWIFT entirely</p>
+    <div class="flow">
+      <div class="flow-step"><div class="emoji">🇳🇬</div><div class="label">Nigeria</div></div>
+      <div class="flow-arrow">⇄</div>
+      <div class="flow-step"><div class="emoji">🇬🇭</div><div class="label">Ghana</div></div>
+      <div class="flow-arrow">⇄</div>
+      <div class="flow-step"><div class="emoji">🇰🇪</div><div class="label">Kenya</div></div>
+      <div class="flow-arrow">⇄</div>
+      <div class="flow-step"><div class="emoji">🇹🇿</div><div class="label">Tanzania</div></div>
+      <div class="flow-arrow">⇄</div>
+      <div class="flow-step"><div class="emoji">🇿🇦</div><div class="label">South Africa</div></div>
+      <div class="flow-arrow">⇄</div>
+      <div class="flow-step"><div class="emoji">🇪🇬</div><div class="label">Egypt</div></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-box"><div class="stat-number">0.4–0.7%</div><div class="stat-label">TourismPay Cross-Border Fee</div></div>
+      <div class="stat-box"><div class="stat-number" style="background:var(--gradient1);-webkit-background-clip:text;">5–8%</div><div class="stat-label">Traditional SWIFT Fee</div></div>
+      <div class="stat-box"><div class="stat-number">6</div><div class="stat-label">Active Corridors</div></div>
+      <div class="stat-box"><div class="stat-number">&lt;30s</div><div class="stat-label">Settlement Time</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 9: HOW PAYMENTS STAY LOCAL ═══════════ -->
+<div class="slide">
+  <div class="slide-title">How Payments Stay Local</div>
+  <div class="slide-subtitle">The exact mechanics of how TourismPay keeps 97% of tourist spending in African economies</div>
+  <div class="two-col">
+    <div>
+      <h3 style="color:#ef4444;">Traditional Flow — Only $47 Stays</h3>
+      <table>
+        <tr><td>Tourist pays</td><td style="text-align:right;">$100.00</td></tr>
+        <tr><td>International card processor (Visa/MC)</td><td style="text-align:right; color:#ef4444;">−$3.50</td></tr>
+        <tr><td>Foreign booking platform (Expedia/Booking)</td><td style="text-align:right; color:#ef4444;">−$18.00</td></tr>
+        <tr><td>Currency conversion (2 hops)</td><td style="text-align:right; color:#ef4444;">−$5.50</td></tr>
+        <tr><td>International bank transfer (SWIFT)</td><td style="text-align:right; color:#ef4444;">−$7.00</td></tr>
+        <tr><td>Correspondent bank fees</td><td style="text-align:right; color:#ef4444;">−$4.00</td></tr>
+        <tr><td>Local payment gateway</td><td style="text-align:right; color:#ef4444;">−$2.50</td></tr>
+        <tr><td>Settlement delays (float cost)</td><td style="text-align:right; color:#ef4444;">−$2.50</td></tr>
+        <tr style="font-weight:700; font-size:16px;"><td>Merchant receives</td><td style="text-align:right; color:#ef4444;">$47.00</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3 style="color:#10b981;">TourismPay Flow — $97 Stays</h3>
+      <table>
+        <tr><td>Tourist pays (wallet, mobile money, QR)</td><td style="text-align:right;">$100.00</td></tr>
+        <tr><td>TourismPay platform fee</td><td style="text-align:right; color:#f59e0b;">−$2.00</td></tr>
+        <tr><td>Local settlement (same currency)</td><td style="text-align:right; color:#f59e0b;">−$0.50</td></tr>
+        <tr><td>Currency conversion (if needed)</td><td style="text-align:right; color:#f59e0b;">−$0.50</td></tr>
+        <tr><td colspan="2" style="border:none; height:16px;"></td></tr>
+        <tr><td colspan="2" style="border:none; height:16px;"></td></tr>
+        <tr><td colspan="2" style="border:none; height:16px;"></td></tr>
+        <tr><td colspan="2" style="border:none; height:16px;"></td></tr>
+        <tr style="font-weight:700; font-size:16px;"><td>Merchant receives</td><td style="text-align:right; color:#10b981;">$97.00</td></tr>
+      </table>
+      <div class="card" style="margin-top:16px; border-color: var(--accent2);">
+        <h4 style="color:var(--accent2); margin-bottom:6px;">Why It Works</h4>
+        <p style="font-size:13px;">Payments stay on local rails. No SWIFT. No correspondent banks. No foreign platform commissions. Currency conversion happens once, at interbank rates, within the TourismPay network.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 10: TOURISM BOARD BENEFITS ═══════════ -->
+<div class="slide">
+  <div class="slide-title">For Tourism Boards & Government</div>
+  <div class="slide-subtitle">Complete visibility and control over your country's tourism economy</div>
+  <div class="two-col wide-right">
+    <div>
+      <div class="benefit-card">
+        <h4>🔍 Real-Time Revenue Intelligence</h4>
+        <p>See exactly how much tourist spending flows into each sector — hotels, restaurants, transport, activities — in real time. No more waiting for annual surveys.</p>
+      </div>
+      <div class="benefit-card">
+        <h4>🛡️ Compliance & Vetting</h4>
+        <p>Every tourism business is KYB-verified and background-checked via the BIS system. Board controls who operates. Bad actors are flagged automatically.</p>
+      </div>
+      <div class="benefit-card">
+        <h4>📊 Data-Driven Policy</h4>
+        <p>Understand tourist behavior, seasonal patterns, spending by origin country, high-demand areas. Make infrastructure and marketing investments based on data, not guesswork.</p>
+      </div>
+      <div class="benefit-card">
+        <h4>💰 Tax Compliance</h4>
+        <p>Automated tax reporting for every transaction. Tourism levies calculated and collected transparently. Reduced informal economy leakage.</p>
+      </div>
+    </div>
+    <div>
+      <div class="screenshot-frame">
+        <img src="https://app.devin.ai/attachments/de83d74b-067a-47f4-ab0d-59217187e67d/15-bis-dashboard.png" alt="BIS Dashboard">
+      </div>
+      <div class="screenshot-caption">Background Investigation Service — Verify and monitor all tourism businesses</div>
+      <div style="margin-top:20px;">
+        <div class="screenshot-frame">
+          <img src="https://app.devin.ai/attachments/b00cf773-7a4c-4b8c-a1fd-8736bfe321e6/14-admin-panel.png" alt="Admin Panel">
+        </div>
+        <div class="screenshot-caption">Administration Panel — KYB approvals, user management, audit trail</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 11: TRAVELER EXPERIENCE ═══════════ -->
+<div class="slide">
+  <div class="slide-title">The Traveler Experience</div>
+  <div class="slide-subtitle">From planning to paying to remembering — one seamless journey</div>
+  <div class="flow" style="margin-bottom:32px;">
+    <div class="flow-step"><div class="emoji">🔍</div><div class="label">Discover</div></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="emoji">📅</div><div class="label">Plan & Book</div></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="emoji">💳</div><div class="label">Pay Locally</div></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="emoji">🏨</div><div class="label">Experience</div></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="emoji">⭐</div><div class="label">Review</div></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step"><div class="emoji">🎁</div><div class="label">Earn Rewards</div></div>
+  </div>
+  <div class="screenshot-grid">
+    <div>
+      <div class="screenshot-frame">
+        <img src="https://app.devin.ai/attachments/2757c665-a6ba-4ab5-910f-c20b643bbcab/03-tourist-portal.png" alt="Tourist Portal">
+      </div>
+      <div class="screenshot-caption">Tourist Portal — Discover experiences across Africa</div>
+    </div>
+    <div>
+      <div class="screenshot-frame">
+        <img src="https://app.devin.ai/attachments/b3ae210f-cbe9-40df-9ec4-b0efdf2a6179/16-loyalty.png" alt="Loyalty & Rewards">
+      </div>
+      <div class="screenshot-caption">Loyalty Program — Earn and redeem across the network</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 12: DIASPORA ═══════════ -->
+<div class="slide">
+  <div class="slide-title">For the African Diaspora</div>
+  <div class="slide-subtitle">Stay connected to home — book, pay, and support family businesses from anywhere</div>
+  <div class="cards cards-3">
+    <div class="card" style="border-top: 3px solid #f59e0b;">
+      <div class="card-icon">🎁</div>
+      <h4>Gift Experiences</h4>
+      <p>Book hotels, restaurants, and activities for family and friends back home. Pay in your local currency — they receive in theirs. No complex international transfers.</p>
+    </div>
+    <div class="card" style="border-top: 3px solid #10b981;">
+      <div class="card-icon">💸</div>
+      <h4>Remit at Real Rates</h4>
+      <p>Send money through tourism mesh payments at 0.4–0.7% — not the 8–12% charged by Western Union or MoneyGram. Funds arrive in minutes, not days.</p>
+    </div>
+    <div class="card" style="border-top: 3px solid #6366f1;">
+      <div class="card-icon">🏠</div>
+      <h4>Plan Trips Home</h4>
+      <p>AI-powered itinerary builder creates complete homecoming trips. Book verified hotels and restaurants. Loyalty points apply. Everything in one app.</p>
+    </div>
+  </div>
+  <div class="stat-row" style="margin-top:32px;">
+    <div class="stat-box"><div class="stat-number">$95B</div><div class="stat-label">Annual African Diaspora Remittances</div></div>
+    <div class="stat-box"><div class="stat-number">$9B</div><div class="stat-label">Lost to Transfer Fees</div></div>
+    <div class="stat-box"><div class="stat-number">0.4%</div><div class="stat-label">TourismPay Transfer Fee</div></div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 13: AFRICA-FIRST GDS ═══════════ -->
+<div class="slide">
+  <div class="slide-title">Africa-First GDS</div>
+  <div class="slide-subtitle">The first Global Distribution System designed for African tourism — not adapted from a Western model</div>
+  <div class="two-col">
+    <div>
+      <h3>Why Africa Needs Its Own GDS</h3>
+      <ul class="feature-list">
+        <li><span class="check">✓</span> <strong>Sabre/Amadeus charge 2–5% per booking</strong> — TourismPay GDS charges 0.5%</li>
+        <li><span class="check">✓</span> <strong>Western GDS don't support M-Pesa</strong> — TourismPay does natively</li>
+        <li><span class="check">✓</span> <strong>Small lodges can't afford GDS onboarding</strong> — TourismPay is self-service</li>
+        <li><span class="check">✓</span> <strong>Safari/activity operators are excluded</strong> — TourismPay supports all 18 business types</li>
+        <li><span class="check">✓</span> <strong>No offline capability</strong> — TourismPay works in remote areas</li>
+      </ul>
+      <h3 style="margin-top:24px;">Agent Commission Tiers</h3>
+      <table>
+        <tr><th>Tier</th><th>Commission</th><th>Requirement</th></tr>
+        <tr><td><span class="pill pill-amber">Bronze</span></td><td>10%</td><td>0+ bookings</td></tr>
+        <tr><td><span class="pill pill-blue">Silver</span></td><td>12%</td><td>50+ bookings</td></tr>
+        <tr><td><span class="pill pill-purple">Gold</span></td><td>15%</td><td>200+ bookings</td></tr>
+        <tr><td><span class="pill pill-pink">Platinum</span></td><td>18%</td><td>500+ bookings</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>How It Works</h3>
+      <div class="flow" style="flex-direction:column; align-items:stretch;">
+        <div class="flow-step" style="text-align:left; min-width:auto;">
+          <div><strong>1. Properties Register</strong></div>
+          <div style="font-size:12px; color:var(--text-dim);">Hotels, lodges, safari operators self-onboard with KYB verification</div>
+        </div>
+        <div class="flow-arrow" style="text-align:center;">↓</div>
+        <div class="flow-step" style="text-align:left; min-width:auto;">
+          <div><strong>2. Set Rates & Availability</strong></div>
+          <div style="font-size:12px; color:var(--text-dim);">Real-time inventory synced across all distribution channels</div>
+        </div>
+        <div class="flow-arrow" style="text-align:center;">↓</div>
+        <div class="flow-step" style="text-align:left; min-width:auto;">
+          <div><strong>3. Agents Search & Book</strong></div>
+          <div style="font-size:12px; color:var(--text-dim);">Travel agents across Africa find and book properties via portal or API</div>
+        </div>
+        <div class="flow-arrow" style="text-align:center;">↓</div>
+        <div class="flow-step" style="text-align:left; min-width:auto;">
+          <div><strong>4. Instant Settlement</strong></div>
+          <div style="font-size:12px; color:var(--text-dim);">Property paid in local currency, agent earns commission — same day</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 14: SECURITY & COMPLIANCE ═══════════ -->
+<div class="slide">
+  <div class="slide-title">Trust & Security</div>
+  <div class="slide-subtitle">Enterprise-grade security protects every transaction, every user, every business</div>
+  <div class="two-col wide-right">
+    <div>
+      <div class="cards" style="gap:12px;">
+        <div class="card" style="padding:16px;">
+          <h4 style="margin:0 0 4px;">🔐 End-to-End Encryption</h4>
+          <p>AES-256-GCM encryption for all sensitive data at rest and in transit</p>
+        </div>
+        <div class="card" style="padding:16px;">
+          <h4 style="margin:0 0 4px;">🛡️ Web Application Firewall</h4>
+          <p>Real-time protection against injection attacks, XSS, CSRF, and API abuse</p>
+        </div>
+        <div class="card" style="padding:16px;">
+          <h4 style="margin:0 0 4px;">👤 Identity & Access Control</h4>
+          <p>Role-based access with biometric authentication for high-value transactions</p>
+        </div>
+        <div class="card" style="padding:16px;">
+          <h4 style="margin:0 0 4px;">🕵️ Fraud Detection</h4>
+          <p>AI-powered anomaly detection flags suspicious activity in real time</p>
+        </div>
+        <div class="card" style="padding:16px;">
+          <h4 style="margin:0 0 4px;">📝 Full Audit Trail</h4>
+          <p>Every action logged. Every transaction traceable. Complete accountability.</p>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="screenshot-frame">
+        <img src="https://app.devin.ai/attachments/96edf508-56d3-4e93-a1f7-5bfdd8cbcc5c/17-fraud-monitor.png" alt="Fraud Monitor">
+      </div>
+      <div class="screenshot-caption">Fraud Monitoring Dashboard — AI-powered anomaly detection</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 15: AVAILABILITY & OPERATIONS ═══════════ -->
+<div class="slide">
+  <div class="slide-title">Operations Made Simple</div>
+  <div class="slide-subtitle">From managing room availability to tracking revenue — merchants get a complete business toolkit</div>
+  <div class="screenshot-grid">
+    <div>
+      <div class="screenshot-frame">
+        <img src="https://app.devin.ai/attachments/ae8a3ce6-996f-4d02-aef9-d23186bbc0d7/04-merchant-revenue.png" alt="Revenue Dashboard">
+      </div>
+      <div class="screenshot-caption">Revenue Dashboard — Track earnings, payouts, and trends</div>
+    </div>
+    <div>
+      <div class="screenshot-frame">
+        <img src="https://app.devin.ai/attachments/f4f791f7-16d0-4f9d-8d3b-c229558b3814/10-availability.png" alt="Availability Calendar">
+      </div>
+      <div class="screenshot-caption">Availability Calendar — Manage inventory by date</div>
+    </div>
+  </div>
+  <div class="cards cards-4" style="margin-top:24px;">
+    <div class="card" style="text-align:center; padding:16px;">
+      <div style="font-size:28px;">🏨</div>
+      <h4>18</h4>
+      <p>Business types supported</p>
+    </div>
+    <div class="card" style="text-align:center; padding:16px;">
+      <div style="font-size:28px;">📦</div>
+      <h4>Bulk Import</h4>
+      <p>Upload 1000 products via CSV</p>
+    </div>
+    <div class="card" style="text-align:center; padding:16px;">
+      <div style="font-size:28px;">📊</div>
+      <h4>Price Audit</h4>
+      <p>Full change history trail</p>
+    </div>
+    <div class="card" style="text-align:center; padding:16px;">
+      <div style="font-size:28px;">👥</div>
+      <h4>Staff Roles</h4>
+      <p>Invite & manage team</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 16: WHITE-LABEL GDS ═══════════ -->
+<div class="slide">
+  <div class="slide-title">White-Label GDS</div>
+  <div class="slide-subtitle">Tourism boards and OTAs can run their own branded booking platform — powered by TourismPay</div>
+  <div class="two-col">
+    <div>
+      <h3>What You Get</h3>
+      <ul class="feature-list">
+        <li><span class="check">✓</span> <strong>Your brand, your domain</strong> — fully customizable portal</li>
+        <li><span class="check">✓</span> <strong>Multi-tenant</strong> — complete data isolation between organizations</li>
+        <li><span class="check">✓</span> <strong>API-first</strong> — SDKs in Python, TypeScript, and Go</li>
+        <li><span class="check">✓</span> <strong>Developer sandbox</strong> — test everything before going live</li>
+        <li><span class="check">✓</span> <strong>Metered billing</strong> — pay only for what you use</li>
+      </ul>
+      <h3 style="margin-top:24px;">Ideal For</h3>
+      <div style="margin-top:8px;">
+        <span class="pill pill-green">Tourism Boards</span>
+        <span class="pill pill-amber">Hotel Chains</span>
+        <span class="pill pill-purple">OTA Startups</span>
+        <span class="pill pill-pink">Travel Agencies</span>
+        <span class="pill pill-blue">Fintech Platforms</span>
+      </div>
+    </div>
+    <div>
+      <h3>Pricing</h3>
+      <table>
+        <tr><th>Plan</th><th>API Calls/Month</th><th>Price</th></tr>
+        <tr><td><span class="pill pill-green">Sandbox</span></td><td>10,000</td><td>Free</td></tr>
+        <tr><td><span class="pill pill-amber">Starter</span></td><td>100,000</td><td>$49/mo</td></tr>
+        <tr><td><span class="pill pill-purple">Professional</span></td><td>1,000,000</td><td>$199/mo</td></tr>
+        <tr><td><span class="pill pill-pink">Enterprise</span></td><td>Unlimited</td><td>$999/mo</td></tr>
+      </table>
+      <div class="card" style="margin-top:20px;">
+        <h4>Kenya Tourism Board Example</h4>
+        <p>Deploy "Visit Kenya" booking portal in 24 hours. Properties across all 47 counties. Agent network of 200+ Kenyan travel agencies. KTB gets real-time dashboards, revenue data, and compliance visibility — branded entirely as their own.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 17: COMPETITIVE ADVANTAGE ═══════════ -->
+<div class="slide">
+  <div class="slide-title">Why TourismPay Wins</div>
+  <div class="slide-subtitle">Feature comparison against existing global platforms</div>
+  <table style="margin-top:16px;">
+    <tr>
+      <th>Capability</th>
+      <th style="text-align:center;">TourismPay</th>
+      <th style="text-align:center;">Sabre/Amadeus</th>
+      <th style="text-align:center;">Expedia/Booking</th>
+      <th style="text-align:center;">Flutterwave</th>
+    </tr>
+    <tr><td>African mobile money (M-Pesa, MTN)</td><td style="text-align:center; color:#10b981; font-weight:700;">Yes</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#10b981;">Yes</td></tr>
+    <tr><td>Offline NFC payments</td><td style="text-align:center; color:#10b981; font-weight:700;">Yes</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#ef4444;">No</td></tr>
+    <tr><td>CBDC integration (eNaira, eCedi)</td><td style="text-align:center; color:#10b981; font-weight:700;">Yes</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#ef4444;">No</td></tr>
+    <tr><td>Cross-border mesh payments</td><td style="text-align:center; color:#10b981; font-weight:700;">Yes</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#f59e0b;">Partial</td></tr>
+    <tr><td>Built-in GDS + distribution</td><td style="text-align:center; color:#10b981; font-weight:700;">Yes</td><td style="text-align:center; color:#10b981;">Yes</td><td style="text-align:center; color:#f59e0b;">OTA only</td><td style="text-align:center; color:#ef4444;">No</td></tr>
+    <tr><td>KYB/BIS compliance system</td><td style="text-align:center; color:#10b981; font-weight:700;">Yes</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#ef4444;">No</td></tr>
+    <tr><td>Small business self-onboarding</td><td style="text-align:center; color:#10b981; font-weight:700;">Yes</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#f59e0b;">Limited</td><td style="text-align:center; color:#10b981;">Yes</td></tr>
+    <tr><td>Multi-currency wallet</td><td style="text-align:center; color:#10b981; font-weight:700;">11 currencies</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#f59e0b;">Payments only</td></tr>
+    <tr><td>Local revenue retention</td><td style="text-align:center; color:#10b981; font-weight:700;">97%</td><td style="text-align:center; color:#ef4444;">~60%</td><td style="text-align:center; color:#ef4444;">~47%</td><td style="text-align:center; color:#f59e0b;">~85%</td></tr>
+    <tr><td>Tourism board dashboards</td><td style="text-align:center; color:#10b981; font-weight:700;">Yes</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#ef4444;">No</td><td style="text-align:center; color:#ef4444;">No</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════ SLIDE 18: 20 COUNTRIES ═══════════ -->
+<div class="slide">
+  <div class="slide-title">20 African Markets</div>
+  <div class="slide-subtitle">Launching across East, West, Southern, and North Africa</div>
+  <div class="country-grid" style="margin-top:24px;">
+    <div class="country-card"><div class="flag">🇳🇬</div>Nigeria</div>
+    <div class="country-card"><div class="flag">🇰🇪</div>Kenya</div>
+    <div class="country-card"><div class="flag">🇬🇭</div>Ghana</div>
+    <div class="country-card"><div class="flag">🇿🇦</div>South Africa</div>
+    <div class="country-card"><div class="flag">🇪🇬</div>Egypt</div>
+    <div class="country-card"><div class="flag">🇹🇿</div>Tanzania</div>
+    <div class="country-card"><div class="flag">🇷🇼</div>Rwanda</div>
+    <div class="country-card"><div class="flag">🇪🇹</div>Ethiopia</div>
+    <div class="country-card"><div class="flag">🇲🇦</div>Morocco</div>
+    <div class="country-card"><div class="flag">🇺🇬</div>Uganda</div>
+    <div class="country-card"><div class="flag">🇨🇮</div>Côte d'Ivoire</div>
+    <div class="country-card"><div class="flag">🇸🇳</div>Senegal</div>
+    <div class="country-card"><div class="flag">🇿🇼</div>Zimbabwe</div>
+    <div class="country-card"><div class="flag">🇧🇼</div>Botswana</div>
+    <div class="country-card"><div class="flag">🇳🇦</div>Namibia</div>
+    <div class="country-card"><div class="flag">🇲🇺</div>Mauritius</div>
+    <div class="country-card"><div class="flag">🇹🇳</div>Tunisia</div>
+    <div class="country-card"><div class="flag">🇲🇿</div>Mozambique</div>
+    <div class="country-card"><div class="flag">🇨🇲</div>Cameroon</div>
+    <div class="country-card"><div class="flag">🇲🇬</div>Madagascar</div>
+  </div>
+  <div class="stat-row" style="margin-top:28px;">
+    <div class="stat-box"><div class="stat-number">67M</div><div class="stat-label">International Tourists (2023)</div></div>
+    <div class="stat-box"><div class="stat-number">$73B</div><div class="stat-label">Tourism Revenue</div></div>
+    <div class="stat-box"><div class="stat-number">$36B</div><div class="stat-label">Recoverable Revenue</div></div>
+    <div class="stat-box"><div class="stat-number">2.4M</div><div class="stat-label">Tourism Businesses</div></div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 19: REVENUE MODEL ═══════════ -->
+<div class="slide">
+  <div class="slide-title">Revenue Model</div>
+  <div class="slide-subtitle">Multiple revenue streams that grow with the ecosystem</div>
+  <div class="cards cards-3">
+    <div class="card" style="border-top: 3px solid #f59e0b;">
+      <div class="card-icon">💳</div>
+      <h4>Transaction Fees</h4>
+      <p style="font-size:28px; font-weight:800; color:var(--accent);">2%</p>
+      <p>On every tourist payment processed through the platform. Volume-based discounts for large merchants.</p>
+    </div>
+    <div class="card" style="border-top: 3px solid #10b981;">
+      <div class="card-icon">🌍</div>
+      <h4>GDS Distribution</h4>
+      <p style="font-size:28px; font-weight:800; color:var(--accent2);">0.5%</p>
+      <p>Per booking through the Africa GDS. Agents pay nothing — properties fund distribution.</p>
+    </div>
+    <div class="card" style="border-top: 3px solid #6366f1;">
+      <div class="card-icon">🔌</div>
+      <h4>White-Label SaaS</h4>
+      <p style="font-size:28px; font-weight:800; color:var(--accent3);">$49–$999/mo</p>
+      <p>Tourism boards and OTAs pay for branded GDS portal + API access. Metered by usage.</p>
+    </div>
+  </div>
+  <div class="cards cards-3" style="margin-top:20px;">
+    <div class="card">
+      <div class="card-icon">💱</div>
+      <h4>FX Spread</h4>
+      <p>Small margin on currency conversions within the wallet. Transparent pricing — always better than banks.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📊</div>
+      <h4>Premium Analytics</h4>
+      <p>Advanced market intelligence, demand forecasting, and custom reports for tourism boards and chains.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🏦</div>
+      <h4>Embedded Finance</h4>
+      <p>Micro-loans for merchants, travel insurance, and savings products — revenue share with financial partners.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 20: BY THE NUMBERS ═══════════ -->
+<div class="slide">
+  <div class="slide-title">Platform at a Glance</div>
+  <div class="slide-subtitle">Built for scale, ready for production</div>
+  <div class="stat-row">
+    <div class="stat-box"><div class="stat-number">50+</div><div class="stat-label">Web Application Pages</div></div>
+    <div class="stat-box"><div class="stat-number">89</div><div class="stat-label">Mobile App Screens</div></div>
+    <div class="stat-box"><div class="stat-number">200+</div><div class="stat-label">API Endpoints</div></div>
+    <div class="stat-box"><div class="stat-number">18</div><div class="stat-label">Business Types</div></div>
+  </div>
+  <div class="stat-row">
+    <div class="stat-box"><div class="stat-number">11</div><div class="stat-label">Currencies</div></div>
+    <div class="stat-box"><div class="stat-number">6</div><div class="stat-label">Payment Corridors</div></div>
+    <div class="stat-box"><div class="stat-number">6</div><div class="stat-label">GDS Channels</div></div>
+    <div class="stat-box"><div class="stat-number">20</div><div class="stat-label">Countries</div></div>
+  </div>
+  <div class="stat-row">
+    <div class="stat-box"><div class="stat-number">100/100</div><div class="stat-label">Security Score</div></div>
+    <div class="stat-box"><div class="stat-number">100/100</div><div class="stat-label">Business Logic Score</div></div>
+    <div class="stat-box"><div class="stat-number">100/100</div><div class="stat-label">Middleware Score</div></div>
+    <div class="stat-box"><div class="stat-number">100/100</div><div class="stat-label">UI/UX Score</div></div>
+  </div>
+</div>
+
+<!-- ═══════════ SLIDE 21: VISION ═══════════ -->
+<div class="slide title-slide">
+  <div class="tagline">Our Vision</div>
+  <div class="slide-title">Every tourism dollar spent<br>in Africa stays in Africa</div>
+  <div class="slide-subtitle" style="max-width:700px;">
+    TourismPay is more than a payment platform. It's economic infrastructure — built by Africans, for African tourism, ensuring that the communities who create extraordinary experiences are the ones who benefit from them.
+  </div>
+  <div style="margin-top:40px; display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+    <span class="pill pill-green" style="font-size:14px; padding:8px 20px;">Pay</span>
+    <span class="pill pill-amber" style="font-size:14px; padding:8px 20px;">Comply</span>
+    <span class="pill pill-purple" style="font-size:14px; padding:8px 20px;">Distribute</span>
+    <span class="pill pill-pink" style="font-size:14px; padding:8px 20px;">Retain</span>
+  </div>
+</div>
+
+</div><!-- end deck -->
+
+<!-- Navigation -->
+<div class="nav-controls">
+  <span class="slide-num" id="slideNum">1 / 21</span>
+  <button class="nav-btn" onclick="navigate(-1)" title="Previous (←)">‹</button>
+  <button class="nav-btn" onclick="navigate(1)" title="Next (→)">›</button>
+</div>
+
+<script>
+  let current = 0;
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  const progress = document.getElementById('progress');
+  const slideNum = document.getElementById('slideNum');
+
+  function show(idx) {
+    current = Math.max(0, Math.min(idx, total - 1));
+    slides.forEach((s, i) => s.classList.toggle('active', i === current));
+    progress.style.width = ((current + 1) / total * 100) + '%';
+    slideNum.textContent = (current + 1) + ' / ' + total;
+  }
+
+  function navigate(dir) { show(current + dir); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); navigate(1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); navigate(-1); }
+    else if (e.key === 'Home') { e.preventDefault(); show(0); }
+    else if (e.key === 'End') { e.preventDefault(); show(total - 1); }
+  });
+
+  let touchStartX = 0;
+  document.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; });
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].screenX - touchStartX;
+    if (Math.abs(dx) > 50) navigate(dx < 0 ? 1 : -1);
+  });
+</script>
+</body>
+</html>
