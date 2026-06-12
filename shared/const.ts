@@ -2,7 +2,12 @@ export const COOKIE_NAME = "app_session_id";
 /** @deprecated Use SESSION_TTL_MS for production. ONE_YEAR_MS retained for backward compat. */
 export const ONE_YEAR_MS = 1000 * 60 * 60 * 24 * 365;
 /** Production session lifetime: 24 hours (configurable via SESSION_TTL_HOURS env var) */
-export const SESSION_TTL_MS = 1000 * 60 * 60 * (parseInt(process.env.SESSION_TTL_HOURS || "24", 10));
+export const SESSION_TTL_MS = 1000 * 60 * 60 * (parseInt(
+  typeof process !== "undefined" && process.env?.SESSION_TTL_HOURS
+    ? process.env.SESSION_TTL_HOURS
+    : "24",
+  10,
+));
 export const AXIOS_TIMEOUT_MS = 30_000;
 export const UNAUTHED_ERR_MSG = 'Please login (10001)';
 export const NOT_ADMIN_ERR_MSG = 'You do not have required permission (10002)';
