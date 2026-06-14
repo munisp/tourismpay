@@ -187,6 +187,36 @@ node scripts/seed-all.mjs
 
 **Note**: The seed script's default TypeScript DB credentials might not match your env. Always pass `DATABASE_URL` explicitly.
 
+### Stablecoin On-Ramp / Off-Ramp Testing
+The `/wallet/stablecoin` page requires:
+1. 4 stablecoin tables: `stablecoin_onramp_orders`, `stablecoin_offramp_requests`, `stablecoin_limit_orders`, `stablecoin_yield_positions`
+2. Drizzle migration 0063 must be applied, or tables created manually to match `drizzle/schema.ts` (lines 2242-2406)
+3. `wallet_balances` and `wallet_transactions` timestamp columns must be BIGINT (not INTEGER) — `Date.now()` returns ms timestamps (~1.78 trillion)
+
+**Critical: CSRF on mutations.** The CSRF middleware (server/_core/index.ts:120-141) uses double-submit cookies. The tRPC client in `main.tsx` reads `csrf-token` cookie and sends it as `X-CSRF-Token` header. If mutations return 403 "CSRF token mismatch", verify:
+- Cookie `csrf-token` exists (set on first GET request)
+- `X-CSRF-Token` header is sent with POST requests
+- Both values match
+
+**Test with Playwright** (more reliable than browser tool for programmatic tests):
+```javascript
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+const page = await browser.newPage();
+await page.goto('http://localhost:3000/api/dev/session-token?redirect=/wallet/stablecoin');
+// Fill amount, check quote, click Buy USDC, verify toast + dialog
+```
+
+**Test with curl:**
+```bash
+curl -s -c /tmp/cookies.txt "http://localhost:3000/api/dev/session-token?redirect=/"
+CSRF=$(grep csrf-token /tmp/cookies.txt | awk '{print $NF}')
+curl -s -b /tmp/cookies.txt -H "x-csrf-token: $CSRF" \
+  -H "Content-Type: application/json" \
+  "http://localhost:3000/api/trpc/stablecoinSwap.onrampBuy" \
+  -d '{"json":{"sourceCurrency":"NGN","sourceAmount":10000,"targetStablecoin":"USDC","paymentRail":"mpesa"}}'
+```
+
 ## Troubleshooting
 
 - **Port already in use**: `fuser -k PORT/tcp` (not `lsof`, which may not be installed)
