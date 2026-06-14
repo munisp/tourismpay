@@ -992,10 +992,50 @@ export const remittanceRouter = router({
     })),
   initiate: protectedProcedure
     .input(z.object({ amount: z.number(), fromCurrency: z.string(), toCurrency: z.string(), recipientId: z.string(), purpose: z.string().optional() }))
-    .mutation(async ({ input }) => ({ id: uid(), status: "pending", ...input, createdAt: now() })),
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbOrNull();
+      const id = uid();
+      const fee = Math.round(input.amount * 0.005 * 100) / 100; // 0.5% fee
+      if (db) {
+        await db.insert(remittances).values({
+          id,
+          userId: ctx.user.id,
+          status: "pending",
+          senderCurrency: input.fromCurrency as "USD",
+          recipientCurrency: input.toCurrency as "NGN",
+          senderAmount: String(input.amount),
+          recipientAmount: String(input.amount - fee),
+          exchangeRate: "1.0",
+          fee: String(fee),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+      return { id, status: "pending", amount: input.amount, fee, fromCurrency: input.fromCurrency, toCurrency: input.toCurrency, createdAt: now() };
+    }),
   createRemittance: protectedProcedure
     .input(z.object({ amount: z.number(), fromCurrency: z.string(), toCurrency: z.string(), recipientId: z.string().optional(), purpose: z.string().optional() }))
-    .mutation(async ({ input }) => ({ id: uid(), status: "pending", ...input, createdAt: now() })),
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDbOrNull();
+      const id = uid();
+      const fee = Math.round(input.amount * 0.005 * 100) / 100;
+      if (db) {
+        await db.insert(remittances).values({
+          id,
+          userId: ctx.user.id,
+          status: "pending",
+          senderCurrency: input.fromCurrency as "USD",
+          recipientCurrency: input.toCurrency as "NGN",
+          senderAmount: String(input.amount),
+          recipientAmount: String(input.amount - fee),
+          exchangeRate: "1.0",
+          fee: String(fee),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+      return { id, status: "pending", amount: input.amount, fee, fromCurrency: input.fromCurrency, toCurrency: input.toCurrency, createdAt: now() };
+    }),
   getSupportedBanks: protectedProcedure
     .input(z.object({ country: z.string().optional() }))
     .query(async ({ input }) => {

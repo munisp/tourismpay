@@ -178,8 +178,17 @@ export const gdsPortalRouter = router({
   createBooking: protectedProcedure
     .input(CreateBookingSchema)
     .mutation(async ({ input, ctx }) => {
-      // In production: call Go GDS CreateReservation
       const confirmationNo = `TP${Date.now().toString(36).toUpperCase()}`;
+      const nights = Math.ceil(
+        (new Date(input.checkOut).getTime() - new Date(input.checkIn).getTime()) / 86400000,
+      );
+      // Rate calculation based on room type
+      const baseRates: Record<string, number> = { STD: 120, DLX: 220, STE: 380, VIL: 580, SAF: 450, FAM: 300 };
+      const nightlyRate = baseRates[input.roomTypeCode] ?? 180;
+      const totalAmount = nightlyRate * nights * input.rooms;
+      const commissionRate = 0.10; // 10% agent commission
+      const commission = Math.round(totalAmount * commissionRate * 100) / 100;
+
       const reservation: GDSReservation = {
         id: `res_${Date.now()}`,
         confirmationNo,
@@ -188,11 +197,9 @@ export const gdsPortalRouter = router({
         guestName: input.guestName,
         checkIn: input.checkIn,
         checkOut: input.checkOut,
-        nights: Math.ceil(
-          (new Date(input.checkOut).getTime() - new Date(input.checkIn).getTime()) / 86400000,
-        ),
-        totalAmount: 0,
-        commission: 0,
+        nights,
+        totalAmount,
+        commission,
         currency: "USD",
         status: "confirmed",
         source: "agent_portal",

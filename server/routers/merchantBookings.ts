@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
-import { getDb } from "../db";
+import { getDb, withTransaction } from "../db";
 import {
   touristBookings,
   establishments,
@@ -12,6 +12,8 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, desc, count, sql, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { createAuditLog, createUserNotification } from "../db";
+import crypto from "crypto";
 
 async function requireMerchantEstablishment(userId: number, establishmentId: number) {
   const db = await getDb();
@@ -164,7 +166,55 @@ export const merchantBookingsRouter = router({
         .where(eq(touristBookings.id, input.bookingId))
         .returning();
 
-      // Notify owner about status change
+      // On completion: credit merchant wallet + create settlement entry
+      if (input.status === "completed" && booking.priceUsd) {
+        const priceUsd = parseFloat(booking.priceUsd);
+        const platformFee = Math.round(priceUsd * 0.03 * 100) / 100; // 3% platform fee
+        const merchantCredit = priceUsd - platformFee;
+
+        try {
+          // Credit merchant wallet
+          const merchantOwnerId = (await db.select({ ownerId: establishments.ownerId }).from(establishments).where(eq(establishments.id, input.establishmentId)).limit(1))[0]?.ownerId;
+          if (merchantOwnerId) {
+            await withTransaction(async (tx) => {
+              const [bal] = await tx`
+                SELECT id, balance FROM wallet_balances WHERE user_id = ${String(merchantOwnerId)} AND currency = ${booking.currency ?? 'USDC'} FOR UPDATE
+              `;
+              if (bal) {
+                await tx`UPDATE wallet_balances SET balance = ${String(parseFloat(bal.balance) + merchantCredit)}, updated_at = ${Date.now()} WHERE id = ${bal.id}`;
+              } else {
+                await tx`INSERT INTO wallet_balances (id, user_id, currency, balance, locked_balance, wallet_address, network, created_at, updated_at)
+                  VALUES (${crypto.randomUUID()}, ${String(merchantOwnerId)}, ${booking.currency ?? 'USDC'}, ${String(merchantCredit)}, '0',
+                    ${'tp_merchant_' + String(merchantOwnerId).slice(0, 8)}, 'Stellar / Ethereum', ${Date.now()}, ${Date.now()})`;
+              }
+              await tx`INSERT INTO wallet_transactions (id, user_id, type, status, from_currency, to_currency, amount, fee, reference, note, completed_at, created_at)
+                VALUES (${crypto.randomUUID()}, ${String(merchantOwnerId)}, 'deposit', 'completed', ${booking.currency ?? 'USDC'}, ${booking.currency ?? 'USDC'},
+                  ${String(merchantCredit)}, ${String(platformFee)}, ${'BOOKING_REVENUE:' + booking.confirmationCode},
+                  ${'Revenue from booking: ' + booking.serviceName + ' ($' + priceUsd + ' - $' + platformFee + ' fee)'},
+                  ${Date.now()}, ${Date.now()})`;
+            });
+
+            // Create settlement batch entry
+            await db.execute(sql`
+              INSERT INTO settlement_batches (id, status, total_amount, currency, merchant_count, transaction_count, initiated_by, notes, created_at, updated_at)
+              VALUES (${crypto.randomUUID()}, 'completed', ${String(merchantCredit)}, ${booking.currency ?? 'USDC'}, 1, 1,
+                ${ctx.user.id}, ${'Auto-settlement for booking #' + booking.confirmationCode}, ${Date.now()}, ${Date.now()})
+            `);
+
+            // Notify merchant
+            createUserNotification({
+              userId: merchantOwnerId,
+              category: "system",
+              title: "Payment Received",
+              content: `$${merchantCredit.toFixed(2)} ${booking.currency ?? 'USDC'} credited for completed booking "${booking.serviceName}". Platform fee: $${platformFee.toFixed(2)}.`,
+              actionUrl: "/merchant/revenue",
+              actionLabel: "View Revenue",
+            }).catch(() => {});
+          }
+        } catch { /* settlement non-critical — booking still marked completed */ }
+      }
+
+      // Notify booking owner about status change
       try {
         const { notifyOwner } = await import("../_core/notification");
         await notifyOwner({
@@ -172,6 +222,26 @@ export const merchantBookingsRouter = router({
           content: `Booking #${booking.confirmationCode} for "${booking.serviceName}" (party of ${booking.partySize}) has been updated to: ${input.status}. Revenue: $${booking.priceUsd}.`,
         });
       } catch { /* non-critical */ }
+
+      // Notify tourist about completion
+      if (input.status === "completed") {
+        createUserNotification({
+          userId: booking.userId,
+          category: "system",
+          title: "Booking Completed",
+          content: `Your booking "${booking.serviceName}" has been completed. Thank you for visiting!`,
+          actionUrl: "/tourist",
+          actionLabel: "Leave a Review",
+        }).catch(() => {});
+      }
+
+      createAuditLog({
+        actorId: ctx.user.id,
+        action: `merchant.booking.${input.status}`,
+        entityType: "booking",
+        entityId: String(input.bookingId),
+        description: `Booking #${booking.confirmationCode} status: ${booking.status} → ${input.status}`,
+      }).catch(() => {});
 
       return updated;
     }),
