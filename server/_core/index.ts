@@ -119,7 +119,7 @@ async function startServer() {
   // Safe methods (GET/HEAD/OPTIONS) and webhook endpoints are exempt.
   app.use((req, res, next) => {
     const exempt = ["GET", "HEAD", "OPTIONS"].includes(req.method)
-      || req.path === "/health"
+      || req.path === "/health" || req.path === "/livez" || req.path === "/readyz" || req.path === "/metrics"
       || req.path.startsWith("/api/stripe-webhook")
       || req.path.startsWith("/api/oauth/")
       || req.path.startsWith("/api/dev/");
@@ -147,14 +147,45 @@ async function startServer() {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many requests, please try again later." },
-    skip: (req) => req.path === "/health" || req.path.startsWith("/api/dev/"),
+    skip: (req) => req.path === "/health" || req.path === "/livez" || req.path === "/readyz" || req.path === "/metrics" || req.path.startsWith("/api/dev/"),
   });
   app.use("/api", apiLimiter);
   app.use("/trpc", apiLimiter);
 
-  // ─── Health endpoint (before body parsers — lightweight, no auth) ────────────
+  // ─── Health / Lifecycle Probes (before body parsers — lightweight, no auth) ──
+  let serviceReady = false;
+
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
+  });
+
+  // Liveness probe — process is alive, not deadlocked
+  app.get("/livez", (_req, res) => {
+    res.json({ status: "alive", uptime: process.uptime(), pid: process.pid });
+  });
+
+  // Readiness probe — ready to accept traffic (DB connected, etc.)
+  app.get("/readyz", (_req, res) => {
+    if (!serviceReady) {
+      res.status(503).json({ status: "not_ready", reason: "starting up or shutting down" });
+      return;
+    }
+    res.json({ status: "ready" });
+  });
+
+  // Graceful shutdown: mark not ready on SIGTERM, drain in-flight, then exit
+  const markReady = () => { serviceReady = true; };
+  const markNotReady = () => { serviceReady = false; };
+
+  process.on("SIGTERM", () => {
+    const shutdownEvent = {
+      level: "WARN", event: "graceful_shutdown_started", service: "tourismpay-server",
+      timestamp: new Date().toISOString(), pod_name: process.env.POD_NAME || "unknown",
+    };
+    process.stderr.write(JSON.stringify(shutdownEvent) + "\n");
+    markNotReady();
+    // K8s preStop hook sleeps 5s; we wait 2s extra for endpoint propagation
+    setTimeout(() => { process.exit(0); }, 7000);
   });
 
   // ─── Response compression ──────────────────────────────────────────────────
@@ -352,8 +383,8 @@ async function startServer() {
 
   server.listen(port, () => {
     logger.info(`Server running on http://localhost:${port}/`);
+    markReady();
 
-    // ─── Graceful shutdown ────────────────────────────────────────────────────
     // ─── Initialize middleware connections ─────────────────────────────────
     getRedis(); // Connect Redis cache (non-blocking)
     syncApisixRoutes().catch(() => {}); // Sync APISIX routes (non-blocking)

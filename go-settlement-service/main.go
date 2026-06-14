@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tourismpay/settlement-service/internal/database"
 	"github.com/tourismpay/settlement-service/internal/handlers"
+	"github.com/tourismpay/settlement-service/internal/lifecycle"
 	"github.com/tourismpay/settlement-service/internal/middleware"
 	"github.com/tourismpay/settlement-service/internal/services"
 	"github.com/tourismpay/settlement-service/internal/services/channels"
@@ -25,7 +27,6 @@ func main() {
 		log.Printf("[WARN] Database connection failed, falling back to in-memory: %v", err)
 	} else {
 		log.Println("[INFO] Connected to PostgreSQL")
-		defer database.Close()
 	}
 
 	ledgerService := services.NewTigerBeetleLedgerService(0)
@@ -41,9 +42,17 @@ func main() {
 	nfcHandlers := services.NewNFCHandlers(nfcService)
 	cbdcHandlers := services.NewCBDCHandlers(cbdcBridge)
 
-	router := gin.Default()
+	router := gin.New()
 
-	// CORS middleware — restrict to known origins in production
+	// Middleware stack (order matters):
+	// 1. Panic recovery — catches panics, logs stack, increments counter, returns 500
+	// 2. Request tracking — counts in-flight requests, records latency metrics
+	// 3. Gin logger — HTTP access logging
+	router.Use(lifecycle.PanicRecoveryMiddleware())
+	router.Use(lifecycle.RequestTrackingMiddleware())
+	router.Use(gin.Logger())
+
+	// CORS middleware
 	allowedOrigin := os.Getenv("CORS_ORIGIN")
 	if allowedOrigin == "" {
 		allowedOrigin = "http://localhost:5173"
@@ -60,7 +69,7 @@ func main() {
 		c.Next()
 	})
 
-	// Health endpoint (unauthenticated)
+	// ─── Health / Lifecycle Probes (unauthenticated) ──────────────────────────
 	router.GET("/health", func(c *gin.Context) {
 		dbStatus := "connected"
 		if database.DB == nil {
@@ -74,6 +83,9 @@ func main() {
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
 		})
 	})
+	router.GET("/livez", lifecycle.LivezHandler)
+	router.GET("/readyz", lifecycle.ReadyzHandler)
+	router.GET("/metrics", lifecycle.MetricsHandler)
 
 	// All API routes require authentication
 	api := router.Group("/api/v1")
@@ -155,7 +167,7 @@ func main() {
 			crypto.GET("/health", cryptoHandlers.GetCryptoStatus)
 		}
 
-		// Offline NFC Payments (4.1)
+		// Offline NFC Payments
 		nfc := api.Group("/nfc")
 		{
 			nfc.POST("/vouchers", nfcHandlers.CreateVoucherHandler)
@@ -163,7 +175,7 @@ func main() {
 			nfc.POST("/sync", nfcHandlers.SyncVoucherHandler)
 		}
 
-		// CBDC Bridge (4.5) — eNaira, eCedi, South African Digital Rand
+		// CBDC Bridge
 		cbdc := api.Group("/cbdc")
 		{
 			cbdc.POST("/wallets", cbdcHandlers.CreateWalletHandler)
@@ -172,15 +184,14 @@ func main() {
 		}
 	}
 
-	// ─── Channel Manager (GDS/OTA distribution) ─────────────────────────────
+	// ─── Channel Manager ────────────────────────────────────────────────────────
 	channelManager := channels.NewManager(database.DB)
 	if database.DB != nil {
 		if err := channels.RunMigrations(database.DB); err != nil {
 			log.Printf("[WARN] Channel manager migrations failed: %v", err)
 		}
 	}
-	channelManager.Start(5 * time.Minute) // Sync every 5 minutes
-	defer channelManager.Stop()
+	channelManager.Start(5 * time.Minute)
 
 	channelAPI := api.Group("/channels")
 	{
@@ -192,8 +203,43 @@ func main() {
 		channelAPI.POST("/webhooks/:channel", channelManager.WebhookHandler)
 	}
 
-	log.Printf("[INFO] Settlement service starting on :%s", port)
-	if err := router.Run(":" + port); err != nil {
-		log.Fatal(err)
+	// ─── HTTP Server with Graceful Shutdown ──────────────────────────────────
+	server := &http.Server{
+		Addr:         ":" + port,
+		Handler:      router,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
+
+	// Mark as ready once server is configured
+	lifecycle.SetReady()
+	log.Printf("[INFO] Settlement service starting on :%s", port)
+
+	// Start server in goroutine
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("[FATAL] Server listen error: %v", err)
+		}
+	}()
+
+	// Block until SIGTERM/SIGINT, then graceful shutdown
+	lifecycle.GracefulShutdown(server, []lifecycle.ShutdownHook{
+		{
+			Name: "channel-manager",
+			Fn: func(_ context.Context) error {
+				channelManager.Stop()
+				return nil
+			},
+		},
+		{
+			Name: "database",
+			Fn: func(_ context.Context) error {
+				if database.DB != nil {
+					database.Close()
+				}
+				return nil
+			},
+		},
+	})
 }

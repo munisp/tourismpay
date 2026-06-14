@@ -1,0 +1,322 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# KEDA ScaledObjects — Event-driven autoscaling for TourismPay
+#
+# Scaling triggers:
+#   - Kafka consumer lag        → fraud-ml, settlement consumers
+#   - Prometheus HTTP RPS       → API server, GDS search
+#   - PostgreSQL queue depth    → BIS AI (pending investigations)
+#   - Redis list length         → settlement batch queue
+#   - Cron schedule             → scale up during African business hours
+#
+# Prerequisites:
+#   kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.14.0/keda-2.14.0.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 1. TypeScript Server — scale on HTTP request rate
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: tourismpay-server-scaler
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: tourismpay-server
+spec:
+  scaleTargetRef:
+    name: tourismpay-server
+  pollingInterval: 15
+  cooldownPeriod: 120
+  minReplicaCount: 3
+  maxReplicaCount: 15
+  advanced:
+    restoreToOriginalReplicaCount: true
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 25
+              periodSeconds: 60
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 60
+  triggers:
+    # Scale on HTTP request rate via Prometheus
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.tourismpay:9090
+        query: sum(rate(tourismpay_http_requests_total{service="tourismpay-server"}[2m]))
+        threshold: "100"
+        activationThreshold: "20"
+    # Scale on CPU (fallback if Prometheus unavailable)
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "70"
+    # Scale on memory
+    - type: memory
+      metricType: Utilization
+      metadata:
+        value: "80"
+
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# 2. Settlement Service — scale on Kafka consumer lag + settlement queue
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: settlement-service-scaler
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: settlement-service
+spec:
+  scaleTargetRef:
+    name: settlement-service
+  pollingInterval: 10
+  cooldownPeriod: 180
+  minReplicaCount: 2
+  maxReplicaCount: 8
+  advanced:
+    restoreToOriginalReplicaCount: true
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 120
+        scaleUp:
+          stabilizationWindowSeconds: 15
+          policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 30
+  triggers:
+    # Kafka consumer lag — settlement events
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka.tourismpay:9092
+        consumerGroup: settlement-consumers
+        topic: tourismpay.settlement.batch
+        lagThreshold: "50"
+        activationLagThreshold: "5"
+        offsetResetPolicy: latest
+    # Kafka consumer lag — booking payment events
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka.tourismpay:9092
+        consumerGroup: settlement-consumers
+        topic: tourismpay.booking.payment
+        lagThreshold: "100"
+        activationLagThreshold: "10"
+        offsetResetPolicy: latest
+    # Redis list length — pending settlement batches
+    - type: redis
+      metadata:
+        address: redis.tourismpay:6379
+        listName: tourismpay:settlement:pending_batches
+        listLength: "20"
+        activationListLength: "5"
+
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# 3. Fraud ML Service — scale on Kafka consumer lag (transaction events)
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: fraud-ml-service-scaler
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: fraud-ml-service
+spec:
+  scaleTargetRef:
+    name: fraud-ml-service
+  pollingInterval: 10
+  cooldownPeriod: 120
+  minReplicaCount: 2
+  maxReplicaCount: 6
+  advanced:
+    restoreToOriginalReplicaCount: true
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 15
+          policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 30
+  triggers:
+    # Kafka consumer lag — transaction scoring requests
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka.tourismpay:9092
+        consumerGroup: fraud-ml-consumers
+        topic: tourismpay.transactions.score
+        lagThreshold: "100"
+        activationLagThreshold: "10"
+        offsetResetPolicy: latest
+    # Kafka consumer lag — real-time fraud alerts
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka.tourismpay:9092
+        consumerGroup: fraud-ml-consumers
+        topic: tourismpay.fraud.alert
+        lagThreshold: "20"
+        activationLagThreshold: "3"
+        offsetResetPolicy: latest
+
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# 4. BIS AI Service — scale on PostgreSQL queue depth
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: bis-ai-service-scaler
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: bis-ai-service
+spec:
+  scaleTargetRef:
+    name: bis-ai-service
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 2
+  maxReplicaCount: 6
+  triggers:
+    # PostgreSQL query — pending BIS investigations
+    - type: postgresql
+      metadata:
+        targetQueryValue: "10"
+        activationTargetQueryValue: "2"
+        query: "SELECT COUNT(*) FROM bis_investigations WHERE status = 'pending'"
+        connectionFromEnv: DATABASE_URL
+    # Prometheus — BIS API request rate
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.tourismpay:9090
+        query: sum(rate(tourismpay_http_requests_total{service="bis-ai-service"}[2m]))
+        threshold: "30"
+        activationThreshold: "5"
+
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# 5. GDS Search Service — scale on HTTP load + OpenSearch query rate
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: gds-search-service-scaler
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: gds-search-service
+spec:
+  scaleTargetRef:
+    name: gds-search-service
+  pollingInterval: 15
+  cooldownPeriod: 120
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  advanced:
+    restoreToOriginalReplicaCount: true
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 15
+          policies:
+            - type: Pods
+              value: 3
+              periodSeconds: 30
+  triggers:
+    # Prometheus — search query rate
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.tourismpay:9090
+        query: sum(rate(tourismpay_opensearch_queries_total{service="gds-search-service"}[2m]))
+        threshold: "50"
+        activationThreshold: "10"
+    # CPU fallback
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "65"
+
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# 6. Exchange Rate ML — scale on cron (pre-market hours)
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: exchange-rate-ml-scaler
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: exchange-rate-ml-service
+spec:
+  scaleTargetRef:
+    name: exchange-rate-ml-service
+  pollingInterval: 60
+  cooldownPeriod: 600
+  minReplicaCount: 2
+  maxReplicaCount: 4
+  triggers:
+    # Scale up during African business hours (06:00–22:00 EAT = 03:00–19:00 UTC)
+    - type: cron
+      metadata:
+        timezone: Africa/Nairobi
+        start: 0 6 * * *
+        end: 0 22 * * *
+        desiredReplicas: "4"
+    # CPU fallback
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "70"
+
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# KEDA TriggerAuthentication — shared secrets for Kafka/Redis/PostgreSQL
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: kafka-trigger-auth
+  namespace: tourismpay
+spec:
+  secretTargetRef:
+    - parameter: sasl
+      name: tourismpay-secrets
+      key: KAFKA_SASL_PASSWORD
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: redis-trigger-auth
+  namespace: tourismpay
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: tourismpay-secrets
+      key: REDIS_PASSWORD
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: postgres-trigger-auth
+  namespace: tourismpay
+spec:
+  secretTargetRef:
+    - parameter: connection
+      name: tourismpay-secrets
+      key: DATABASE_URL

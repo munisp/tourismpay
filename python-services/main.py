@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from auth import AuthMiddleware
 import db as database
+from lifecycle import configure_lifecycle, install_signal_handlers
 
 PORT = int(os.environ.get("PORT", "8001"))
 SERVICE_NAME = os.environ.get("SERVICE_NAME", "tourismpay-ml")
@@ -32,6 +33,13 @@ app = FastAPI(
     version="2.0.0",
     description="AI/ML microservices for TourismPay platform",
 )
+
+
+# Install signal handlers for graceful shutdown
+install_signal_handlers()
+
+# Configure lifecycle: /livez, /readyz, /metrics, exception middleware
+configure_lifecycle(app)
 
 
 @app.on_event("startup")

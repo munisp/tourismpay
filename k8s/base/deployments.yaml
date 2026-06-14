@@ -1,0 +1,658 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# TourismPay K8s Deployments — All Services
+#
+# Every pod includes:
+#   - startupProbe  → allows slow cold-starts before liveness kicks in
+#   - livenessProbe → restarts hung processes
+#   - readinessProbe → removes unhealthy pods from Service endpoints
+#   - preStop hook  → drain in-flight requests before SIGTERM
+#   - terminationGracePeriodSeconds → time budget for graceful shutdown
+#   - resource requests/limits → QoS Guaranteed or Burstable
+#   - podAntiAffinity → spread across nodes
+#   - topologySpreadConstraints → spread across AZs
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 1. TypeScript Server (Express + tRPC + React PWA)
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tourismpay-server
+  namespace: tourismpay
+  labels: &server-labels
+    app.kubernetes.io/name: tourismpay-server
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: tourismpay
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 3
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tourismpay-server
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        <<: *server-labels
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: tourismpay
+      terminationGracePeriodSeconds: 45
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values: [tourismpay-server]
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: tourismpay-server
+      containers:
+        - name: server
+          image: tourismpay/server:latest
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: tourismpay-secrets
+            - configMapRef:
+                name: tourismpay-config
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3000"
+            - name: OTEL_SERVICE_NAME
+              value: tourismpay-server
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.tourismpay:4318
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# 2. Go Settlement Service
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: settlement-service
+  namespace: tourismpay
+  labels: &settlement-labels
+    app.kubernetes.io/name: settlement-service
+    app.kubernetes.io/component: settlement
+    app.kubernetes.io/part-of: tourismpay
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: settlement-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        <<: *settlement-labels
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: "/metrics"
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "settlement-service"
+        dapr.io/app-port: "8081"
+    spec:
+      serviceAccountName: tourismpay
+      terminationGracePeriodSeconds: 60
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values: [settlement-service]
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: settlement-service
+      containers:
+        - name: settlement
+          image: tourismpay/settlement-service:latest
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: tourismpay-secrets
+          env:
+            - name: PORT
+              value: "8081"
+            - name: OTEL_SERVICE_NAME
+              value: settlement-service
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.tourismpay:4317
+            - name: ENABLE_GRACEFUL_SHUTDOWN
+              value: "true"
+            - name: SHUTDOWN_TIMEOUT_SECONDS
+              value: "30"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 3
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# 3. Rust KYC Service
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kyc-service
+  namespace: tourismpay
+  labels: &kyc-labels
+    app.kubernetes.io/name: kyc-service
+    app.kubernetes.io/component: kyc
+    app.kubernetes.io/part-of: tourismpay
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        <<: *kyc-labels
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8082"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: tourismpay
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: kyc
+          image: tourismpay/kyc-service:latest
+          ports:
+            - name: http
+              containerPort: 8082
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: tourismpay-secrets
+          env:
+            - name: KYC_PORT
+              value: "8082"
+            - name: OTEL_SERVICE_NAME
+              value: kyc-service
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.tourismpay:4317
+            - name: RUST_LOG
+              value: info,tourismpay_kyc=debug
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 3
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 3"]
+
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# 4. Python ML Services — BIS AI Engine
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bis-ai-service
+  namespace: tourismpay
+  labels: &bis-labels
+    app.kubernetes.io/name: bis-ai-service
+    app.kubernetes.io/component: ml
+    app.kubernetes.io/part-of: tourismpay
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bis-ai-service
+  template:
+    metadata:
+      labels:
+        <<: *bis-labels
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8001"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: tourismpay
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: bis-ai
+          image: tourismpay/python-ml:latest
+          command: ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+          ports:
+            - name: http
+              containerPort: 8001
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: tourismpay-secrets
+          env:
+            - name: PORT
+              value: "8001"
+            - name: SERVICE_NAME
+              value: bis-ai-engine
+            - name: OTEL_SERVICE_NAME
+              value: bis-ai-service
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.tourismpay:4318
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# 5. Python ML Services — Fraud ML
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraud-ml-service
+  namespace: tourismpay
+  labels: &fraud-labels
+    app.kubernetes.io/name: fraud-ml-service
+    app.kubernetes.io/component: ml
+    app.kubernetes.io/part-of: tourismpay
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fraud-ml-service
+  template:
+    metadata:
+      labels:
+        <<: *fraud-labels
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8002"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: tourismpay
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: fraud-ml
+          image: tourismpay/python-ml:latest
+          command: ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]
+          ports:
+            - name: http
+              containerPort: 8002
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: tourismpay-secrets
+          env:
+            - name: PORT
+              value: "8002"
+            - name: SERVICE_NAME
+              value: fraud-ml-service
+            - name: OTEL_SERVICE_NAME
+              value: fraud-ml-service
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.tourismpay:4318
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# 6. Python ML Services — Exchange Rate ML
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exchange-rate-ml-service
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: exchange-rate-ml-service
+    app.kubernetes.io/component: ml
+    app.kubernetes.io/part-of: tourismpay
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: exchange-rate-ml-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: exchange-rate-ml-service
+        app.kubernetes.io/component: ml
+        app.kubernetes.io/part-of: tourismpay
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8004"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: tourismpay
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: exchange-rate-ml
+          image: tourismpay/python-ml:latest
+          command: ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8004"]
+          ports:
+            - name: http
+              containerPort: 8004
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: tourismpay-secrets
+          env:
+            - name: PORT
+              value: "8004"
+            - name: SERVICE_NAME
+              value: exchange-rate-ml
+            - name: OTEL_SERVICE_NAME
+              value: exchange-rate-ml-service
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.tourismpay:4318
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 3
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# 7. GDS Search Service (Python)
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gds-search-service
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: gds-search-service
+    app.kubernetes.io/component: gds
+    app.kubernetes.io/part-of: tourismpay
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gds-search-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gds-search-service
+        app.kubernetes.io/component: gds
+        app.kubernetes.io/part-of: tourismpay
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8010"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: tourismpay
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: gds-search
+          image: tourismpay/gds-search:latest
+          ports:
+            - name: http
+              containerPort: 8010
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: tourismpay-secrets
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: gds-search-service
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.tourismpay:4318
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 3
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3

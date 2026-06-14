@@ -6,6 +6,7 @@ mod db;
 #[allow(dead_code)]
 mod gds_registry;
 mod handlers;
+mod lifecycle;
 #[allow(dead_code)]
 mod models;
 #[allow(dead_code)]
@@ -19,6 +20,9 @@ use std::env;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt::init();
+
+    // Initialize lifecycle: panic hooks, metrics, start time
+    lifecycle::init_lifecycle();
 
     let port: u16 = env::var("KYC_PORT")
         .unwrap_or_else(|_| "8082".to_string())
@@ -34,10 +38,12 @@ async fn main() -> std::io::Result<()> {
 
     tracing::info!("KYC service starting on port {}", port);
 
-    HttpServer::new(move || {
+    let server = HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
             .app_data(web::Data::new(pool.clone()))
+            // Lifecycle routes: /livez, /readyz, /metrics
+            .configure(lifecycle::configure_lifecycle_routes)
             .route("/health", web::get().to(handlers::health))
             .service(
                 web::scope("/api/v1/kyc")
@@ -55,6 +61,14 @@ async fn main() -> std::io::Result<()> {
             )
     })
     .bind(("0.0.0.0", port))?
-    .run()
-    .await
+    .run();
+
+    // Mark as ready once server is bound
+    lifecycle::set_ready(true);
+
+    // Spawn graceful shutdown handler
+    let server_handle = server.handle();
+    tokio::spawn(lifecycle::graceful_shutdown(server_handle));
+
+    server.await
 }
