@@ -14,7 +14,7 @@ import {
   Map, Zap, Crown, FileCheck, ClipboardList, DollarSign, Server, Eye,
   ArrowLeftRight, BarChart3, Code2, Repeat, Radio, MonitorDot, Landmark, Gauge, ArrowDownUp,
   MapPin, UtensilsCrossed, QrCode, UserCheck, ShoppingBag, CheckSquare, Banknote,
-  Package, UserSearch, Users2, Terminal, Brain, CreditCard, Monitor, Sparkles, Inbox, Trophy, BarChart2, CalendarDays, Mail
+  Package, UserSearch, Users2, Terminal, Brain, CreditCard, Monitor, Sparkles, Inbox, Trophy, BarChart2, CalendarDays, Mail, Droplets
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MobileNav from "./MobileNav";
@@ -107,6 +107,7 @@ const navItems: NavItem[] = [
   { label: "AI Co-Pilot", icon: MessageSquareText, href: "/copilot", section: "finance", roles: ["merchant", "admin", "user"] },
   { label: "Digital Wallet", icon: Wallet, href: "/wallet", section: "finance", roles: ["merchant", "admin", "user"] },
   { label: "Stablecoin Swap", icon: ArrowDownUp, href: "/wallet/stablecoin", section: "finance", roles: ["merchant", "admin", "user"] },
+  { label: "Liquidity Provider", icon: Droplets, href: "/wallet/liquidity", section: "finance", roles: ["merchant", "admin"] },
   { label: "Embedded Finance", icon: TrendingUp, href: "/finance", section: "finance", roles: ["merchant", "admin", "user"] },
   { label: "Loyalty & Rewards", icon: Award, href: "/loyalty", section: "finance", roles: ["merchant", "admin", "user"] },
 

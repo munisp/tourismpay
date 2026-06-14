@@ -2404,3 +2404,142 @@ export const stablecoinYieldPositions = pgTable(
 );
 export type StablecoinYieldPosition = typeof stablecoinYieldPositions.$inferSelect;
 export type InsertStablecoinYieldPosition = typeof stablecoinYieldPositions.$inferInsert;
+
+// ─── Liquidity Provider Tables ─────────────────────────────────────────────
+
+export const lpApplications = pgTable("lp_applications", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  entityType: varchar("entity_type", { length: 20 }).notNull(),
+  entityName: varchar("entity_name", { length: 128 }).notNull(),
+  registrationCountry: varchar("registration_country", { length: 2 }).notNull(),
+  taxId: varchar("tax_id", { length: 64 }),
+  walletAddress: varchar("wallet_address", { length: 128 }).notNull(),
+  intendedPools: text("intended_pools").notNull(),
+  intendedDepositUsd: decimal("intended_deposit_usd", { precision: 20, scale: 2 }).notNull(),
+  tier: varchar("tier", { length: 20 }).notNull(),
+  status: varchar("status", { length: 30 }).notNull().default("pending_review"),
+  notes: text("notes"),
+  reviewedBy: varchar("reviewed_by", { length: 36 }),
+  reviewedAt: bigint("reviewed_at", { mode: "number" }),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+});
+export type LPApplication = typeof lpApplications.$inferSelect;
+
+export const lpProviders = pgTable("lp_providers", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  entityType: varchar("entity_type", { length: 20 }).notNull(),
+  entityName: varchar("entity_name", { length: 128 }).notNull(),
+  tier: varchar("tier", { length: 20 }).notNull().default("bronze"),
+  status: varchar("status", { length: 20 }).notNull().default("active"),
+  walletAddress: varchar("wallet_address", { length: 128 }).notNull(),
+  totalDeposited: decimal("total_deposited", { precision: 20, scale: 6 }).notNull().default("0"),
+  totalEarned: decimal("total_earned", { precision: 20, scale: 6 }).notNull().default("0"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+});
+export type LPProvider = typeof lpProviders.$inferSelect;
+
+export const lpPositions = pgTable("lp_positions", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  lpId: varchar("lp_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  poolId: varchar("pool_id", { length: 30 }).notNull(),
+  stablecoin: varchar("stablecoin", { length: 10 }).notNull(),
+  amount: decimal("amount", { precision: 20, scale: 6 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("active"),
+  depositTxHash: varchar("deposit_tx_hash", { length: 128 }),
+  lockedUntil: bigint("locked_until", { mode: "number" }),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+  updatedAt: bigint("updated_at", { mode: "number" }),
+}, (t) => [
+  index("lp_position_lp_idx").on(t.lpId),
+  index("lp_position_pool_idx").on(t.poolId),
+]);
+export type LPPosition = typeof lpPositions.$inferSelect;
+
+export const lpRewards = pgTable("lp_rewards", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  lpId: varchar("lp_id", { length: 36 }).notNull(),
+  poolId: varchar("pool_id", { length: 30 }).notNull(),
+  amount: decimal("amount", { precision: 20, scale: 6 }).notNull(),
+  periodStart: bigint("period_start", { mode: "number" }).notNull(),
+  periodEnd: bigint("period_end", { mode: "number" }).notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+});
+export type LPReward = typeof lpRewards.$inferSelect;
+
+export const lpPoolSnapshots = pgTable("lp_pool_snapshots", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  poolId: varchar("pool_id", { length: 30 }).notNull(),
+  totalLiquidity: decimal("total_liquidity", { precision: 20, scale: 6 }).notNull(),
+  lpCount: integer("lp_count").notNull().default(0),
+  snapshotAt: bigint("snapshot_at", { mode: "number" }).notNull(),
+});
+export type LPPoolSnapshot = typeof lpPoolSnapshots.$inferSelect;
+
+export const lpWithdrawals = pgTable("lp_withdrawals", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  lpId: varchar("lp_id", { length: 36 }).notNull(),
+  userId: varchar("user_id", { length: 36 }).notNull(),
+  positionId: varchar("position_id", { length: 36 }).notNull(),
+  poolId: varchar("pool_id", { length: 30 }).notNull(),
+  amount: decimal("amount", { precision: 20, scale: 6 }).notNull(),
+  destinationAddress: varchar("destination_address", { length: 128 }).notNull(),
+  requiresMultisig: boolean("requires_multisig").default(false),
+  status: varchar("status", { length: 30 }).notNull().default("processing"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+});
+export type LPWithdrawal = typeof lpWithdrawals.$inferSelect;
+
+export const lpRebalanceEvents = pgTable("lp_rebalance_events", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  fromPool: varchar("from_pool", { length: 30 }).notNull(),
+  toPool: varchar("to_pool", { length: 30 }).notNull(),
+  amount: decimal("amount", { precision: 20, scale: 6 }).notNull(),
+  initiatedBy: varchar("initiated_by", { length: 36 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+});
+export type LPRebalanceEvent = typeof lpRebalanceEvents.$inferSelect;
+
+// ─── Smart Contract Deployment Records ─────────────────────────────────────
+
+export const smartContractDeployments = pgTable("smart_contract_deployments", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  contractName: varchar("contract_name", { length: 64 }).notNull(),
+  network: varchar("network", { length: 30 }).notNull(),
+  contractAddress: varchar("contract_address", { length: 128 }).notNull(),
+  deployTxHash: varchar("deploy_tx_hash", { length: 128 }).notNull(),
+  version: varchar("version", { length: 20 }).notNull(),
+  abiHash: varchar("abi_hash", { length: 128 }),
+  deployer: varchar("deployer", { length: 128 }).notNull(),
+  supplyCap: decimal("supply_cap", { precision: 30, scale: 6 }),
+  mintCapPerEpoch: decimal("mint_cap_per_epoch", { precision: 20, scale: 6 }),
+  burnCapPerEpoch: decimal("burn_cap_per_epoch", { precision: 20, scale: 6 }),
+  status: varchar("status", { length: 20 }).notNull().default("active"),
+  auditReportUrl: varchar("audit_report_url", { length: 500 }),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+});
+export type SmartContractDeployment = typeof smartContractDeployments.$inferSelect;
+
+export const smartContractEvents = pgTable("smart_contract_events", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  contractName: varchar("contract_name", { length: 64 }).notNull(),
+  eventType: varchar("event_type", { length: 64 }).notNull(),
+  txHash: varchar("tx_hash", { length: 128 }).notNull(),
+  blockNumber: integer("block_number").notNull(),
+  gasUsed: integer("gas_used").notNull(),
+  fromAddress: varchar("from_address", { length: 128 }),
+  toAddress: varchar("to_address", { length: 128 }),
+  amount: decimal("amount", { precision: 30, scale: 6 }),
+  nonce: varchar("nonce", { length: 128 }),
+  metadata: text("metadata"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+}, (t) => [
+  index("sce_event_type_idx").on(t.eventType),
+  index("sce_contract_idx").on(t.contractName),
+  index("sce_created_idx").on(t.createdAt),
+]);
+export type SmartContractEvent = typeof smartContractEvents.$inferSelect;

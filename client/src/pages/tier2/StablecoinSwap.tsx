@@ -175,26 +175,27 @@ export default function StablecoinSwap() {
     <div className="space-y-6">
       <PageHeader title="Stablecoin Swap" subtitle="Buy and sell stablecoins with African payment rails" />
 
-      {/* Tab Navigation */}
-      <div className="flex gap-1 p-1 bg-muted rounded-lg overflow-x-auto">
+      {/* Tab Navigation — scrollable on mobile, full width on desktop */}
+      <div className="flex gap-1 p-1 bg-muted rounded-lg overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-1">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium whitespace-nowrap transition-colors touch-manipulation ${
               tab === t.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <t.icon className="h-4 w-4" />
-            {t.label}
+            <t.icon className="h-4 w-4 shrink-0" />
+            <span className="hidden xs:inline sm:inline">{t.label}</span>
+            <span className="xs:hidden">{t.label.split(" ")[0]}</span>
           </button>
         ))}
       </div>
 
       {/* ─── BUY (On-Ramp) Tab ────────────────────────────────────────────── */}
       {tab === "buy" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4 p-6 border rounded-xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          <div className="space-y-4 p-4 sm:p-6 border rounded-xl">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <ArrowRight className="h-5 w-5 text-green-500" /> Buy Stablecoin
             </h3>
@@ -269,19 +270,19 @@ export default function StablecoinSwap() {
           </div>
 
           {/* Quote Preview */}
-          <div className="p-6 border rounded-xl space-y-4">
+          <div className="p-4 sm:p-6 border rounded-xl space-y-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <BarChart3 className="h-5 w-5" /> Quote Preview
             </h3>
             {buyQuote.data && parseFloat(buyAmount) > 0 ? (
               <div className="space-y-3">
-                <div className="flex justify-between"><span className="text-muted-foreground">You Pay</span><span className="font-mono">{buyAmount} {buyFiat}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">You Receive</span><span className="font-mono font-semibold text-green-500">{buyQuote.data.targetAmount.toFixed(2)} {buyStable}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Exchange Rate</span><span className="font-mono">1 {buyFiat} = {buyQuote.data.exchangeRate.toFixed(6)} {buyStable}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Fee</span><span className="font-mono">${buyQuote.data.fee.toFixed(2)} ({buyQuote.data.feePercent}%)</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Spread</span><span className="font-mono">{buyQuote.data.spreadPercent}%</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Est. Time</span><span>{buyQuote.data.estimatedTime}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Payment</span><Badge variant="outline">{buyRail.replace(/_/g, " ")}</Badge></div>
+                <div className="flex justify-between items-center"><span className="text-muted-foreground text-sm">You Pay</span><span className="font-mono text-sm">{buyAmount} {buyFiat}</span></div>
+                <div className="flex justify-between items-center"><span className="text-muted-foreground text-sm">You Receive</span><span className="font-mono text-sm font-semibold text-green-500">{buyQuote.data.targetAmount.toFixed(2)} {buyStable}</span></div>
+                <div className="flex justify-between items-center flex-wrap gap-1"><span className="text-muted-foreground text-sm">Exchange Rate</span><span className="font-mono text-xs sm:text-sm">1 {buyFiat} = {buyQuote.data.exchangeRate.toFixed(6)} {buyStable}</span></div>
+                <div className="flex justify-between items-center"><span className="text-muted-foreground text-sm">Fee</span><span className="font-mono text-sm">${buyQuote.data.fee.toFixed(2)} ({buyQuote.data.feePercent}%)</span></div>
+                <div className="flex justify-between items-center"><span className="text-muted-foreground text-sm">Spread</span><span className="font-mono text-sm">{buyQuote.data.spreadPercent}%</span></div>
+                <div className="flex justify-between items-center"><span className="text-muted-foreground text-sm">Est. Time</span><span className="text-sm">{buyQuote.data.estimatedTime}</span></div>
+                <div className="flex justify-between items-center"><span className="text-muted-foreground text-sm">Payment</span><Badge variant="outline">{buyRail.replace(/_/g, " ")}</Badge></div>
               </div>
             ) : (
               <p className="text-muted-foreground text-sm">Enter an amount to see a quote</p>
@@ -302,8 +303,8 @@ export default function StablecoinSwap() {
 
       {/* ─── SELL (Off-Ramp) Tab ──────────────────────────────────────────── */}
       {tab === "sell" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4 p-6 border rounded-xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+          <div className="space-y-4 p-4 sm:p-6 border rounded-xl">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <ArrowDownUp className="h-5 w-5 text-orange-500" /> Sell Stablecoin
             </h3>
@@ -398,7 +399,7 @@ export default function StablecoinSwap() {
           </div>
 
           {/* Off-Ramp Quote */}
-          <div className="p-6 border rounded-xl space-y-4">
+          <div className="p-4 sm:p-6 border rounded-xl space-y-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <BarChart3 className="h-5 w-5" /> Off-Ramp Quote
             </h3>
@@ -428,8 +429,8 @@ export default function StablecoinSwap() {
       {/* ─── YIELD Tab ────────────────────────────────────────────────────── */}
       {tab === "yield" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4 p-6 border rounded-xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            <div className="space-y-4 p-4 sm:p-6 border rounded-xl">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <PiggyBank className="h-5 w-5 text-purple-500" /> Deposit for Yield
               </h3>
@@ -481,7 +482,7 @@ export default function StablecoinSwap() {
             </div>
 
             {/* Protocol Comparison */}
-            <div className="p-6 border rounded-xl space-y-4">
+            <div className="p-4 sm:p-6 border rounded-xl space-y-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <Percent className="h-5 w-5" /> Protocol Comparison
               </h3>
@@ -508,7 +509,7 @@ export default function StablecoinSwap() {
 
           {/* Active Yield Positions */}
           {yieldPositions.data && yieldPositions.data.length > 0 && (
-            <div className="p-6 border rounded-xl">
+            <div className="p-4 sm:p-6 border rounded-xl">
               <h3 className="text-lg font-semibold mb-4">Active Positions</h3>
               <div className="space-y-3">
                 {yieldPositions.data.map((pos) => (
@@ -539,7 +540,7 @@ export default function StablecoinSwap() {
       {/* ─── LIMIT ORDERS Tab ─────────────────────────────────────────────── */}
       {tab === "limits" && (
         <div className="space-y-6">
-          <div className="p-6 border rounded-xl space-y-4">
+          <div className="p-4 sm:p-6 border rounded-xl space-y-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <Timer className="h-5 w-5 text-blue-500" /> Create Limit Order
             </h3>
@@ -613,7 +614,7 @@ export default function StablecoinSwap() {
 
           {/* Active Limit Orders */}
           {limitOrders.data && limitOrders.data.length > 0 && (
-            <div className="p-6 border rounded-xl">
+            <div className="p-4 sm:p-6 border rounded-xl">
               <h3 className="text-lg font-semibold mb-4">Your Limit Orders</h3>
               <div className="space-y-3">
                 {limitOrders.data.map((order) => (
@@ -643,25 +644,25 @@ export default function StablecoinSwap() {
       {tab === "history" && (
         <div className="space-y-6">
           {/* On-Ramp History */}
-          <div className="p-6 border rounded-xl">
+          <div className="p-4 sm:p-6 border rounded-xl">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <ArrowRight className="h-5 w-5 text-green-500" /> On-Ramp History
             </h3>
             {onrampHistory.data?.orders && onrampHistory.data.orders.length > 0 ? (
               <div className="space-y-2">
                 {onrampHistory.data.orders.map((order) => (
-                  <div key={order.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-green-500">{order.status}</Badge>
-                        <span className="font-mono text-sm">{order.sourceAmount} {order.sourceCurrency} → {order.targetAmount} {order.targetStablecoin}</span>
+                  <div key={order.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-lg gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="text-green-500 shrink-0">{order.status}</Badge>
+                        <span className="font-mono text-xs sm:text-sm truncate">{order.sourceAmount} {order.sourceCurrency} → {order.targetAmount} {order.targetStablecoin}</span>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">
+                      <div className="text-xs text-muted-foreground mt-1 truncate">
                         via {order.paymentRail} — Fee: ${order.fee}
                         {order.mintTxHash && <span className="ml-2">Tx: {order.mintTxHash.slice(0, 10)}...</span>}
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">{order.createdAt ? new Date(Number(order.createdAt)).toLocaleDateString() : ""}</div>
+                    <div className="text-xs text-muted-foreground shrink-0">{order.createdAt ? new Date(Number(order.createdAt)).toLocaleDateString() : ""}</div>
                   </div>
                 ))}
               </div>
@@ -671,24 +672,24 @@ export default function StablecoinSwap() {
           </div>
 
           {/* Off-Ramp History */}
-          <div className="p-6 border rounded-xl">
+          <div className="p-4 sm:p-6 border rounded-xl">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <ArrowDownUp className="h-5 w-5 text-orange-500" /> Off-Ramp History
             </h3>
             {offrampHistory.data?.requests && offrampHistory.data.requests.length > 0 ? (
               <div className="space-y-2">
                 {offrampHistory.data.requests.map((req) => (
-                  <div key={req.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-orange-500">{req.status}</Badge>
-                        <span className="font-mono text-sm">{req.sourceAmount} {req.sourceStablecoin} → {req.targetAmount} {req.targetCurrency}</span>
+                  <div key={req.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded-lg gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="text-orange-500 shrink-0">{req.status}</Badge>
+                        <span className="font-mono text-xs sm:text-sm truncate">{req.sourceAmount} {req.sourceStablecoin} → {req.targetAmount} {req.targetCurrency}</span>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">
+                      <div className="text-xs text-muted-foreground mt-1 truncate">
                         via {req.payoutRail} to {req.recipientName} — Fee: ${req.fee}
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">{req.createdAt ? new Date(Number(req.createdAt)).toLocaleDateString() : ""}</div>
+                    <div className="text-xs text-muted-foreground shrink-0">{req.createdAt ? new Date(Number(req.createdAt)).toLocaleDateString() : ""}</div>
                   </div>
                 ))}
               </div>
@@ -701,29 +702,29 @@ export default function StablecoinSwap() {
 
       {/* ─── Result Dialog ────────────────────────────────────────────────── */}
       <Dialog open={resultDialog.open} onOpenChange={(o) => setResultDialog({ ...resultDialog, open: o })}>
-        <DialogContent>
+        <DialogContent className="max-w-[95vw] sm:max-w-md mx-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-green-500" /> Transaction Complete
             </DialogTitle>
           </DialogHeader>
           {resultDialog.data && (
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto">
               {Object.entries(resultDialog.data).map(([key, value]) => {
                 if (key === "success") return null;
                 const label = key.replace(/([A-Z])/g, " $1").replace(/_/g, " ").trim();
                 const display = typeof value === "number" ? value.toFixed(value < 1 ? 6 : 2) : String(value);
                 return (
-                  <div key={key} className="flex justify-between">
+                  <div key={key} className="flex flex-col sm:flex-row sm:justify-between gap-0.5 sm:gap-4">
                     <span className="text-muted-foreground capitalize text-sm">{label}</span>
-                    <span className="font-mono text-sm truncate ml-4 max-w-[200px]">{display}</span>
+                    <span className="font-mono text-sm truncate max-w-full sm:max-w-[200px]">{display}</span>
                   </div>
                 );
               })}
             </div>
           )}
-          <DialogFooter>
-            <Button onClick={() => setResultDialog({ open: false, data: null })}>Close</Button>
+          <DialogFooter className="mt-4">
+            <Button className="w-full sm:w-auto" onClick={() => setResultDialog({ open: false, data: null })}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

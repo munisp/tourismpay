@@ -60,6 +60,8 @@ import { nocDashboardRouter } from "./routers/nocDashboard";
 import { channelManagerRouter } from "./routers/channelManager";
 import { gdsPortalRouter } from "./routers/gdsPortal";
 import { stablecoinSwapRouter } from "./routers/stablecoinSwap";
+import { liquidityProviderRouter } from "./routers/liquidityProvider";
+import { smartContractRouter } from "./routers/smartContract";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -184,6 +186,8 @@ export const appRouter = router({
   channelManager: channelManagerRouter,
   gdsPortal: gdsPortalRouter,
   stablecoinSwap: stablecoinSwapRouter,
+  liquidityProvider: liquidityProviderRouter,
+  smartContract: smartContractRouter,
 });
 
 export type AppRouter = typeof appRouter;
