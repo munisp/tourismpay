@@ -2,7 +2,8 @@ import { useState, useMemo } from "react";
 import {
   ArrowDownUp, DollarSign, Zap, CreditCard, Building2, Smartphone,
   TrendingUp, Clock, Shield, Loader2, ArrowRight, Wallet, BarChart3,
-  Globe, Percent, PiggyBank, Timer, AlertTriangle,
+  Globe, Percent, PiggyBank, Timer, AlertTriangle, Repeat, Bell,
+  PieChart, RefreshCw, Ban, ShieldCheck, Scale,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,7 +57,7 @@ const PAYMENT_RAILS = [
   { id: "cbdc_bridge", name: "CBDC Bridge", icon: Zap, countries: ["NG", "GH"] },
 ] as const;
 
-type TabType = "buy" | "sell" | "yield" | "limits" | "history";
+type TabType = "buy" | "sell" | "swap" | "yield" | "limits" | "dca" | "alerts" | "portfolio" | "compliance" | "history";
 
 export default function StablecoinSwap() {
   const [tab, setTab] = useState<TabType>("buy");
@@ -91,6 +92,27 @@ export default function StablecoinSwap() {
 
   const [resultDialog, setResultDialog] = useState<{ open: boolean; data: Record<string, unknown> | null }>({ open: false, data: null });
 
+  // Swap state
+  const [swapFrom, setSwapFrom] = useState("USDC");
+  const [swapTo, setSwapTo] = useState("USDT");
+  const [swapAmount, setSwapAmount] = useState("");
+  const [swapping, setSwapping] = useState(false);
+
+  // DCA state
+  const [dcaAmount, setDcaAmount] = useState("");
+  const [dcaFiat, setDcaFiat] = useState("NGN");
+  const [dcaStable, setDcaStable] = useState("USDC");
+  const [dcaRail, setDcaRail] = useState("mpesa");
+  const [dcaFreq, setDcaFreq] = useState("weekly");
+  const [creatingDca, setCreatingDca] = useState(false);
+
+  // Price Alert state
+  const [alertStable, setAlertStable] = useState("USDC");
+  const [alertFiat, setAlertFiat] = useState("NGN");
+  const [alertDir, setAlertDir] = useState<"above" | "below">("above");
+  const [alertRate, setAlertRate] = useState("");
+  const [creatingAlert, setCreatingAlert] = useState(false);
+
   // Queries
   const buyQuote = trpc.stablecoinSwap.onrampQuote.useQuery(
     { sourceCurrency: buyFiat as never, sourceAmount: parseFloat(buyAmount) || 1, targetStablecoin: buyStable as never, paymentRail: buyRail as never },
@@ -105,6 +127,10 @@ export default function StablecoinSwap() {
   const yieldPositions = trpc.stablecoinSwap.yieldPositions.useQuery();
   const limitOrders = trpc.stablecoinSwap.listLimitOrders.useQuery({});
   const railsInfo = trpc.stablecoinSwap.supportedRails.useQuery();
+  const portfolio = trpc.stablecoinSwap.portfolio.useQuery();
+  const reserveStatus = trpc.stablecoinSwap.reserveStatus.useQuery();
+  const txLimits = trpc.stablecoinSwap.getTransactionLimits.useQuery();
+  const rateHistory = trpc.stablecoinSwap.rateHistory.useQuery({ stablecoin: "USDC" as never, fiatCurrency: "NGN" as never, periodDays: 30 });
 
   // Mutations
   const buyMut = trpc.stablecoinSwap.onrampBuy.useMutation({
@@ -163,11 +189,44 @@ export default function StablecoinSwap() {
     onError: (err) => toast.error(err.message),
   });
 
+  const swapMut = trpc.stablecoinSwap.stablecoinSwap.useMutation({
+    onSuccess: (data) => {
+      toast.success(`Swapped → ${data.outputAmount.toFixed(2)} ${swapTo}`);
+      setSwapAmount("");
+      setSwapping(false);
+      portfolio.refetch();
+    },
+    onError: (err) => { toast.error(err.message); setSwapping(false); },
+  });
+
+  const dcaMut = trpc.stablecoinSwap.createRecurringBuy.useMutation({
+    onSuccess: () => {
+      toast.success("Recurring buy scheduled");
+      setDcaAmount("");
+      setCreatingDca(false);
+    },
+    onError: (err) => { toast.error(err.message); setCreatingDca(false); },
+  });
+
+  const alertMut = trpc.stablecoinSwap.createPriceAlert.useMutation({
+    onSuccess: () => {
+      toast.success("Price alert created");
+      setAlertRate("");
+      setCreatingAlert(false);
+    },
+    onError: (err) => { toast.error(err.message); setCreatingAlert(false); },
+  });
+
   const tabs: { id: TabType; label: string; icon: typeof DollarSign }[] = [
     { id: "buy", label: "Buy (On-Ramp)", icon: ArrowRight },
     { id: "sell", label: "Sell (Off-Ramp)", icon: ArrowDownUp },
+    { id: "swap", label: "Swap", icon: RefreshCw },
     { id: "yield", label: "Earn Yield", icon: PiggyBank },
     { id: "limits", label: "Limit Orders", icon: Timer },
+    { id: "dca", label: "DCA", icon: Repeat },
+    { id: "alerts", label: "Alerts", icon: Bell },
+    { id: "portfolio", label: "Portfolio", icon: PieChart },
+    { id: "compliance", label: "Compliance", icon: ShieldCheck },
     { id: "history", label: "History", icon: Clock },
   ];
 
@@ -696,6 +755,335 @@ export default function StablecoinSwap() {
             ) : (
               <p className="text-muted-foreground text-sm">No off-ramp requests yet</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── SWAP (Stablecoin-to-Stablecoin) Tab ──────────────────────────── */}
+      {tab === "swap" && (
+        <div className="max-w-md mx-auto p-4 sm:p-6 border rounded-xl space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <RefreshCw className="h-5 w-5 text-purple-500" /> Swap Stablecoins
+          </h3>
+          <p className="text-sm text-muted-foreground">Swap between stablecoins at 0.15% fee</p>
+          <div>
+            <Label>From</Label>
+            <div className="flex gap-2">
+              <Input type="number" placeholder="0.00" value={swapAmount} onChange={(e) => setSwapAmount(e.target.value)} className="flex-1" />
+              <Select value={swapFrom} onValueChange={setSwapFrom}>
+                <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {STABLECOINS.map((s) => <SelectItem key={s.symbol} value={s.symbol}>{s.symbol}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-center"><ArrowDownUp className="h-5 w-5 text-muted-foreground" /></div>
+          <div>
+            <Label>To</Label>
+            <Select value={swapTo} onValueChange={setSwapTo}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {STABLECOINS.filter(s => s.symbol !== swapFrom).map((s) => <SelectItem key={s.symbol} value={s.symbol}>{s.symbol} — {s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {parseFloat(swapAmount) > 0 && (
+            <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+              <div className="flex justify-between"><span>Output (est.)</span><span className="font-mono">{(parseFloat(swapAmount) * 0.9985).toFixed(2)} {swapTo}</span></div>
+              <div className="flex justify-between"><span>Fee</span><span className="font-mono">0.15%</span></div>
+            </div>
+          )}
+          <Button
+            className="w-full"
+            disabled={swapping || !parseFloat(swapAmount)}
+            onClick={() => {
+              setSwapping(true);
+              swapMut.mutate({ fromStablecoin: swapFrom as never, toStablecoin: swapTo as never, amount: parseFloat(swapAmount) });
+            }}
+          >
+            {swapping ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Swapping...</> : "Swap"}
+          </Button>
+        </div>
+      )}
+
+      {/* ─── DCA (Recurring Buy) Tab ───────────────────────────────────────── */}
+      {tab === "dca" && (
+        <div className="max-w-md mx-auto p-4 sm:p-6 border rounded-xl space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Repeat className="h-5 w-5 text-blue-500" /> Dollar Cost Average (DCA)
+          </h3>
+          <p className="text-sm text-muted-foreground">Automatically buy stablecoins on a recurring schedule</p>
+          <div>
+            <Label>Amount per Purchase</Label>
+            <div className="flex gap-2">
+              <Input type="number" placeholder="0.00" value={dcaAmount} onChange={(e) => setDcaAmount(e.target.value)} className="flex-1" />
+              <Select value={dcaFiat} onValueChange={setDcaFiat}>
+                <SelectTrigger className="w-[100px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {FIAT_CURRENCIES.map((c) => <SelectItem key={c.symbol} value={c.symbol}>{c.flag} {c.symbol}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>Buy</Label>
+            <Select value={dcaStable} onValueChange={setDcaStable}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {STABLECOINS.map((s) => <SelectItem key={s.symbol} value={s.symbol}>{s.symbol} — {s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Frequency</Label>
+            <Select value={dcaFreq} onValueChange={setDcaFreq}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="weekly">Weekly</SelectItem>
+                <SelectItem value="biweekly">Every 2 Weeks</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Payment Rail</Label>
+            <Select value={dcaRail} onValueChange={setDcaRail}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PAYMENT_RAILS.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            className="w-full"
+            disabled={creatingDca || !parseFloat(dcaAmount)}
+            onClick={() => {
+              setCreatingDca(true);
+              dcaMut.mutate({
+                sourceCurrency: dcaFiat as never, sourceAmount: parseFloat(dcaAmount),
+                targetStablecoin: dcaStable as never, paymentRail: dcaRail as never,
+                frequency: dcaFreq as never,
+              });
+            }}
+          >
+            {creatingDca ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Creating...</> : `Schedule ${dcaFreq} buy`}
+          </Button>
+        </div>
+      )}
+
+      {/* ─── Price Alerts Tab ──────────────────────────────────────────────── */}
+      {tab === "alerts" && (
+        <div className="max-w-md mx-auto p-4 sm:p-6 border rounded-xl space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Bell className="h-5 w-5 text-amber-500" /> Price Alerts
+          </h3>
+          <p className="text-sm text-muted-foreground">Get notified when exchange rates hit your target</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label>Stablecoin</Label>
+              <Select value={alertStable} onValueChange={setAlertStable}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {STABLECOINS.map((s) => <SelectItem key={s.symbol} value={s.symbol}>{s.symbol}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Fiat</Label>
+              <Select value={alertFiat} onValueChange={setAlertFiat}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {FIAT_CURRENCIES.map((c) => <SelectItem key={c.symbol} value={c.symbol}>{c.flag} {c.symbol}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label>Direction</Label>
+              <Select value={alertDir} onValueChange={(v) => setAlertDir(v as "above" | "below")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="above">Above</SelectItem>
+                  <SelectItem value="below">Below</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Target Rate</Label>
+              <Input type="number" placeholder="0.00" value={alertRate} onChange={(e) => setAlertRate(e.target.value)} />
+            </div>
+          </div>
+          <Button
+            className="w-full"
+            disabled={creatingAlert || !parseFloat(alertRate)}
+            onClick={() => {
+              setCreatingAlert(true);
+              alertMut.mutate({
+                stablecoin: alertStable as never, fiatCurrency: alertFiat as never,
+                direction: alertDir, targetRate: parseFloat(alertRate),
+              });
+            }}
+          >
+            {creatingAlert ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Creating...</> : "Set Alert"}
+          </Button>
+        </div>
+      )}
+
+      {/* ─── Portfolio Tab ─────────────────────────────────────────────────── */}
+      {tab === "portfolio" && (
+        <div className="space-y-4 sm:space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 sm:p-6 border rounded-xl">
+              <div className="text-sm text-muted-foreground">Total Stablecoin Value</div>
+              <div className="text-2xl font-bold mt-1">${(portfolio.data?.totalUsd ?? 0).toFixed(2)}</div>
+            </div>
+            <div className="p-4 sm:p-6 border rounded-xl">
+              <div className="text-sm text-muted-foreground">Yield Accrued</div>
+              <div className="text-2xl font-bold mt-1 text-green-500">+${(portfolio.data?.totalYieldAccrued ?? 0).toFixed(4)}</div>
+            </div>
+            <div className="p-4 sm:p-6 border rounded-xl">
+              <div className="text-sm text-muted-foreground">30-Day Net Flow</div>
+              <div className={`text-2xl font-bold mt-1 ${(portfolio.data?.thirtyDayNetFlow ?? 0) >= 0 ? "text-green-500" : "text-red-500"}`}>
+                {(portfolio.data?.thirtyDayNetFlow ?? 0) >= 0 ? "+" : ""}{(portfolio.data?.thirtyDayNetFlow ?? 0).toFixed(2)}
+              </div>
+            </div>
+          </div>
+
+          {/* Holdings */}
+          <div className="p-4 sm:p-6 border rounded-xl">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <PieChart className="h-5 w-5 text-blue-500" /> Holdings
+            </h3>
+            <div className="space-y-2">
+              {(portfolio.data?.holdings ?? []).map((h) => (
+                <div key={h.currency} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <span className="font-medium">{h.currency}</span>
+                    <span className="text-xs text-muted-foreground ml-2">{h.network}</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono">{h.balance.toFixed(2)}</div>
+                    <div className="text-xs text-muted-foreground">${h.usdValue.toFixed(2)}</div>
+                  </div>
+                </div>
+              ))}
+              {(portfolio.data?.holdings ?? []).length === 0 && (
+                <p className="text-muted-foreground text-sm">No stablecoin holdings yet</p>
+              )}
+            </div>
+          </div>
+
+          {/* Reserve Status */}
+          <div className="p-4 sm:p-6 border rounded-xl">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Scale className="h-5 w-5 text-emerald-500" /> Reserve Proof
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div>
+                <div className="text-xs text-muted-foreground">Circulating</div>
+                <div className="font-mono text-sm">${(reserveStatus.data?.circulating ?? 0).toFixed(2)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">LP Reserves</div>
+                <div className="font-mono text-sm">${(reserveStatus.data?.totalLPReserves ?? 0).toFixed(2)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Reserve Ratio</div>
+                <div className="font-mono text-sm">{(reserveStatus.data?.reserveRatio ?? 0).toFixed(1)}%</div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Status</div>
+                <Badge variant={reserveStatus.data?.isFullyBacked ? "default" : "destructive"}>
+                  {reserveStatus.data?.isFullyBacked ? "Fully Backed" : "Under-collateralized"}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Compliance Tab ────────────────────────────────────────────────── */}
+      {tab === "compliance" && (
+        <div className="space-y-4 sm:space-y-6">
+          {/* KYC Tier Limits */}
+          <div className="p-4 sm:p-6 border rounded-xl">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-blue-500" /> KYC Tier & Limits
+            </h3>
+            <div className="flex items-center gap-3 mb-4">
+              <Badge variant="default" className="text-base px-3 py-1 capitalize">
+                {txLimits.data?.kycTier ?? "loading..."}
+              </Badge>
+              {txLimits.data?.upgradeUrl && (
+                <a href={txLimits.data.upgradeUrl} className="text-sm text-blue-500 underline">Upgrade Tier</a>
+              )}
+            </div>
+            {txLimits.data?.limits && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div>
+                  <div className="text-xs text-muted-foreground">Daily On-Ramp</div>
+                  <div className="font-mono text-sm">${txLimits.data.limits.dailyOnramp.toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">Used: ${txLimits.data.usage.dailyOnramp.toFixed(0)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Daily Off-Ramp</div>
+                  <div className="font-mono text-sm">${txLimits.data.limits.dailyOfframp.toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">Used: ${txLimits.data.usage.dailyOfframp.toFixed(0)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Single Tx Max</div>
+                  <div className="font-mono text-sm">${txLimits.data.limits.singleTx.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Monthly Volume</div>
+                  <div className="font-mono text-sm">${txLimits.data.limits.monthlyVolume.toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground">Used: ${txLimits.data.usage.monthlyVolume.toFixed(0)}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Rate History */}
+          <div className="p-4 sm:p-6 border rounded-xl">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-500" /> USDC/NGN Rate (30 days)
+            </h3>
+            {rateHistory.data && (
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div>
+                  <div className="text-xs text-muted-foreground">Current</div>
+                  <div className="font-mono text-sm">{rateHistory.data.currentRate.toFixed(2)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">30d High</div>
+                  <div className="font-mono text-sm text-green-500">{rateHistory.data.high.toFixed(2)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">30d Low</div>
+                  <div className="font-mono text-sm text-red-500">{rateHistory.data.low.toFixed(2)}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Travel Rule Info */}
+          <div className="p-4 sm:p-6 border rounded-xl">
+            <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+              <Globe className="h-5 w-5 text-orange-500" /> FATF Travel Rule Compliance
+            </h3>
+            <p className="text-sm text-muted-foreground mb-3">
+              Transactions over $1,000 require originator/beneficiary identification per FATF Recommendation 16.
+              This data is automatically collected during high-value on-ramp and off-ramp operations and screened
+              against international sanctions lists (Refinitiv World-Check).
+            </p>
+            <div className="flex gap-2">
+              <Badge variant="outline">Sanctions Screening</Badge>
+              <Badge variant="outline">PEP Detection</Badge>
+              <Badge variant="outline">Adverse Media</Badge>
+            </div>
           </div>
         </div>
       )}
