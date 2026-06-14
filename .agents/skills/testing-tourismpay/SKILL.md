@@ -13,6 +13,17 @@ TourismPay is a multi-service app: TypeScript (React + tRPC), Go (Gin settlement
 
 ## Environment Setup
 
+### Critical: `.env` Configuration
+The `.env` file in the repo root **must** contain these variables for auth to work:
+```
+DATABASE_URL=postgresql://tourismpay_user:testpass123@localhost:5432/tourismpay
+JWT_SECRET=tourismpay-test-jwt-secret-for-dev-32chars
+OWNER_OPEN_ID=test-owner-id
+VITE_APP_ID=tourismpay
+```
+
+**`VITE_APP_ID` is required** — without it, `sdk.ts:verifySession()` rejects all session tokens because it validates `appId` is a non-empty string (`isNonEmptyString(appId)` at sdk.ts:218). If auth.me returns null and server logs show `[Auth] Session payload missing required fields`, this is almost certainly the cause.
+
 ### PostgreSQL
 PostgreSQL should be running on `localhost:5432`. Verify with:
 ```bash
@@ -29,13 +40,45 @@ sudo -u postgres psql -c "ALTER USER tourismpay_user CREATEDB;"
 PGPASSWORD=testpass123 createdb -h localhost -p 5432 -U tourismpay_user tourismpay_settlement
 ```
 
-### TypeScript
+### TypeScript Dev Server
 ```bash
 cd /home/ubuntu/repos/tourismpay
 pnpm install
 npx tsc --noEmit          # Type check (0 errors expected)
-pnpm run dev              # Dev server (needs DATABASE_URL)
+pnpm run dev              # Dev server on port 3000 (auto-loads .env via dotenv)
 ```
+
+**Do NOT pass `DATABASE_URL` as an inline env var** — let dotenv load `.env` naturally, otherwise other vars (JWT_SECRET, VITE_APP_ID) may not load.
+
+### Authentication for Browser Testing
+The dev server exposes a session token endpoint:
+```
+GET /api/dev/session-token?redirect=/target-page
+```
+This creates a JWT session cookie for the user specified by `OWNER_OPEN_ID` env var.
+
+**Setup for admin access (required to see all sidebar sections):**
+1. Ensure a user exists in DB with `open_id` matching `OWNER_OPEN_ID` and `role='admin'`:
+```sql
+INSERT INTO users (name, email, role, open_id, onboarding_completed)
+VALUES ('Test Admin', 'admin@tourismpay.io', 'admin', 'test-owner-id', true)
+ON CONFLICT (open_id) DO UPDATE SET role='admin', onboarding_completed=true;
+```
+2. Assign establishments to this user:
+```sql
+UPDATE establishments SET owner_id = (SELECT id FROM users WHERE open_id = 'test-owner-id');
+```
+3. Navigate browser to `/api/dev/session-token?redirect=/` to authenticate.
+
+**If `onboarding_completed` is false**, the app redirects to `/admin` onboarding page instead of the target route.
+
+### Role-Based Sidebar Navigation
+The sidebar in `AppShell.tsx` filters nav items by `hasRole()`. Key sections:
+- "Africa GDS" section: requires role `merchant` or `admin` (AppShell.tsx:86-88)
+- Admin sections (KYB, BIS, Users): requires role `admin`
+- Default "User" role shows only: Dashboard, Digital Finance, Settings
+
+If the sidebar appears limited, check `auth.me` response — the user's role determines visible sections.
 
 ### Go Settlement Service
 ```bash
@@ -69,6 +112,26 @@ python3 -m uvicorn main:app --host 0.0.0.0 --port 8091
 Python services auto-create ML tables (fraud_scores, compliance_screenings, etc.) on startup.
 
 ## Common Testing Patterns
+
+### Browser-Based UI Testing
+For testing UI features (GDS pages, payment gateway, merchant dashboard):
+1. Start dev server: `pnpm run dev` (port 3000)
+2. Authenticate: navigate to `/api/dev/session-token?redirect=/target-page`
+3. Use `navigate` actions (not `view`) to reach pages — `view` may trigger page reloads that lose session
+4. Verify page content by inspecting HTML output for expected text (h1, tabs, data values)
+5. Check for absence of error indicators ("Coming Soon", "No data", "$0", "404")
+
+### Verifying Auth Works
+```bash
+# Get session cookie
+curl -s -c /tmp/cookies.txt "http://localhost:3000/api/dev/session-token?redirect=/"
+# Verify auth.me returns user
+curl -s -b /tmp/cookies.txt "http://localhost:3000/api/trpc/auth.me"
+```
+If auth.me returns `{"result":{"data":{"json":null}}}`, check:
+1. Server logs for `[Auth] Session payload missing required fields` → VITE_APP_ID not set
+2. Server logs for `[Auth] Session verification failed` → JWT_SECRET mismatch
+3. User exists in DB with matching `open_id`
 
 ### Code Quality Verification (shell-based, no recording needed)
 These are the most common tests for production-readiness PRs:
@@ -128,6 +191,8 @@ node scripts/seed-all.mjs
 
 - **Port already in use**: `fuser -k PORT/tcp` (not `lsof`, which may not be installed)
 - **Go service exits immediately**: Usually a port conflict. Check with `fuser PORT/tcp`
-- **Python import errors**: Ensure you're in the correct subdirectory. Services import from parent directory (`from auth import AuthMiddleware`, `import db as database`)
-- **Seed script Phase 1 fails**: Run `pnpm drizzle-kit push` first to create TypeScript app tables
-- **Permission denied creating DB**: Grant createdb to user: `sudo -u postgres psql -c "ALTER USER tourismpay_user CREATEDB;"`
+- **auth.me returns null**: Check `.env` has `VITE_APP_ID` set (most common cause). Also check `JWT_SECRET` and that a user with matching `open_id` exists in DB.
+- **Sidebar missing sections (e.g., "Africa GDS")**: User role is wrong. Verify with `auth.me` response. Admin role sees all sections. Create admin user with SQL if needed.
+- **Onboarding redirect loop**: Set `onboarding_completed=true` on the test user.
+- **Redis/OpenSearch warnings in logs**: These are non-fatal — app operates without them in dev mode.
+- **`%VITE_ANALYTICS_ENDPOINT%` errors**: Harmless — analytics env vars not configured in dev.

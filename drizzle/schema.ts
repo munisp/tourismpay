@@ -2236,3 +2236,171 @@ export const channelConnections = pgTable(
 );
 export type ChannelConnection = typeof channelConnections.$inferSelect;
 export type InsertChannelConnection = typeof channelConnections.$inferInsert;
+
+// ─── Stablecoin On-Ramp / Off-Ramp ──────────────────────────────────────────
+
+export const onrampStatusEnum = pgEnum("onramp_status", [
+  "quote", "pending_payment", "payment_received", "minting", "completed", "failed", "expired", "refunded",
+]);
+export const offrampStatusEnum = pgEnum("offramp_status", [
+  "quote", "pending_approval", "burning", "processing_payout", "completed", "failed", "expired", "refunded",
+]);
+export const paymentRailEnum = pgEnum("payment_rail", [
+  "stripe_card", "bank_transfer", "mpesa", "mtn_momo", "orange_money", "airtel_money",
+  "vodacom_mpesa", "opay", "flutterwave", "chipper_cash", "mojaloop", "cbdc_bridge",
+]);
+
+export const stablecoinOnrampOrders = pgTable(
+  "stablecoin_onramp_orders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    status: onrampStatusEnum("status").notNull().default("quote"),
+    // Source (fiat)
+    sourceCurrency: varchar("source_currency", { length: 10 }).notNull(),
+    sourceAmount: decimal("source_amount", { precision: 20, scale: 6 }).notNull(),
+    paymentRail: paymentRailEnum("payment_rail").notNull(),
+    paymentRef: varchar("payment_ref", { length: 255 }),
+    // Target (stablecoin)
+    targetStablecoin: varchar("target_stablecoin", { length: 10 }).notNull().default("USDC"),
+    targetAmount: decimal("target_amount", { precision: 20, scale: 6 }),
+    targetWalletAddress: varchar("target_wallet_address", { length: 128 }),
+    targetNetwork: varchar("target_network", { length: 32 }).default("stellar"),
+    // Pricing
+    exchangeRate: decimal("exchange_rate", { precision: 20, scale: 8 }),
+    fee: decimal("fee", { precision: 20, scale: 6 }).default("0"),
+    feePercent: decimal("fee_percent", { precision: 6, scale: 4 }).default("0"),
+    spreadPercent: decimal("spread_percent", { precision: 6, scale: 4 }).default("0"),
+    // Blockchain
+    mintTxHash: varchar("mint_tx_hash", { length: 128 }),
+    // Provider
+    providerName: varchar("provider_name", { length: 64 }),
+    providerRef: varchar("provider_ref", { length: 255 }),
+    // Compliance
+    kycVerified: boolean("kyc_verified").default(false),
+    bisReferenceId: varchar("bis_reference_id", { length: 64 }),
+    // Metadata
+    country: varchar("country", { length: 3 }),
+    mobileNumber: varchar("mobile_number", { length: 32 }),
+    errorCode: varchar("error_code", { length: 64 }),
+    errorMessage: text("error_message"),
+    quoteExpiresAt: bigint("quote_expires_at", { mode: "number" }),
+    completedAt: bigint("completed_at", { mode: "number" }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+  },
+  (t) => [
+    index("onramp_user_idx").on(t.userId),
+    index("onramp_status_idx").on(t.status),
+    index("onramp_created_idx").on(t.createdAt),
+    index("onramp_rail_idx").on(t.paymentRail),
+  ]
+);
+export type StablecoinOnrampOrder = typeof stablecoinOnrampOrders.$inferSelect;
+export type InsertStablecoinOnrampOrder = typeof stablecoinOnrampOrders.$inferInsert;
+
+export const stablecoinOfframpRequests = pgTable(
+  "stablecoin_offramp_requests",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    status: offrampStatusEnum("status").notNull().default("quote"),
+    // Source (stablecoin)
+    sourceStablecoin: varchar("source_stablecoin", { length: 10 }).notNull().default("USDC"),
+    sourceAmount: decimal("source_amount", { precision: 20, scale: 6 }).notNull(),
+    sourceNetwork: varchar("source_network", { length: 32 }).default("stellar"),
+    burnTxHash: varchar("burn_tx_hash", { length: 128 }),
+    // Target (fiat)
+    targetCurrency: varchar("target_currency", { length: 10 }).notNull(),
+    targetAmount: decimal("target_amount", { precision: 20, scale: 6 }),
+    payoutRail: paymentRailEnum("payout_rail").notNull(),
+    payoutRef: varchar("payout_ref", { length: 255 }),
+    // Recipient
+    recipientName: varchar("recipient_name", { length: 255 }),
+    recipientPhone: varchar("recipient_phone", { length: 32 }),
+    recipientBank: varchar("recipient_bank", { length: 128 }),
+    recipientAccount: varchar("recipient_account", { length: 64 }),
+    recipientCountry: varchar("recipient_country", { length: 3 }),
+    // Pricing
+    exchangeRate: decimal("exchange_rate", { precision: 20, scale: 8 }),
+    fee: decimal("fee", { precision: 20, scale: 6 }).default("0"),
+    feePercent: decimal("fee_percent", { precision: 6, scale: 4 }).default("0"),
+    spreadPercent: decimal("spread_percent", { precision: 6, scale: 4 }).default("0"),
+    // Provider
+    providerName: varchar("provider_name", { length: 64 }),
+    providerRef: varchar("provider_ref", { length: 255 }),
+    mojaloopRef: varchar("mojaloop_ref", { length: 128 }),
+    tbTransferId: varchar("tb_transfer_id", { length: 128 }),
+    // Compliance
+    kycVerified: boolean("kyc_verified").default(false),
+    bisReferenceId: varchar("bis_reference_id", { length: 64 }),
+    fraudScore: decimal("fraud_score", { precision: 5, scale: 2 }),
+    velocityCheckPassed: boolean("velocity_check_passed"),
+    // Metadata
+    errorCode: varchar("error_code", { length: 64 }),
+    errorMessage: text("error_message"),
+    quoteExpiresAt: bigint("quote_expires_at", { mode: "number" }),
+    completedAt: bigint("completed_at", { mode: "number" }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+  },
+  (t) => [
+    index("offramp_user_idx").on(t.userId),
+    index("offramp_status_idx").on(t.status),
+    index("offramp_created_idx").on(t.createdAt),
+    index("offramp_rail_idx").on(t.payoutRail),
+  ]
+);
+export type StablecoinOfframpRequest = typeof stablecoinOfframpRequests.$inferSelect;
+export type InsertStablecoinOfframpRequest = typeof stablecoinOfframpRequests.$inferInsert;
+
+export const stablecoinLimitOrders = pgTable(
+  "stablecoin_limit_orders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    direction: varchar("direction", { length: 10 }).notNull(), // "buy" or "sell"
+    stablecoin: varchar("stablecoin", { length: 10 }).notNull().default("USDC"),
+    fiatCurrency: varchar("fiat_currency", { length: 10 }).notNull(),
+    amount: decimal("amount", { precision: 20, scale: 6 }).notNull(),
+    targetRate: decimal("target_rate", { precision: 20, scale: 8 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("active"),
+    filledAt: bigint("filled_at", { mode: "number" }),
+    expiresAt: bigint("expires_at", { mode: "number" }),
+    resultOrderId: varchar("result_order_id", { length: 36 }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+  },
+  (t) => [
+    index("limit_order_user_idx").on(t.userId),
+    index("limit_order_status_idx").on(t.status),
+  ]
+);
+export type StablecoinLimitOrder = typeof stablecoinLimitOrders.$inferSelect;
+export type InsertStablecoinLimitOrder = typeof stablecoinLimitOrders.$inferInsert;
+
+export const stablecoinYieldPositions = pgTable(
+  "stablecoin_yield_positions",
+  {
+    id: varchar("id", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    stablecoin: varchar("stablecoin", { length: 10 }).notNull().default("USDC"),
+    principalAmount: decimal("principal_amount", { precision: 20, scale: 6 }).notNull(),
+    currentAmount: decimal("current_amount", { precision: 20, scale: 6 }).notNull(),
+    apyBps: integer("apy_bps").notNull(), // basis points (e.g. 450 = 4.5%)
+    protocol: varchar("protocol", { length: 64 }).notNull(), // e.g. "aave_v3", "compound_v3"
+    status: varchar("status", { length: 20 }).notNull().default("active"),
+    depositTxHash: varchar("deposit_tx_hash", { length: 128 }),
+    withdrawTxHash: varchar("withdraw_tx_hash", { length: 128 }),
+    accruedYield: decimal("accrued_yield", { precision: 20, scale: 6 }).default("0"),
+    lastAccrualAt: bigint("last_accrual_at", { mode: "number" }),
+    withdrawnAt: bigint("withdrawn_at", { mode: "number" }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull().$defaultFn(() => Date.now()),
+  },
+  (t) => [
+    index("yield_user_idx").on(t.userId),
+    index("yield_status_idx").on(t.status),
+  ]
+);
+export type StablecoinYieldPosition = typeof stablecoinYieldPositions.$inferSelect;
+export type InsertStablecoinYieldPosition = typeof stablecoinYieldPositions.$inferInsert;

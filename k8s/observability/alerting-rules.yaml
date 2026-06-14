@@ -385,6 +385,109 @@ rules:
     verbs: [get]
 
 ---
+# ─── Stablecoin On-Ramp/Off-Ramp Alerting Rules ───────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: stablecoin-ramp-alerts
+  namespace: tourismpay
+  labels:
+    app: tourismpay
+    component: stablecoin
+spec:
+  groups:
+    - name: stablecoin.onramp
+      rules:
+        - alert: OnrampFailureRateHigh
+          expr: |
+            rate(tourismpay_onramp_orders_total{status="failed"}[5m])
+            / rate(tourismpay_onramp_orders_total[5m]) > 0.1
+          for: 5m
+          labels:
+            severity: critical
+            team: payments
+          annotations:
+            summary: "On-ramp failure rate > 10%"
+            description: "{{ $labels.rail }} rail has {{ $value | humanizePercentage }} failure rate"
+            runbook: "Check payment provider status; review failed order logs in OpenSearch"
+
+        - alert: OnrampVolumeSpike
+          expr: |
+            rate(tourismpay_onramp_volume_usd_total[5m]) > 10000
+          for: 10m
+          labels:
+            severity: warning
+            team: payments
+          annotations:
+            summary: "On-ramp volume spike > $10K/5min"
+            description: "Rail {{ $labels.rail }}: {{ $value | humanize }}/s USD volume"
+
+    - name: stablecoin.offramp
+      rules:
+        - alert: OfframpFailureRateHigh
+          expr: |
+            rate(tourismpay_offramp_requests_total{status=~"failed|rejected_velocity"}[5m])
+            / rate(tourismpay_offramp_requests_total[5m]) > 0.1
+          for: 5m
+          labels:
+            severity: critical
+            team: payments
+          annotations:
+            summary: "Off-ramp failure rate > 10%"
+            description: "{{ $labels.rail }} rail has {{ $value | humanizePercentage }} failure rate"
+            runbook: "Check payout provider status; verify velocity limits; review rejected requests"
+
+        - alert: OfframpVelocityLimitBreach
+          expr: rate(tourismpay_offramp_velocity_limit_hits_total[5m]) > 5
+          for: 5m
+          labels:
+            severity: warning
+            team: compliance
+          annotations:
+            summary: "Off-ramp velocity limit hits > 5/5min"
+            description: "Users hitting daily $5K off-ramp cap frequently — possible abuse or limit too low"
+
+    - name: stablecoin.fees
+      rules:
+        - alert: RampFeesAbnormal
+          expr: |
+            rate(tourismpay_ramp_fees_usd_total{direction="onramp"}[1h])
+            / rate(tourismpay_onramp_volume_usd_total[1h]) > 0.05
+          for: 15m
+          labels:
+            severity: warning
+            team: payments
+          annotations:
+            summary: "Effective on-ramp fee ratio > 5%"
+            description: "Rail {{ $labels.rail }}: effective fee {{ $value | humanizePercentage }}"
+
+    - name: stablecoin.yield
+      rules:
+        - alert: YieldPositionsExcessive
+          expr: tourismpay_yield_total_deposited_usd > 1000000
+          for: 5m
+          labels:
+            severity: warning
+            team: treasury
+          annotations:
+            summary: "Total yield deposits > $1M"
+            description: "Current total: ${{ $value | humanize }}"
+
+    - name: stablecoin.latency
+      rules:
+        - alert: RampProcessingLatencyHigh
+          expr: |
+            histogram_quantile(0.95, rate(tourismpay_ramp_duration_seconds_bucket[5m])) > 30
+          for: 5m
+          labels:
+            severity: critical
+            team: payments
+          annotations:
+            summary: "P95 ramp processing > 30s"
+            description: "{{ $labels.direction }} via {{ $labels.rail }}: p95 = {{ $value | humanize }}s"
+            runbook: "Check payment provider response times; scale pods if needed"
+
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

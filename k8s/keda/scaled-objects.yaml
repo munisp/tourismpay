@@ -297,6 +297,64 @@ spec:
       name: tourismpay-secrets
       key: KAFKA_SASL_PASSWORD
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 7. Stablecoin On-Ramp/Off-Ramp — scale on ramp request rate + Kafka lag
+# ══════════════════════════════════════════════════════════════════════════════
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: tourismpay-stablecoin-ramp-scaler
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: tourismpay-settlement
+    component: stablecoin-ramp
+spec:
+  scaleTargetRef:
+    name: tourismpay-settlement
+  pollingInterval: 10
+  cooldownPeriod: 90
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  fallback:
+    failureThreshold: 3
+    replicas: 3
+  triggers:
+    # Scale on on-ramp order rate (Prometheus)
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.tourismpay.svc:9090
+        metricName: tourismpay_onramp_orders_rate
+        query: sum(rate(tourismpay_onramp_orders_total[2m]))
+        threshold: "5"
+        activationThreshold: "1"
+
+    # Scale on off-ramp request rate (Prometheus)
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.tourismpay.svc:9090
+        metricName: tourismpay_offramp_requests_rate
+        query: sum(rate(tourismpay_offramp_requests_total[2m]))
+        threshold: "3"
+        activationThreshold: "1"
+
+    # Scale on ramp processing latency p95 > 5s
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.tourismpay.svc:9090
+        metricName: tourismpay_ramp_p95_latency
+        query: histogram_quantile(0.95, sum(rate(tourismpay_ramp_duration_seconds_bucket[5m])) by (le))
+        threshold: "5"
+
+    # Scale on Kafka stablecoin event consumer lag
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka.tourismpay.svc:9092
+        consumerGroup: stablecoin-ramp-processor
+        topic: stablecoin.events
+        lagThreshold: "50"
+        activationLagThreshold: "10"
+
 ---
 apiVersion: keda.sh/v1alpha1
 kind: TriggerAuthentication

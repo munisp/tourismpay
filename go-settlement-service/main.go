@@ -36,11 +36,13 @@ func main() {
 	cryptoService := services.NewCryptoService()
 	nfcService := services.NewOfflineNFCService()
 	cbdcBridge := services.NewCBDCBridge()
+	rampService := services.NewOnrampOfframpService(cryptoService, cbdcBridge)
 
 	h := handlers.NewHandlers(ledgerService, mojaloopService, inventoryService, settlementService)
 	cryptoHandlers := handlers.NewCryptoHandlers(cryptoService)
 	nfcHandlers := services.NewNFCHandlers(nfcService)
 	cbdcHandlers := services.NewCBDCHandlers(cbdcBridge)
+	rampHandlers := handlers.NewRampHandlers(rampService)
 
 	router := gin.New()
 
@@ -181,6 +183,21 @@ func main() {
 			cbdc.POST("/wallets", cbdcHandlers.CreateWalletHandler)
 			cbdc.POST("/swap/quote", cbdcHandlers.GetSwapQuoteHandler)
 			cbdc.POST("/swap/execute", cbdcHandlers.ExecuteSwapHandler)
+		}
+
+		// Stablecoin On-Ramp / Off-Ramp
+		ramp := api.Group("/ramp")
+		{
+			ramp.POST("/onramp/quote", rampHandlers.OnrampQuote)
+			ramp.POST("/onramp/execute", rampHandlers.OnrampExecute)
+			ramp.GET("/onramp/:order_id", rampHandlers.GetOnrampOrder)
+			ramp.GET("/onramp/history/:user_id", rampHandlers.OnrampHistory)
+			ramp.POST("/offramp/quote", rampHandlers.OfframpQuote)
+			ramp.POST("/offramp/execute", rampHandlers.OfframpExecute)
+			ramp.GET("/offramp/:request_id", rampHandlers.GetOfframpRequest)
+			ramp.GET("/offramp/history/:user_id", rampHandlers.OfframpHistory)
+			ramp.GET("/best-rail", rampHandlers.BestRail)
+			ramp.GET("/status", rampHandlers.GetStatus)
 		}
 	}
 

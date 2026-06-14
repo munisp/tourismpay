@@ -59,6 +59,7 @@ import { kycRouter } from "./routers/kyc";
 import { nocDashboardRouter } from "./routers/nocDashboard";
 import { channelManagerRouter } from "./routers/channelManager";
 import { gdsPortalRouter } from "./routers/gdsPortal";
+import { stablecoinSwapRouter } from "./routers/stablecoinSwap";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -182,6 +183,7 @@ export const appRouter = router({
   kyc: kycRouter,
   channelManager: channelManagerRouter,
   gdsPortal: gdsPortalRouter,
+  stablecoinSwap: stablecoinSwapRouter,
 });
 
 export type AppRouter = typeof appRouter;
