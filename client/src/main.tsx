@@ -44,8 +44,15 @@ const trpcClient = trpc.createClient({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
+        const csrfToken = document.cookie
+          .split("; ")
+          .find((c) => c.startsWith("csrf-token="))
+          ?.split("=")[1];
+        const headers = new Headers(init?.headers);
+        if (csrfToken) headers.set("x-csrf-token", csrfToken);
         return globalThis.fetch(input, {
           ...(init ?? {}),
+          headers,
           credentials: "include",
         });
       },
