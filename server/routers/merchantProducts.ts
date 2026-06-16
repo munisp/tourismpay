@@ -177,7 +177,7 @@ export const merchantProductsRouter = router({
       }
 
       const ext = input.mimeType.split("/")[1] ?? "jpg";
-      const suffix = Math.random().toString(36).slice(2, 10);
+      const suffix = crypto.randomUUID().replace(/-/g, "").substring(0, 8);
       const fileKey = `merchant-products/${input.establishmentId}/${Date.now()}-${suffix}.${ext}`;
 
       const buffer = Buffer.from(input.base64Data, "base64");
@@ -277,5 +277,233 @@ export const merchantProductsRouter = router({
         counts[p.category] = (counts[p.category] ?? 0) + 1;
       }
       return Object.entries(counts).map(([category, count]) => ({ category, count }));
+    }),
+
+  // ─── Gap 4: Bulk CSV Import ─────────────────────────────────────────────────
+  bulkImport: protectedProcedure
+    .input(
+      z.object({
+        establishmentId: z.number().int().positive(),
+        /** CSV content: name,description,category,price,currency,sku,available */
+        csvContent: z.string().min(10).max(500_000),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertOwnership(ctx.user.id, input.establishmentId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const lines = input.csvContent.trim().split("\n");
+      if (lines.length < 2) throw new TRPCError({ code: "BAD_REQUEST", message: "CSV must have header + at least 1 data row" });
+      if (lines.length > 1001) throw new TRPCError({ code: "BAD_REQUEST", message: "Maximum 1000 products per import" });
+
+      // Parse header
+      const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+      const nameIdx = header.indexOf("name");
+      const descIdx = header.indexOf("description");
+      const catIdx = header.indexOf("category");
+      const priceIdx = header.indexOf("price");
+      const currIdx = header.indexOf("currency");
+      const skuIdx = header.indexOf("sku");
+      const availIdx = header.indexOf("available");
+
+      if (nameIdx === -1 || priceIdx === -1) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "CSV must include 'name' and 'price' columns" });
+      }
+
+      const products: Array<{
+        establishmentId: number;
+        name: string;
+        description: string | null;
+        category: string;
+        price: string;
+        currency: string;
+        sku: string | null;
+        available: boolean;
+        sortOrder: number;
+      }> = [];
+      const errors: string[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(",").map((c) => c.trim());
+        const name = cols[nameIdx] ?? "";
+        const price = cols[priceIdx] ?? "0";
+
+        if (!name || name.length < 1) { errors.push(`Row ${i}: missing name`); continue; }
+        if (!/^\d+(\.\d{1,2})?$/.test(price)) { errors.push(`Row ${i}: invalid price "${price}"`); continue; }
+
+        products.push({
+          establishmentId: input.establishmentId,
+          name,
+          description: descIdx >= 0 ? (cols[descIdx] || null) : null,
+          category: catIdx >= 0 ? (cols[catIdx] || "general") : "general",
+          price,
+          currency: currIdx >= 0 ? (cols[currIdx] || "USD").toUpperCase().slice(0, 3) : "USD",
+          sku: skuIdx >= 0 ? (cols[skuIdx] || null) : null,
+          available: availIdx >= 0 ? cols[availIdx]?.toLowerCase() !== "false" : true,
+          sortOrder: i,
+        });
+      }
+
+      if (products.length === 0) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `No valid products found. Errors: ${errors.join("; ")}` });
+      }
+
+      // Batch insert (chunks of 100)
+      let inserted = 0;
+      for (let i = 0; i < products.length; i += 100) {
+        const chunk = products.slice(i, i + 100);
+        const result = await db.insert(merchantProducts).values(chunk).returning({ id: merchantProducts.id });
+        inserted += result.length;
+      }
+
+      return { imported: inserted, errors, total: lines.length - 1 };
+    }),
+
+  // ─── Gap 5: Product Variants/Options ─────────────────────────────────────────
+  addVariant: protectedProcedure
+    .input(
+      z.object({
+        productId: z.number().int().positive(),
+        establishmentId: z.number().int().positive(),
+        variants: z.array(
+          z.object({
+            name: z.string().min(1).max(100),
+            options: z.array(
+              z.object({
+                label: z.string().min(1).max(50),
+                priceAdjustment: z.number().default(0),
+              })
+            ).min(1).max(20),
+          })
+        ).min(1).max(5),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertOwnership(ctx.user.id, input.establishmentId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      // Store variants in the metadata JSONB column
+      const [product] = await db
+        .select({ metadata: merchantProducts.metadata })
+        .from(merchantProducts)
+        .where(
+          and(
+            eq(merchantProducts.id, input.productId),
+            eq(merchantProducts.establishmentId, input.establishmentId)
+          )
+        )
+        .limit(1);
+
+      if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+
+      const existingMeta = (product.metadata as Record<string, unknown>) ?? {};
+      const updatedMeta = { ...existingMeta, variants: input.variants };
+
+      const [updated] = await db
+        .update(merchantProducts)
+        .set({ metadata: updatedMeta, updatedAt: new Date() })
+        .where(eq(merchantProducts.id, input.productId))
+        .returning();
+
+      return updated;
+    }),
+
+  getVariants: protectedProcedure
+    .input(z.object({ productId: z.number().int().positive(), establishmentId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      await assertOwnership(ctx.user.id, input.establishmentId);
+      const db = await getDb();
+      if (!db) return [];
+      const [product] = await db
+        .select({ metadata: merchantProducts.metadata })
+        .from(merchantProducts)
+        .where(
+          and(eq(merchantProducts.id, input.productId), eq(merchantProducts.establishmentId, input.establishmentId))
+        )
+        .limit(1);
+      if (!product) return [];
+      const meta = product.metadata as Record<string, unknown> | null;
+      return (meta?.variants as unknown[]) ?? [];
+    }),
+
+  // ─── Gap 7: Price Change Audit Trail ─────────────────────────────────────────
+  updateWithAudit: protectedProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        establishmentId: z.number().int().positive(),
+        price: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid price format"),
+        currency: z.string().length(3).optional(),
+        reason: z.string().max(500).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertOwnership(ctx.user.id, input.establishmentId);
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      // Get current price before update
+      const [current] = await db
+        .select({ price: merchantProducts.price, currency: merchantProducts.currency, name: merchantProducts.name })
+        .from(merchantProducts)
+        .where(and(eq(merchantProducts.id, input.id), eq(merchantProducts.establishmentId, input.establishmentId)))
+        .limit(1);
+      if (!current) throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+
+      const updates: Record<string, unknown> = { price: input.price, updatedAt: new Date() };
+      if (input.currency) updates.currency = input.currency;
+
+      // Update price
+      const [updated] = await db
+        .update(merchantProducts)
+        .set(updates)
+        .where(eq(merchantProducts.id, input.id))
+        .returning();
+
+      // Store audit in metadata.priceHistory
+      const meta = (updated.metadata as Record<string, unknown>) ?? {};
+      const history: unknown[] = (meta.priceHistory as unknown[]) ?? [];
+      history.push({
+        previousPrice: current.price,
+        previousCurrency: current.currency,
+        newPrice: input.price,
+        newCurrency: input.currency ?? current.currency,
+        changedBy: ctx.user.id,
+        changedAt: new Date().toISOString(),
+        reason: input.reason ?? null,
+      });
+      // Keep last 50 entries
+      const trimmed = history.slice(-50);
+      await db
+        .update(merchantProducts)
+        .set({ metadata: { ...meta, priceHistory: trimmed } })
+        .where(eq(merchantProducts.id, input.id));
+
+      return {
+        product: updated,
+        priceChange: {
+          from: `${current.price} ${current.currency}`,
+          to: `${input.price} ${input.currency ?? current.currency}`,
+        },
+      };
+    }),
+
+  // Get price history for a product
+  priceHistory: protectedProcedure
+    .input(z.object({ productId: z.number().int().positive(), establishmentId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      await assertOwnership(ctx.user.id, input.establishmentId);
+      const db = await getDb();
+      if (!db) return [];
+      const [product] = await db
+        .select({ metadata: merchantProducts.metadata })
+        .from(merchantProducts)
+        .where(and(eq(merchantProducts.id, input.productId), eq(merchantProducts.establishmentId, input.establishmentId)))
+        .limit(1);
+      if (!product) return [];
+      const meta = product.metadata as Record<string, unknown> | null;
+      return (meta?.priceHistory as unknown[]) ?? [];
     }),
 });

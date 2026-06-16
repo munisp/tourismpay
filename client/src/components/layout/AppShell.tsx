@@ -12,9 +12,9 @@ import {
   Leaf, Scan, Network, ChevronLeft, ChevronRight, Bell,
   Search, Settings, LogOut, User, AlertTriangle, Activity,
   Map, Zap, Crown, FileCheck, ClipboardList, DollarSign, Server, Eye,
-  ArrowLeftRight, BarChart3, Code2, Repeat, Radio, MonitorDot, Landmark, Gauge,
+  ArrowLeftRight, BarChart3, Code2, Repeat, Radio, MonitorDot, Landmark, Gauge, ArrowDownUp,
   MapPin, UtensilsCrossed, QrCode, UserCheck, ShoppingBag, CheckSquare, Banknote,
-  Package, UserSearch, Users2, Terminal, Brain, CreditCard, Monitor, Sparkles, Inbox, Trophy, BarChart2, CalendarDays, Mail
+  Package, UserSearch, Users2, Terminal, Brain, CreditCard, Monitor, Sparkles, Inbox, Trophy, BarChart2, CalendarDays, Mail, Droplets
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MobileNav from "./MobileNav";
@@ -50,6 +50,7 @@ const navItems: NavItem[] = [
   { label: "Onboarding Wizard", icon: UserCheck, href: "/tourist/onboarding", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Trip Itinerary", icon: Map, href: "/tourist/itinerary", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Digital Wallet", icon: Wallet, href: "/wallet", section: "tourist", roles: ["tourist", "admin"] },
+  { label: "Stablecoin Swap", icon: ArrowDownUp, href: "/wallet/stablecoin", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Loyalty & Rewards", icon: Award, href: "/loyalty", section: "tourist", roles: ["tourist", "admin"] },
   { label: "AI Co-Pilot", icon: MessageSquareText, href: "/copilot", section: "tourist", roles: ["tourist", "admin"] },
   { label: "AR Tourism", icon: Scan, href: "/ar", section: "tourist", roles: ["tourist", "admin"] },
@@ -63,6 +64,7 @@ const navItems: NavItem[] = [
   { label: "Payout History", icon: Banknote, href: "/merchant/payouts", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Stripe Connect", icon: CreditCard, href: "/merchant/stripe-connect", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Product Catalog", icon: Package, href: "/merchant/products", section: "merchant", roles: ["merchant", "admin"] },
+  { label: "Channel Manager", icon: Globe, href: "/merchant/channels", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Employee BIS Checks", icon: UserSearch, href: "/merchant/employee-bis", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Staff Management", icon: Users2, href: "/merchant/staff", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Cashier Terminal", icon: Terminal, href: "/merchant/cashier", section: "merchant", roles: ["merchant", "admin"] },
@@ -72,6 +74,7 @@ const navItems: NavItem[] = [
   { label: "Availability Calendar", icon: CalendarDays, href: "/merchant/availability", section: "merchant", roles: ["merchant", "admin"] },
   { label: "BIS Compliance", icon: Shield, href: "/merchant/bis-status", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Digital Wallet", icon: Wallet, href: "/wallet", section: "merchant", roles: ["merchant", "admin"] },
+  { label: "Stablecoin Swap", icon: ArrowDownUp, href: "/wallet/stablecoin", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Embedded Finance", icon: TrendingUp, href: "/finance", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Loyalty & Rewards", icon: Award, href: "/loyalty", section: "merchant", roles: ["merchant", "admin"] },
   { label: "AI Co-Pilot", icon: MessageSquareText, href: "/copilot", section: "merchant", roles: ["merchant", "admin"] },
@@ -81,6 +84,10 @@ const navItems: NavItem[] = [
   { label: "KYB Applications", icon: ClipboardList, href: "/admin/kyb-applications", section: "compliance", roles: ["compliance_officer", "admin"] },
   { label: "KYB Doc Review", icon: FileCheck, href: "/admin/kyb-documents", section: "compliance", roles: ["compliance_officer", "admin"] },
   { label: "Exchange Rate Overrides", icon: TrendingUp, href: "/admin/exchange-rates", section: "compliance", roles: ["admin"] },
+
+  // ─── GDS (agents + property managers + admin) ──────────────────────────────
+  { label: "Agent Portal", icon: Globe, href: "/gds/agent", section: "gds", roles: ["merchant", "admin"] },
+  { label: "Property Manager", icon: Building2, href: "/gds/property", section: "gds", roles: ["merchant", "admin"] },
 
   // ─── Africa ──────────────────────────────────────────────────────────────────
   { label: "Africa Registry", icon: Globe, href: "/africa/registry", section: "africa", roles: ["admin", "compliance_officer", "merchant"] },
@@ -99,6 +106,8 @@ const navItems: NavItem[] = [
   // ─── Finance (merchant + admin + user — tourists get these under their own section) ───
   { label: "AI Co-Pilot", icon: MessageSquareText, href: "/copilot", section: "finance", roles: ["merchant", "admin", "user"] },
   { label: "Digital Wallet", icon: Wallet, href: "/wallet", section: "finance", roles: ["merchant", "admin", "user"] },
+  { label: "Stablecoin Swap", icon: ArrowDownUp, href: "/wallet/stablecoin", section: "finance", roles: ["merchant", "admin", "user"] },
+  { label: "Liquidity Provider", icon: Droplets, href: "/wallet/liquidity", section: "finance", roles: ["merchant", "admin"] },
   { label: "Embedded Finance", icon: TrendingUp, href: "/finance", section: "finance", roles: ["merchant", "admin", "user"] },
   { label: "Loyalty & Rewards", icon: Award, href: "/loyalty", section: "finance", roles: ["merchant", "admin", "user"] },
 
@@ -155,6 +164,7 @@ const sectionLabels: Record<string, string> = {
   admin: "Administration",
   settings: "Settings",
   paymentswitch: "Payment Switch",
+  gds: "Africa GDS",
 };
 
 interface AppShellProps {

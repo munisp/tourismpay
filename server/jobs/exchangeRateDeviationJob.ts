@@ -8,6 +8,7 @@
  * 4. Updates baselines after alerting.
  */
 import { notifyOwner } from "../_core/notification";
+import { logger } from "../_core/logger";
 
 const JOB_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -54,7 +55,7 @@ async function runCycle() {
   }
 
   if (deviations.length === 0) {
-    console.log(`[Rate Deviation Job] No significant deviations at ${new Date().toISOString()}`);
+    logger.info(`[Rate Deviation Job] No significant deviations at ${new Date().toISOString()}`);
     return;
   }
 
@@ -73,7 +74,7 @@ async function runCycle() {
     ].join("\n"),
   });
 
-  console.log(
+  logger.info(
     `[Rate Deviation Job] Alerted on ${deviations.length} deviation(s). Notified owner: ${notified}`
   );
 }
@@ -82,14 +83,14 @@ let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
 export function startExchangeRateDeviationJob() {
   if (intervalHandle) return; // already running
-  console.log("[Rate Deviation Job] Starting hourly exchange rate deviation check");
+  logger.info("[Rate Deviation Job] Starting hourly exchange rate deviation check");
   // Run immediately on startup (populates baselines), then every hour
   runCycle().catch((err) =>
-    console.error("[Rate Deviation Job] Initial cycle error:", err)
+    logger.error("[Rate Deviation Job] Initial cycle error:", err)
   );
   intervalHandle = setInterval(() => {
     runCycle().catch((err) =>
-      console.error("[Rate Deviation Job] Cycle error:", err)
+      logger.error("[Rate Deviation Job] Cycle error:", err)
     );
   }, JOB_INTERVAL_MS);
 }

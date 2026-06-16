@@ -2,7 +2,7 @@ import { z } from "zod";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { Parser } from "json2csv";
 import { TRPCError } from "@trpc/server";
-import { getDb } from "../db";
+import { getDb, withTransaction } from "../db";
 import { walletBalances, walletTransactions, walletBalanceAlerts, walletSpendingLimits, scheduledPayments, walletRecurringPayments, qrPaymentTokens, establishments } from "../../drizzle/schema";
 import { eq, and, desc, sql, gte, lte, ilike, or, count } from "drizzle-orm";
 import { createAuditLog, createUserNotification } from "../db";
@@ -11,6 +11,7 @@ import { _highValueTokens } from "./biometric";
 import { HIGH_VALUE_TX_THRESHOLD_USD } from "../../shared/const";
 import { checkAndAutoFlag } from "./bisIntegration";
 import { stripe } from "../_core/stripe";
+import { cacheGet, cacheSet } from "../_core/redis";
 
 // USD exchange rates for high-value threshold check (approximate)
 const APPROX_USD_RATES: Record<string, number> = {
@@ -256,40 +257,44 @@ export const walletRouter = router({
           }
         }
       }
-      // Check balance
-      const [bal] = await db
-        .select()
-        .from(walletBalances)
-        .where(and(eq(walletBalances.userId, String(ctx.user.id)), eq(walletBalances.currency, input.currency)));
-      if (!bal || parseFloat(bal.balance as unknown as string) < input.amount) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Insufficient balance" });
+      // Per-user rate limit: max 10 sends per minute
+      const sendRateKey = `rl:wallet:send:${ctx.user.id}`;
+      const sendCount = await cacheGet<number>(sendRateKey);
+      if (sendCount !== null && sendCount >= 10) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Rate limit: max 10 sends per minute. Please wait." });
       }
-      const fee = input.amount * 0.001; // 0.1% fee
-      const total = input.amount + fee;
-      // Deduct balance
-      await db.update(walletBalances)
-        .set({
-          balance: String(parseFloat(bal.balance as unknown as string) - total),
-          updatedAt: Date.now(),
-        })
-        .where(eq(walletBalances.id, bal.id));
-      // Create transaction record
+      await cacheSet(sendRateKey, (sendCount ?? 0) + 1, 60);
+
+      // Atomic balance deduction using SQL transaction with row-level locking
+      const amountCents = Math.round(input.amount * 1_000_000); // 6 decimal places for precision
+      const feeCents = Math.round(amountCents * 1 / 1000); // 0.1% fee in micros
+      const totalCents = amountCents + feeCents;
+      const fee = totalCents / 1_000_000;
+      const total = totalCents / 1_000_000;
       const txId = crypto.randomUUID();
-      await db.insert(walletTransactions).values({
-        id: txId,
-        userId: String(ctx.user.id),
-        type: "send",
-        status: "completed",
-        fromCurrency: input.currency,
-        amount: String(input.amount),
-        fee: String(fee),
-        counterparty: input.counterparty,
-        counterpartyAddress: input.counterpartyAddress,
-        note: input.note,
-        txHash: `0x${crypto.randomUUID().replace(/-/g, "")}`,
-        completedAt: Date.now(),
-        createdAt: Date.now(),
+
+      const result = await withTransaction(async (tx) => {
+        // Row-level lock: SELECT ... FOR UPDATE prevents concurrent modification
+        const [bal] = await tx`
+          SELECT id, balance, locked_balance FROM wallet_balances
+          WHERE user_id = ${String(ctx.user.id)} AND currency = ${input.currency}
+          FOR UPDATE
+        `;
+        if (!bal || parseFloat(bal.balance) < total) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Insufficient balance" });
+        }
+        const newBalance = parseFloat(bal.balance) - total;
+        await tx`
+          UPDATE wallet_balances SET balance = ${String(newBalance)}, updated_at = ${Date.now()}
+          WHERE id = ${bal.id}
+        `;
+        await tx`
+          INSERT INTO wallet_transactions (id, user_id, type, status, from_currency, amount, fee, counterparty, counterparty_address, note, tx_hash, completed_at, created_at)
+          VALUES (${txId}, ${String(ctx.user.id)}, 'send', 'completed', ${input.currency}, ${String(input.amount)}, ${String(fee)}, ${input.counterparty}, ${input.counterpartyAddress ?? null}, ${input.note ?? null}, ${'0x' + crypto.randomUUID().replace(/-/g, '')}, ${Date.now()}, ${Date.now()})
+        `;
+        return { newBalance };
       });
+
       await createAuditLog({
         actorId: ctx.user.id,
         actorName: ctx.user.name || String(ctx.user.id),
@@ -299,7 +304,7 @@ export const walletRouter = router({
         after: { currency: input.currency, amount: input.amount, counterparty: input.counterparty },
       });
       // Check balance alerts after send
-      const newBalance = parseFloat(bal.balance as unknown as string) - total;
+      const newBalance = result.newBalance;
       const alerts = await db.select().from(walletBalanceAlerts)
         .where(and(eq(walletBalanceAlerts.userId, String(ctx.user.id)), eq(walletBalanceAlerts.currency, input.currency), eq(walletBalanceAlerts.isActive, true)));
       for (const alert of alerts) {
@@ -486,47 +491,32 @@ export const walletRouter = router({
       source: z.string().default("Bank Transfer"),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      await ensureDefaultBalances(String(ctx.user.id));
-      // Find or create balance record
-      let [bal] = await db
-        .select()
-        .from(walletBalances)
-        .where(and(eq(walletBalances.userId, String(ctx.user.id)), eq(walletBalances.currency, input.currency)));
-      if (!bal) {
-        const newId = crypto.randomUUID();
-        await db.insert(walletBalances).values({
-          id: newId,
-          userId: String(ctx.user.id),
-          currency: input.currency,
-          balance: String(input.amount),
-          lockedBalance: "0",
-          walletAddress: `tp_${input.currency.toLowerCase().replace("-", "_")}_${String(ctx.user.id).slice(0, 8)}`,
-          network: CURRENCY_NETWORKS[input.currency],
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        });
-      } else {
-        await db.update(walletBalances)
-          .set({
-            balance: String(parseFloat(bal.balance as unknown as string) + input.amount),
-            updatedAt: Date.now(),
-          })
-          .where(eq(walletBalances.id, bal.id));
-      }
       const txId = crypto.randomUUID();
-      await db.insert(walletTransactions).values({
-        id: txId,
-        userId: String(ctx.user.id),
-        type: "deposit",
-        status: "completed",
-        fromCurrency: input.currency,
-        amount: String(input.amount),
-        fee: "0",
-        counterparty: input.source,
-        completedAt: Date.now(),
-        createdAt: Date.now(),
+
+      await withTransaction(async (tx) => {
+        // Lock balance row (or insert if new)
+        const [bal] = await tx`
+          SELECT id, balance FROM wallet_balances
+          WHERE user_id = ${String(ctx.user.id)} AND currency = ${input.currency}
+          FOR UPDATE
+        `;
+        if (!bal) {
+          await tx`
+            INSERT INTO wallet_balances (id, user_id, currency, balance, locked_balance, wallet_address, network, created_at, updated_at)
+            VALUES (${crypto.randomUUID()}, ${String(ctx.user.id)}, ${input.currency}, ${String(input.amount)}, '0',
+              ${'tp_' + input.currency.toLowerCase().replace('-', '_') + '_' + String(ctx.user.id).slice(0, 8)},
+              ${CURRENCY_NETWORKS[input.currency]}, ${Date.now()}, ${Date.now()})
+          `;
+        } else {
+          await tx`
+            UPDATE wallet_balances SET balance = ${String(parseFloat(bal.balance) + input.amount)}, updated_at = ${Date.now()}
+            WHERE id = ${bal.id}
+          `;
+        }
+        await tx`
+          INSERT INTO wallet_transactions (id, user_id, type, status, from_currency, amount, fee, counterparty, completed_at, created_at)
+          VALUES (${txId}, ${String(ctx.user.id)}, 'deposit', 'completed', ${input.currency}, ${String(input.amount)}, '0', ${input.source}, ${Date.now()}, ${Date.now()})
+        `;
       });
       return { success: true, txId };
     }),
@@ -539,62 +529,63 @@ export const walletRouter = router({
       amount: z.number().positive(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       if (input.fromCurrency === input.toCurrency) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot swap same currency" });
       }
-      // Check balance
-      const [fromBal] = await db
-        .select()
-        .from(walletBalances)
-        .where(and(eq(walletBalances.userId, String(ctx.user.id)), eq(walletBalances.currency, input.fromCurrency)));
-      if (!fromBal || parseFloat(fromBal.balance as unknown as string) < input.amount) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Insufficient balance" });
+      // Per-user rate limit: max 5 swaps per minute
+      const swapRateKey = `rl:wallet:swap:${ctx.user.id}`;
+      const swapCount = await cacheGet<number>(swapRateKey);
+      if (swapCount !== null && swapCount >= 5) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Rate limit: max 5 swaps per minute." });
       }
-      // Simulate exchange rate (1:1 for demo)
+      await cacheSet(swapRateKey, (swapCount ?? 0) + 1, 60);
+
       const rate = 1.0;
       const toAmount = input.amount * rate;
-      const fee = input.amount * 0.002; // 0.2% swap fee
-      // Deduct from
-      await db.update(walletBalances)
-        .set({ balance: String(parseFloat(fromBal.balance as unknown as string) - input.amount - fee), updatedAt: Date.now() })
-        .where(eq(walletBalances.id, fromBal.id));
-      // Credit to
-      let [toBal] = await db
-        .select()
-        .from(walletBalances)
-        .where(and(eq(walletBalances.userId, String(ctx.user.id)), eq(walletBalances.currency, input.toCurrency)));
-      if (!toBal) {
-        await db.insert(walletBalances).values({
-          id: crypto.randomUUID(),
-          userId: String(ctx.user.id),
-          currency: input.toCurrency,
-          balance: String(toAmount),
-          lockedBalance: "0",
-          walletAddress: `tp_${input.toCurrency.toLowerCase().replace("-", "_")}_${String(ctx.user.id).slice(0, 8)}`,
-          network: CURRENCY_NETWORKS[input.toCurrency],
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        });
-      } else {
-        await db.update(walletBalances)
-          .set({ balance: String(parseFloat(toBal.balance as unknown as string) + toAmount), updatedAt: Date.now() })
-          .where(eq(walletBalances.id, toBal.id));
-      }
+      const feeCents = Math.round(input.amount * 1_000_000 * 2 / 1000); // 0.2% fee in micros
+      const fee = feeCents / 1_000_000;
       const txId = crypto.randomUUID();
-      await db.insert(walletTransactions).values({
-        id: txId,
-        userId: String(ctx.user.id),
-        type: "swap",
-        status: "completed",
-        fromCurrency: input.fromCurrency,
-        toCurrency: input.toCurrency,
-        amount: String(input.amount),
-        toAmount: String(toAmount),
-        fee: String(fee),
-        completedAt: Date.now(),
-        createdAt: Date.now(),
+
+      await withTransaction(async (tx) => {
+        // Lock source balance row
+        const [fromBal] = await tx`
+          SELECT id, balance FROM wallet_balances
+          WHERE user_id = ${String(ctx.user.id)} AND currency = ${input.fromCurrency}
+          FOR UPDATE
+        `;
+        if (!fromBal || parseFloat(fromBal.balance) < input.amount + fee) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Insufficient balance" });
+        }
+        // Deduct source
+        await tx`
+          UPDATE wallet_balances SET balance = ${String(parseFloat(fromBal.balance) - input.amount - fee)}, updated_at = ${Date.now()}
+          WHERE id = ${fromBal.id}
+        `;
+        // Lock or create destination balance
+        const [toBal] = await tx`
+          SELECT id, balance FROM wallet_balances
+          WHERE user_id = ${String(ctx.user.id)} AND currency = ${input.toCurrency}
+          FOR UPDATE
+        `;
+        if (!toBal) {
+          await tx`
+            INSERT INTO wallet_balances (id, user_id, currency, balance, locked_balance, wallet_address, network, created_at, updated_at)
+            VALUES (${crypto.randomUUID()}, ${String(ctx.user.id)}, ${input.toCurrency}, ${String(toAmount)}, '0',
+              ${'tp_' + input.toCurrency.toLowerCase().replace('-', '_') + '_' + String(ctx.user.id).slice(0, 8)},
+              ${CURRENCY_NETWORKS[input.toCurrency]}, ${Date.now()}, ${Date.now()})
+          `;
+        } else {
+          await tx`
+            UPDATE wallet_balances SET balance = ${String(parseFloat(toBal.balance) + toAmount)}, updated_at = ${Date.now()}
+            WHERE id = ${toBal.id}
+          `;
+        }
+        // Record transaction
+        await tx`
+          INSERT INTO wallet_transactions (id, user_id, type, status, from_currency, to_currency, amount, to_amount, fee, completed_at, created_at)
+          VALUES (${txId}, ${String(ctx.user.id)}, 'swap', 'completed', ${input.fromCurrency}, ${input.toCurrency},
+            ${String(input.amount)}, ${String(toAmount)}, ${String(fee)}, ${Date.now()}, ${Date.now()})
+        `;
       });
       return { success: true, txId, toAmount, rate, fee };
     }),
@@ -1768,7 +1759,7 @@ export const walletRouter = router({
       currency: z.enum(WALLET_CURRENCIES),
     }))
     .mutation(async ({ ctx, input }) => {
-      const origin = "https://tourismpay.manus.space";
+      const origin = process.env.VITE_APP_ORIGIN ?? "https://tourismpay.com";
       const session = await stripe.checkout.sessions.create({
         mode: "payment",
         customer_email: ctx.user.email || undefined,

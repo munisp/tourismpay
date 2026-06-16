@@ -1,0 +1,125 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tourismpay-server
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: tourismpay-server
+spec:
+  selector:
+    app.kubernetes.io/name: tourismpay-server
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: settlement-service
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: settlement-service
+spec:
+  selector:
+    app.kubernetes.io/name: settlement-service
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+      protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kyc-service
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: kyc-service
+spec:
+  selector:
+    app.kubernetes.io/name: kyc-service
+  ports:
+    - name: http
+      port: 8082
+      targetPort: http
+      protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bis-ai-service
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: bis-ai-service
+spec:
+  selector:
+    app.kubernetes.io/name: bis-ai-service
+  ports:
+    - name: http
+      port: 8001
+      targetPort: http
+      protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fraud-ml-service
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: fraud-ml-service
+spec:
+  selector:
+    app.kubernetes.io/name: fraud-ml-service
+  ports:
+    - name: http
+      port: 8002
+      targetPort: http
+      protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: exchange-rate-ml-service
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: exchange-rate-ml-service
+spec:
+  selector:
+    app.kubernetes.io/name: exchange-rate-ml-service
+  ports:
+    - name: http
+      port: 8004
+      targetPort: http
+      protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gds-search-service
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: gds-search-service
+spec:
+  selector:
+    app.kubernetes.io/name: gds-search-service
+  ports:
+    - name: http
+      port: 8010
+      targetPort: http
+      protocol: TCP
+  type: ClusterIP

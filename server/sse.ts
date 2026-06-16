@@ -11,6 +11,7 @@ import { getFraudAlerts, getSocAlerts, getBisInvestigations } from "./db";
 import { getDb } from "./db";
 import { psSettlements } from "../drizzle/schema";
 import { desc } from "drizzle-orm";
+import { logger } from "./_core/logger";
 
 // ─── Connection Registry ──────────────────────────────────────────────────────
 
@@ -24,7 +25,7 @@ type SSEClient = {
 const clients = new Map<string, SSEClient>();
 
 function generateClientId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return `${Date.now()}-${crypto.randomUUID().replace(/-/g, "").substring(0, 7)}`;
 }
 
 function sendToClient(client: SSEClient, event: string, data: unknown): void {
@@ -231,7 +232,7 @@ export function registerSSERoutes(app: Express): void {
   // Start polling loop — check every 5 seconds
   setInterval(pollAndBroadcast, 5_000);
 
-  console.log("[SSE] Real-time event streams registered: /api/sse/{fraud,soc,bis,settlements}");
+  logger.info("[SSE] Real-time event streams registered: /api/sse/{fraud,soc,bis,settlements}");
 }
 
 /**

@@ -1,0 +1,60 @@
+---
+# PodDisruptionBudgets — protect availability during node drains/upgrades
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: tourismpay-server-pdb
+  namespace: tourismpay
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tourismpay-server
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: settlement-service-pdb
+  namespace: tourismpay
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: settlement-service
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kyc-service-pdb
+  namespace: tourismpay
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kyc-service
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bis-ai-service-pdb
+  namespace: tourismpay
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bis-ai-service
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: fraud-ml-service-pdb
+  namespace: tourismpay
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fraud-ml-service

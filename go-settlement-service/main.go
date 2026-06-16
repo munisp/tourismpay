@@ -1,14 +1,19 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tourismpay/settlement-service/internal/database"
 	"github.com/tourismpay/settlement-service/internal/handlers"
+	"github.com/tourismpay/settlement-service/internal/lifecycle"
+	"github.com/tourismpay/settlement-service/internal/middleware"
 	"github.com/tourismpay/settlement-service/internal/services"
+	"github.com/tourismpay/settlement-service/internal/services/channels"
 )
 
 func main() {
@@ -17,9 +22,11 @@ func main() {
 		port = "8081"
 	}
 
-	tigerbeetleAddr := os.Getenv("TIGERBEETLE_ADDR")
-	if tigerbeetleAddr == "" {
-		tigerbeetleAddr = "127.0.0.1:3000"
+	// Connect to PostgreSQL (graceful fallback to in-memory if DB unavailable)
+	if err := database.Connect(); err != nil {
+		log.Printf("[WARN] Database connection failed, falling back to in-memory: %v", err)
+	} else {
+		log.Println("[INFO] Connected to PostgreSQL")
 	}
 
 	ledgerService := services.NewTigerBeetleLedgerService(0)
@@ -27,16 +34,36 @@ func main() {
 	inventoryService := services.NewInventorySyncService()
 	settlementService := services.NewSettlementService(ledgerService, mojaloopService)
 	cryptoService := services.NewCryptoService()
+	nfcService := services.NewOfflineNFCService()
+	cbdcBridge := services.NewCBDCBridge()
+	rampService := services.NewOnrampOfframpService(cryptoService, cbdcBridge)
 
 	h := handlers.NewHandlers(ledgerService, mojaloopService, inventoryService, settlementService)
 	cryptoHandlers := handlers.NewCryptoHandlers(cryptoService)
+	nfcHandlers := services.NewNFCHandlers(nfcService)
+	cbdcHandlers := services.NewCBDCHandlers(cbdcBridge)
+	rampHandlers := handlers.NewRampHandlers(rampService)
 
-	router := gin.Default()
+	router := gin.New()
 
+	// Middleware stack (order matters):
+	// 1. Panic recovery — catches panics, logs stack, increments counter, returns 500
+	// 2. Request tracking — counts in-flight requests, records latency metrics
+	// 3. Gin logger — HTTP access logging
+	router.Use(lifecycle.PanicRecoveryMiddleware())
+	router.Use(lifecycle.RequestTrackingMiddleware())
+	router.Use(gin.Logger())
+
+	// CORS middleware
+	allowedOrigin := os.Getenv("CORS_ORIGIN")
+	if allowedOrigin == "" {
+		allowedOrigin = "http://localhost:5173"
+	}
 	router.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Origin", allowedOrigin)
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
+		c.Header("Access-Control-Allow-Credentials", "true")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusOK)
 			return
@@ -44,16 +71,27 @@ func main() {
 		c.Next()
 	})
 
+	// ─── Health / Lifecycle Probes (unauthenticated) ──────────────────────────
 	router.GET("/health", func(c *gin.Context) {
+		dbStatus := "connected"
+		if database.DB == nil {
+			dbStatus = "in-memory-fallback"
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"status":    "healthy",
 			"service":   "TourismPay Settlement Service (Go)",
-			"version":   "2.0.0",
+			"version":   "3.0.0",
+			"database":  dbStatus,
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
 		})
 	})
+	router.GET("/livez", lifecycle.LivezHandler)
+	router.GET("/readyz", lifecycle.ReadyzHandler)
+	router.GET("/metrics", lifecycle.MetricsHandler)
 
+	// All API routes require authentication
 	api := router.Group("/api/v1")
+	api.Use(middleware.AuthMiddleware())
 	{
 		ledger := api.Group("/ledger")
 		{
@@ -99,52 +137,126 @@ func main() {
 			settlement.POST("/batches/:batch_id/process", h.ProcessSettlementBatch)
 			settlement.GET("/batches", h.ListSettlementBatches)
 			settlement.GET("/batches/:batch_id", h.GetSettlementBatch)
-			settlement.POST("/run-daily", h.RunDailySettlements)
+			settlement.POST("/run-daily", middleware.AdminMiddleware(), h.RunDailySettlements)
 			settlement.GET("/providers/:provider_id/balance", h.GetProviderBalance)
 			settlement.GET("/pending", h.ListPendingSettlements)
 			settlement.GET("/status", h.GetSettlementStatus)
 		}
 
 		reconciliation := api.Group("/reconciliation")
+		reconciliation.Use(middleware.AdminMiddleware())
 		{
 			reconciliation.POST("/reports", h.GenerateReconciliationReport)
 			reconciliation.GET("/reports", h.ListReconciliationReports)
 			reconciliation.GET("/reports/:report_id", h.GetReconciliationReport)
 		}
 
-		// Crypto and Stablecoin routes
 		crypto := api.Group("/crypto")
 		{
-			// Wallet management
 			crypto.POST("/wallets", cryptoHandlers.CreateWallet)
 			crypto.GET("/wallets/:wallet_id", cryptoHandlers.GetWallet)
 			crypto.GET("/wallets/user/:user_id", cryptoHandlers.GetWalletByUser)
 			crypto.GET("/wallets/:wallet_id/address/:coin", cryptoHandlers.GetDepositAddress)
 			crypto.GET("/wallets/:wallet_id/transactions", cryptoHandlers.GetTransactions)
-
-			// Deposits and withdrawals
 			crypto.POST("/deposit", cryptoHandlers.SimulateDeposit)
 			crypto.POST("/withdraw", cryptoHandlers.Withdraw)
-
-			// Swaps and exchange
 			crypto.GET("/rates", cryptoHandlers.GetAllExchangeRates)
 			crypto.GET("/rate", cryptoHandlers.GetExchangeRate)
 			crypto.POST("/swap", cryptoHandlers.Swap)
-
-			// Payments
 			crypto.POST("/quote", cryptoHandlers.GetPaymentQuote)
 			crypto.POST("/pay", cryptoHandlers.PayWithCrypto)
-
-			// Info
 			crypto.GET("/coins", cryptoHandlers.GetSupportedCoins)
-			crypto.GET("/status", cryptoHandlers.GetCryptoStatus)
+			crypto.GET("/health", cryptoHandlers.GetCryptoStatus)
 		}
 
-		api.GET("/infrastructure/status", h.GetInfrastructureStatus)
+		// Offline NFC Payments
+		nfc := api.Group("/nfc")
+		{
+			nfc.POST("/vouchers", nfcHandlers.CreateVoucherHandler)
+			nfc.POST("/tap", nfcHandlers.ProcessTapHandler)
+			nfc.POST("/sync", nfcHandlers.SyncVoucherHandler)
+		}
+
+		// CBDC Bridge
+		cbdc := api.Group("/cbdc")
+		{
+			cbdc.POST("/wallets", cbdcHandlers.CreateWalletHandler)
+			cbdc.POST("/swap/quote", cbdcHandlers.GetSwapQuoteHandler)
+			cbdc.POST("/swap/execute", cbdcHandlers.ExecuteSwapHandler)
+		}
+
+		// Stablecoin On-Ramp / Off-Ramp
+		ramp := api.Group("/ramp")
+		{
+			ramp.POST("/onramp/quote", rampHandlers.OnrampQuote)
+			ramp.POST("/onramp/execute", rampHandlers.OnrampExecute)
+			ramp.GET("/onramp/:order_id", rampHandlers.GetOnrampOrder)
+			ramp.GET("/onramp/history/:user_id", rampHandlers.OnrampHistory)
+			ramp.POST("/offramp/quote", rampHandlers.OfframpQuote)
+			ramp.POST("/offramp/execute", rampHandlers.OfframpExecute)
+			ramp.GET("/offramp/:request_id", rampHandlers.GetOfframpRequest)
+			ramp.GET("/offramp/history/:user_id", rampHandlers.OfframpHistory)
+			ramp.GET("/best-rail", rampHandlers.BestRail)
+			ramp.GET("/status", rampHandlers.GetStatus)
+		}
 	}
 
-	log.Printf("TourismPay Settlement Service (Go) starting on port %s", port)
-	if err := router.Run(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	// ─── Channel Manager ────────────────────────────────────────────────────────
+	channelManager := channels.NewManager(database.DB)
+	if database.DB != nil {
+		if err := channels.RunMigrations(database.DB); err != nil {
+			log.Printf("[WARN] Channel manager migrations failed: %v", err)
+		}
 	}
+	channelManager.Start(5 * time.Minute)
+
+	channelAPI := api.Group("/channels")
+	{
+		channelAPI.GET("", channelManager.ListChannelsHandler)
+		channelAPI.POST("/connect", channelManager.ConnectChannelHandler)
+		channelAPI.DELETE("/:channelId", channelManager.DisconnectChannelHandler)
+		channelAPI.POST("/:channelId/sync", channelManager.SyncChannelHandler)
+		channelAPI.GET("/stats", channelManager.ChannelStatsHandler)
+		channelAPI.POST("/webhooks/:channel", channelManager.WebhookHandler)
+	}
+
+	// ─── HTTP Server with Graceful Shutdown ──────────────────────────────────
+	server := &http.Server{
+		Addr:         ":" + port,
+		Handler:      router,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// Mark as ready once server is configured
+	lifecycle.SetReady()
+	log.Printf("[INFO] Settlement service starting on :%s", port)
+
+	// Start server in goroutine
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("[FATAL] Server listen error: %v", err)
+		}
+	}()
+
+	// Block until SIGTERM/SIGINT, then graceful shutdown
+	lifecycle.GracefulShutdown(server, []lifecycle.ShutdownHook{
+		{
+			Name: "channel-manager",
+			Fn: func(_ context.Context) error {
+				channelManager.Stop()
+				return nil
+			},
+		},
+		{
+			Name: "database",
+			Fn: func(_ context.Context) error {
+				if database.DB != nil {
+					database.Close()
+				}
+				return nil
+			},
+		},
+	})
 }

@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  typescript:
+    name: TypeScript (lint + typecheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: npx tsc --noEmit
+
+  go:
+    name: Go (build + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go-settlement-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - run: go build ./...
+      - run: go test -race -timeout 60s ./internal/...
+
+  python:
+    name: Python (syntax + import check)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python-services
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install fastapi pydantic uvicorn httpx asyncpg opensearch-py
+      - run: python -c "import main; import db; import auth; import opensearch_client; import lakehouse; import fluvio_consumer"
+      - run: python -m py_compile main.py
+      - run: python -m py_compile gds_search.py
+      - run: python -m py_compile gds_analytics.py
+      - run: python -m py_compile fraud-ml-service/main.py
+      - run: python -m py_compile bis-ai-engine/main.py
+      - run: python -m py_compile pdf-report-generator/main.py
+      - run: python -m py_compile compliance-risk-engine/main.py
+      - run: python -m py_compile exchange-rate-ml/main.py
+
+  rust:
+    name: Rust (check)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust-kyc-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check

@@ -12,6 +12,7 @@ import { getDb } from "../db";
 import { biometricEnrollments } from "../../drizzle/schema";
 import { eq, and, lt, isNotNull } from "drizzle-orm";
 import { createAuditLog, createUserNotification } from "../db";
+import { logger } from "../_core/logger";
 
 // Dedup set: enrollmentId → last notification date (YYYY-MM-DD)
 const _expirySoonNotified = new Map<string, string>();
@@ -107,12 +108,12 @@ async function runExpiryJob() {
     }
 
     if (expired.length > 0 || expiringSoon.length > 0) {
-      console.log(
+      logger.info(
         `[Biometric Expiry Job] Revoked: ${expired.length}, Expiring soon notified: ${expiringSoon.length}`
       );
     }
   } catch (err) {
-    console.error("[Biometric Expiry Job] Error:", err);
+    logger.error("[Biometric Expiry Job] Error:", err);
   }
 }
 
@@ -123,7 +124,7 @@ export function startBiometricExpiryJob(intervalMs = 6 * 60 * 60 * 1000) {
   // Run immediately on start, then on interval
   runExpiryJob();
   _jobInterval = setInterval(runExpiryJob, intervalMs);
-  console.log(`[Biometric Expiry Job] Started (interval: ${intervalMs / 3600000}h)`);
+  logger.info(`[Biometric Expiry Job] Started (interval: ${intervalMs / 3600000}h)`);
 }
 
 export function stopBiometricExpiryJob() {

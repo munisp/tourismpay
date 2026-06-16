@@ -18,6 +18,7 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, gte, lte, isNull, ne } from "drizzle-orm";
 import { sendPushToUser } from "../_core/webPush";
+import { logger } from "../_core/logger";
 
 const JOB_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const ALERT_WINDOW_MS = 48 * 60 * 60 * 1000; // 48 hours
@@ -148,11 +149,11 @@ export async function runWishlistExpiryAlertJob(): Promise<void> {
       );
     }
 
-    console.log(
+    logger.info(
       `[WishlistExpiryAlert] Notified ${byUser.size} tourists about ${alertedWishlistKeys.length} expiring wishlisted deals`
     );
   } catch (err) {
-    console.error("[WishlistExpiryAlert] Job error:", err);
+    logger.error("[WishlistExpiryAlert] Job error:", err);
   }
 }
 
@@ -162,5 +163,5 @@ export function startWishlistExpiryAlertJob(): void {
   if (_timer) return;
   runWishlistExpiryAlertJob();
   _timer = setInterval(runWishlistExpiryAlertJob, JOB_INTERVAL_MS);
-  console.log("[WishlistExpiryAlert] Job started (60-min interval)");
+  logger.info("[WishlistExpiryAlert] Job started (60-min interval)");
 }

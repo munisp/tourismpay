@@ -84,8 +84,8 @@ describe("PaymentSwitch router registrations", () => {
     expect(routers).toContain("nocDashboardRouter");
   });
 
-  it("psStubs routers are imported", () => {
-    expect(routers).toContain("psStubs");
+  it("paymentSwitch routers are imported", () => {
+    expect(routers).toContain("psRouters");
   });
 
   it("paymentSwitch is registered in appRouter", () => {
@@ -130,8 +130,8 @@ describe("PaymentSwitch router registrations", () => {
 });
 
 // ─── PaymentSwitch Router File Tests ─────────────────────────────────────────
-describe("paymentSwitch.ts router", () => {
-  const ps = readFileSync(resolve(root, "server/routers/paymentSwitch.ts"), "utf-8");
+describe("psRouters.ts router", () => {
+  const ps = readFileSync(resolve(root, "server/routers/psRouters.ts"), "utf-8");
 
   it("has initiateRemittance procedure", () => {
     expect(ps).toContain("initiateRemittance");
@@ -373,9 +373,9 @@ describe("PaymentSwitch page files exist", () => {
   });
 });
 
-// ─── psStubs.ts Completeness Tests ────────────────────────────────────────────
-describe("psStubs.ts stub router completeness", () => {
-  const stubs = readFileSync(resolve(root, "server/routers/psStubs.ts"), "utf-8");
+// ─── psRouters.ts Completeness Tests ────────────────────────────────────────────
+describe("psRouters.ts stub router completeness", () => {
+  const stubs = readFileSync(resolve(root, "server/routers/psRouters.ts"), "utf-8");
 
   it("rateAlerts router has getAlerts procedure", () => {
     expect(stubs).toContain("getAlerts");

@@ -1,3 +1,4 @@
+import { logger } from "./logger";
 /**
  * Settlement Service Client
  *
@@ -37,7 +38,7 @@ async function settlementFetch<T>(
     });
     clearTimeout(timer);
     if (!res.ok) {
-      console.warn(
+      logger.warn(
         `[SettlementClient] ${options?.method ?? "GET"} ${path} → ${res.status}`
       );
       return null;
@@ -47,7 +48,7 @@ async function settlementFetch<T>(
     clearTimeout(timer);
     const msg = err instanceof Error ? err.message : String(err);
     if (!msg.includes("abort")) {
-      console.warn(`[SettlementClient] Error: ${path} — ${msg}`);
+      logger.warn(`[SettlementClient] Error: ${path} — ${msg}`);
     }
     return null;
   }

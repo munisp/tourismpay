@@ -30,13 +30,14 @@ const DEFAULT_REWARDS = [
 async function ensureAccount(userId: number) {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+  const userIdStr = String(userId);
   const existing = await db.execute(
-    sql`SELECT * FROM loyalty_accounts WHERE user_id = ${userId} LIMIT 1`
+    sql`SELECT * FROM loyalty_accounts WHERE user_id = ${userIdStr} LIMIT 1`
   );
   if ((existing as any[]).length === 0) {
     await db.execute(
       sql`INSERT INTO loyalty_accounts (id, user_id, points_balance, tier, lifetime_points, created_at, updated_at)
-          VALUES (gen_random_uuid()::text, ${userId}, 0, 'BRONZE', 0, ${Date.now()}, ${Date.now()})`
+          VALUES (gen_random_uuid()::text, ${userIdStr}, 0, 'BRONZE', 0, ${Date.now()}, ${Date.now()})`
     );
     return { pointsBalance: 0, tier: "BRONZE" as string, lifetimePoints: 0, tierProtectedUntil: null as number | null };
   }
@@ -100,12 +101,13 @@ export const loyaltyRouter = router({
       if (!db) return { items: [], total: 0 };
       const limit = input?.limit ?? 20;
       const offset = input?.offset ?? 0;
+      const userIdStr = String(ctx.user.id);
       const rows = await db.execute(
-        sql`SELECT * FROM loyalty_transactions WHERE user_id = ${ctx.user.id}
+        sql`SELECT * FROM loyalty_transactions WHERE user_id = ${userIdStr}
             ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`
       );
       const countResult = await db.execute(
-        sql`SELECT COUNT(*) as cnt FROM loyalty_transactions WHERE user_id = ${ctx.user.id}`
+        sql`SELECT COUNT(*) as cnt FROM loyalty_transactions WHERE user_id = ${userIdStr}`
       );
       return {
         items: (rows as any[]).map(r => ({
@@ -277,7 +279,7 @@ export const loyaltyRouter = router({
       }
       // Deduct points
       await db.execute(
-        sql`UPDATE loyalty_accounts SET points_balance = points_balance - ${input.pointsCost}, updated_at = ${Date.now()} WHERE user_id = ${ctx.user.id}`
+        sql`UPDATE loyalty_accounts SET points_balance = points_balance - ${input.pointsCost}, updated_at = ${Date.now()} WHERE user_id = ${String(ctx.user.id)}`
       );
       // Tier downgrade protection: check if the new balance would normally drop the tier.
       // If so, set tierProtectedUntil = now + 90 days and notify the user.
@@ -301,7 +303,7 @@ export const loyaltyRouter = router({
         // Points balance dropped below current tier threshold — start 90-day grace period
         const graceEndsAt = nowMs2 + GRACE_PERIOD_MS;
         await db.execute(
-          sql`UPDATE loyalty_accounts SET tier_protected_until = ${graceEndsAt}, updated_at = ${nowMs2} WHERE user_id = ${ctx.user.id}`
+          sql`UPDATE loyalty_accounts SET tier_protected_until = ${graceEndsAt}, updated_at = ${nowMs2} WHERE user_id = ${String(ctx.user.id)}`
         );
         // Notify the user about the grace period
         await createUserNotification({
@@ -316,7 +318,7 @@ export const loyaltyRouter = router({
       // Record transaction
       await db.execute(
         sql`INSERT INTO loyalty_transactions (id, user_id, type, points, description, partner, reference_id, created_at)
-            VALUES (gen_random_uuid()::text, ${ctx.user.id}, 'redemption', ${-input.pointsCost}, ${`Redeemed: ${input.rewardName}`}, ${input.partner}, ${input.rewardId}, ${Date.now()})`
+            VALUES (gen_random_uuid()::text, ${String(ctx.user.id)}, 'redemption', ${-input.pointsCost}, ${`Redeemed: ${input.rewardName}`}, ${input.partner}, ${input.rewardId}, ${Date.now()})`
       );
       const graceStarted = balanceTierIdx < currentTierIdx && !(account.tierProtectedUntil != null && account.tierProtectedUntil > Date.now());
       return { success: true, remainingBalance: newBalance, graceStarted };
@@ -337,13 +339,13 @@ export const loyaltyRouter = router({
       const previousTier = previousAccount.tier;
       // Add points
       await db.execute(
-        sql`UPDATE loyalty_accounts SET points_balance = points_balance + ${input.points}, lifetime_points = lifetime_points + ${input.points}, updated_at = ${Date.now()} WHERE user_id = ${ctx.user.id}`
+        sql`UPDATE loyalty_accounts SET points_balance = points_balance + ${input.points}, lifetime_points = lifetime_points + ${input.points}, updated_at = ${Date.now()} WHERE user_id = ${String(ctx.user.id)}`
       );
       // Update tier
-      const updated = await db.execute(sql`SELECT lifetime_points FROM loyalty_accounts WHERE user_id = ${ctx.user.id}`);
+      const updated = await db.execute(sql`SELECT lifetime_points FROM loyalty_accounts WHERE user_id = ${String(ctx.user.id)}`);
       const newLifetime = Number((updated as any[])[0]?.lifetime_points ?? 0);
       const newTier = getTierFromPoints(newLifetime);
-      await db.execute(sql`UPDATE loyalty_accounts SET tier = ${newTier} WHERE user_id = ${ctx.user.id}`);
+      await db.execute(sql`UPDATE loyalty_accounts SET tier = ${newTier} WHERE user_id = ${String(ctx.user.id)}`);
       // Send tier upgrade notification if tier changed
       if (newTier !== previousTier && TIER_BENEFITS[newTier]) {
         await createUserNotification({
@@ -367,7 +369,7 @@ export const loyaltyRouter = router({
       const txExpiresAt = nowSec + TWELVE_MONTHS_SEC;
       await db.execute(
         sql`INSERT INTO loyalty_transactions (id, user_id, type, points, description, partner, reference_id, expires_at, is_expired, created_at)
-            VALUES (gen_random_uuid()::text, ${ctx.user.id}, 'earn', ${input.points}, ${input.description}, ${input.partner ?? null}, ${input.referenceId ?? null}, ${txExpiresAt}, false, ${nowSec})`
+            VALUES (gen_random_uuid()::text, ${String(ctx.user.id)}, 'earn', ${input.points}, ${input.description}, ${input.partner ?? null}, ${input.referenceId ?? null}, ${txExpiresAt}, false, ${nowSec})`
       );
       return { success: true, pointsEarned: input.points, newTier, tierUpgraded: newTier !== previousTier };
     }),
@@ -621,7 +623,7 @@ export const loyaltyRouter = router({
     const rows = await db.execute(
       sql`SELECT id, points, description, partner, expires_at, created_at
           FROM loyalty_transactions
-          WHERE user_id = ${ctx.user.id}
+          WHERE user_id = ${String(ctx.user.id)}
             AND type = 'earn'
             AND is_expired = false
             AND expires_at IS NOT NULL
@@ -902,7 +904,7 @@ export const loyaltyRouter = router({
       .limit(1);
     if (existing) return { code: existing.code, referralId: existing.id };
     // Generate a unique 8-char alphanumeric code
-    const code = `TP${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const code = `TP${crypto.randomUUID().replace(/-/g, "").substring(0, 6).toUpperCase()}`;
     const [created] = await db
       .insert(loyaltyReferrals)
       .values({
@@ -962,11 +964,11 @@ export const loyaltyRouter = router({
       // Award points to referee (current user)
       await ensureAccount(ctx.user.id);
       await db.execute(
-        sql`UPDATE loyalty_accounts SET points_balance = points_balance + ${REFEREE_BONUS}, lifetime_points = lifetime_points + ${REFEREE_BONUS}, updated_at = ${nowMs} WHERE user_id = ${ctx.user.id}`
+        sql`UPDATE loyalty_accounts SET points_balance = points_balance + ${REFEREE_BONUS}, lifetime_points = lifetime_points + ${REFEREE_BONUS}, updated_at = ${nowMs} WHERE user_id = ${String(ctx.user.id)}`
       );
       await db.execute(
         sql`INSERT INTO loyalty_transactions (id, user_id, type, points, description, partner, reference_id, created_at)
-            VALUES (gen_random_uuid()::text, ${ctx.user.id}, 'earn', ${REFEREE_BONUS}, 'Welcome bonus — referral code applied', 'TourismPay Referral', ${referral.id}, ${nowMs})`
+            VALUES (gen_random_uuid()::text, ${String(ctx.user.id)}, 'earn', ${REFEREE_BONUS}, 'Welcome bonus — referral code applied', 'TourismPay Referral', ${referral.id}, ${nowMs})`
       );
 
       // Notify referrer

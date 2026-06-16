@@ -11,9 +11,9 @@
  * // Frontend component
  * const transcribeMutation = trpc.voice.transcribe.useMutation({
  *   onSuccess: (data) => {
- *     console.log(data.text); // Full transcription
- *     console.log(data.language); // Detected language
- *     console.log(data.segments); // Timestamped segments
+ *     logger.info(data.text); // Full transcription
+ *     logger.info(data.language); // Detected language
+ *     logger.info(data.segments); // Timestamped segments
  *   }
  * });
  * 
@@ -26,6 +26,7 @@
  * ```
  */
 import { ENV } from "./env";
+import { logger } from "./logger";
 
 export type TranscribeOptions = {
   audioUrl: string; // URL to the audio file (e.g., S3 URL)
@@ -94,7 +95,7 @@ export async function transcribeAudio(
     let audioBuffer: Buffer;
     let mimeType: string;
     try {
-      const response = await fetch(options.audioUrl);
+      const response = await fetch(options.audioUrl, { signal: AbortSignal.timeout(30000) });
       if (!response.ok) {
         return {
           error: "Failed to download audio file",
@@ -159,6 +160,7 @@ export async function transcribeAudio(
         "Accept-Encoding": "identity",
       },
       body: formData,
+      signal: AbortSignal.timeout(60000),
     });
 
     if (!response.ok) {

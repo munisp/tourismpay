@@ -1,7 +1,7 @@
 /**
  * Quick example (matches curl usage):
  *   await callDataApi("Youtube/search", {
- *     query: { gl: "US", hl: "en", q: "manus" },
+ *     query: { gl: "US", hl: "en", q: "tourismpay" },
  *   })
  */
 import { ENV } from "./env";
@@ -43,6 +43,7 @@ export async function callDataApi(
       path_params: options.pathParams,
       multipart_form_data: options.formData,
     }),
+    signal: AbortSignal.timeout(30000),
   });
 
   if (!response.ok) {

@@ -33,7 +33,7 @@ export const embeddedFinanceRouter = router({
       const dateTo = input?.dateTo;
       // Build query dynamically with parameterised values
       const buildWhere = () => {
-        const parts = [sql`user_id = ${ctx.user.id}`];
+        const parts = [sql`user_id = ${String(ctx.user.id)}`];
         if (typeFilter) parts.push(sql`type = ${typeFilter}`);
         if (dateFrom) parts.push(sql`created_at >= ${dateFrom}`);
         if (dateTo) parts.push(sql`created_at <= ${dateTo}`);
@@ -82,7 +82,7 @@ export const embeddedFinanceRouter = router({
       });
       const result = await db.execute(
         sql`INSERT INTO finance_requests (id, user_id, type, amount, currency, status, description, metadata, created_at, updated_at)
-            VALUES (gen_random_uuid()::text, ${ctx.user.id}, 'payout', ${input.amount}, ${input.currency}, 'pending', ${input.description ?? null}, ${metadata}::jsonb, ${Date.now()}, ${Date.now()})
+            VALUES (gen_random_uuid()::text, ${String(ctx.user.id)}, 'payout', ${input.amount}, ${input.currency}, 'pending', ${input.description ?? null}, ${metadata}::jsonb, ${Date.now()}, ${Date.now()})
             RETURNING *`
       );
       const row = (result as any[])[0];
@@ -129,7 +129,7 @@ export const embeddedFinanceRouter = router({
       });
       const result = await db.execute(
         sql`INSERT INTO finance_requests (id, user_id, type, amount, currency, status, description, metadata, created_at, updated_at)
-            VALUES (gen_random_uuid()::text, ${ctx.user.id}, 'loan', ${input.amount}, ${input.currency}, 'under_review', ${input.purpose}, ${metadata}::jsonb, ${Date.now()}, ${Date.now()})
+            VALUES (gen_random_uuid()::text, ${String(ctx.user.id)}, 'loan', ${input.amount}, ${input.currency}, 'under_review', ${input.purpose}, ${metadata}::jsonb, ${Date.now()}, ${Date.now()})
             RETURNING *`
       );
       const row = (result as any[])[0];
@@ -186,7 +186,7 @@ export const embeddedFinanceRouter = router({
       });
       const result = await db.execute(
         sql`INSERT INTO finance_requests (id, user_id, type, amount, currency, status, description, metadata, created_at, updated_at)
-            VALUES (gen_random_uuid()::text, ${ctx.user.id}, 'insurance', ${premium}, 'USD', 'quoted', ${`${input.coverageType} insurance quote`}, ${metadata}::jsonb, ${Date.now()}, ${Date.now()})
+            VALUES (gen_random_uuid()::text, ${String(ctx.user.id)}, 'insurance', ${premium}, 'USD', 'quoted', ${`${input.coverageType} insurance quote`}, ${metadata}::jsonb, ${Date.now()}, ${Date.now()})
             RETURNING *`
       );
       const row = (result as any[])[0];
@@ -207,7 +207,7 @@ export const embeddedFinanceRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const existing = await db.execute(
-        sql`SELECT * FROM finance_requests WHERE id = ${input.quoteId} AND user_id = ${ctx.user.id} AND type = 'insurance' AND status = 'quoted' LIMIT 1`
+        sql`SELECT * FROM finance_requests WHERE id = ${input.quoteId} AND user_id = ${String(ctx.user.id)} AND type = 'insurance' AND status = 'quoted' LIMIT 1`
       );
       if ((existing as any[]).length === 0) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Quote not found or already used" });

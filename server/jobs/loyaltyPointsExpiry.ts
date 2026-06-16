@@ -12,6 +12,7 @@
 import { getDb, createUserNotification } from "../db";
 import { sql } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
+import { logger } from "../_core/logger";
 
 export async function runLoyaltyPointsExpiryJob(): Promise<{
   expired: number;
@@ -20,7 +21,7 @@ export async function runLoyaltyPointsExpiryJob(): Promise<{
 }> {
   const db = await getDb();
   if (!db) {
-    console.warn("[LoyaltyExpiry] Database unavailable, skipping job");
+    logger.warn("[LoyaltyExpiry] Database unavailable, skipping job");
     return { expired: 0, usersAffected: 0, warned: 0 };
   }
 
@@ -72,7 +73,7 @@ export async function runLoyaltyPointsExpiryJob(): Promise<{
         }).catch(() => null);
         usersAffected++;
       } catch (err) {
-        console.error(`[LoyaltyExpiry] Failed to process expiry for user ${userId}:`, err);
+        logger.error(`[LoyaltyExpiry] Failed to process expiry for user ${userId}:`, err);
       }
     }
 
@@ -84,7 +85,7 @@ export async function runLoyaltyPointsExpiryJob(): Promise<{
       content: `${expired} earn transaction(s) expired, affecting ${usersAffected} user(s). Total points deducted: ${Object.values(byUser).reduce((a, b) => a + b, 0).toLocaleString()}.`,
     }).catch(() => null);
 
-    console.log(`[LoyaltyExpiry] Expired ${expired} transactions across ${usersAffected} users`);
+    logger.info(`[LoyaltyExpiry] Expired ${expired} transactions across ${usersAffected} users`);
   }
 
   // ── Step 2: Send 30-day advance warnings ──────────────────────────────────
@@ -110,12 +111,12 @@ export async function runLoyaltyPointsExpiryJob(): Promise<{
       }).catch(() => null);
       warned++;
     } catch (err) {
-      console.error(`[LoyaltyExpiry] Failed to send warning to user ${row.user_id}:`, err);
+      logger.error(`[LoyaltyExpiry] Failed to send warning to user ${row.user_id}:`, err);
     }
   }
 
   if (warned > 0) {
-    console.log(`[LoyaltyExpiry] Sent 30-day expiry warnings to ${warned} users`);
+    logger.info(`[LoyaltyExpiry] Sent 30-day expiry warnings to ${warned} users`);
   }
 
   return { expired, usersAffected, warned };
@@ -126,18 +127,18 @@ let jobInterval: ReturnType<typeof setInterval> | null = null;
 
 export function startLoyaltyPointsExpiryJob(intervalMs = 24 * 60 * 60 * 1000): void {
   if (jobInterval) {
-    console.log("[LoyaltyExpiry] Already running");
+    logger.info("[LoyaltyExpiry] Already running");
     return;
   }
-  console.log(`[LoyaltyExpiry] Starting points expiry job (interval: ${intervalMs / 3600000}h)`);
+  logger.info(`[LoyaltyExpiry] Starting points expiry job (interval: ${intervalMs / 3600000}h)`);
   // Run once immediately on startup, then on interval
   runLoyaltyPointsExpiryJob().catch((err) =>
-    console.error("[LoyaltyExpiry] Initial run failed:", err)
+    logger.error("[LoyaltyExpiry] Initial run failed:", err)
   );
   jobInterval = setInterval(async () => {
     const result = await runLoyaltyPointsExpiryJob();
     if (result.expired > 0 || result.warned > 0) {
-      console.log(`[LoyaltyExpiry] Cycle — expired: ${result.expired}, users: ${result.usersAffected}, warned: ${result.warned}`);
+      logger.info(`[LoyaltyExpiry] Cycle — expired: ${result.expired}, users: ${result.usersAffected}, warned: ${result.warned}`);
     }
   }, intervalMs);
 }
@@ -146,6 +147,6 @@ export function stopLoyaltyPointsExpiryJob(): void {
   if (jobInterval) {
     clearInterval(jobInterval);
     jobInterval = null;
-    console.log("[LoyaltyExpiry] Stopped");
+    logger.info("[LoyaltyExpiry] Stopped");
   }
 }

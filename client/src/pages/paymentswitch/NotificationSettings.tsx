@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 import { Loader2, Bell, Mail, MessageSquare, Shield, Key, Lock } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
@@ -52,7 +53,7 @@ export default function NotificationSettings() {
       }
     } catch (error) {
       toast.error('Failed to save preferences');
-      console.error(error);
+      logger.error('Failed to save preferences', { error });
     }
   };
 
@@ -73,7 +74,7 @@ export default function NotificationSettings() {
       }
     } catch (error) {
       toast.error('Failed to reset preferences');
-      console.error(error);
+      logger.error('Failed to reset preferences', { error });
     }
   };
 

@@ -21,6 +21,7 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, gte, count, avg } from "drizzle-orm";
 import { sql } from "drizzle-orm";
+import { logger } from "../_core/logger";
 
 const JOB_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -36,7 +37,7 @@ function currentWeekMonday(): string {
 async function runSnapshotJob() {
   const db = await getDb();
   if (!db) {
-    console.warn("[LeaderboardSnapshot] Database unavailable, skipping");
+    logger.warn("[LeaderboardSnapshot] Database unavailable, skipping");
     return;
   }
 
@@ -116,27 +117,27 @@ async function runSnapshotJob() {
       upserted++;
     } catch (err) {
       errors++;
-      console.error(
+      logger.error(
         `[LeaderboardSnapshot] Failed for establishment ${est.id} (${est.name}):`,
         err
       );
     }
   }
 
-  console.log(
+  logger.info(
     `[LeaderboardSnapshot] Snapshot complete for week ${snapshotDate}: ${upserted} upserted, ${errors} errors`
   );
 }
 
 export function startLeaderboardSnapshotJob() {
-  console.log("[LeaderboardSnapshot] Starting weekly score snapshot job (interval: 7d)");
+  logger.info("[LeaderboardSnapshot] Starting weekly score snapshot job (interval: 7d)");
   // Run immediately on startup to populate initial data
   runSnapshotJob().catch((err) =>
-    console.error("[LeaderboardSnapshot] Initial run failed:", err)
+    logger.error("[LeaderboardSnapshot] Initial run failed:", err)
   );
   setInterval(() => {
     runSnapshotJob().catch((err) =>
-      console.error("[LeaderboardSnapshot] Scheduled run failed:", err)
+      logger.error("[LeaderboardSnapshot] Scheduled run failed:", err)
     );
   }, JOB_INTERVAL_MS);
 }

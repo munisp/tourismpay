@@ -24,7 +24,7 @@ import {
   Building2, DollarSign, FileText, Users2, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
-import AppShell from "@/components/layout/AppShell";
+
 
 const CURRENCIES = ["USD", "EUR", "GBP", "NGN", "KES", "GHS", "ZAR", "EGP", "TZS"];
 
@@ -157,7 +157,6 @@ export default function MerchantCashier() {
   const isLoading = loadingOwned || loadingStaff;
 
   return (
-    <AppShell>
       <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
         {/* Header */}
         <div className="space-y-1">
@@ -384,6 +383,6 @@ export default function MerchantCashier() {
           </div>
         )}
       </div>
-    </AppShell>
+
   );
 }

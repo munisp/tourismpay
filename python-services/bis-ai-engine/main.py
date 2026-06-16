@@ -8,18 +8,35 @@ from __future__ import annotations
 
 import hashlib
 import math
-import random
+import secrets
 import re
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from auth import AuthMiddleware
+import db as database
 
 app = FastAPI(title="BIS AI Engine", version="1.0.0")
 
+
+@app.on_event("startup")
+async def _startup():
+    await database.ensure_tables()
+
+
+@app.on_event("shutdown")
+async def _shutdown():
+    await database.close_pool()
+
+app.add_middleware(AuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,6 +47,7 @@ app.add_middleware(
 # ─── Models ──────────────────────────────────────────────────────────────────
 
 class InvestigationScoreRequest(BaseModel):
+    investigation_id: Optional[str] = None
     subject_full_name: str
     subject_country: str
     subject_nationality: Optional[str] = None
@@ -138,7 +156,13 @@ def deterministic_noise(seed: str, scale: float = 0.05) -> float:
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "bis-ai-engine", "version": "1.0.0"}
+    pool = await database.get_pool()
+    return {
+        "status": "ok",
+        "service": "bis-ai-engine",
+        "version": "1.0.0",
+        "database": "connected" if pool else "unavailable",
+    }
 
 
 @app.post("/api/v1/bis/score-investigation")
@@ -205,6 +229,12 @@ async def score_investigation(req: InvestigationScoreRequest):
     else:
         risk_level = "low"
         recommended_action = "standard_monitoring"
+
+    await database.execute(
+        "INSERT INTO bis_ai_scores (investigation_id, subject_name, risk_score, risk_level, factors) VALUES ($1,$2,$3,$4,$5::jsonb)",
+        req.investigation_id, req.subject_full_name, round(score, 4), risk_level,
+        str({k: round(v, 4) for k, v in factors.items()}).replace("'", '"'),
+    )
 
     return {
         "score": round(score, 4),

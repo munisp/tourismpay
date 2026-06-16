@@ -11,6 +11,7 @@ import { getDb } from "../db";
 import { touristBookings, establishments, users } from "../../drizzle/schema";
 import { eq, and, gte, lte, isNull } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification";
+import { logger } from "../_core/logger";
 
 export async function runBookingReminderJob(): Promise<void> {
   const db = await getDb();
@@ -51,7 +52,7 @@ export async function runBookingReminderJob(): Promise<void> {
 
     if (bookings.length === 0) return;
 
-    console.log(`[BookingReminder] Processing ${bookings.length} reminder(s)`);
+    logger.info(`[BookingReminder] Processing ${bookings.length} reminder(s)`);
 
     for (const booking of bookings) {
       try {
@@ -84,13 +85,13 @@ export async function runBookingReminderJob(): Promise<void> {
           .set({ reminderSentAt: new Date() })
           .where(eq(touristBookings.id, booking.id));
 
-        console.log(`[BookingReminder] Sent reminder for booking #${booking.id}`);
+        logger.info(`[BookingReminder] Sent reminder for booking #${booking.id}`);
       } catch (err) {
-        console.error(`[BookingReminder] Failed for booking #${booking.id}:`, err);
+        logger.error(`[BookingReminder] Failed for booking #${booking.id}:`, err);
       }
     }
   } catch (err) {
-    console.error("[BookingReminder] Job error:", err);
+    logger.error("[BookingReminder] Job error:", err);
   }
 }
 
@@ -98,10 +99,10 @@ export async function runBookingReminderJob(): Promise<void> {
  * Start the booking reminder job — runs every 15 minutes.
  */
 export function startBookingReminderJob(intervalMs = 15 * 60 * 1000): void {
-  console.log("[BookingReminder] Job started (interval: 15 min)");
+  logger.info("[BookingReminder] Job started (interval: 15 min)");
   // Run once immediately, then on interval
-  runBookingReminderJob().catch(console.error);
+  runBookingReminderJob().catch((err) => logger.error("Unhandled error", err));
   setInterval(() => {
-    runBookingReminderJob().catch(console.error);
+    runBookingReminderJob().catch((err) => logger.error("Unhandled error", err));
   }, intervalMs);
 }

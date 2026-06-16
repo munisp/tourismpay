@@ -24,6 +24,7 @@ import {
 import { eq, desc, and, gte } from "drizzle-orm";
 import { createBisInvestigation } from "../db";
 import { TRPCError } from "@trpc/server";
+import { logger } from "../_core/logger";
 
 // ─── USD exchange rates (approximate) ────────────────────────────────────────
 const APPROX_USD_RATES: Record<string, number> = {
@@ -185,7 +186,7 @@ export async function checkAndAutoFlag(
       bisReferenceId: inv?.referenceId,
     };
   } catch (err) {
-    console.error("[BIS AutoFlag] Failed to create investigation:", err);
+    logger.error("[BIS AutoFlag] Failed to create investigation:", err);
 
     // Record the failure
     await db.insert(bisAutoFlags).values({

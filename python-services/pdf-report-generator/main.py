@@ -29,8 +29,25 @@ from reportlab.platypus import (
 )
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from auth import AuthMiddleware
+import db as database
+
 app = FastAPI(title="PDF Report Generator", version="1.0.0")
 
+
+@app.on_event("startup")
+async def _startup():
+    await database.ensure_tables()
+
+
+@app.on_event("shutdown")
+async def _shutdown():
+    await database.close_pool()
+
+app.add_middleware(AuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -200,7 +217,13 @@ def build_pdf(elements: list) -> bytes:
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "pdf-report-generator", "version": "1.0.0"}
+    pool = await database.get_pool()
+    return {
+        "status": "ok",
+        "service": "pdf-report-generator",
+        "version": "1.0.0",
+        "database": "connected" if pool else "unavailable",
+    }
 
 
 @app.post("/api/v1/reports/merchant-revenue")
@@ -259,6 +282,10 @@ async def merchant_revenue_report(req: MerchantRevenueReportRequest):
     ))
 
     pdf_bytes = build_pdf(elements)
+    await database.execute(
+        "INSERT INTO generated_reports (report_type, entity_id) VALUES ($1,$2)",
+        "merchant_revenue", req.merchant_id,
+    )
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",

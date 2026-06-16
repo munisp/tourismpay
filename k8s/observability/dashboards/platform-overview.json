@@ -1,0 +1,194 @@
+{
+  "dashboard": {
+    "title": "TourismPay Platform Overview",
+    "uid": "tourismpay-overview",
+    "tags": ["tourismpay", "overview"],
+    "timezone": "Africa/Nairobi",
+    "refresh": "30s",
+    "time": { "from": "now-1h", "to": "now" },
+    "panels": [
+      {
+        "title": "Service Health",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "up{job=~\"tourismpay-server|settlement-service|kyc-service|bis-ai-service|fraud-ml-service|exchange-rate-ml|gds-search-service\"}",
+            "legendFormat": "{{job}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+            ]
+          }
+        }
+      },
+      {
+        "title": "HTTP Request Rate (all services)",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+        "targets": [
+          {
+            "expr": "sum(rate(tourismpay_http_requests_total[5m])) by (service)",
+            "legendFormat": "{{service}}"
+          },
+          {
+            "expr": "sum(rate(settlement_http_requests_total[5m]))",
+            "legendFormat": "settlement-service"
+          },
+          {
+            "expr": "sum(rate(kyc_http_requests_total[5m]))",
+            "legendFormat": "kyc-service"
+          },
+          {
+            "expr": "sum(rate(python_http_requests_total[5m])) by (job)",
+            "legendFormat": "{{job}}"
+          }
+        ]
+      },
+      {
+        "title": "Error Rate",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+        "targets": [
+          {
+            "expr": "sum(rate(tourismpay_http_requests_total{status=~\"5..\"}[5m])) by (service)",
+            "legendFormat": "{{service}} 5xx"
+          },
+          {
+            "expr": "sum(rate(settlement_http_requests_total{status=~\"5..\"}[5m]))",
+            "legendFormat": "settlement 5xx"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "color": { "mode": "palette-classic" }, "custom": { "fillOpacity": 20 } }
+        }
+      },
+      {
+        "title": "P50 / P95 / P99 Latency",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(tourismpay_http_request_duration_ms_bucket[5m])) by (le))",
+            "legendFormat": "p50 server"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(tourismpay_http_request_duration_ms_bucket[5m])) by (le))",
+            "legendFormat": "p95 server"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(tourismpay_http_request_duration_ms_bucket[5m])) by (le))",
+            "legendFormat": "p99 server"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(settlement_http_request_duration_seconds_bucket[5m])) by (le))",
+            "legendFormat": "p95 settlement"
+          }
+        ]
+      },
+      {
+        "title": "Panic / Exception Recovery",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 8, "x": 12, "y": 12 },
+        "targets": [
+          { "expr": "settlement_panics_recovered_total", "legendFormat": "Go panics" },
+          { "expr": "kyc_panics_recovered_total", "legendFormat": "Rust panics" },
+          { "expr": "python_exceptions_recovered_total", "legendFormat": "Python exceptions" }
+        ],
+        "fieldConfig": {
+          "defaults": { "thresholds": { "steps": [{ "value": 0, "color": "green" }, { "value": 1, "color": "yellow" }, { "value": 5, "color": "red" }] } }
+        }
+      },
+      {
+        "title": "Graceful Shutdowns",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 4, "x": 20, "y": 12 },
+        "targets": [
+          { "expr": "settlement_shutdowns_total", "legendFormat": "Go" },
+          { "expr": "kyc_shutdowns_total", "legendFormat": "Rust" },
+          { "expr": "python_shutdowns_total", "legendFormat": "Python" }
+        ]
+      },
+      {
+        "title": "In-Flight Requests",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+        "targets": [
+          { "expr": "tourismpay_active_connections", "legendFormat": "server" },
+          { "expr": "settlement_active_requests", "legendFormat": "settlement" },
+          { "expr": "kyc_in_flight_requests", "legendFormat": "kyc" },
+          { "expr": "python_in_flight_requests", "legendFormat": "python-ml" }
+        ]
+      },
+      {
+        "title": "Pod Restarts (last 1h)",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 12, "x": 0, "y": 20 },
+        "targets": [
+          {
+            "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"tourismpay\"}[1h])) by (pod)",
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "thresholds": { "steps": [{ "value": 0, "color": "green" }, { "value": 1, "color": "yellow" }, { "value": 3, "color": "red" }] } }
+        }
+      },
+      {
+        "title": "KEDA Scaling Events",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+        "targets": [
+          {
+            "expr": "kube_deployment_status_replicas{namespace=\"tourismpay\"}",
+            "legendFormat": "{{deployment}}"
+          }
+        ]
+      },
+      {
+        "title": "Kafka Consumer Lag",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+        "targets": [
+          {
+            "expr": "kafka_consumergroup_lag{topic=~\"tourismpay.*\"}",
+            "legendFormat": "{{consumergroup}} / {{topic}}"
+          }
+        ]
+      },
+      {
+        "title": "Memory Usage",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+        "targets": [
+          { "expr": "nodejs_heap_used_bytes / 1024 / 1024", "legendFormat": "server heap (MB)" },
+          { "expr": "go_heap_alloc_bytes / 1024 / 1024", "legendFormat": "settlement heap (MB)" },
+          { "expr": "python_max_rss_bytes / 1024 / 1024", "legendFormat": "python RSS (MB)" }
+        ]
+      },
+      {
+        "title": "Middleware Health",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 12, "x": 12, "y": 32 },
+        "targets": [
+          { "expr": "up{job=\"redis\"}", "legendFormat": "Redis" },
+          { "expr": "up{job=\"kafka\"}", "legendFormat": "Kafka" },
+          { "expr": "up{job=\"postgres\"}", "legendFormat": "PostgreSQL" },
+          { "expr": "up{job=\"opensearch\"}", "legendFormat": "OpenSearch" },
+          { "expr": "up{job=\"apisix\"}", "legendFormat": "APISIX" },
+          { "expr": "up{job=\"temporal\"}", "legendFormat": "Temporal" }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

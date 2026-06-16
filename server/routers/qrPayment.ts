@@ -49,6 +49,13 @@ export const qrPaymentRouter = router({
         throw new Error("Not authorized for this establishment");
       }
 
+      // KYB enforcement: only approved merchants can generate payment QR codes
+      if (est.kybStatus !== "approved") {
+        throw new Error(
+          `Establishment KYB status is "${est.kybStatus}". Only KYB-approved merchants can accept payments. Please complete verification first.`
+        );
+      }
+
       const token = generateToken();
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
@@ -146,15 +153,22 @@ export const qrPaymentRouter = router({
 
       if (!qr) throw new Error("QR token is invalid, expired, or already used");
 
+      // ── KYB enforcement: verify receiving merchant is still approved ───────
+      const [receivingEst] = await db
+        .select({ ownerId: establishments.ownerId, kybStatus: establishments.kybStatus })
+        .from(establishments)
+        .where(eq(establishments.id, qr.establishmentId))
+        .limit(1);
+
+      if (!receivingEst || receivingEst.kybStatus !== "approved") {
+        throw new Error("This merchant's KYB verification is not approved. Payment cannot be processed.");
+      }
+
       // ── Staff permission check ──────────────────────────────────────────────
       // Allow: (1) the establishment owner, (2) accepted staff of the establishment,
       // (3) any tourist (non-merchant) paying for themselves.
       // Block: merchants who own OTHER establishments but are NOT staff here.
-      const [estOwner] = await db
-        .select({ ownerId: establishments.ownerId })
-        .from(establishments)
-        .where(eq(establishments.id, qr.establishmentId))
-        .limit(1);
+      const estOwner = receivingEst;
 
       const isEstOwner = estOwner?.ownerId === ctx.user.id;
       if (!isEstOwner) {

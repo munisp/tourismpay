@@ -1,0 +1,244 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Prometheus — scrapes all TourismPay services + middleware
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: tourismpay
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: tourismpay-prod
+        environment: production
+
+    rule_files:
+      - /etc/prometheus/rules/*.yml
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['alertmanager:9093']
+
+    scrape_configs:
+      # ── TourismPay Services ──────────────────────────────────────────────────
+      - job_name: tourismpay-server
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [tourismpay]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            regex: tourismpay-server
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+            target_label: __address__
+            regex: (.+)
+            replacement: ${1}:$1
+
+      - job_name: settlement-service
+        static_configs:
+          - targets: ['settlement-service:8081']
+        metrics_path: /metrics
+
+      - job_name: kyc-service
+        static_configs:
+          - targets: ['kyc-service:8082']
+        metrics_path: /metrics
+
+      - job_name: bis-ai-service
+        static_configs:
+          - targets: ['bis-ai-service:8001']
+        metrics_path: /metrics
+
+      - job_name: fraud-ml-service
+        static_configs:
+          - targets: ['fraud-ml-service:8002']
+        metrics_path: /metrics
+
+      - job_name: exchange-rate-ml
+        static_configs:
+          - targets: ['exchange-rate-ml-service:8004']
+        metrics_path: /metrics
+
+      - job_name: gds-search-service
+        static_configs:
+          - targets: ['gds-search-service:8010']
+        metrics_path: /metrics
+
+      # ── Middleware ───────────────────────────────────────────────────────────
+      - job_name: apisix
+        static_configs:
+          - targets: ['apisix:9091']
+        metrics_path: /apisix/prometheus/metrics
+
+      - job_name: redis
+        static_configs:
+          - targets: ['redis-exporter:9121']
+
+      - job_name: kafka
+        static_configs:
+          - targets: ['kafka-exporter:9308']
+
+      - job_name: postgres
+        static_configs:
+          - targets: ['postgres-exporter:9187']
+
+      - job_name: opensearch
+        static_configs:
+          - targets: ['opensearch-exporter:9114']
+
+      - job_name: temporal
+        static_configs:
+          - targets: ['temporal:8000']
+        metrics_path: /metrics
+
+      # ── K8s Infrastructure ──────────────────────────────────────────────────
+      - job_name: kube-state-metrics
+        static_configs:
+          - targets: ['kube-state-metrics:8080']
+
+      - job_name: node-exporter
+        kubernetes_sd_configs:
+          - role: node
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+
+      # ── KEDA Metrics ────────────────────────────────────────────────────────
+      - job_name: keda-operator
+        static_configs:
+          - targets: ['keda-operator:8080']
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: prometheus
+    spec:
+      serviceAccountName: prometheus
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.53.0
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=30d"
+            - "--web.enable-lifecycle"
+            - "--web.enable-admin-api"
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: rules
+              mountPath: /etc/prometheus/rules
+            - name: storage
+              mountPath: /prometheus
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9090
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: rules
+          configMap:
+            name: prometheus-rules
+        - name: storage
+          persistentVolumeClaim:
+            claimName: prometheus-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: tourismpay
+spec:
+  selector:
+    app.kubernetes.io/name: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-pvc
+  namespace: tourismpay
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: gp3
+
+---
+# ServiceAccount with RBAC for pod/node discovery
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: tourismpay
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: prometheus
+rules:
+  - apiGroups: [""]
+    resources: [nodes, nodes/metrics, services, endpoints, pods]
+    verbs: [get, list, watch]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingresses]
+    verbs: [get, list, watch]
+  - nonResourceURLs: ["/metrics"]
+    verbs: [get]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: tourismpay

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 import { Loader2, Monitor, MapPin, Clock, Shield, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import {
   Table,
@@ -49,7 +50,7 @@ export default function AccountActivity() {
       }
     } catch (error) {
       toast.error('Failed to end session');
-      console.error(error);
+      logger.error('Failed to end session', { error });
     } finally {
       setSessionToEnd(null);
     }
@@ -68,7 +69,7 @@ export default function AccountActivity() {
       }
     } catch (error) {
       toast.error('Failed to end sessions');
-      console.error(error);
+      logger.error('Failed to end sessions', { error });
     } finally {
       setShowEndAllDialog(false);
     }

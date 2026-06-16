@@ -1,0 +1,108 @@
+// Permify Authorization Schema for Africa-first GDS
+// Fine-grained permission model beyond Keycloak roles.
+// Keycloak handles identity (who are you), Permify handles authorization (what can you do).
+
+entity tenant {
+    // Tenant-level roles
+    relation admin @user
+    relation member @user
+
+    // Tenant permissions
+    permission manage = admin
+    permission read = admin or member
+}
+
+entity property {
+    // Property ownership and access
+    relation tenant @tenant
+    relation owner @user
+    relation manager @user
+    relation viewer @user
+
+    // Property operations
+    permission manage_rates = owner or manager or tenant.admin
+    permission manage_availability = owner or manager or tenant.admin
+    permission manage_distribution = owner or tenant.admin
+    permission view = owner or manager or viewer or tenant.member
+    permission delete = owner or tenant.admin
+    permission register_channel = owner or manager or tenant.admin
+}
+
+entity reservation {
+    // Reservation participants
+    relation tenant @tenant
+    relation property @property
+    relation agent @user
+    relation guest @user
+
+    // Reservation operations
+    permission view = agent or guest or property.owner or property.manager or tenant.admin
+    permission modify = agent or property.manager or tenant.admin
+    permission cancel = agent or guest or property.manager or tenant.admin
+    permission confirm = property.owner or property.manager or tenant.admin
+    permission settle = tenant.admin
+}
+
+entity agent {
+    // Agent identity and hierarchy
+    relation tenant @tenant
+    relation user @user
+    relation supervisor @user
+
+    // Agent operations
+    permission view_commission = user or supervisor or tenant.admin
+    permission request_payout = user or tenant.admin
+    permission view_bookings = user or supervisor or tenant.admin
+    permission manage_profile = user or tenant.admin
+    permission upgrade_tier = tenant.admin
+}
+
+entity settlement_batch {
+    // Settlement authorization
+    relation tenant @tenant
+    relation creator @user
+    relation approver @user
+
+    // Settlement operations — require maker-checker
+    permission create = tenant.admin
+    permission approve = approver
+    permission process = approver
+    permission view = creator or approver or tenant.admin
+}
+
+entity distribution_channel {
+    // Channel management
+    relation tenant @tenant
+    relation property @property
+    relation configurator @user
+
+    // Channel operations
+    permission connect = property.owner or property.manager or configurator or tenant.admin
+    permission disconnect = property.owner or configurator or tenant.admin
+    permission push_rates = property.owner or property.manager or configurator or tenant.admin
+    permission view_stats = property.owner or property.manager or configurator or tenant.member
+}
+
+entity webhook {
+    // Webhook ownership
+    relation tenant @tenant
+    relation owner @user
+
+    // Webhook operations
+    permission create = tenant.member
+    permission delete = owner or tenant.admin
+    permission view = owner or tenant.admin
+    permission test = owner or tenant.admin
+}
+
+entity analytics {
+    // Analytics access control
+    relation tenant @tenant
+
+    // Analytics permissions
+    permission view_bookings = tenant.member
+    permission view_revenue = tenant.admin
+    permission view_market_intelligence = tenant.admin
+    permission view_agent_performance = tenant.admin
+    permission export_data = tenant.admin
+}

@@ -269,7 +269,7 @@ export default function BiometricSettings() {
               </div>
             )}
             <a
-              href="https://help.manus.im"
+              href="https://tourismpay.com/support"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block mt-1.5 text-xs text-red-400 underline underline-offset-2 hover:text-red-300"

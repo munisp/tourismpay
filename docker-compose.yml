@@ -1,0 +1,165 @@
+# TourismPay — Full-Stack Development/Deployment
+# Usage: docker compose up -d
+# All services share a PostgreSQL instance.
+
+services:
+  # ─── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tourismpay_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-testpass123}
+      POSTGRES_DB: tourismpay
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tourismpay_user -d tourismpay"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── TypeScript Server (Express + tRPC + React PWA) ─────────────────────────
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      JWT_SECRET: ${JWT_SECRET:-tourismpay-test-jwt-secret-for-dev-32chars}
+      PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
+      SETTLEMENT_SERVICE_URL: http://settlement:8081
+      EXCHANGE_RATE_ML_URL: http://python-ml:8004
+      KYC_SERVICE_URL: http://kyc:8082
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ─── Go Settlement Service ──────────────────────────────────────────────────
+  settlement:
+    build:
+      context: ./go-settlement-service
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: "8081"
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay_settlement
+      JWT_SECRET: ${JWT_SECRET:-tourismpay-test-jwt-secret-for-dev-32chars}
+      SETTLEMENT_API_KEY: ${SETTLEMENT_API_KEY:-test-settlement-api-key}
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  # ─── Redis ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─── Kafka (KRaft mode, no Zookeeper) ─────────────────────────────────────
+  kafka:
+    image: bitnami/kafka:3.7
+    environment:
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafkadata:/bitnami/kafka
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Rust KYC Service ─────────────────────────────────────────────────────
+  kyc:
+    build:
+      context: ./rust-kyc-service
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      KYC_PORT: "8082"
+      KYC_DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "8082:8082"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  # ─── Python ML Services (all-in-one container) ─────────────────────────────
+  python-ml:
+    build:
+      context: ./python-services
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      JWT_SECRET: ${JWT_SECRET:-tourismpay-test-jwt-secret-for-dev-32chars}
+      SERVICE_API_KEY: ${SERVICE_API_KEY:-test-key-123}
+      REDIS_URL: redis://redis:6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8001:8001"
+      - "8002:8002"
+      - "8003:8003"
+      - "8004:8004"
+      - "8005:8005"
+    command: ["bash", "-c", "./start-all.sh"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  pgdata:
+  redisdata:
+  kafkadata:

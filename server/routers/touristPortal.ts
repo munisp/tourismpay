@@ -40,16 +40,14 @@ import { eq, desc, and, gte, lte, sql, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM } from "../_core/llm";
 import { sendPushToUser } from "../_core/webPush";
-import Stripe from "stripe";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "", {
-  apiVersion: "2024-06-20" as any,
-});
+import { stripe } from "../_core/stripe";
+import { withTransaction } from "../db";
+import { createAuditLog, createUserNotification } from "../db";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function randomCode(len = 8) {
-  return Math.random().toString(36).substring(2, 2 + len).toUpperCase();
+  return crypto.randomUUID().replace(/-/g, "").substring(0, len).toUpperCase();
 }
 
 async function requireDb() {
@@ -283,6 +281,31 @@ export const touristPortalRouter = router({
         }
       }
 
+      const confirmationCode = randomCode(8);
+
+      // Deduct wallet balance for payment
+      let walletDeducted = false;
+      if (input.priceUsd > 0) {
+        try {
+          await withTransaction(async (tx) => {
+            const [bal] = await tx`
+              SELECT id, balance FROM wallet_balances
+              WHERE user_id = ${String(ctx.user.id)} AND currency = ${input.currency}
+              FOR UPDATE
+            `;
+            if (bal && parseFloat(bal.balance) >= input.priceUsd) {
+              await tx`UPDATE wallet_balances SET balance = ${String(parseFloat(bal.balance) - input.priceUsd)}, updated_at = ${Date.now()} WHERE id = ${bal.id}`;
+              await tx`INSERT INTO wallet_transactions (id, user_id, type, status, from_currency, to_currency, amount, fee, reference, note, completed_at, created_at)
+                VALUES (${crypto.randomUUID()}, ${String(ctx.user.id)}, 'payment', 'completed', ${input.currency}, ${input.currency},
+                  ${String(input.priceUsd)}, '0', ${"BOOKING:" + confirmationCode},
+                  ${"Booking: " + input.serviceName + " at establishment #" + input.establishmentId},
+                  ${Date.now()}, ${Date.now()})`;
+              walletDeducted = true;
+            }
+          });
+        } catch { /* wallet deduction optional — booking still proceeds */ }
+      }
+
       const [booking] = await db
         .insert(touristBookings)
         .values({
@@ -298,11 +321,47 @@ export const touristPortalRouter = router({
           currency: input.currency,
           status: "confirmed",
           notes: input.notes ?? null,
-          confirmationCode: randomCode(8),
+          confirmationCode,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
         .returning();
+
+      // Award loyalty points (1 point per $1 spent)
+      const loyaltyPoints = Math.floor(input.priceUsd);
+      if (loyaltyPoints > 0) {
+        try {
+          await db.execute(sql`
+            UPDATE loyalty_accounts SET points_balance = points_balance + ${loyaltyPoints},
+              total_points_earned = total_points_earned + ${loyaltyPoints}, updated_at = ${Date.now()}
+            WHERE user_id = ${ctx.user.id}
+          `);
+          await db.execute(sql`
+            INSERT INTO loyalty_transactions (id, user_id, type, points, description, reference_type, reference_id, created_at)
+            VALUES (${crypto.randomUUID()}, ${ctx.user.id}, 'earn', ${loyaltyPoints},
+              ${"Booking: " + input.serviceName}, 'booking', ${String(booking.id)}, ${Date.now()})
+          `);
+        } catch { /* loyalty award non-critical */ }
+      }
+
+      // Audit + notification
+      createAuditLog({
+        actorId: ctx.user.id,
+        action: "tourist.booking.created",
+        entityType: "booking",
+        entityId: String(booking.id),
+        description: `Booked ${input.serviceName} for $${input.priceUsd} ${input.currency}. Code: ${confirmationCode}. Wallet deducted: ${walletDeducted}`,
+      }).catch(() => {});
+
+      createUserNotification({
+        userId: ctx.user.id,
+        category: "system",
+        title: "Booking Confirmed",
+        content: `Your booking for "${input.serviceName}" on ${bookingDateStr} is confirmed. Code: ${confirmationCode}. ${loyaltyPoints > 0 ? `+${loyaltyPoints} loyalty points earned!` : ""}`,
+        actionUrl: "/tourist",
+        actionLabel: "View Bookings",
+      }).catch(() => {});
+
       return booking;
     }),
 
@@ -841,7 +900,8 @@ Current date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
     };
 
     try {
-      const resp = await fetch("http://localhost:8004/fx/rates", {
+      const fxUrl = process.env.EXCHANGE_RATE_ML_URL || "http://localhost:8004";
+      const resp = await fetch(`${fxUrl}/fx/rates`, {
         signal: AbortSignal.timeout(2000),
       });
       if (resp.ok) {
@@ -1157,7 +1217,7 @@ Current date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
       // Generate a cryptographically random token
       const token = [
         ctx.user.id.toString().padStart(8, "0"),
-        Math.random().toString(36).substring(2, 10).toUpperCase(),
+        crypto.randomUUID().replace(/-/g, "").substring(0, 8).toUpperCase(),
         Date.now().toString(36).toUpperCase(),
       ].join("-");
       const expiresAt = Date.now() + 30 * 60 * 1000; // 30 minutes

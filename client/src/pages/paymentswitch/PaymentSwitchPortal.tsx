@@ -39,7 +39,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 // In development, this defaults to the sandbox-exposed port 3001 URL.
 const PS_PORTAL_URL =
   import.meta.env.VITE_PAYMENT_SWITCH_PORTAL_URL ||
-  "https://3001-ine1iy93bd1m06526vzdg-fb9d06f9.us1.manus.computer";
+  "http://localhost:3001";
 
 type LoadState = "idle" | "loading" | "loaded" | "error";
 

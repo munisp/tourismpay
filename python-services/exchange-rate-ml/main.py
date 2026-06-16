@@ -11,13 +11,30 @@ import math
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from auth import AuthMiddleware
+import db as database
 
 app = FastAPI(title="Exchange Rate ML Service", version="1.0.0")
 
+
+@app.on_event("startup")
+async def _startup():
+    await database.ensure_tables()
+
+
+@app.on_event("shutdown")
+async def _shutdown():
+    await database.close_pool()
+
+app.add_middleware(AuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -135,7 +152,13 @@ def exponential_moving_average(rates: List[float], alpha: float = 0.3) -> List[f
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "exchange-rate-ml", "version": "1.0.0"}
+    pool = await database.get_pool()
+    return {
+        "status": "ok",
+        "service": "exchange-rate-ml",
+        "version": "1.0.0",
+        "database": "connected" if pool else "unavailable",
+    }
 
 
 @app.post("/api/v1/rates/forecast")
@@ -176,6 +199,11 @@ async def forecast_rate(req: RateForecastRequest):
             "hour": h,
             "forecast_rate": round(current + trend * h + point_noise * current, 6),
         })
+
+    await database.execute(
+        "INSERT INTO fx_rate_predictions (base_currency, quote_currency, predicted_rate, confidence, horizon_hours) VALUES ($1,$2,$3,$4,$5)",
+        req.base_currency, req.quote_currency, round(forecast, 6), round(1.0 - volatility, 4), horizon,
+    )
 
     return {
         "currency_pair": pair,

@@ -14,6 +14,9 @@ import {
   updateKybApplicationStep,
 } from "../db";
 
+import { encryptPII } from "../_core/encryption";
+import { logger } from "../_core/logger";
+
 const KYB_SERVICE_URL = process.env.KYB_SERVICE_URL || "http://localhost:8083";
 
 async function callKybService(path: string, body?: unknown): Promise<unknown> {
@@ -27,7 +30,7 @@ async function callKybService(path: string, body?: unknown): Promise<unknown> {
     if (!res.ok) throw new Error(`KYB service error: ${res.status}`);
     return res.json();
   } catch (err) {
-    console.warn(`[KYB] Service call failed (${path}):`, err);
+    logger.warn(`[KYB] Service call failed (${path}):`, err);
     return null;
   }
 }
@@ -84,6 +87,9 @@ export const kybRouter = router({
         ...input,
         ownerId: ctx.user.id,
         kybStatus: "draft",
+        registrationNumber: input.registrationNumber ? encryptPII(input.registrationNumber) : undefined,
+        taxId: input.taxId ? encryptPII(input.taxId) : undefined,
+        contactPhone: input.contactPhone ? encryptPII(input.contactPhone) : undefined,
       });
 
       // Notify Go KYB service of new establishment
@@ -204,14 +210,14 @@ export const kybRouter = router({
                     pricePaid: "0.00",
                     currency: "USD",
                   });
-                  console.log(`[KYB] Auto-triggered BIS entity investigation for establishment #${estId} (${est.name})`);
+                  logger.info(`[KYB] Auto-triggered BIS entity investigation for establishment #${estId} (${est.name})`);
                 }
               }
             }
           }
         } catch (err) {
           // Non-fatal: log but don't block the KYB submission
-          console.warn("[KYB] Failed to auto-trigger BIS investigation:", err);
+          logger.warn("[KYB] Failed to auto-trigger BIS investigation:", err);
         }
       }
 
@@ -235,6 +241,167 @@ export const kybRouter = router({
         input.complianceScore,
         input.notes
       );
+    }),
+
+  // ─── Re-submission workflow for rejected merchants ─────────────────────────
+  resubmit: protectedProcedure
+    .input(
+      z.object({
+        establishmentId: z.number().int().positive(),
+        updatedFields: z.object({
+          name: z.string().min(2).optional(),
+          registrationNumber: z.string().optional(),
+          taxId: z.string().optional(),
+          contactEmail: z.string().email().optional(),
+          contactPhone: z.string().optional(),
+          website: z.string().url().optional(),
+          address: z.string().optional(),
+        }).optional(),
+        resubmissionNotes: z.string().min(10).max(2000),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const [est] = await db
+        .select()
+        .from(establishments)
+        .where(eq(establishments.id, input.establishmentId))
+        .limit(1);
+
+      if (!est) throw new TRPCError({ code: "NOT_FOUND", message: "Establishment not found" });
+      if (est.ownerId !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Not your establishment" });
+      }
+      if (est.kybStatus !== "rejected") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only rejected applications can be resubmitted. Current status: " + est.kybStatus,
+        });
+      }
+
+      // Apply updated fields if provided
+      const updates: Record<string, unknown> = {};
+      if (input.updatedFields) {
+        if (input.updatedFields.name) updates.name = input.updatedFields.name;
+        if (input.updatedFields.registrationNumber) updates.registrationNumber = encryptPII(input.updatedFields.registrationNumber);
+        if (input.updatedFields.taxId) updates.taxId = encryptPII(input.updatedFields.taxId);
+        if (input.updatedFields.contactEmail) updates.contactEmail = input.updatedFields.contactEmail;
+        if (input.updatedFields.contactPhone) updates.contactPhone = encryptPII(input.updatedFields.contactPhone);
+        if (input.updatedFields.website) updates.website = input.updatedFields.website;
+        if (input.updatedFields.address) updates.address = input.updatedFields.address;
+      }
+
+      // Reset status to submitted
+      await db
+        .update(establishments)
+        .set({ ...updates, kybStatus: "submitted", updatedAt: new Date() })
+        .where(eq(establishments.id, input.establishmentId));
+
+      // Create a new KYB application for this resubmission
+      const app = await createKybApplication({
+        establishmentId: input.establishmentId,
+        submittedBy: ctx.user.id,
+        status: "submitted",
+        currentStep: 1,
+        totalSteps: 5,
+      });
+
+      // Log the resubmission
+      logger.info(`[KYB] Resubmission for establishment #${input.establishmentId} by user #${ctx.user.id}: ${input.resubmissionNotes}`);
+
+      // Notify KYB service
+      callKybService("/api/v1/applications/resubmit", {
+        establishment_id: input.establishmentId,
+        application_id: app?.id,
+        resubmission_notes: input.resubmissionNotes,
+      });
+
+      return { success: true, applicationId: app?.id, status: "submitted" };
+    }),
+
+  // ─── Merchant self-service status page data ──────────────────────────────────
+  getOnboardingStatus: protectedProcedure
+    .input(z.object({ establishmentId: z.number().int().positive() }))
+    .query(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const [est] = await db
+        .select()
+        .from(establishments)
+        .where(eq(establishments.id, input.establishmentId))
+        .limit(1);
+      if (!est) throw new TRPCError({ code: "NOT_FOUND", message: "Establishment not found" });
+      if (est.ownerId !== ctx.user.id && ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      // Get latest KYB application
+      const apps = await getKybApplicationsByEstablishment(input.establishmentId);
+      const latestApp = apps[0] ?? null;
+
+      // Get document status
+      const { kybDocuments: kybDocsTable } = await import("../../drizzle/schema");
+      const docs = latestApp
+        ? await db.select().from(kybDocsTable).where(eq(kybDocsTable.applicationId, latestApp.id))
+        : [];
+
+      const requiredDocs = [
+        "certificate_of_incorporation",
+        "business_license",
+        "tax_certificate",
+        "director_id",
+        "proof_of_address",
+      ];
+      const uploadedTypes = new Set(docs.map((d: { documentType: string }) => d.documentType));
+      const rejectedDocs = docs.filter((d: { status: string }) => d.status === "rejected");
+
+      // BIS status
+      const { bisInvestigations } = await import("../../drizzle/schema");
+      const bisRows = await db
+        .select({ id: bisInvestigations.id, status: bisInvestigations.status, createdAt: bisInvestigations.createdAt })
+        .from(bisInvestigations)
+        .where(eq(bisInvestigations.establishmentId, input.establishmentId))
+        .limit(5);
+
+      // Stripe Connect status
+      const stripeStatus = est.stripeConnectStatus ?? "not_started";
+
+      // Compute blockers
+      const blockers: string[] = [];
+      if (est.kybStatus === "rejected") blockers.push("KYB application was rejected — please resubmit with corrections");
+      for (const req of requiredDocs) {
+        if (!uploadedTypes.has(req)) blockers.push(`Missing document: ${req.replace(/_/g, " ")}`);
+      }
+      for (const doc of rejectedDocs) {
+        blockers.push(`Document rejected: ${(doc as { documentType: string }).documentType.replace(/_/g, " ")} — please re-upload`);
+      }
+      if (!bisRows.some((r: { status: string }) => r.status === "completed")) {
+        blockers.push("Background investigation not yet completed");
+      }
+      if (stripeStatus !== "active") {
+        blockers.push("Stripe Connect not yet active — complete payout setup");
+      }
+
+      return {
+        establishment: { id: est.id, name: est.name, kybStatus: est.kybStatus, createdAt: est.createdAt },
+        application: latestApp,
+        documents: {
+          required: requiredDocs,
+          uploaded: Array.from(uploadedTypes),
+          completeness: Math.round((uploadedTypes.size / requiredDocs.length) * 100),
+          rejectedCount: rejectedDocs.length,
+        },
+        bis: {
+          status: bisRows.length ? bisRows[0].status : "none",
+          investigationId: bisRows[0]?.id ?? null,
+        },
+        stripe: { status: stripeStatus },
+        blockers,
+        canGoLive: blockers.length === 0,
+      };
     }),
 
   // Get KYB stats for dashboard
@@ -308,7 +475,12 @@ export const kybRouter = router({
       z.object({
         businessName: z.string().min(1),
         registrationNumber: z.string().min(1),
-        businessType: z.string().min(1),
+        businessType: z.enum([
+          "hotel", "restaurant", "concert_venue", "safari_lodge",
+          "tour_operator", "airline", "car_rental", "spa_wellness",
+          "museum", "theme_park", "beach_resort", "conference_center",
+          "nightclub", "sports_venue", "travel_agency",
+        ]),
         country: z.string().min(1),
         address: z.string().optional(),
         website: z.string().optional(),
@@ -327,14 +499,14 @@ export const kybRouter = router({
       let establishmentId: number;
       if (existing.length) {
         establishmentId = existing[0].id as number;
-        await db!
+        await db
           .update(establishments)
-          .set({ name: input.businessName, kybStatus: "submitted" })
+          .set({ name: input.businessName, type: input.businessType, kybStatus: "submitted" })
           .where(eq(establishments.id, establishmentId));
       } else {
         const created = await createEstablishment({
           name: input.businessName,
-          type: "hotel",
+          type: input.businessType,
           country: input.country.slice(0, 2).toUpperCase(),
           address: input.address,
           registrationNumber: input.registrationNumber,

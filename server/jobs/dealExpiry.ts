@@ -11,6 +11,7 @@ import { getDb } from "../db";
 import { touristDeals, establishments } from "../../drizzle/schema";
 import { eq, and, lt } from "drizzle-orm";
 import { sendPushToUser } from "../_core/webPush";
+import { logger } from "../_core/logger";
 
 const JOB_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -60,14 +61,14 @@ export async function runDealExpiryJob(): Promise<void> {
         }).catch(() => {/* non-critical */});
       }
 
-      console.log(
+      logger.info(
         `[DealExpiry] Auto-deactivated deal #${deal.id}: "${deal.title}" (expired ${deal.validTo?.toISOString()})`
       );
     }
 
-    console.log(`[DealExpiry] Auto-deactivated ${expiredDeals.length} expired deal(s)`);
+    logger.info(`[DealExpiry] Auto-deactivated ${expiredDeals.length} expired deal(s)`);
   } catch (err) {
-    console.error("[DealExpiry] Job error:", err);
+    logger.error("[DealExpiry] Job error:", err);
   }
 }
 
@@ -75,5 +76,5 @@ export function startDealExpiryJob(): void {
   // Run immediately on startup, then every hour
   runDealExpiryJob();
   setInterval(runDealExpiryJob, JOB_INTERVAL_MS);
-  console.log("[DealExpiry] Deal expiry job started (60-min interval)");
+  logger.info("[DealExpiry] Deal expiry job started (60-min interval)");
 }

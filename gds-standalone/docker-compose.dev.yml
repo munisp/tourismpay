@@ -1,0 +1,71 @@
+# Africa-first GDS — Development Mode (Express Gateway)
+# Use this for local development WITHOUT APISIX/Keycloak/OpenAppSec.
+# The Express gateway handles auth + routing in a single process for simplicity.
+#
+# Production: Use docker-compose.yml (APISIX + Keycloak + OpenAppSec)
+# Development: Use this file (Express gateway on port 8090)
+
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: gds
+      POSTGRES_USER: gds_user
+      POSTGRES_PASSWORD: gds_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - gds_pgdata_dev:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gds_user -d gds"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+
+  gds-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    ports:
+      - "8090:8090"
+    environment:
+      GDS_PORT: "8090"
+      NODE_ENV: development
+      GDS_MULTI_TENANT: "false"
+      GDS_DATABASE_URL: postgresql://gds_user:gds_pass@postgres:5432/gds
+      GDS_REDIS_URL: redis://redis:6379/1
+      GDS_ENGINE_URL: http://gds-engine:8080
+      GDS_SEARCH_URL: http://gds-search:8010
+      GDS_ANALYTICS_URL: http://gds-analytics:8011
+      GDS_AUTH_API_KEY_ENABLED: "true"
+      GDS_CORS_ORIGINS: "*"
+      GDS_BRAND_NAME: "Africa GDS (Dev)"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gds-engine:
+    build:
+      context: ../go-settlement-service
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      GDS_DATABASE_URL: postgresql://gds_user:gds_pass@postgres:5432/gds
+      REDIS_URL: redis://redis:6379/0
+      PORT: "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  gds_pgdata_dev:

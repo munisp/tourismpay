@@ -120,7 +120,7 @@ function createAuthContext(): TrpcContext {
     openId: "test-user-open-id",
     email: "test@tourismpay.com",
     name: "Test User",
-    loginMethod: "manus",
+    loginMethod: "oauth",
     role: "user",
     createdAt: new Date(),
     updatedAt: new Date(),

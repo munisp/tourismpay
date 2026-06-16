@@ -36,7 +36,7 @@ async function generateWithFallback(
   const ollamaResult = await callOllama(prompt, systemPrompt);
   if (ollamaResult) return ollamaResult;
 
-  // Fall back to built-in LLM (Manus Forge)
+  // Fall back to built-in LLM
   const result = await invokeLLM({
     messages: [
       { role: "system" as const, content: systemPrompt as string },

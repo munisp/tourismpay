@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Zap, Eye, EyeOff, Shield } from "lucide-react";
 
-const HERO_URL = "https://files.manuscdn.com/user_upload_by_module/session_file/114501028/zaygZUFyDmsoOBpr.png";
+const HERO_URL = "/icons/pwa-512.png";
 
 export default function Login() {
   const [, setLocation] = useLocation();

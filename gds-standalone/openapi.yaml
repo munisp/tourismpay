@@ -1,0 +1,377 @@
+openapi: 3.1.0
+info:
+  title: Africa-first GDS API
+  description: |
+    Global Distribution System for African tourism properties.
+    Search, book, and manage rates/availability for hotels, lodges, safari camps,
+    and activities across 20+ African countries.
+
+    ## Authentication
+    Two methods supported:
+    - **JWT Bearer Token**: OAuth2/OIDC from Keycloak or any compliant provider
+    - **API Key**: `X-GDS-API-Key` header for server-to-server integrations
+
+    ## Multi-Tenancy
+    Set `X-GDS-Tenant-ID` header to operate within a specific tenant context.
+    Omit for single-tenant deployments.
+
+    ## Rate Limiting
+    Default: 100 requests/minute per API key.
+    Headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+  version: 1.0.0
+  contact:
+    name: TourismPay GDS Support
+    email: gds@tourismpay.com
+  license:
+    name: Proprietary
+    url: https://tourismpay.com/gds/license
+
+servers:
+  - url: http://localhost:8090
+    description: Local development
+  - url: https://gds-api.tourismpay.com
+    description: Production
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []
+
+tags:
+  - name: Properties
+    description: African tourism property management
+  - name: Reservations
+    description: Booking creation, modification, cancellation
+  - name: Availability
+    description: Room/slot availability management
+  - name: Rates
+    description: Rate plans and dynamic pricing
+  - name: Agents
+    description: Travel agent registration and commission
+  - name: Settlement
+    description: Financial settlement and payouts
+  - name: Search
+    description: Full-text search and recommendations
+  - name: Analytics
+    description: Booking trends and market intelligence
+  - name: Distribution
+    description: Rate/availability distribution channels
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      security: []
+      responses:
+        "200":
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: healthy }
+                  service: { type: string }
+                  version: { type: string }
+
+  /api/v1/gds/properties:
+    get:
+      tags: [Properties]
+      summary: List properties
+      operationId: listProperties
+      parameters:
+        - name: country
+          in: query
+          schema: { type: string, example: KE }
+        - name: type
+          in: query
+          schema: { type: string, enum: [hotel, lodge, safari_camp, resort, boutique, guesthouse, villa, apartment, activity] }
+        - name: star_rating
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 5 }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        "200":
+          description: Property list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  properties: { type: array, items: { $ref: "#/components/schemas/Property" } }
+                  total: { type: integer }
+                  page: { type: integer }
+                  pageSize: { type: integer }
+
+    post:
+      tags: [Properties]
+      summary: Register a new property
+      operationId: registerProperty
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyCreate"
+      responses:
+        "201":
+          description: Property registered
+        "400":
+          description: Validation error
+
+  /api/v1/gds/reservations:
+    post:
+      tags: [Reservations]
+      summary: Create a reservation
+      operationId: createReservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationCreate"
+      responses:
+        "201":
+          description: Reservation confirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reservation: { $ref: "#/components/schemas/Reservation" }
+        "400":
+          description: Validation error
+        "409":
+          description: No availability
+
+  /api/v1/gds/reservations/{id}/cancel:
+    post:
+      tags: [Reservations]
+      summary: Cancel a reservation
+      operationId: cancelReservation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 5 }
+      responses:
+        "200":
+          description: Reservation cancelled
+
+  /api/v1/gds/availability/check:
+    get:
+      tags: [Availability]
+      summary: Check availability
+      operationId: checkAvailability
+      parameters:
+        - name: propertyId
+          in: query
+          required: true
+          schema: { type: string }
+        - name: roomType
+          in: query
+          schema: { type: string }
+        - name: checkIn
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: checkOut
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: rooms
+          in: query
+          schema: { type: integer, default: 1 }
+      responses:
+        "200":
+          description: Availability result
+
+  /api/v1/gds/search:
+    get:
+      tags: [Search]
+      summary: Search properties
+      operationId: searchProperties
+      parameters:
+        - name: q
+          in: query
+          description: Free-text search query
+          schema: { type: string }
+        - name: destination
+          in: query
+          schema: { type: string }
+        - name: country
+          in: query
+          schema: { type: string }
+        - name: checkIn
+          in: query
+          schema: { type: string, format: date }
+        - name: checkOut
+          in: query
+          schema: { type: string, format: date }
+        - name: type
+          in: query
+          schema: { type: string }
+        - name: minPrice
+          in: query
+          schema: { type: number }
+        - name: maxPrice
+          in: query
+          schema: { type: number }
+        - name: sortBy
+          in: query
+          schema: { type: string, enum: [relevance, price_asc, price_desc, rating, distance] }
+      responses:
+        "200":
+          description: Search results
+
+  /api/v1/gds/agents/register:
+    post:
+      tags: [Agents]
+      summary: Register as a travel agent
+      operationId: registerAgent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentCreate"
+      responses:
+        "201":
+          description: Agent registered (pending verification)
+
+  /api/v1/gds/agents/commission:
+    get:
+      tags: [Agents]
+      summary: Get commission summary
+      operationId: getCommission
+      responses:
+        "200":
+          description: Commission details including tier and earnings
+
+  /api/v1/gds/distribution/webhooks:
+    post:
+      tags: [Distribution]
+      summary: Register a webhook for GDS events
+      operationId: registerWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string, format: uri }
+                events: { type: array, items: { type: string } }
+      responses:
+        "201":
+          description: Webhook registered
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-GDS-API-Key
+
+  schemas:
+    Property:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string }
+        country: { type: string }
+        city: { type: string }
+        starRating: { type: integer }
+        currency: { type: string }
+        commission: { type: number }
+        status: { type: string }
+        amenities: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+
+    PropertyCreate:
+      type: object
+      required: [name, type, country, currency]
+      properties:
+        name: { type: string, example: Serena Safari Lodge }
+        type: { type: string, enum: [hotel, lodge, safari_camp, resort, boutique, guesthouse, villa, apartment, activity] }
+        country: { type: string, example: KE, description: "ISO 3166-1 alpha-2 (African countries only)" }
+        region: { type: string }
+        city: { type: string }
+        starRating: { type: integer, minimum: 1, maximum: 5 }
+        currency: { type: string, example: KES }
+        commission: { type: number, description: "Agent commission percentage" }
+        amenities: { type: array, items: { type: string } }
+        roomTypes: { type: array, items: { $ref: "#/components/schemas/RoomType" } }
+
+    RoomType:
+      type: object
+      properties:
+        code: { type: string, example: DLX }
+        name: { type: string, example: Deluxe Room }
+        maxOccupancy: { type: integer }
+        bedConfiguration: { type: string }
+
+    ReservationCreate:
+      type: object
+      required: [propertyId, roomTypeCode, checkIn, checkOut, guestName, guestEmail, guestCountry]
+      properties:
+        propertyId: { type: string }
+        roomTypeCode: { type: string }
+        ratePlanCode: { type: string, default: BAR }
+        checkIn: { type: string, format: date }
+        checkOut: { type: string, format: date }
+        guests: { type: integer, minimum: 1 }
+        rooms: { type: integer, minimum: 1 }
+        guestName: { type: string }
+        guestEmail: { type: string, format: email }
+        guestPhone: { type: string }
+        guestCountry: { type: string }
+        specialRequests: { type: string }
+
+    Reservation:
+      type: object
+      properties:
+        id: { type: string }
+        confirmationNo: { type: string }
+        propertyId: { type: string }
+        checkIn: { type: string, format: date }
+        checkOut: { type: string, format: date }
+        nights: { type: integer }
+        guestName: { type: string }
+        totalAmount: { type: number }
+        commission: { type: number }
+        currency: { type: string }
+        status: { type: string, enum: [confirmed, cancelled, checked_in, checked_out] }
+        createdAt: { type: string, format: date-time }
+
+    AgentCreate:
+      type: object
+      required: [agencyName, agentName, email, country]
+      properties:
+        agencyName: { type: string }
+        agentName: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+        country: { type: string }
+        iataCode: { type: string }
+        preferredCurrency: { type: string, default: USD }

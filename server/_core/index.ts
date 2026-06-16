@@ -2,6 +2,12 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import crypto from "crypto";
+import helmet from "helmet";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
+import cookieParser from "cookie-parser";
+import compression from "compression";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerSSERoutes } from "../sse";
@@ -30,6 +36,12 @@ import { startReviewPromptJob } from "../jobs/reviewPromptJob";
 import { startSentimentAlertJob } from "../jobs/sentimentAlertJob";
 import { startLeaderboardSnapshotJob } from "../jobs/leaderboardSnapshotJob";
 import { startOnboardingNudgeJob } from "../jobs/onboardingNudgeJob";
+import { logger } from "./logger";
+import { getRedis, closeRedis } from "./redis";
+import { closeKafka } from "./kafka";
+import { keycloakAuthMiddleware } from "./keycloak";
+import { syncRoutes as syncApisixRoutes } from "./apisix";
+import { ensureIndices as ensureOpenSearchIndices } from "./opensearch";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -52,13 +64,136 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   const app = express();
+
+  // Trust proxy for correct client IP behind load balancer (rate limiting, X-Forwarded-*)
+  if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
+
   const server = createServer(app);
   // Stripe webhook MUST be registered before express.json() for raw body access
   registerStripeWebhook(app);
 
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  // ─── Request ID / Distributed Tracing ──────────────────────────────────────
+  app.use((req, res, next) => {
+    const requestId = (req.headers["x-request-id"] as string) || crypto.randomUUID();
+    req.headers["x-request-id"] = requestId;
+    res.setHeader("x-request-id", requestId);
+    next();
+  });
+
+  // ─── Security middleware ─────────────────────────────────────────────────────
+  app.use(helmet({
+    contentSecurityPolicy: process.env.NODE_ENV === "production" ? {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://js.stripe.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        connectSrc: ["'self'", "https://api.stripe.com", "wss:", process.env.CORS_ORIGIN || "'self'"],
+        frameSrc: ["'self'", "https://js.stripe.com"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    } : false,
+    crossOriginEmbedderPolicy: false,
+  }));
+
+  // CORS: restrict origins in production (env var required)
+  const corsOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",").map(o => o.trim())
+    : (process.env.NODE_ENV === "production" ? ["https://tourismpay.com"] : true);
+  app.use(cors({
+    origin: corsOrigins as string[] | boolean,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-API-Key", "X-Request-ID", "X-CSRF-Token"],
+  }));
+
+  app.use(cookieParser());
+
+  // ─── CSRF Protection (double-submit cookie pattern) ────────────────────────
+  // Stateless CSRF: server sets a random token in a cookie; client echoes it in X-CSRF-Token header.
+  // Safe methods (GET/HEAD/OPTIONS) and webhook endpoints are exempt.
+  app.use((req, res, next) => {
+    const exempt = ["GET", "HEAD", "OPTIONS"].includes(req.method)
+      || req.path === "/health" || req.path === "/livez" || req.path === "/readyz" || req.path === "/metrics"
+      || req.path.startsWith("/api/stripe-webhook")
+      || req.path.startsWith("/api/oauth/")
+      || req.path.startsWith("/api/dev/");
+    if (exempt) {
+      // Set CSRF cookie if not present (for SPA to read)
+      if (!req.cookies?.["csrf-token"]) {
+        const token = crypto.randomBytes(32).toString("hex");
+        res.cookie("csrf-token", token, { httpOnly: false, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/" });
+      }
+      return next();
+    }
+    const cookieToken = req.cookies?.["csrf-token"];
+    const headerToken = req.headers["x-csrf-token"];
+    if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+      res.status(403).json({ error: "CSRF token mismatch" });
+      return;
+    }
+    next();
+  });
+
+  // Rate limit API endpoints (100 req/min per IP by default)
+  const apiLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: process.env.RATE_LIMIT_MAX ? parseInt(process.env.RATE_LIMIT_MAX, 10) : 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests, please try again later." },
+    skip: (req) => req.path === "/health" || req.path === "/livez" || req.path === "/readyz" || req.path === "/metrics" || req.path.startsWith("/api/dev/"),
+  });
+  app.use("/api", apiLimiter);
+  app.use("/trpc", apiLimiter);
+
+  // ─── Health / Lifecycle Probes (before body parsers — lightweight, no auth) ──
+  let serviceReady = false;
+
+  app.get("/health", (_req, res) => {
+    res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
+  });
+
+  // Liveness probe — process is alive, not deadlocked
+  app.get("/livez", (_req, res) => {
+    res.json({ status: "alive", uptime: process.uptime(), pid: process.pid });
+  });
+
+  // Readiness probe — ready to accept traffic (DB connected, etc.)
+  app.get("/readyz", (_req, res) => {
+    if (!serviceReady) {
+      res.status(503).json({ status: "not_ready", reason: "starting up or shutting down" });
+      return;
+    }
+    res.json({ status: "ready" });
+  });
+
+  // Graceful shutdown: mark not ready on SIGTERM, drain in-flight, then exit
+  const markReady = () => { serviceReady = true; };
+  const markNotReady = () => { serviceReady = false; };
+
+  process.on("SIGTERM", () => {
+    const shutdownEvent = {
+      level: "WARN", event: "graceful_shutdown_started", service: "tourismpay-server",
+      timestamp: new Date().toISOString(), pod_name: process.env.POD_NAME || "unknown",
+    };
+    process.stderr.write(JSON.stringify(shutdownEvent) + "\n");
+    markNotReady();
+    // K8s preStop hook sleeps 5s; we wait 2s extra for endpoint propagation
+    setTimeout(() => { process.exit(0); }, 7000);
+  });
+
+  // ─── Response compression ──────────────────────────────────────────────────
+  app.use(compression());
+
+  // ─── Body parsers ───────────────────────────────────────────────────────────
+  app.use(express.json({ limit: "16mb" }));
+  app.use(express.urlencoded({ limit: "16mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
 
@@ -213,6 +348,9 @@ async function startServer() {
     });
   }
 
+  // ─── Keycloak OIDC middleware (when configured) ──────────────────────────
+  app.use(keycloakAuthMiddleware());
+
   // Real-time SSE streams for Fraud Monitor, SOC Dashboard, and BIS
   registerSSERoutes(app);
   // tRPC API
@@ -221,6 +359,12 @@ async function startServer() {
     createExpressMiddleware({
       router: appRouter,
       createContext,
+      onError({ error, path }) {
+        if (process.env.NODE_ENV === "production" && error.code === "INTERNAL_SERVER_ERROR") {
+          logger.error(`[tRPC] ${path}:`, { message: error.message, stack: error.stack });
+          error.message = "An internal error occurred. Please try again later.";
+        }
+      },
     })
   );
   // development mode uses Vite, production mode uses static files
@@ -234,11 +378,34 @@ async function startServer() {
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    logger.info(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+    logger.info(`Server running on http://localhost:${port}/`);
+    markReady();
+
+    // ─── Initialize middleware connections ─────────────────────────────────
+    getRedis(); // Connect Redis cache (non-blocking)
+    syncApisixRoutes().catch(() => {}); // Sync APISIX routes (non-blocking)
+    ensureOpenSearchIndices().catch(() => {}); // Create OpenSearch indices (non-blocking)
+
+    const shutdown = async (signal: string) => {
+      logger.info(`${signal} received — shutting down gracefully`);
+      await closeRedis().catch(() => {});
+      await closeKafka().catch(() => {});
+      server.close(() => {
+        logger.info("HTTP server closed");
+        process.exit(0);
+      });
+      setTimeout(() => {
+        logger.error("Graceful shutdown timed out — forcing exit");
+        process.exit(1);
+      }, 10_000);
+    };
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    process.on("SIGINT", () => shutdown("SIGINT"));
+
     // Start BIS investigation auto-advance background job
     startBisAutoAdvanceJob(60_000);
     // Start biometric enrollment expiry background job (runs every 6 hours)
@@ -284,4 +451,4 @@ async function startServer() {
   });
 }
 
-startServer().catch(console.error);
+startServer().catch((err) => logger.error("Unhandled error", err));

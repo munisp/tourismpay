@@ -10,6 +10,7 @@
 
 import { processPendingDeliveries } from "../webhookEngine";
 import { notifyOwner } from "../_core/notification";
+import { logger } from "../_core/logger";
 
 // ── Core runner ────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ export async function runWebhookRetryJob(): Promise<{
     const failed = result.failed ?? 0;
 
     if (processed > 0) {
-      console.log(
+      logger.info(
         `[WebhookRetry] Cycle — processed: ${processed}, succeeded: ${succeeded}, failed: ${failed}`
       );
     }
@@ -40,7 +41,7 @@ export async function runWebhookRetryJob(): Promise<{
 
     return { processed, succeeded, failed };
   } catch (err) {
-    console.error("[WebhookRetry] Job run failed:", err);
+    logger.error("[WebhookRetry] Job run failed:", err);
     return { processed: 0, succeeded: 0, failed: 0 };
   }
 }
@@ -55,17 +56,17 @@ let jobInterval: ReturnType<typeof setInterval> | null = null;
  */
 export function startWebhookRetryJob(intervalMs = 60_000): void {
   if (jobInterval) {
-    console.log("[WebhookRetry] Already running");
+    logger.info("[WebhookRetry] Already running");
     return;
   }
 
-  console.log(
+  logger.info(
     `[WebhookRetry] Starting webhook retry job (interval: ${intervalMs / 1000}s)`
   );
 
   // Run once on startup to catch any deliveries that accumulated during downtime
   runWebhookRetryJob().catch((err) =>
-    console.error("[WebhookRetry] Initial run failed:", err)
+    logger.error("[WebhookRetry] Initial run failed:", err)
   );
 
   jobInterval = setInterval(async () => {
@@ -77,6 +78,6 @@ export function stopWebhookRetryJob(): void {
   if (jobInterval) {
     clearInterval(jobInterval);
     jobInterval = null;
-    console.log("[WebhookRetry] Stopped");
+    logger.info("[WebhookRetry] Stopped");
   }
 }

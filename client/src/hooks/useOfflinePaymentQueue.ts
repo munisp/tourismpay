@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 // ─── IndexedDB helpers ────────────────────────────────────────────────────────
 
@@ -95,7 +96,7 @@ export function useOfflinePaymentQueue() {
   useEffect(() => {
     getAllQueued()
       .then(setQueue)
-      .catch((err) => console.warn("[OfflineQueue] Could not load queue:", err));
+      .catch((err) => logger.warn("[OfflineQueue] Could not load queue", { err }));
   }, []);
 
   // Track online/offline status

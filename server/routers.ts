@@ -55,7 +55,13 @@ import { stripeConnectRouter } from "./routers/stripeConnect";
 import { pythonServicesRouter } from "./routers/pythonServices";
 import { analyticsRouter as crossPlatformAnalyticsRouter } from "./routers/analytics";
 import { emailPreviewRouter } from "./routers/emailPreview";
+import { kycRouter } from "./routers/kyc";
 import { nocDashboardRouter } from "./routers/nocDashboard";
+import { channelManagerRouter } from "./routers/channelManager";
+import { gdsPortalRouter } from "./routers/gdsPortal";
+import { stablecoinSwapRouter } from "./routers/stablecoinSwap";
+import { liquidityProviderRouter } from "./routers/liquidityProvider";
+import { smartContractRouter } from "./routers/smartContract";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -77,7 +83,7 @@ import {
   psNotificationRouter,
   accountRecoveryRouter,
   psAdminRouter,
-} from "./routers/psStubs";
+} from "./routers/psRouters";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -176,6 +182,12 @@ export const appRouter = router({
   stripeConnect: stripeConnectRouter,
   pythonServices: pythonServicesRouter,
   emailPreview: emailPreviewRouter,
+  kyc: kycRouter,
+  channelManager: channelManagerRouter,
+  gdsPortal: gdsPortalRouter,
+  stablecoinSwap: stablecoinSwapRouter,
+  liquidityProvider: liquidityProviderRouter,
+  smartContract: smartContractRouter,
 });
 
 export type AppRouter = typeof appRouter;

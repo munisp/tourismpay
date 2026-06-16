@@ -28,6 +28,7 @@ import {
   type InsertUserNotification,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { logger } from "./_core/logger";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _client: ReturnType<typeof postgres> | null = null;
@@ -38,19 +39,56 @@ export async function getDb() {
     try {
       const dbUrl = ENV.databaseUrl;
       const sslRequired = dbUrl.includes("sslmode=require") || dbUrl.includes("ssl=true") || (!dbUrl.includes("localhost") && !dbUrl.includes("127.0.0.1"));
+      const poolSize = parseInt(process.env.DB_POOL_SIZE || "20", 10);
       _client = postgres(dbUrl, {
-        max: 10,
+        max: poolSize,
         idle_timeout: 30,
         connect_timeout: 10,
         ssl: sslRequired ? { rejectUnauthorized: false } : false,
       });
       _db = drizzle(_client);
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      logger.warn("[Database] Failed to connect:", error);
       _db = null;
     }
   }
   return _db;
+}
+
+/** Raw postgres.js client for SQL transactions with row-level locking. */
+export function getRawClient() {
+  // Ensure getDb() has been called at least once to initialise _client
+  if (!_client && ENV.databaseUrl) {
+    const dbUrl = ENV.databaseUrl;
+    const sslRequired = dbUrl.includes("sslmode=require") || dbUrl.includes("ssl=true") || (!dbUrl.includes("localhost") && !dbUrl.includes("127.0.0.1"));
+    const poolSize = parseInt(process.env.DB_POOL_SIZE || "20", 10);
+    _client = postgres(dbUrl, {
+      max: poolSize,
+      idle_timeout: 30,
+      connect_timeout: 10,
+      ssl: sslRequired ? { rejectUnauthorized: false } : false,
+    });
+    _db = drizzle(_client);
+  }
+  return _client;
+}
+
+export type RawSql = ReturnType<typeof postgres>;
+
+/**
+ * Run a callback inside a PostgreSQL transaction with proper row-level locking.
+ * The callback receives the raw `sql` tagged template function for direct queries.
+ */
+export async function withTransaction<T>(
+  fn: (sql: RawSql) => Promise<T>,
+): Promise<T> {
+  const client = getRawClient();
+  if (!client) throw new Error("Database unavailable");
+  // postgres.js begin() handles BEGIN/COMMIT/ROLLBACK automatically.
+  // We cast through unknown because TransactionSql omits some Sql props but
+  // retains the tagged-template call signature we need.
+  const result = await client.begin((tx) => fn(tx as unknown as RawSql));
+  return result as T;
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -62,7 +100,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
+    logger.warn("[Database] Cannot upsert user: database not available");
     return;
   }
 
@@ -115,7 +153,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
         },
       });
   } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
+    logger.error("[Database] Failed to upsert user:", error);
     throw error;
   }
 }
@@ -235,7 +273,7 @@ export async function updateKybApplicationStep(
 
 function generateBisRef(): string {
   const year = new Date().getFullYear();
-  const seq = Math.floor(Math.random() * 9000) + 1000;
+  const seq = 1000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 9000);
   return `BIS-${year}-${seq}`;
 }
 
@@ -887,14 +925,14 @@ export async function upsertNotificationPreferences(
 export async function createAuditLog(data: InsertAuditLog): Promise<AuditLog | undefined> {
   const db = await getDb();
   if (!db) {
-    console.warn("[AuditLog] Database not available, skipping audit log");
+    logger.warn("[AuditLog] Database not available, skipping audit log");
     return undefined;
   }
   try {
     const result = await db.insert(auditLogs).values(data).returning();
     return result[0];
   } catch (err) {
-    console.warn("[AuditLog] Failed to write audit log:", err);
+    logger.warn("[AuditLog] Failed to write audit log:", err);
     return undefined;
   }
 }

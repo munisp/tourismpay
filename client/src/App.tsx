@@ -103,12 +103,17 @@ import MerchantBisStatus from "@/pages/merchant/MerchantBisStatus";
 import DealLeaderboard from "@/pages/merchant/DealLeaderboard";
 import MerchantKpiLeaderboard from "@/pages/merchant/MerchantKpiLeaderboard";
 import ServiceAvailabilityCalendar from "@/pages/merchant/ServiceAvailabilityCalendar";
+import ChannelManager from "@/pages/merchant/ChannelManager";
 import InviteAccept from "@/pages/InviteAccept";
 import TouristProductCatalog from "@/pages/tourist/TouristProductCatalog";
 import TouristOrderConfirm from "@/pages/tourist/TouristOrderConfirm";
 import ComplianceDashboard from "@/pages/compliance/ComplianceDashboard";
+import GDSAgentPortal from "@/pages/gds/GDSAgentPortal";
+import GDSPropertyManager from "@/pages/gds/GDSPropertyManager";
 import EmailPreview from "@/pages/admin/EmailPreview";
 import SettlementConsole from "@/pages/settlement/SettlementConsole";
+import StablecoinSwap from "@/pages/tier2/StablecoinSwap";
+import LiquidityProvider from "@/pages/tier2/LiquidityProvider";
 import PaymentReceipt from "@/pages/tourist/PaymentReceipt";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { OfflinePaymentBanner } from "@/components/OfflinePaymentBanner";
@@ -138,6 +143,8 @@ function Router() {
             {/* Tier 2 — Digital Finance */}
             <Route path="/copilot" component={AICopilot} />
             <Route path="/wallet" component={DigitalWallet} />
+            <Route path="/wallet/stablecoin" component={StablecoinSwap} />
+            <Route path="/wallet/liquidity" component={LiquidityProvider} />
             <Route path="/finance" component={EmbeddedFinance} />
             <Route path="/loyalty" component={LoyaltyRewards} />
             {/* Tier 3 — Visionary */}
@@ -227,8 +234,12 @@ function Router() {
             <Route path="/merchant/leaderboard" component={MerchantKpiLeaderboard} />
             <Route path="/merchant/availability" component={ServiceAvailabilityCalendar} />
             <Route path="/merchant/bis-status" component={MerchantBisStatus} />
+            <Route path="/merchant/channels" component={ChannelManager} />
             {/* Compliance */}
             <Route path="/compliance" component={ComplianceDashboard} />
+            {/* GDS */}
+            <Route path="/gds/agent" component={GDSAgentPortal} />
+            <Route path="/gds/property" component={GDSPropertyManager} />
             {/* Settlement */}
             <Route path="/settlement" component={SettlementConsole} />
             {/* QR Payment Receipt — public-ish, auth required for data */}

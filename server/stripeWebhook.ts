@@ -10,6 +10,7 @@ import { getDb } from "./db";
 import { walletBalances, bisDirectors, bisInvestigations, serviceAvailability } from "../drizzle/schema";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { createAuditLog, createUserNotification, createBisInvestigation } from "./db";
+import { logger } from "./_core/logger";
 
 // USD → wallet currency conversion rates (approximate, same as wallet router)
 const APPROX_USD_RATES: Record<string, number> = {
@@ -34,19 +35,19 @@ export function registerStripeWebhook(app: Express) {
         );
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Unknown error";
-        console.error("[Stripe Webhook] Signature verification failed:", msg);
+        logger.error("[Stripe Webhook] Signature verification failed:", msg);
         res.status(400).send(`Webhook Error: ${msg}`);
         return;
       }
 
       // Test events — return immediately so Stripe CLI can verify the endpoint
       if (event.id.startsWith("evt_test_")) {
-        console.log("[Stripe Webhook] Test event detected, returning verification response");
+        logger.info("[Stripe Webhook] Test event detected, returning verification response");
         res.json({ verified: true });
         return;
       }
 
-      console.log(`[Stripe Webhook] Received event: ${event.type} (${event.id})`);
+      logger.info(`[Stripe Webhook] Received event: ${event.type} (${event.id})`);
 
       try {
         if (event.type === "checkout.session.completed") {
@@ -68,7 +69,7 @@ export function registerStripeWebhook(app: Express) {
           const amountUsd = parseFloat(session.metadata?.amount_usd ?? "0");
 
           if (!userId || amountUsd <= 0) {
-            console.warn("[Stripe Webhook] Missing userId or amount in session metadata");
+            logger.warn("[Stripe Webhook] Missing userId or amount in session metadata");
             res.json({ received: true });
             return;
           }
@@ -140,7 +141,7 @@ export function registerStripeWebhook(app: Express) {
             actionLabel: "View Wallet",
           });
 
-           console.log(`[Stripe Webhook] Wallet topped up: user=${userId}, currency=${walletCurrency}, amount=${walletAmount}`);
+           logger.info(`[Stripe Webhook] Wallet topped up: user=${userId}, currency=${walletCurrency}, amount=${walletAmount}`);
 
           // ── Director Bundle: create BIS investigations for each director ──
           if (session.metadata?.bundle_type === "director_bundle") {
@@ -153,14 +154,14 @@ export function registerStripeWebhook(app: Express) {
             const bookingDateStr = session.metadata.booking_date_str;
             if (!isNaN(productId) && bookingDateStr) {
               await deductBookingSlot(db, productId, bookingDateStr);
-              console.log(`[Stripe Webhook] Slot deducted: productId=${productId}, date=${bookingDateStr}`);
+              logger.info(`[Stripe Webhook] Slot deducted: productId=${productId}, date=${bookingDateStr}`);
             }
           }
         }
 
         res.json({ received: true });
       } catch (err) {
-        console.error("[Stripe Webhook] Handler error:", err);
+        logger.error("[Stripe Webhook] Handler error:", err);
         res.status(500).json({ error: "Internal server error" });
       }
     }
@@ -188,7 +189,7 @@ async function handleDirectorBundle(session: {
   const directorIdsRaw = meta.director_ids ?? "";
 
   if (!userId || !investigationId || !directorIdsRaw) {
-    console.warn("[Stripe Webhook][DirectorBundle] Missing required metadata fields", meta);
+    logger.warn("[Stripe Webhook][DirectorBundle] Missing required metadata fields", meta);
     return;
   }
 
@@ -198,13 +199,13 @@ async function handleDirectorBundle(session: {
     .filter((n) => !isNaN(n) && n > 0);
 
   if (directorIds.length === 0) {
-    console.warn("[Stripe Webhook][DirectorBundle] No valid director IDs in metadata");
+    logger.warn("[Stripe Webhook][DirectorBundle] No valid director IDs in metadata");
     return;
   }
 
   const db = await getDb();
   if (!db) {
-    console.error("[Stripe Webhook][DirectorBundle] Database unavailable");
+    logger.error("[Stripe Webhook][DirectorBundle] Database unavailable");
     return;
   }
 
@@ -229,7 +230,7 @@ async function handleDirectorBundle(session: {
   for (const director of directors) {
     // Skip if already linked (idempotency guard)
     if (director.linkedInvestigationId) {
-      console.log(`[Stripe Webhook][DirectorBundle] Director ${director.id} already has investigation ${director.linkedInvestigationId}, skipping`);
+      logger.info(`[Stripe Webhook][DirectorBundle] Director ${director.id} already has investigation ${director.linkedInvestigationId}, skipping`);
       continue;
     }
 
@@ -259,15 +260,15 @@ async function handleDirectorBundle(session: {
           .where(eq(bisDirectors.id, director.id));
 
         createdInvestigations.push({ id: inv.id, name: director.fullName, refId: inv.referenceId });
-        console.log(`[Stripe Webhook][DirectorBundle] Created investigation ${inv.referenceId} for director ${director.fullName}`);
+        logger.info(`[Stripe Webhook][DirectorBundle] Created investigation ${inv.referenceId} for director ${director.fullName}`);
       }
     } catch (err) {
-      console.error(`[Stripe Webhook][DirectorBundle] Failed to create investigation for director ${director.id}:`, err);
+      logger.error(`[Stripe Webhook][DirectorBundle] Failed to create investigation for director ${director.id}:`, err);
     }
   }
 
   if (createdInvestigations.length === 0) {
-    console.warn("[Stripe Webhook][DirectorBundle] No new investigations created (all may already exist)");
+    logger.warn("[Stripe Webhook][DirectorBundle] No new investigations created (all may already exist)");
     return;
   }
 
@@ -303,7 +304,7 @@ async function handleDirectorBundle(session: {
     actionLabel: "View Entity Investigation",
   });
 
-  console.log(`[Stripe Webhook][DirectorBundle] Bundle complete: ${createdInvestigations.length} investigations created for entity investigation #${investigationId}`);
+  logger.info(`[Stripe Webhook][DirectorBundle] Bundle complete: ${createdInvestigations.length} investigations created for entity investigation #${investigationId}`);
 }
 
 // ─── Service Booking Slot Deduction ──────────────────────────────────────────

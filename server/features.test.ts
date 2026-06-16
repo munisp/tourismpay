@@ -46,7 +46,7 @@ function makeAuthContext(role: "user" | "admin" = "user"): TrpcContext {
       openId: "test-user-001",
       email: "test@tourismpay.io",
       name: "Test User",
-      loginMethod: "manus",
+      loginMethod: "oauth",
       role,
       createdAt: new Date(),
       updatedAt: new Date(),

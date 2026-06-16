@@ -21,12 +21,12 @@ import { establishments, bisInvestigations, users } from "../../drizzle/schema";
 import { notifyOwner } from "../_core/notification";
 import { sendTransactionalEmail, buildBisEmailHtml } from "../_core/email";
 import { eq } from "drizzle-orm";
+import { logger } from "../_core/logger";
 
 // ─── Scoring helpers ──────────────────────────────────────────────────────────
 
 function generateRiskScore(tier: string): number {
-  // Simulate realistic risk score distribution
-  const rand = Math.random();
+  const rand = crypto.getRandomValues(new Uint32Array(1))[0] / 0xFFFFFFFF;
   if (tier === "basic") return Math.floor(rand * 40); // 0–39 (mostly low risk)
   if (tier === "standard") return Math.floor(rand * 60 + 10); // 10–69
   return Math.floor(rand * 80 + 10); // 10–89 (comprehensive)
@@ -128,11 +128,11 @@ export async function runBisAutoAdvanceCycle(): Promise<{
         const row = await advanceBisInvestigationToProcessing(inv.id);
         if (row) {
           advanced++;
-          console.log(`[BIS Job] Advanced investigation ${inv.referenceId} → processing`);
+          logger.info(`[BIS Job] Advanced investigation ${inv.referenceId} → processing`);
         }
       } catch (err) {
         errors++;
-        console.error(`[BIS Job] Failed to advance investigation ${inv.id}:`, err);
+        logger.error(`[BIS Job] Failed to advance investigation ${inv.id}:`, err);
       }
     }
 
@@ -156,7 +156,7 @@ export async function runBisAutoAdvanceCycle(): Promise<{
 
         if (row) {
           completed++;
-          console.log(`[BIS Job] Completed investigation ${inv.referenceId} → ${finalStatus} (score: ${riskScore})`);
+          logger.info(`[BIS Job] Completed investigation ${inv.referenceId} → ${finalStatus} (score: ${riskScore})`);
 
           // Notify the requester (BIS analyst)
           if (inv.requestedBy) {
@@ -203,11 +203,11 @@ export async function runBisAutoAdvanceCycle(): Promise<{
                     actionUrl: "/merchant/bis-status",
                     actionLabel: "View BIS Status",
                   }).catch(() => null);
-                  console.log(`[BIS Job] Merchant notification sent to owner ${est.ownerId} for establishment ${est.name}`);
+                  logger.info(`[BIS Job] Merchant notification sent to owner ${est.ownerId} for establishment ${est.name}`);
 
                   // Send transactional email to merchant owner if their email is available
                   if (est.ownerEmail) {
-                    const actionUrl = `${process.env.VITE_OAUTH_PORTAL_URL ?? "https://tourismpay.manus.space"}/merchant/bis-status`;
+                    const actionUrl = `${process.env.VITE_OAUTH_PORTAL_URL ?? "https://tourismpay.com"}/merchant/bis-status`;
                     const htmlBody = buildBisEmailHtml({
                       merchantName: est.ownerName ?? "Merchant",
                       establishmentName: est.name ?? "your establishment",
@@ -228,13 +228,13 @@ export async function runBisAutoAdvanceCycle(): Promise<{
                       actionUrl: "/merchant/bis-status",
                       actionLabel: "View BIS Status",
                     }).catch((emailErr) => {
-                      console.error(`[BIS Job] Email send failed for owner ${est.ownerId}:`, emailErr);
+                      logger.error(`[BIS Job] Email send failed for owner ${est.ownerId}:`, emailErr);
                     });
                   }
                 }
               }
             } catch (notifErr) {
-              console.error(`[BIS Job] Failed to notify merchant owner for establishment ${inv.establishmentId}:`, notifErr);
+              logger.error(`[BIS Job] Failed to notify merchant owner for establishment ${inv.establishmentId}:`, notifErr);
             }
           }
 
@@ -246,12 +246,12 @@ export async function runBisAutoAdvanceCycle(): Promise<{
         }
       } catch (err) {
         errors++;
-        console.error(`[BIS Job] Failed to complete investigation ${inv.id}:`, err);
+        logger.error(`[BIS Job] Failed to complete investigation ${inv.id}:`, err);
       }
     }
   } catch (err) {
     errors++;
-    console.error("[BIS Job] Cycle error:", err);
+    logger.error("[BIS Job] Cycle error:", err);
   }
 
   // Step 3: Detect and alert on SLA breaches
@@ -301,11 +301,11 @@ export async function runBisAutoAdvanceCycle(): Promise<{
           title: `BIS SLA Breach Alert: ${breaches.length} investigation(s) overdue`,
           content: `${breaches.length} BIS investigation(s) have breached their SLA deadlines:\n\n${summary}${moreCount > 0 ? `\n... and ${moreCount} more` : ""}\n\nPlease review the BIS Dashboard immediately.`,
         }).catch(() => null);
-        console.log(`[BIS Job] SLA breach alerts sent for ${breaches.length} investigation(s)`);
+        logger.info(`[BIS Job] SLA breach alerts sent for ${breaches.length} investigation(s)`);
       }
     }
   } catch (err) {
-    console.error("[BIS Job] SLA breach detection error:", err);
+    logger.error("[BIS Job] SLA breach detection error:", err);
   }
 
   return { advanced, completed, errors };
@@ -317,14 +317,14 @@ let jobInterval: ReturnType<typeof setInterval> | null = null;
 
 export function startBisAutoAdvanceJob(intervalMs = 60_000): void {
   if (jobInterval) {
-    console.log("[BIS Job] Already running");
+    logger.info("[BIS Job] Already running");
     return;
   }
-  console.log(`[BIS Job] Starting auto-advance job (interval: ${intervalMs / 1000}s)`);
+  logger.info(`[BIS Job] Starting auto-advance job (interval: ${intervalMs / 1000}s)`);
   jobInterval = setInterval(async () => {
     const result = await runBisAutoAdvanceCycle();
     if (result.advanced > 0 || result.completed > 0) {
-      console.log(`[BIS Job] Cycle complete — advanced: ${result.advanced}, completed: ${result.completed}, errors: ${result.errors}`);
+      logger.info(`[BIS Job] Cycle complete — advanced: ${result.advanced}, completed: ${result.completed}, errors: ${result.errors}`);
     }
   }, intervalMs);
 }
@@ -333,6 +333,6 @@ export function stopBisAutoAdvanceJob(): void {
   if (jobInterval) {
     clearInterval(jobInterval);
     jobInterval = null;
-    console.log("[BIS Job] Stopped");
+    logger.info("[BIS Job] Stopped");
   }
 }

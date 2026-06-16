@@ -18,6 +18,7 @@ import {
 } from "../../drizzle/schema";
 import { eq, and, gte, desc, count, sql, avg, sum, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { logger } from "../_core/logger";
 
 
 export const merchantRevenueRouter = router({
@@ -934,7 +935,7 @@ export const merchantRevenueRouter = router({
           }
         } catch (err) {
           // Non-fatal: trend data unavailable
-          console.warn("[peerLeaderboard] Could not fetch snapshot data for trends:", err);
+          logger.warn("[peerLeaderboard] Could not fetch snapshot data for trends:", err);
         }
       }
 

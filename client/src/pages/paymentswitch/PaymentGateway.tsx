@@ -297,9 +297,9 @@ export default function PaymentGateway() {
           <div className="grid md:grid-cols-4 gap-4 max-w-3xl mx-auto">
             {[
               { label: "Credit & Debit Cards", sub: "Visa, Mastercard, Amex", live: true },
-              { label: "Bank Transfer", sub: "ACH / SEPA", live: false },
-              { label: "QR Code", sub: "Tourist scan-to-pay", live: false },
-              { label: "Digital Wallets", sub: "Apple Pay, Google Pay", live: false },
+              { label: "Bank Transfer", sub: "ACH / SEPA / M-Pesa", live: true },
+              { label: "QR Code", sub: "Tourist scan-to-pay", live: true },
+              { label: "Digital Wallets", sub: "Apple Pay, Google Pay", live: true },
             ].map(({ label, sub, live }) => (
               <Card key={label} className={live ? "" : "opacity-60"}>
                 <CardContent className="pt-5 text-center">
