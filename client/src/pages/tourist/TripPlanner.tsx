@@ -3,6 +3,13 @@
  *
  * Tourist asks in natural language → gets structured itinerary with
  * real merchants, real prices, and one-click booking.
+ *
+ * Enhanced with:
+ * - MapLibre GL map view (GeoLibre-inspired, OSM tiles)
+ * - Budget comparison across tiers
+ * - PDF export + Web Share
+ * - Offline saved itineraries (IndexedDB)
+ * - Push notifications on booking confirmation
  */
 import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
@@ -16,8 +23,12 @@ import {
   Send, Bot, User, Sparkles, MapPin, Calendar, DollarSign,
   Hotel, Utensils, Car, Map, Coffee, Bookmark, ChevronDown, ChevronUp,
   Globe, Clock, Wallet, ShoppingBag, ArrowRight, RefreshCw, Save,
-  Plane, Music, Leaf, Waves,
+  Plane, Music, Leaf, Waves, MapPinned, BarChart3, WifiOff, Download,
 } from "lucide-react";
+import { TripMapView } from "@/components/trip-planner/TripMapView";
+import { BudgetComparison } from "@/components/trip-planner/BudgetComparison";
+import { ItineraryPDF } from "@/components/trip-planner/ItineraryPDF";
+import { useOfflineItinerary } from "@/hooks/useOfflineItinerary";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +44,8 @@ interface ItineraryItem {
   cost_usd: number;
   item_type: string;
   bookable: boolean;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface ItineraryDay {
@@ -161,12 +174,34 @@ function DayTimeline({ day }: { day: ItineraryDay }) {
 
 // ─── Itinerary View ───────────────────────────────────────────────────────────
 
-function ItineraryView({ trip, onRefine, onSave }: {
+function ItineraryView({ trip, onRefine, onSave, onSaveOffline, onShowMap, onShowBudget, showMap, showBudget }: {
   trip: GeneratedTrip;
   onRefine: (instruction: string) => void;
   onSave: () => void;
+  onSaveOffline: () => void;
+  onShowMap: () => void;
+  onShowBudget: () => void;
+  showMap: boolean;
+  showBudget: boolean;
 }) {
   const [refineInput, setRefineInput] = useState("");
+
+  // Extract markers for map
+  const mapMarkers = trip.days.flatMap(day =>
+    day.items
+      .filter(item => item.latitude && item.longitude)
+      .map(item => ({
+        id: item.merchant_id,
+        name: item.merchant_name || item.title,
+        type: item.item_type,
+        lat: item.latitude!,
+        lng: item.longitude!,
+        cost_usd: item.cost_usd,
+        day_number: day.day_number,
+        time_slot: item.time_slot,
+        bookable: item.bookable,
+      }))
+  );
 
   return (
     <div className="space-y-4">
@@ -186,7 +221,17 @@ function ItineraryView({ trip, onRefine, onSave }: {
                 <span className="flex items-center gap-1"><ShoppingBag className="w-3 h-3" /> {trip.merchantCoverage}% TourismPay</span>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              <Button variant="outline" size="sm" onClick={onShowMap} className={showMap ? "bg-primary/10" : ""}>
+                <MapPinned className="w-3.5 h-3.5 mr-1" /> Map
+              </Button>
+              <Button variant="outline" size="sm" onClick={onShowBudget} className={showBudget ? "bg-primary/10" : ""}>
+                <BarChart3 className="w-3.5 h-3.5 mr-1" /> Compare
+              </Button>
+              <ItineraryPDF trip={trip} />
+              <Button variant="outline" size="sm" onClick={onSaveOffline}>
+                <Download className="w-3.5 h-3.5 mr-1" /> Offline
+              </Button>
               <Button variant="outline" size="sm" onClick={onSave}>
                 <Save className="w-3.5 h-3.5 mr-1" /> Save
               </Button>
@@ -194,6 +239,28 @@ function ItineraryView({ trip, onRefine, onSave }: {
           </div>
         </CardContent>
       </Card>
+
+      {/* Map View (GeoLibre/MapLibre) */}
+      {showMap && (
+        <TripMapView
+          merchants={mapMarkers}
+          country={trip.countryCode}
+          onClose={onShowMap}
+        />
+      )}
+
+      {/* Budget Comparison */}
+      {showBudget && (
+        <BudgetComparison
+          destination={trip.destination}
+          durationDays={trip.durationDays}
+          currentBudget={trip.budgetLevel}
+          currentTotal={trip.totalCostUsd}
+          onSelectTier={(tier) => {
+            onRefine(`regenerate this itinerary at ${tier} budget level`);
+          }}
+        />
+      )}
 
       {/* Day timelines */}
       {trip.days.map((day) => (
@@ -262,7 +329,11 @@ export default function TripPlanner() {
   ]);
   const [input, setInput] = useState("");
   const [currentTrip, setCurrentTrip] = useState<GeneratedTrip | null>(null);
+  const [showMap, setShowMap] = useState(false);
+  const [showBudget, setShowBudget] = useState(false);
+  const [showOfflinePanel, setShowOfflinePanel] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const { saveOffline, savedTrips, savedCount, isOnline, remove } = useOfflineItinerary();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -366,21 +437,89 @@ export default function TripPlanner() {
     });
   };
 
+  const handleSaveOffline = () => {
+    if (!currentTrip) return;
+    const id = `trip-${Date.now()}-${currentTrip.countryCode}`;
+    saveOffline(id, `${currentTrip.destination} — ${currentTrip.durationDays} days`, currentTrip as unknown as Record<string, unknown>);
+  };
+
   const isLoading = generateMutation.isPending || chatMutation.isPending || refineMutation.isPending;
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b border-border shrink-0">
-        <div className="flex items-center gap-2">
-          <Globe className="w-5 h-5 text-primary" />
-          <div>
-            <h1 className="text-lg font-bold">AI Trip Planner</h1>
-            <p className="text-xs text-muted-foreground">
-              Ask in natural language — get itineraries with real merchants & prices
-            </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Globe className="w-5 h-5 text-primary" />
+            <div>
+              <h1 className="text-lg font-bold">AI Trip Planner</h1>
+              <p className="text-xs text-muted-foreground">
+                Ask in natural language — get itineraries with real merchants & prices
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {!isOnline && (
+              <Badge variant="secondary" className="text-[10px] gap-1">
+                <WifiOff className="w-3 h-3" /> Offline
+              </Badge>
+            )}
+            {savedCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={() => setShowOfflinePanel(!showOfflinePanel)}
+              >
+                <Download className="w-3.5 h-3.5" />
+                {savedCount} saved
+              </Button>
+            )}
           </div>
         </div>
+
+        {/* Offline saved trips panel */}
+        {showOfflinePanel && savedTrips.length > 0 && (
+          <div className="mt-3 p-3 rounded-lg bg-muted/50 border border-border space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">Saved for Offline Access</p>
+            {savedTrips.map((trip) => (
+              <div key={trip.id} className="flex items-center justify-between p-2 bg-card rounded-md border border-border">
+                <div>
+                  <p className="text-xs font-medium">{trip.destination}</p>
+                  <p className="text-[10px] text-muted-foreground">{trip.durationDays} days • ${trip.totalCostUsd.toFixed(0)}</p>
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] px-2"
+                    onClick={() => {
+                      const tripData = trip.data as GeneratedTrip;
+                      setCurrentTrip(tripData);
+                      setMessages((m) => [...m, {
+                        role: "assistant",
+                        content: `Loaded saved itinerary: ${trip.destination} (${trip.durationDays} days, $${trip.totalCostUsd.toFixed(0)})`,
+                        itinerary: tripData,
+                      }]);
+                      setShowOfflinePanel(false);
+                    }}
+                  >
+                    Load
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] px-2 text-destructive"
+                    onClick={() => remove(trip.id)}
+                  >
+                    ×
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Messages */}
@@ -398,7 +537,16 @@ export default function TripPlanner() {
             {/* Render itinerary below the message */}
             {msg.itinerary && (
               <div className="mt-4 ml-10">
-                <ItineraryView trip={msg.itinerary} onRefine={handleRefine} onSave={handleSave} />
+                <ItineraryView
+                  trip={msg.itinerary}
+                  onRefine={handleRefine}
+                  onSave={handleSave}
+                  onSaveOffline={handleSaveOffline}
+                  onShowMap={() => setShowMap(!showMap)}
+                  onShowBudget={() => setShowBudget(!showBudget)}
+                  showMap={showMap}
+                  showBudget={showBudget}
+                />
               </div>
             )}
           </div>
