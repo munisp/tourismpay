@@ -443,6 +443,72 @@ func main() {
 		})
 	}
 
+	// ─── Government Tax Remittance ──────────────────────────────────────────────
+	taxRemittanceService := services.NewTaxRemittanceService()
+
+	remitAPI := api.Group("/tax/remittance")
+	{
+		remitAPI.GET("/summary/:jurisdiction", func(c *gin.Context) {
+			code := c.Param("jurisdiction")
+			summary := taxRemittanceService.GetRemittanceSummary(code)
+			if summary == nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "jurisdiction not found"})
+				return
+			}
+			c.JSON(http.StatusOK, summary)
+		})
+
+		remitAPI.GET("/batches", func(c *gin.Context) {
+			status := c.Query("status")
+			batches := taxRemittanceService.GetAllBatches(status)
+			c.JSON(http.StatusOK, gin.H{"batches": batches, "count": len(batches)})
+		})
+
+		remitAPI.POST("/create-batch", func(c *gin.Context) {
+			var req struct {
+				JurisdictionCode string                       `json:"jurisdiction_code"`
+				Period           string                       `json:"period"`
+				TaxBreakdown     []services.TaxTypeBreakdown  `json:"tax_breakdown"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			batch := taxRemittanceService.CreateBatch(req.JurisdictionCode, req.Period, req.TaxBreakdown)
+			c.JSON(http.StatusCreated, batch)
+		})
+
+		remitAPI.POST("/initiate", func(c *gin.Context) {
+			var req services.RemitRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			result, err := taxRemittanceService.InitiateRemittance(req)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, result)
+		})
+
+		remitAPI.GET("/payments/:jurisdiction", func(c *gin.Context) {
+			code := c.Param("jurisdiction")
+			payments := taxRemittanceService.GetPaymentHistory(code)
+			c.JSON(http.StatusOK, gin.H{"payments": payments, "count": len(payments)})
+		})
+
+		remitAPI.GET("/schedules", func(c *gin.Context) {
+			schedules := taxRemittanceService.GetFilingSchedules()
+			c.JSON(http.StatusOK, gin.H{"schedules": schedules, "count": len(schedules)})
+		})
+
+		remitAPI.GET("/govt-accounts", func(c *gin.Context) {
+			accounts := taxRemittanceService.GetGovtBankAccounts()
+			c.JSON(http.StatusOK, gin.H{"accounts": accounts})
+		})
+	}
+
 	// ─── Channel Manager ────────────────────────────────────────────────────────
 	channelManager := channels.NewManager(database.DB)
 	if database.DB != nil {
