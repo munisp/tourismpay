@@ -106,3 +106,59 @@ entity analytics {
     permission view_agent_performance = tenant.admin
     permission export_data = tenant.admin
 }
+
+entity tax_collection {
+    // Tax collection for GDS bookings (multi-jurisdiction)
+    relation tenant @tenant
+    relation property @property
+    relation jurisdiction_admin @user
+
+    // Tax permissions
+    permission view_rates = tenant.member
+    permission calculate = tenant.member
+    permission view_collected = property.owner or property.manager or tenant.admin
+    permission initiate_remittance = jurisdiction_admin or tenant.admin
+    permission reconcile = tenant.admin
+}
+
+entity tipping {
+    // Multi-recipient tipping for post-checkout
+    relation tenant @tenant
+    relation reservation @reservation
+    relation guest @user
+
+    // Tipping permissions
+    permission send_tip = guest or reservation.agent or tenant.member
+    permission view_history = guest or reservation.agent or reservation.property.owner or tenant.admin
+    permission view_analytics = tenant.admin
+    permission configure_templates = reservation.property.owner or reservation.property.manager or tenant.admin
+}
+
+entity remittance_batch {
+    // Government tax remittance batches (maker-checker)
+    relation tenant @tenant
+    relation initiator @user
+    relation approver @user
+
+    // Remittance permissions — require dual authorization
+    permission initiate = tenant.admin
+    permission approve = approver
+    permission process = approver
+    permission view = initiator or approver or tenant.admin
+    permission reconcile = tenant.admin
+    permission generate_report = tenant.admin
+}
+
+entity loyalty_program {
+    // GDS loyalty program (cross-platform with TourismPay)
+    relation tenant @tenant
+    relation member @user
+
+    // Loyalty permissions
+    permission view_balance = member or tenant.admin
+    permission earn_points = member or tenant.member
+    permission redeem = member
+    permission view_analytics = tenant.admin
+    permission configure_tiers = tenant.admin
+    permission configure_rewards = tenant.admin
+}

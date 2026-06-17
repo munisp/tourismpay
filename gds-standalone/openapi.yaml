@@ -55,6 +55,14 @@ tags:
     description: Booking trends and market intelligence
   - name: Distribution
     description: Rate/availability distribution channels
+  - name: Tax
+    description: Multi-jurisdiction tax calculation (15 African countries)
+  - name: Tipping
+    description: Multi-recipient post-checkout tipping with role templates
+  - name: Remittance
+    description: Government tax remittance, compliance, maker-checker
+  - name: Loyalty
+    description: Points accrual and redemption for GDS bookings
 
 paths:
   /health:
@@ -280,6 +288,157 @@ paths:
       responses:
         "201":
           description: Webhook registered
+
+  /api/v1/gds/tax/jurisdictions:
+    get:
+      tags: [Tax]
+      summary: List all supported tax jurisdictions
+      operationId: listJurisdictions
+      responses:
+        "200":
+          description: List of 15 African jurisdictions with tax rules
+
+  /api/v1/gds/tax/calculate:
+    post:
+      tags: [Tax]
+      summary: Calculate tax for a booking amount
+      operationId: calculateTax
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, jurisdictionCode]
+              properties:
+                amount: { type: number, example: 10000 }
+                currency: { type: string }
+                jurisdictionCode: { type: string, example: NG }
+                serviceType: { type: string, enum: [accommodation, dining, transport, activity] }
+      responses:
+        "200":
+          description: Tax breakdown with per-rule amounts
+
+  /api/v1/gds/tipping/templates:
+    get:
+      tags: [Tipping]
+      summary: Get staff role templates by property type
+      operationId: getTippingTemplates
+      parameters:
+        - name: propertyType
+          in: query
+          schema: { type: string, enum: [hotel, lodge, safari_camp, resort, restaurant, tour_operator, transport] }
+      responses:
+        "200":
+          description: Role templates with suggested percentages
+
+  /api/v1/gds/tipping/calculate:
+    post:
+      tags: [Tipping]
+      summary: Calculate multi-recipient tip distribution
+      operationId: calculateTip
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [totalAmount, recipients]
+              properties:
+                totalAmount: { type: number }
+                currency: { type: string }
+                recipients: { type: array, items: { type: object, properties: { role: { type: string }, percent: { type: number }, amount: { type: number } } } }
+                splitMode: { type: string, enum: [equal, percent, custom], default: equal }
+      responses:
+        "200":
+          description: Distribution with per-recipient amounts
+
+  /api/v1/gds/tipping/send:
+    post:
+      tags: [Tipping]
+      summary: Send tips to multiple recipients
+      operationId: sendTip
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reservationId, propertyId, totalAmount, recipients]
+              properties:
+                reservationId: { type: string }
+                propertyId: { type: string }
+                totalAmount: { type: number }
+                currency: { type: string }
+                recipients: { type: array, items: { type: object } }
+                message: { type: string }
+      responses:
+        "201":
+          description: Tips queued for processing
+
+  /api/v1/gds/remittance/summary:
+    get:
+      tags: [Remittance]
+      summary: Get remittance dashboard (collected vs remitted)
+      operationId: getRemittanceSummary
+      parameters:
+        - name: jurisdictionCode
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Summary with compliance rates
+
+  /api/v1/gds/remittance/initiate:
+    post:
+      tags: [Remittance]
+      summary: Initiate a government tax remittance batch (admin)
+      operationId: initiateRemittance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [jurisdictionCode, amount]
+              properties:
+                jurisdictionCode: { type: string }
+                amount: { type: number }
+                period: { type: string }
+      responses:
+        "201":
+          description: Batch created (pending maker-checker approval)
+
+  /api/v1/gds/loyalty/calculate:
+    post:
+      tags: [Loyalty]
+      summary: Calculate loyalty points for a booking
+      operationId: calculateLoyalty
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: number, example: 500 }
+                currency: { type: string }
+                propertyType: { type: string }
+                guestTier: { type: string, enum: [Bronze, Silver, Gold, Platinum] }
+                bookingType: { type: string, enum: [gds, direct, ota] }
+      responses:
+        "200":
+          description: Points calculation with tier multiplier breakdown
+
+  /api/v1/gds/loyalty/rewards:
+    get:
+      tags: [Loyalty]
+      summary: Get available rewards catalog
+      operationId: getRewards
+      responses:
+        "200":
+          description: Reward list with point costs
 
 components:
   securitySchemes:

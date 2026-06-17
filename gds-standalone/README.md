@@ -181,6 +181,18 @@ await gds.registerWebhook({ url: "https://your-app.com/gds-events", events: ["re
 | POST | `/api/v1/gds/distribution/webhooks` | Register webhook | 100/min |
 | GET | `/api/v1/gds/analytics/bookings` | Booking metrics | 100/min |
 | GET | `/api/v1/gds/analytics/market` | Market intelligence | 100/min |
+| GET | `/api/v1/gds/tax/jurisdictions` | List 15 African tax jurisdictions | 200/min |
+| POST | `/api/v1/gds/tax/calculate` | Calculate booking tax | 200/min |
+| POST | `/api/v1/gds/tax/calculate/bulk` | Bulk tax calculation | 100/min |
+| GET | `/api/v1/gds/tipping/templates` | Staff role templates by property type | 200/min |
+| POST | `/api/v1/gds/tipping/calculate` | Multi-recipient tip distribution | 200/min |
+| POST | `/api/v1/gds/tipping/send` | Send tips to multiple staff | 50/min |
+| GET | `/api/v1/gds/remittance/summary` | Tax remittance dashboard | 100/min |
+| POST | `/api/v1/gds/remittance/initiate` | Initiate govt remittance (admin) | 20/min |
+| POST | `/api/v1/gds/remittance/reconcile` | Reconcile collections (admin) | 20/min |
+| POST | `/api/v1/gds/loyalty/calculate` | Calculate booking points | 200/min |
+| GET | `/api/v1/gds/loyalty/rewards` | Available rewards catalog | 200/min |
+| POST | `/api/v1/gds/loyalty/redeem` | Redeem reward | 50/min |
 
 Full OpenAPI spec: `openapi.yaml`
 

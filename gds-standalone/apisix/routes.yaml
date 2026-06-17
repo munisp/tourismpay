@@ -280,6 +280,114 @@ routes:
         allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
         allow_credential: true
 
+  # === Tax API ===
+  - id: gds-tax
+    uri: /api/v1/gds/tax*
+    methods: [GET, POST]
+    upstream_id: gds-engine
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 200
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
+        allow_credential: true
+
+  # === Tipping API ===
+  - id: gds-tipping
+    uri: /api/v1/gds/tipping*
+    methods: [GET, POST]
+    upstream_id: gds-engine
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 200
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
+        allow_credential: true
+
+  # === Remittance API (admin-restricted rate limit) ===
+  - id: gds-remittance
+    uri: /api/v1/gds/remittance*
+    methods: [GET, POST]
+    upstream_id: gds-engine
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 50
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
+        allow_credential: true
+
+  # === Loyalty API ===
+  - id: gds-loyalty
+    uri: /api/v1/gds/loyalty*
+    methods: [GET, POST]
+    upstream_id: gds-engine
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 200
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
+        allow_credential: true
+
   # === Developer Sandbox API ===
   - id: gds-sandbox
     uri: /api/v1/gds/sandbox*
