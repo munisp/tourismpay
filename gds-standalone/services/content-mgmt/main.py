@@ -150,6 +150,77 @@ async def create_content(req: CreateContentReq):
     return {"content": content.model_dump(), "completeness": content.completeness_score}
 
 
+@app.get("/api/v1/content/search")
+async def search_content(
+    q: str = "",
+    country: str = "",
+    property_type: str = "",
+    min_stars: float = 0,
+    lang: str = "en",
+    page: int = 1,
+    page_size: int = 20,
+):
+    # In production: OpenSearch full-text query
+    results = []
+    for content in content_store.values():
+        if country and content.country != country:
+            continue
+        if property_type and content.property_type != property_type:
+            continue
+        if min_stars and content.star_rating < min_stars:
+            continue
+        if q:
+            name = content.name.get(lang, content.name.get("en", "")).lower()
+            desc = content.description.get(lang, content.description.get("en", "")).lower()
+            if q.lower() not in name and q.lower() not in desc:
+                continue
+        results.append(content.model_dump())
+
+    start = (page - 1) * page_size
+    end = start + page_size
+    return {"results": results[start:end], "total": len(results), "page": page}
+
+
+@app.get("/api/v1/content/languages")
+async def get_languages():
+    return {
+        "supported": SUPPORTED_LANGUAGES,
+        "total": len(SUPPORTED_LANGUAGES),
+        "regions": {
+            "east_africa": ["sw", "am", "so", "rw"],
+            "west_africa": ["ha", "yo", "ig", "wo"],
+            "southern_africa": ["zu", "af"],
+            "north_africa": ["ar", "fr"],
+            "international": ["en", "fr", "pt"],
+        }
+    }
+
+
+@app.get("/api/v1/content/amenities")
+async def get_amenity_catalog():
+    return {"categories": AMENITY_CATEGORIES, "total": sum(len(v) for v in AMENITY_CATEGORIES.values())}
+
+
+@app.get("/api/v1/content/completeness")
+async def get_completeness_report(tenant_id: str = ""):
+    contents = list(content_store.values())
+    if tenant_id:
+        contents = [c for c in contents if c.tenant_id == tenant_id]
+
+    if not contents:
+        return {"avg_completeness": 0, "total_properties": 0, "published": 0, "draft": 0}
+
+    avg = sum(c.completeness_score for c in contents) / len(contents)
+    published = sum(1 for c in contents if c.published)
+    return {
+        "avg_completeness": round(avg, 1),
+        "total_properties": len(contents),
+        "published": published,
+        "draft": len(contents) - published,
+        "below_threshold": sum(1 for c in contents if c.completeness_score < 60),
+    }
+
+
 @app.get("/api/v1/content/{content_id}")
 async def get_content(content_id: str, lang: str = "en"):
     content = content_store.get(content_id)
@@ -226,77 +297,6 @@ async def update_policies(content_id: str, policies: dict):
     content.updated_at = datetime.utcnow().isoformat()
     content.completeness_score = calculate_completeness(content)
     return {"policies": content.policies, "completeness": content.completeness_score}
-
-
-@app.get("/api/v1/content/search")
-async def search_content(
-    q: str = "",
-    country: str = "",
-    property_type: str = "",
-    min_stars: float = 0,
-    lang: str = "en",
-    page: int = 1,
-    page_size: int = 20,
-):
-    # In production: OpenSearch full-text query
-    results = []
-    for content in content_store.values():
-        if country and content.country != country:
-            continue
-        if property_type and content.property_type != property_type:
-            continue
-        if min_stars and content.star_rating < min_stars:
-            continue
-        if q:
-            name = content.name.get(lang, content.name.get("en", "")).lower()
-            desc = content.description.get(lang, content.description.get("en", "")).lower()
-            if q.lower() not in name and q.lower() not in desc:
-                continue
-        results.append(content.model_dump())
-
-    start = (page - 1) * page_size
-    end = start + page_size
-    return {"results": results[start:end], "total": len(results), "page": page}
-
-
-@app.get("/api/v1/content/languages")
-async def get_languages():
-    return {
-        "supported": SUPPORTED_LANGUAGES,
-        "total": len(SUPPORTED_LANGUAGES),
-        "regions": {
-            "east_africa": ["sw", "am", "so", "rw"],
-            "west_africa": ["ha", "yo", "ig", "wo"],
-            "southern_africa": ["zu", "af"],
-            "north_africa": ["ar", "fr"],
-            "international": ["en", "fr", "pt"],
-        }
-    }
-
-
-@app.get("/api/v1/content/amenities")
-async def get_amenity_catalog():
-    return {"categories": AMENITY_CATEGORIES, "total": sum(len(v) for v in AMENITY_CATEGORIES.values())}
-
-
-@app.get("/api/v1/content/completeness")
-async def get_completeness_report(tenant_id: str = ""):
-    contents = list(content_store.values())
-    if tenant_id:
-        contents = [c for c in contents if c.tenant_id == tenant_id]
-
-    if not contents:
-        return {"avg_completeness": 0, "total_properties": 0, "published": 0, "draft": 0}
-
-    avg = sum(c.completeness_score for c in contents) / len(contents)
-    published = sum(1 for c in contents if c.published)
-    return {
-        "avg_completeness": round(avg, 1),
-        "total_properties": len(contents),
-        "published": published,
-        "draft": len(contents) - published,
-        "below_threshold": sum(1 for c in contents if c.completeness_score < 60),
-    }
 
 
 @app.get("/health")
