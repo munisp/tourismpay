@@ -860,6 +860,204 @@ async def list_tipping_jurisdictions():
     return {"jurisdictions": result, "total": len(TIPPING_PROFILES)}
 
 
+# ─── Multi-Recipient Tipping ─────────────────────────────────────────────────
+
+class MultiTipRecipientInput(BaseModel):
+    recipient_id: str
+    recipient_name: str
+    role: str
+    amount: float = 0.0
+    percentage: float = 0.0
+
+
+class MultiTipCalculateRequest(BaseModel):
+    jurisdiction_code: str
+    bill_amount: float
+    total_tip: float = 0.0
+    tip_percentage: float = 15.0
+    split_mode: str = "equal"  # equal, custom_amount, custom_percent
+    recipients: List[MultiTipRecipientInput]
+    service_category: str = "restaurant"
+    service_rating: Optional[float] = None
+    party_size: int = 1
+
+
+class MultiTipSuggestRequest(BaseModel):
+    jurisdiction_code: str
+    service_category: str = "restaurant"
+    bill_amount: float = 0.0
+    party_size: int = 1
+
+
+MULTI_TIP_ROLE_TEMPLATES = {
+    "restaurant": [
+        {"role": "server", "label": "Server/Waiter", "suggested_pct": 50},
+        {"role": "chef", "label": "Chef/Cook", "suggested_pct": 25},
+        {"role": "bartender", "label": "Bartender", "suggested_pct": 15},
+        {"role": "host", "label": "Host/Hostess", "suggested_pct": 10},
+    ],
+    "hotel": [
+        {"role": "concierge", "label": "Concierge", "suggested_pct": 30},
+        {"role": "housekeeping", "label": "Housekeeping", "suggested_pct": 30},
+        {"role": "bellhop", "label": "Bellhop/Porter", "suggested_pct": 20},
+        {"role": "valet", "label": "Valet", "suggested_pct": 20},
+    ],
+    "safari": [
+        {"role": "guide", "label": "Safari Guide", "suggested_pct": 40},
+        {"role": "driver", "label": "Driver", "suggested_pct": 25},
+        {"role": "tracker", "label": "Tracker", "suggested_pct": 20},
+        {"role": "camp_staff", "label": "Camp Staff", "suggested_pct": 15},
+    ],
+    "tour": [
+        {"role": "guide", "label": "Tour Guide", "suggested_pct": 50},
+        {"role": "driver", "label": "Driver", "suggested_pct": 30},
+        {"role": "assistant", "label": "Assistant", "suggested_pct": 20},
+    ],
+    "spa": [
+        {"role": "therapist", "label": "Therapist", "suggested_pct": 60},
+        {"role": "attendant", "label": "Attendant", "suggested_pct": 25},
+        {"role": "reception", "label": "Reception", "suggested_pct": 15},
+    ],
+    "transport": [
+        {"role": "driver", "label": "Driver", "suggested_pct": 70},
+        {"role": "assistant", "label": "Assistant/Mate", "suggested_pct": 30},
+    ],
+    "nightlife": [
+        {"role": "bartender", "label": "Bartender", "suggested_pct": 40},
+        {"role": "server", "label": "Server", "suggested_pct": 30},
+        {"role": "dj", "label": "DJ/Entertainment", "suggested_pct": 15},
+        {"role": "security", "label": "Security/Doorman", "suggested_pct": 15},
+    ],
+}
+
+
+@app.post("/api/tipping/multi/calculate")
+async def multi_tip_calculate(req: MultiTipCalculateRequest):
+    """Calculate multi-recipient tip distribution with ML-informed suggestions."""
+    from tax_compliance import TIPPING_PROFILES
+    code = req.jurisdiction_code.upper()
+    profile = TIPPING_PROFILES.get(code, {"base_pct": 15, "currency": "USD"})
+    currency = profile["currency"]
+
+    # Determine total tip amount
+    total_tip = req.total_tip
+    if total_tip <= 0:
+        # ML-adjusted percentage
+        base_pct = req.tip_percentage or profile["base_pct"]
+        if req.service_rating and req.service_rating >= 4:
+            base_pct += 2.0
+        if req.party_size > 4:
+            base_pct += 1.5
+        total_tip = round(req.bill_amount * base_pct / 100, 2)
+
+    # Calculate distributions
+    n = len(req.recipients)
+    if n == 0:
+        return {"error": "At least one recipient required"}
+
+    distributions = []
+    if req.split_mode == "equal":
+        per_person = round(total_tip / n, 2)
+        remainder = round(total_tip - per_person * n, 2)
+        for i, r in enumerate(req.recipients):
+            amt = per_person + (remainder if i == 0 else 0)
+            distributions.append({
+                "recipient_id": r.recipient_id,
+                "recipient_name": r.recipient_name,
+                "role": r.role,
+                "amount": round(amt, 2),
+                "percentage": round(amt / total_tip * 100, 1) if total_tip > 0 else 0,
+            })
+    elif req.split_mode == "custom_percent":
+        total_pct = sum(r.percentage for r in req.recipients)
+        for r in req.recipients:
+            normalized_pct = r.percentage / total_pct * 100 if total_pct > 0 else 100 / n
+            amt = round(total_tip * normalized_pct / 100, 2)
+            distributions.append({
+                "recipient_id": r.recipient_id,
+                "recipient_name": r.recipient_name,
+                "role": r.role,
+                "amount": amt,
+                "percentage": round(normalized_pct, 1),
+            })
+    elif req.split_mode == "custom_amount":
+        sum_amounts = sum(r.amount for r in req.recipients)
+        scale = total_tip / sum_amounts if sum_amounts > 0 else 1
+        for r in req.recipients:
+            amt = round(r.amount * scale, 2)
+            distributions.append({
+                "recipient_id": r.recipient_id,
+                "recipient_name": r.recipient_name,
+                "role": r.role,
+                "amount": amt,
+                "percentage": round(amt / total_tip * 100, 1) if total_tip > 0 else 0,
+            })
+
+    return {
+        "group_id": f"MTIP-{code}-{int(time.time() * 1000)}",
+        "total_tip": total_tip,
+        "net_tip": total_tip,
+        "grand_total": round(req.bill_amount + total_tip, 2),
+        "currency": currency,
+        "split_mode": req.split_mode,
+        "recipient_count": n,
+        "distributions": distributions,
+        "receipt": f"RCPT-MTIP-{code}-{int(time.time() * 1000)}",
+    }
+
+
+@app.post("/api/tipping/multi/suggest")
+async def multi_tip_suggest(req: MultiTipSuggestRequest):
+    """Suggest recipients and split percentages based on service type and jurisdiction."""
+    from tax_compliance import TIPPING_PROFILES
+    code = req.jurisdiction_code.upper()
+    profile = TIPPING_PROFILES.get(code, {"base_pct": 15, "currency": "USD"})
+    currency = profile["currency"]
+
+    # Get role templates
+    roles = MULTI_TIP_ROLE_TEMPLATES.get(req.service_category, MULTI_TIP_ROLE_TEMPLATES["restaurant"])
+
+    # Jurisdiction-specific overrides
+    if code == "TZ" and req.service_category == "safari":
+        roles = [
+            {"role": "guide", "label": "Safari Guide ($15-20/day)", "suggested_pct": 35},
+            {"role": "driver", "label": "Driver ($10-15/day)", "suggested_pct": 25},
+            {"role": "cook", "label": "Cook ($10/day)", "suggested_pct": 20},
+            {"role": "porter", "label": "Porter ($8-10/day)", "suggested_pct": 20},
+        ]
+    elif code == "RW" and req.service_category == "safari":
+        roles = [
+            {"role": "guide", "label": "Gorilla Trek Guide ($10-20)", "suggested_pct": 40},
+            {"role": "tracker", "label": "Tracker ($5-10)", "suggested_pct": 30},
+            {"role": "porter", "label": "Porter ($5-10)", "suggested_pct": 30},
+        ]
+    elif code == "EG" and req.service_category == "tour":
+        roles = [
+            {"role": "guide", "label": "Egyptologist Guide", "suggested_pct": 50},
+            {"role": "driver", "label": "Driver", "suggested_pct": 25},
+            {"role": "guard", "label": "Site Guard (Baksheesh)", "suggested_pct": 15},
+            {"role": "boatman", "label": "Felucca Boatman", "suggested_pct": 10},
+        ]
+
+    # Calculate suggested amounts
+    cat_profile = profile.get(req.service_category, {})
+    base_pct = cat_profile.get("min", profile["base_pct"]) if isinstance(cat_profile, dict) else profile["base_pct"]
+    suggested_total = round(req.bill_amount * base_pct / 100, 2) if req.bill_amount > 0 else 0
+
+    for role in roles:
+        role["suggested_amount"] = round(suggested_total * role["suggested_pct"] / 100, 2) if suggested_total > 0 else 0
+
+    return {
+        "jurisdiction": code,
+        "service_category": req.service_category,
+        "currency": currency,
+        "suggested_total_tip": suggested_total,
+        "suggested_percentage": base_pct,
+        "roles": roles,
+        "cultural_note": cat_profile.get("note", "") if isinstance(cat_profile, dict) else "",
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")
