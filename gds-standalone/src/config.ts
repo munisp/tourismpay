@@ -19,7 +19,7 @@ export const config = {
   AUTH_API_KEY_ENABLED: process.env.GDS_AUTH_API_KEY_ENABLED !== "false",
 
   // CORS
-  CORS_ORIGINS: process.env.GDS_CORS_ORIGINS || "http://localhost:3000,http://localhost:5173",
+  CORS_ORIGINS: process.env.GDS_CORS_ORIGINS || "http://localhost:3000,http://localhost:4100,http://localhost:5173",
 
   // Database
   DATABASE_URL: process.env.GDS_DATABASE_URL || "postgresql://gds_user:gds_pass@localhost:5432/gds",
