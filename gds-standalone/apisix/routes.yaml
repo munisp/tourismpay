@@ -388,6 +388,168 @@ routes:
         allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
         allow_credential: true
 
+  # === PNR Engine API (Go service) ===
+  - id: gds-pnr
+    uri: /api/v1/gds/pnr*
+    methods: [GET, POST, DELETE]
+    upstream_id: gds-pnr-engine
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 100
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, DELETE, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID, X-GDS-Agent-ID"
+        allow_credential: true
+
+  # === Queue System API (Rust service) ===
+  - id: gds-queues
+    uri: /api/v1/gds/queues*
+    methods: [GET, POST]
+    upstream_id: gds-queue-system
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 200
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
+        allow_credential: true
+
+  # === Guest Profile CRM API (Go service) ===
+  - id: gds-guests
+    uri: /api/v1/gds/guests*
+    methods: [GET, POST, PUT]
+    upstream_id: gds-guest-profile
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 200
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, PUT, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
+        allow_credential: true
+
+  # === Content Management API (Python service) ===
+  - id: gds-content
+    uri: /api/v1/gds/content*
+    methods: [GET, POST, PUT]
+    upstream_id: gds-content-mgmt
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 300
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, PUT, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
+        allow_credential: true
+
+  # === Revenue Management API (Python service) ===
+  - id: gds-revenue
+    uri: /api/v1/gds/revenue*
+    methods: [GET, POST]
+    upstream_id: gds-revenue-mgmt
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 100
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
+        allow_credential: true
+
+  # === Group Bookings API (Go service) ===
+  - id: gds-groups
+    uri: /api/v1/gds/groups*
+    methods: [GET, POST]
+    upstream_id: gds-group-bookings
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 50
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
+        allow_credential: true
+
   # === Developer Sandbox API ===
   - id: gds-sandbox
     uri: /api/v1/gds/sandbox*
@@ -459,6 +621,122 @@ upstreams:
       connect: 5
       send: 30
       read: 30
+    checks:
+      active:
+        type: http
+        http_path: /health
+        healthy:
+          interval: 10
+          successes: 2
+        unhealthy:
+          interval: 10
+          http_failures: 3
+
+  - id: gds-pnr-engine
+    type: roundrobin
+    nodes:
+      "gds-pnr-engine:8082": 1
+    timeout:
+      connect: 5
+      send: 30
+      read: 30
+    retries: 2
+    checks:
+      active:
+        type: http
+        http_path: /health
+        healthy:
+          interval: 5
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+
+  - id: gds-queue-system
+    type: roundrobin
+    nodes:
+      "gds-queue-system:8083": 1
+    timeout:
+      connect: 3
+      send: 10
+      read: 10
+    retries: 2
+    checks:
+      active:
+        type: http
+        http_path: /health
+        healthy:
+          interval: 5
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+
+  - id: gds-guest-profile
+    type: roundrobin
+    nodes:
+      "gds-guest-profile:8084": 1
+    timeout:
+      connect: 5
+      send: 15
+      read: 15
+    checks:
+      active:
+        type: http
+        http_path: /health
+        healthy:
+          interval: 10
+          successes: 2
+        unhealthy:
+          interval: 10
+          http_failures: 3
+
+  - id: gds-content-mgmt
+    type: roundrobin
+    nodes:
+      "gds-content-mgmt:8085": 1
+    timeout:
+      connect: 5
+      send: 30
+      read: 30
+    checks:
+      active:
+        type: http
+        http_path: /health
+        healthy:
+          interval: 10
+          successes: 2
+        unhealthy:
+          interval: 10
+          http_failures: 3
+
+  - id: gds-revenue-mgmt
+    type: roundrobin
+    nodes:
+      "gds-revenue-mgmt:8086": 1
+    timeout:
+      connect: 5
+      send: 30
+      read: 30
+    checks:
+      active:
+        type: http
+        http_path: /health
+        healthy:
+          interval: 10
+          successes: 2
+        unhealthy:
+          interval: 10
+          http_failures: 3
+
+  - id: gds-group-bookings
+    type: roundrobin
+    nodes:
+      "gds-group-bookings:8087": 1
+    timeout:
+      connect: 5
+      send: 15
+      read: 15
     checks:
       active:
         type: http

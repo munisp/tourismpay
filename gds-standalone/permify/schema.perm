@@ -162,3 +162,106 @@ entity loyalty_program {
     permission configure_tiers = tenant.admin
     permission configure_rewards = tenant.admin
 }
+
+// ========== NEW GDS CAPABILITIES (v2) ==========
+
+entity pnr {
+    // Passenger Name Record — full booking lifecycle
+    relation tenant @tenant
+    relation agent @user
+    relation supervisor @user
+    relation guest @user
+
+    // PNR operations
+    permission create = agent or tenant.member
+    permission view = agent or guest or supervisor or tenant.admin
+    permission add_segment = agent or supervisor or tenant.admin
+    permission cancel_segment = agent or supervisor or tenant.admin
+    permission add_remark = agent or supervisor or tenant.admin
+    permission ticket = agent or supervisor or tenant.admin
+    permission queue = agent or supervisor or tenant.admin
+    permission view_history = agent or supervisor or tenant.admin
+    permission delete = tenant.admin
+}
+
+entity queue_item {
+    // Agent work queue items with SLA enforcement
+    relation tenant @tenant
+    relation assigned_agent @user
+    relation creating_agent @user
+
+    // Queue permissions
+    permission create = tenant.member
+    permission assign = tenant.member or tenant.admin
+    permission reassign = tenant.admin
+    permission complete = assigned_agent or tenant.admin
+    permission escalate = tenant.admin
+    permission view = assigned_agent or creating_agent or tenant.admin
+    permission view_stats = tenant.member
+}
+
+entity guest_profile {
+    // Central guest CRM — preferences, history, corporate
+    relation tenant @tenant
+    relation owner @user
+    relation agent @user
+
+    // Guest profile permissions
+    permission create = agent or tenant.member
+    permission view = agent or owner or tenant.member
+    permission update_preferences = agent or owner or tenant.admin
+    permission add_stay = agent or tenant.admin
+    permission add_note = agent or tenant.admin
+    permission view_financial = tenant.admin
+    permission delete = tenant.admin
+    permission export = tenant.admin
+}
+
+entity content_item {
+    // Property content management — multilingual descriptions, images
+    relation tenant @tenant
+    relation property @property
+    relation editor @user
+
+    // Content permissions
+    permission create = property.owner or property.manager or editor or tenant.admin
+    permission edit = property.owner or property.manager or editor or tenant.admin
+    permission publish = property.owner or tenant.admin
+    permission unpublish = property.owner or tenant.admin
+    permission view = tenant.member
+    permission add_images = property.owner or property.manager or editor or tenant.admin
+    permission translate = editor or tenant.admin
+    permission delete = property.owner or tenant.admin
+}
+
+entity revenue_plan {
+    // Revenue management — yield optimization, overbooking
+    relation tenant @tenant
+    relation property @property
+    relation revenue_manager @user
+
+    // Revenue permissions
+    permission view_yield = property.owner or property.manager or revenue_manager or tenant.admin
+    permission configure_pricing = property.owner or revenue_manager or tenant.admin
+    permission set_overbooking = property.owner or revenue_manager or tenant.admin
+    permission view_forecast = property.owner or property.manager or revenue_manager or tenant.member
+    permission view_competitors = revenue_manager or tenant.admin
+    permission override_rate = property.owner or tenant.admin
+}
+
+entity group_booking {
+    // Group block management — conferences, weddings, tour groups
+    relation tenant @tenant
+    relation property @property
+    relation coordinator @user
+    relation contact @user
+
+    // Group permissions
+    permission create = coordinator or tenant.member
+    permission view = coordinator or contact or property.owner or property.manager or tenant.admin
+    permission add_rooming = coordinator or contact or tenant.admin
+    permission washdown = property.owner or property.manager or tenant.admin
+    permission view_attrition = coordinator or property.owner or property.manager or tenant.admin
+    permission confirm = property.owner or tenant.admin
+    permission cancel = coordinator or tenant.admin
+}
