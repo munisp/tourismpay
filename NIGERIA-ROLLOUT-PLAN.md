@@ -199,6 +199,88 @@ Target the 3 states with highest tourism activity for initial rollout:
 
 ## 4. Payment Infrastructure & Rails
 
+### 4.0 How Foreign Tourists Load Their Wallets
+
+This is the critical question for the Nigeria launch. A tourist arriving at Murtala Muhammed International Airport with USD/EUR/GBP needs to get money into their TourismPay wallet within minutes. Here are all the channels, what's built, and what's missing:
+
+#### Pre-Arrival Loading (Tourist's Home Country)
+
+| Channel | Status | How It Works | Fee | Time |
+|---------|--------|-------------|-----|------|
+| **Visa/Mastercard (Stripe)** | ✅ Built | Tourist opens TourismPay PWA → "Add Funds" → Stripe Checkout → card charged in USD/EUR/GBP → wallet credited in USDC or NGN | 2.5% | ~2 min |
+| **Stablecoin deposit (USDC/USDT/DAI)** | ✅ Built | Tourist already holds crypto → on-ramp page → paste wallet address → deposit confirmed on-chain → wallet credited | 0.3% | ~5 min (Stellar) / ~15 min (Ethereum) |
+| **Apple Pay / Google Pay** | ⚠️ UI shown | PaymentGateway shows "Digital Wallets — Apple Pay, Google Pay" as live, but backend routes through Stripe Checkout which supports both. Works if Stripe is configured with Apple/Google Pay. | 2.5% | ~2 min |
+| **SWIFT bank wire** | ❌ **Gap** | Currently `wallet.ts` maps USD→"SWIFT" as the network label, but there's no actual SWIFT integration. Tourist cannot wire funds from a US/UK bank account. | — | — |
+| **Wise / Revolut / Remitly** | ❌ **Gap** | No integration with popular remittance apps that tourists already use. | — | — |
+
+#### On-Arrival Loading (At Nigerian Airport/Hotel)
+
+| Channel | Status | How It Works | Fee | Time |
+|---------|--------|-------------|-----|------|
+| **Card top-up via Stripe** | ✅ Built | `touristPortal.createTopupSession` → Stripe Checkout → wallet credited | 2.5% | ~2 min |
+| **OPay (if tourist installs)** | ✅ Built | On-ramp via OPay mobile money (Nigerian residents primarily) | 0.8% | ~5 min |
+| **Flutterwave card** | ✅ Built | On-ramp via Flutterwave card processing (supports int'l cards) | 1.4% | ~3 min |
+| **Cash → Agent** | ❌ **Gap** | Tourist hands cash (USD/EUR/NGN) to airport kiosk/agent → agent loads wallet. No agent banking feature built. | — | — |
+| **ATM → Bank transfer** | ⚠️ Partial | Tourist withdraws NGN from ATM → bank transfer to TourismPay wallet. NIP integration needed (§4.2). | TBD | 1-3 days |
+| **eNaira** | ⚠️ Simulated | Tourist downloads eNaira app → funds CBDC-NG wallet directly. Needs live CBN API. | 0% | ~30 sec |
+| **USSD (feature phone)** | ❌ **Gap** | Tourist dials *shortcode# → selects "Load Wallet" → enters amount. Needs USSD menu. | TBD | ~2 min |
+
+#### Stablecoin-Specific Loading Paths
+
+| Path | Status | How It Works |
+|------|--------|-------------|
+| **Buy USDC/USDT/DAI with Visa/Mastercard** | ✅ Built | Stablecoin Swap page → "Buy" tab → select card → Stripe charges tourist → USDC minted to wallet |
+| **Buy USDC with USD bank transfer** | ⚠️ Partial | Rail exists (`bank_transfer`) but no SWIFT routing. Only works for Nigerian NUBAN accounts currently. |
+| **Buy USDC via M-Pesa** | ✅ Built | On-ramp rail for Kenyan tourists visiting Nigeria (cross-border M-Pesa) |
+| **Buy USDC via OPay/Flutterwave** | ✅ Built | On-ramp rails for Nigerian-banked tourists |
+| **Swap between stablecoins** | ✅ Built | USDC↔USDT↔DAI↔CBDC at 15bps fee |
+| **CBDC-NG (eNaira) → USDC** | ✅ Built | On-ramp rail `cbdc_bridge`, ~30 sec settlement |
+| **Yield on idle stablecoins** | ✅ Built | Deposit USDC → earn yield from LP pool rewards |
+| **Limit orders** | ✅ Built | Set target rate → auto-buy when rate hits threshold |
+| **DCA (recurring buys)** | ✅ Built | Daily/weekly/monthly auto-purchases |
+
+#### SWIFT Integration Plan (New — Needed for Foreign Tourists)
+
+SWIFT is the primary way business travelers and high-value tourists move money internationally. Current gap: the platform labels USD network as "SWIFT" but has no actual SWIFT integration.
+
+**Implementation approach (3 options, ranked by time-to-market):**
+
+| Option | Effort | Cost | Recommended? |
+|--------|--------|------|-------------|
+| **A. Partner with licensed IMTO** (e.g., Flutterwave International, LemFi, or TransferGo) | 4-6 weeks | Revenue share | ✅ **Yes — fastest path** |
+| **B. SWIFT gpi integration via correspondent bank** (GTBank, Access Bank, FirstBank — all have SWIFT gpi) | 3-6 months | $50K setup + per-msg fees | Phase 2 |
+| **C. Direct SWIFT membership** | 12-18 months | $250K+ setup + annual fees | No — too expensive for startup |
+
+**Recommended approach (Option A):**
+1. Partner with Flutterwave International or LemFi — they already have SWIFT/SEPA/ACH rails
+2. Tourist initiates "Wire Transfer" in TourismPay → redirected to partner's collection page
+3. Partner collects USD/EUR/GBP via SWIFT/SEPA → settles to TourismPay's NGN pooled account
+4. TourismPay credits tourist's wallet in USDC or NGN
+5. Settlement T+1 (same-day for SEPA/UK Faster Payments)
+
+**Action items:**
+- [ ] Negotiate IMTO partnership (Flutterwave International preferred — already have rail integration)
+- [ ] Build "Wire Transfer" loading option in tourist wallet UI
+- [ ] Add SEPA/UK Faster Payments/ACH collection accounts for EU/UK/US tourists
+- [ ] Implement webhook listener for partner settlement confirmation
+- [ ] Phase 2: Apply for correspondent banking relationship for direct SWIFT gpi
+
+#### Agent Banking / Airport Kiosk Loading (New — Needed for Cash Tourists)
+
+Not all tourists carry cards or use crypto. Cash-to-wallet conversion is essential.
+
+**Implementation:**
+1. **Airport kiosk partnership** — Partner with Bureau de Change (BDC) operators at MMIA and Nnamdi Azikiwe airports
+2. **Agent app** — BDC operator uses TourismPay Agent App → scans tourist's QR → enters cash amount → loads wallet
+3. **KYC for cash loading** — Tourist shows passport → agent enters passport number → KYC Tier 1 instant ($500/day limit)
+4. **Float management** — Agent pre-funds digital float via bank transfer → deducts from float on each cash load
+
+**Action items:**
+- [ ] Build Agent Loading module (agent-facing UI + tRPC procedures)
+- [ ] Partner with MMIA BDC operators (Travelex, Bureau de Change Association of Nigeria)
+- [ ] Implement agent float management and reconciliation
+- [ ] Deploy at Calabar airport for Cross River pilot
+
 ### 4.1 Current Platform Support (Already Built)
 
 | Rail | Status | Nigeria-Specific |
