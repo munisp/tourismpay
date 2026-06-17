@@ -14,7 +14,7 @@ import {
   Map, Zap, Crown, FileCheck, ClipboardList, DollarSign, Server, Eye,
   ArrowLeftRight, BarChart3, Code2, Repeat, Radio, MonitorDot, Landmark, Gauge, ArrowDownUp,
   MapPin, UtensilsCrossed, QrCode, UserCheck, ShoppingBag, CheckSquare, Banknote,
-  Package, UserSearch, Users2, Terminal, Brain, CreditCard, Monitor, Sparkles, Inbox, Trophy, BarChart2, CalendarDays, Mail, Droplets
+  Package, UserSearch, Users2, Terminal, Brain, CreditCard, Monitor, Sparkles, Inbox, Trophy, BarChart2, CalendarDays, Mail, Droplets, Receipt
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import MobileNav from "./MobileNav";
@@ -62,6 +62,7 @@ const navItems: NavItem[] = [
   { label: "Load Wallet", icon: Banknote, href: "/wallet/loading", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Local Payments", icon: ShoppingBag, href: "/wallet/local-payments", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Pre-Travel Readiness", icon: Shield, href: "/wallet/pre-travel", section: "tourist", roles: ["tourist", "admin"] },
+  { label: "Tipping & Tax", icon: Receipt, href: "/wallet/tipping-tax", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Loyalty & Rewards", icon: Award, href: "/loyalty", section: "tourist", roles: ["tourist", "admin"] },
   { label: "AI Co-Pilot", icon: MessageSquareText, href: "/copilot", section: "tourist", roles: ["tourist", "admin"] },
   { label: "AR Tourism", icon: Scan, href: "/ar", section: "tourist", roles: ["tourist", "admin"] },

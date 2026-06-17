@@ -318,6 +318,77 @@ func main() {
 		}
 	}
 
+	// ─── Tax Engine & Tipping ──────────────────────────────────────────────────
+	taxEngine := services.NewTaxEngineService()
+	tippingService := services.NewTippingService()
+
+	taxAPI := api.Group("/tax")
+	{
+		taxAPI.GET("/jurisdictions", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"jurisdictions": taxEngine.GetSupportedJurisdictions()})
+		})
+		taxAPI.GET("/rules/:jurisdiction", func(c *gin.Context) {
+			code := c.Param("jurisdiction")
+			rules := taxEngine.GetRules(code)
+			c.JSON(http.StatusOK, gin.H{"jurisdiction": code, "rules": rules, "count": len(rules)})
+		})
+		taxAPI.POST("/calculate", func(c *gin.Context) {
+			var req struct {
+				Jurisdiction string  `json:"jurisdiction"`
+				Category     string  `json:"category"`
+				SubTotal     float64 `json:"sub_total"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			result := taxEngine.CalculateTax(req.Jurisdiction, req.Category, req.Jurisdiction, req.SubTotal)
+			c.JSON(http.StatusOK, result)
+		})
+		taxAPI.GET("/remittance/:jurisdiction", func(c *gin.Context) {
+			code := c.Param("jurisdiction")
+			summary := taxEngine.GetRemittanceSummary(code)
+			c.JSON(http.StatusOK, gin.H{"jurisdiction": code, "remittances": summary})
+		})
+	}
+
+	tipAPI := api.Group("/tipping")
+	{
+		tipAPI.GET("/jurisdictions", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"jurisdictions": tippingService.GetSupportedJurisdictions()})
+		})
+		tipAPI.GET("/config/:jurisdiction", func(c *gin.Context) {
+			code := c.Param("jurisdiction")
+			config := tippingService.GetConfig(code)
+			c.JSON(http.StatusOK, config)
+		})
+		tipAPI.POST("/calculate", func(c *gin.Context) {
+			var req struct {
+				Jurisdiction string  `json:"jurisdiction"`
+				BillAmount   float64 `json:"bill_amount"`
+				TipType      string  `json:"tip_type"`
+				TipValue     float64 `json:"tip_value"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			var tipType services.TipType
+			switch req.TipType {
+			case "percentage":
+				tipType = services.TipTypePercentage
+			case "flat":
+				tipType = services.TipTypeFlat
+			case "round_up":
+				tipType = services.TipTypeRoundUp
+			default:
+				tipType = services.TipTypePercentage
+			}
+			result := tippingService.CalculateTip(req.Jurisdiction, req.BillAmount, tipType, req.TipValue)
+			c.JSON(http.StatusOK, result)
+		})
+	}
+
 	// ─── Channel Manager ────────────────────────────────────────────────────────
 	channelManager := channels.NewManager(database.DB)
 	if database.DB != nil {

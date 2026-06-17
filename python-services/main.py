@@ -799,6 +799,67 @@ async def list_trip_countries():
     }
 
 
+# ─── Tax Compliance & Tipping Recommendations ───────────────────────────────
+from tax_compliance import (
+    TaxReportRequest, TipRecommendationRequest,
+    generate_tax_report, check_compliance, recommend_tip,
+    get_jurisdiction_config, get_all_jurisdictions, JURISDICTION_TAX_CONFIG,
+)
+
+
+@app.get("/api/tax/jurisdictions")
+async def list_tax_jurisdictions():
+    return {"jurisdictions": get_all_jurisdictions(), "total": len(JURISDICTION_TAX_CONFIG)}
+
+
+@app.get("/api/tax/jurisdiction/{code}")
+async def get_jurisdiction(code: str):
+    config = get_jurisdiction_config(code)
+    if "error" in config:
+        raise HTTPException(status_code=404, detail=config["error"])
+    return config
+
+
+@app.post("/api/tax/report")
+async def generate_report(req: TaxReportRequest):
+    try:
+        report = generate_tax_report(req)
+        return report.dict()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/tax/compliance-check")
+async def compliance_check(
+    jurisdiction_code: str = Query(...),
+    merchant_id: str = Query(...),
+    collected: float = Query(0),
+    filed: float = Query(0),
+):
+    result = check_compliance(jurisdiction_code, merchant_id, collected, filed)
+    return result.dict()
+
+
+@app.post("/api/tipping/recommend")
+async def tip_recommendation(req: TipRecommendationRequest):
+    recommendation = recommend_tip(req)
+    return recommendation.dict()
+
+
+@app.get("/api/tipping/jurisdictions")
+async def list_tipping_jurisdictions():
+    from tax_compliance import TIPPING_PROFILES
+    result = []
+    for code, profile in TIPPING_PROFILES.items():
+        result.append({
+            "code": code,
+            "currency": profile["currency"],
+            "base_percentage": profile["base_pct"],
+            "categories": list(k for k in profile.keys() if k not in ("base_pct", "currency")),
+        })
+    return {"jurisdictions": result, "total": len(TIPPING_PROFILES)}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")

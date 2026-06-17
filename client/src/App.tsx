@@ -120,6 +120,7 @@ import WalletLoading from "@/pages/tourist/WalletLoading";
 import LocalPayments from "@/pages/tourist/LocalPayments";
 import PreTravelReadiness from "@/pages/tourist/PreTravelReadiness";
 import TripPlanner from "@/pages/tourist/TripPlanner";
+import TippingTaxPage from "@/pages/TippingTax";
 import PaymentReceipt from "@/pages/tourist/PaymentReceipt";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { OfflinePaymentBanner } from "@/components/OfflinePaymentBanner";
@@ -229,6 +230,7 @@ function Router() {
             <Route path="/tourist/onboarding" component={TouristOnboarding} />
             <Route path="/tourist/itinerary" component={ItineraryBuilder} />
             <Route path="/tourist/trip-planner" component={TripPlanner} />
+            <Route path="/wallet/tipping-tax" component={TippingTaxPage} />
             {/* Public shared trip itinerary — no auth required */}
             <Route path="/trip/:shareToken" component={SharedItinerary} />
             <Route path="/restaurant-onboarding" component={RestaurantOnboarding} />
