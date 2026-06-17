@@ -128,6 +128,8 @@ const navItems: NavItem[] = [
   { label: "Loyalty Rewards", icon: Award, href: "/admin/loyalty-rewards", section: "admin", roles: ["admin"] },
   { label: "BIS Settings", icon: Settings, href: "/admin/bis-settings", section: "admin", roles: ["admin"] },
   { label: "Auto-Flag Thresholds", icon: Zap, href: "/admin/bis-auto-flag-settings", section: "admin", roles: ["admin"] },
+  { label: "Provider Onboarding", icon: Globe, href: "/admin/provider-onboarding", section: "admin", roles: ["admin"] },
+  { label: "API Health Monitor", icon: Activity, href: "/admin/api-health", badge: "Live", badgeVariant: "green", section: "admin", roles: ["admin", "noc_operator"] },
 
   // ─── Settings (all authenticated users) ─────────────────────────────────────
   { label: "Notification Settings", icon: Bell, href: "/settings/notifications", section: "settings", roles: ["tourist", "merchant", "admin", "compliance_officer", "noc_operator", "settlement_officer", "bis_analyst", "user"] },

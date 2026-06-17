@@ -76,6 +76,8 @@ import PSRecoveryRequests from "./pages/paymentswitch/admin/RecoveryRequests";
 import PSReminderEmailManagement from "./pages/paymentswitch/admin/ReminderEmailManagement";
 import PSTechnicalOnboardingReview from "./pages/paymentswitch/admin/TechnicalOnboardingReview";
 import HAStatus from "./pages/admin/HAStatus";
+import ProviderOnboarding from "./pages/admin/ProviderOnboarding";
+import ApiHealthDashboard from "./pages/admin/ApiHealthDashboard";
 import PSOnboardingPortal from "./pages/paymentswitch/onboarding/OnboardingPortal";
 import PSProductionGoLive from "./pages/paymentswitch/onboarding/ProductionGoLive";
 import PSTechnicalOnboarding from "./pages/paymentswitch/onboarding/TechnicalOnboarding";
@@ -173,6 +175,8 @@ function Router() {
             <Route path="/admin/bis-settings" component={BISSettings} />
             <Route path="/admin/bis-auto-flag-settings" component={BISAutoFlagSettings} />
             <Route path="/admin/ha-status" component={HAStatus} />
+            <Route path="/admin/provider-onboarding" component={ProviderOnboarding} />
+            <Route path="/admin/api-health" component={ApiHealthDashboard} />
             <Route path="/admin/email-preview" component={EmailPreview} />
             {/* PaymentSwitch — Core */}
             <Route path="/paymentswitch" component={PSDashboard} />
