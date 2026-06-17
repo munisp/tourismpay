@@ -1,4 +1,6 @@
 #[allow(dead_code)]
+mod agent_kyc;
+#[allow(dead_code)]
 mod auth;
 #[allow(dead_code)]
 mod biometric_pay;
@@ -13,6 +15,8 @@ mod models;
 mod permify;
 #[allow(dead_code)]
 mod verification;
+#[allow(dead_code)]
+mod nfc_payment;
 
 use actix_web::{web, App, HttpServer, middleware::Logger};
 use std::env;
@@ -59,6 +63,13 @@ async fn main() -> std::io::Result<()> {
                     .route("/sanctions/screen", web::post().to(handlers::sanctions_screening))
                     .route("/risk/score/{user_id}", web::get().to(handlers::get_risk_score))
             )
+            .service(
+                web::scope("/api/v1/agent-kyc")
+                    .route("/verify", web::post().to(agent_kyc::verify_agent_kyc))
+                    .route("/verify/nin", web::post().to(agent_kyc::verify_nin))
+                    .route("/verify/bvn", web::post().to(agent_kyc::verify_bvn))
+            )
+            .configure(nfc_payment::configure_nfc_routes)
     })
     .bind(("0.0.0.0", port))?
     .run();

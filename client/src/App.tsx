@@ -76,6 +76,8 @@ import PSRecoveryRequests from "./pages/paymentswitch/admin/RecoveryRequests";
 import PSReminderEmailManagement from "./pages/paymentswitch/admin/ReminderEmailManagement";
 import PSTechnicalOnboardingReview from "./pages/paymentswitch/admin/TechnicalOnboardingReview";
 import HAStatus from "./pages/admin/HAStatus";
+import ProviderOnboarding from "./pages/admin/ProviderOnboarding";
+import ApiHealthDashboard from "./pages/admin/ApiHealthDashboard";
 import PSOnboardingPortal from "./pages/paymentswitch/onboarding/OnboardingPortal";
 import PSProductionGoLive from "./pages/paymentswitch/onboarding/ProductionGoLive";
 import PSTechnicalOnboarding from "./pages/paymentswitch/onboarding/TechnicalOnboarding";
@@ -114,6 +116,8 @@ import EmailPreview from "@/pages/admin/EmailPreview";
 import SettlementConsole from "@/pages/settlement/SettlementConsole";
 import StablecoinSwap from "@/pages/tier2/StablecoinSwap";
 import LiquidityProvider from "@/pages/tier2/LiquidityProvider";
+import WalletLoading from "@/pages/tourist/WalletLoading";
+import LocalPayments from "@/pages/tourist/LocalPayments";
 import PaymentReceipt from "@/pages/tourist/PaymentReceipt";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { OfflinePaymentBanner } from "@/components/OfflinePaymentBanner";
@@ -145,6 +149,8 @@ function Router() {
             <Route path="/wallet" component={DigitalWallet} />
             <Route path="/wallet/stablecoin" component={StablecoinSwap} />
             <Route path="/wallet/liquidity" component={LiquidityProvider} />
+            <Route path="/wallet/loading" component={WalletLoading} />
+            <Route path="/wallet/local-payments" component={LocalPayments} />
             <Route path="/finance" component={EmbeddedFinance} />
             <Route path="/loyalty" component={LoyaltyRewards} />
             {/* Tier 3 — Visionary */}
@@ -171,6 +177,8 @@ function Router() {
             <Route path="/admin/bis-settings" component={BISSettings} />
             <Route path="/admin/bis-auto-flag-settings" component={BISAutoFlagSettings} />
             <Route path="/admin/ha-status" component={HAStatus} />
+            <Route path="/admin/provider-onboarding" component={ProviderOnboarding} />
+            <Route path="/admin/api-health" component={ApiHealthDashboard} />
             <Route path="/admin/email-preview" component={EmailPreview} />
             {/* PaymentSwitch — Core */}
             <Route path="/paymentswitch" component={PSDashboard} />

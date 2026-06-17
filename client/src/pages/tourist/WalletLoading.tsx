@@ -1,0 +1,855 @@
+/**
+ * Foreign Tourist Wallet Loading — Unified loading page
+ *
+ * 4 tabs: Wire Transfer, Cash (Agent), Partner Apps, USSD
+ * Mobile-first responsive design matching existing PWA patterns.
+ */
+
+import { useState } from "react";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
+import PageHeader from "@/components/shared/PageHeader";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Banknote,
+  Building2,
+  CreditCard,
+  Globe,
+  Phone,
+  ArrowRight,
+  Copy,
+  CheckCircle,
+  Clock,
+  Shield,
+  Smartphone,
+  Wallet,
+  Send,
+  QrCode,
+} from "lucide-react";
+
+// ─── Tab Types ──────────────────────────────────────────────────────────────
+
+type LoadingTab = "wire" | "agent" | "partner" | "ussd" | "bank_swift";
+
+const TABS: { id: LoadingTab; label: string; icon: React.ReactNode; description: string }[] = [
+  { id: "wire", label: "Wire Transfer", icon: <Building2 className="w-4 h-4" />, description: "SWIFT, SEPA, ACH" },
+  { id: "agent", label: "Cash at Kiosk", icon: <Banknote className="w-4 h-4" />, description: "Airport BDC" },
+  { id: "partner", label: "Partner Apps", icon: <Globe className="w-4 h-4" />, description: "Wise, Revolut" },
+  { id: "ussd", label: "USSD", icon: <Phone className="w-4 h-4" />, description: "Feature phone" },
+  { id: "bank_swift", label: "Bank SWIFT", icon: <Shield className="w-4 h-4" />, description: "Direct bank partner" },
+];
+
+const SOURCE_CURRENCIES = ["USD", "EUR", "GBP", "CHF", "CAD", "AUD"];
+const TARGET_CURRENCIES = ["USDC", "NGN", "KES", "GHS", "ZAR", "USD"];
+const COUNTRIES = [
+  { code: "US", name: "United States" }, { code: "GB", name: "United Kingdom" },
+  { code: "DE", name: "Germany" }, { code: "FR", name: "France" },
+  { code: "NL", name: "Netherlands" }, { code: "CA", name: "Canada" },
+  { code: "AU", name: "Australia" }, { code: "CH", name: "Switzerland" },
+  { code: "IT", name: "Italy" }, { code: "ES", name: "Spain" },
+  { code: "IE", name: "Ireland" }, { code: "SG", name: "Singapore" },
+  { code: "JP", name: "Japan" }, { code: "NG", name: "Nigeria" },
+  { code: "KE", name: "Kenya" }, { code: "GH", name: "Ghana" },
+  { code: "ZA", name: "South Africa" },
+];
+
+// ─── Component ──────────────────────────────────────────────────────────────
+
+export default function WalletLoading() {
+  const [activeTab, setActiveTab] = useState<LoadingTab>("wire");
+
+  return (
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 max-w-4xl mx-auto">
+      <PageHeader
+        title="Load Your Wallet"
+        subtitle="Choose how to add funds — bank wire, cash at airport, partner app, or feature phone"
+      />
+
+      {/* Tab navigation — scrollable on mobile */}
+      <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0" style={{ touchAction: "manipulation" }}>
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-lg border transition-all text-sm ${
+              activeTab === tab.id
+                ? "bg-primary text-primary-foreground border-primary shadow-md"
+                : "bg-card border-border hover:bg-accent"
+            }`}
+          >
+            {tab.icon}
+            <div className="text-left">
+              <div className="font-medium text-xs sm:text-sm">{tab.label}</div>
+              <div className="text-[10px] sm:text-xs opacity-70">{tab.description}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {activeTab === "wire" && <WireTransferTab />}
+      {activeTab === "agent" && <AgentBankingTab />}
+      {activeTab === "partner" && <PartnerAppsTab />}
+      {activeTab === "ussd" && <USSDTab />}
+      {activeTab === "bank_swift" && <BankSWIFTTab />}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1. Wire Transfer Tab
+// ═══════════════════════════════════════════════════════════════════════════
+
+function WireTransferTab() {
+  const [sourceCurrency, setSourceCurrency] = useState("USD");
+  const [targetCurrency, setTargetCurrency] = useState("USDC");
+  const [senderCountry, setSenderCountry] = useState("US");
+  const [amount, setAmount] = useState("");
+  const [senderName, setSenderName] = useState("");
+  const [showQuote, setShowQuote] = useState(false);
+  const [quote, setQuote] = useState<Record<string, unknown> | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [wireOrder, setWireOrder] = useState<Record<string, unknown> | null>(null);
+
+  const getQuote = trpc.foreignTouristLoading.wire.getQuote.useMutation({
+    onSuccess: (data: Record<string, unknown>) => {
+      setQuote(data);
+      setShowQuote(true);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const initiateWire = trpc.foreignTouristLoading.wire.initiate.useMutation({
+    onSuccess: (data: Record<string, unknown>) => {
+      setWireOrder(data);
+      setShowQuote(false);
+      setShowInstructions(true);
+      toast.success("Wire transfer initiated! Follow the instructions to complete payment.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Building2 className="w-5 h-5" />
+            International Wire Transfer
+          </CardTitle>
+          <CardDescription className="text-xs sm:text-sm">
+            Send money via SWIFT, SEPA (EU), ACH (US), or UK Faster Payments.
+            We auto-select the fastest/cheapest rail for your country.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label className="text-xs sm:text-sm">Your Country</Label>
+              <Select value={senderCountry} onValueChange={setSenderCountry}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {COUNTRIES.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs sm:text-sm">Your Name (as on bank account)</Label>
+              <Input value={senderName} onChange={(e) => setSenderName(e.target.value)} placeholder="John Smith" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div>
+              <Label className="text-xs sm:text-sm">Send</Label>
+              <Select value={sourceCurrency} onValueChange={setSourceCurrency}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SOURCE_CURRENCIES.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs sm:text-sm">Amount</Label>
+              <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="500" />
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <Label className="text-xs sm:text-sm">Receive</Label>
+              <Select value={targetCurrency} onValueChange={setTargetCurrency}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {TARGET_CURRENCIES.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Button
+            className="w-full"
+            onClick={() => getQuote.mutate({ sourceCurrency, targetCurrency, senderCountry, amount: parseFloat(amount) || 0 })}
+            disabled={!amount || !senderName || getQuote.isPending}
+          >
+            {getQuote.isPending ? "Getting quote..." : "Get Wire Transfer Quote"}
+          </Button>
+
+          {/* Rail info cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+            {[
+              { rail: "SWIFT", time: "1-3 days", fee: "0.5% + $15" },
+              { rail: "SEPA", time: "~10 sec", fee: "0.3%" },
+              { rail: "ACH", time: "1-2 days", fee: "0.4%" },
+              { rail: "UK FPS", time: "~2 hours", fee: "0.35%" },
+            ].map((r) => (
+              <div key={r.rail} className="p-2 rounded-lg border text-xs">
+                <div className="font-semibold">{r.rail}</div>
+                <div className="text-muted-foreground">{r.time}</div>
+                <div className="text-muted-foreground">{r.fee}</div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quote Dialog */}
+      <Dialog open={showQuote} onOpenChange={setShowQuote}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Wire Transfer Quote</DialogTitle>
+            <DialogDescription>Review and confirm your transfer details</DialogDescription>
+          </DialogHeader>
+          {quote && (
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between"><span>Send</span><span className="font-mono">{(quote as Record<string, unknown>).source_amount as string} {(quote as Record<string, unknown>).source_currency as string}</span></div>
+              <div className="flex justify-between"><span>Receive</span><span className="font-mono font-bold">{((quote as Record<string, unknown>).target_amount as number)?.toFixed?.(2)} {(quote as Record<string, unknown>).target_currency as string}</span></div>
+              <div className="flex justify-between text-muted-foreground"><span>Rate</span><span className="font-mono">{((quote as Record<string, unknown>).exchange_rate as number)?.toFixed?.(6)}</span></div>
+              <div className="flex justify-between text-muted-foreground"><span>Fee</span><span className="font-mono">${((quote as Record<string, unknown>).fee as number)?.toFixed?.(2)}</span></div>
+              <div className="flex justify-between text-muted-foreground"><span>Rail</span><Badge variant="outline">{(quote as Record<string, unknown>).rail as string}</Badge></div>
+              <div className="flex justify-between text-muted-foreground"><span>Est. Time</span><span>{(quote as Record<string, unknown>).estimated_time as string}</span></div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowQuote(false)}>Cancel</Button>
+            <Button
+              onClick={() => initiateWire.mutate({
+                quote,
+                senderName,
+                senderCountry,
+              })}
+              disabled={initiateWire.isPending}
+            >
+              {initiateWire.isPending ? "Processing..." : "Confirm & Get Payment Instructions"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Instructions Dialog */}
+      <Dialog open={showInstructions} onOpenChange={setShowInstructions}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-500" />
+              Transfer Initiated
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>Send your wire transfer using the details below. Your wallet will be credited automatically once we receive the funds.</p>
+            {quote && (() => {
+              const ci = (quote as Record<string, unknown>).collection_instructions as Record<string, string> | undefined;
+              const rail = (quote as Record<string, unknown>).rail as string;
+              const ref = ci?.reference || wireOrder?.collection_ref as string || "";
+              return (
+                <Card className="bg-muted/50">
+                  <CardContent className="p-3 space-y-2 text-xs font-mono">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Bank</span><span>{ci?.bank_name || "Flutterwave International"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Account Name</span><span>{ci?.account_name || "TourismPay Ltd"}</span></div>
+                    {ci?.iban && <div className="flex justify-between"><span className="text-muted-foreground">IBAN</span><span>{ci.iban}</span></div>}
+                    {ci?.bic && <div className="flex justify-between"><span className="text-muted-foreground">BIC/SWIFT</span><span>{ci.bic}</span></div>}
+                    {ci?.account_number && <div className="flex justify-between"><span className="text-muted-foreground">Account #</span><span>{ci.account_number}</span></div>}
+                    {ci?.routing_number && <div className="flex justify-between"><span className="text-muted-foreground">Routing #</span><span>{ci.routing_number}</span></div>}
+                    {ci?.sort_code && <div className="flex justify-between"><span className="text-muted-foreground">Sort Code</span><span>{ci.sort_code}</span></div>}
+                    <div className="flex justify-between"><span className="text-muted-foreground">Rail</span><Badge variant="outline">{rail}</Badge></div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Reference</span>
+                      <button className="flex items-center gap-1 hover:text-primary" onClick={() => { navigator.clipboard.writeText(ref); toast.success("Copied!"); }}>
+                        <span>{ref}</span><Copy className="w-3 h-3" />
+                      </button>
+                    </div>
+                    {wireOrder?.id ? <div className="flex justify-between"><span className="text-muted-foreground">Order ID</span><span>{String(wireOrder.id)}</span></div> : null}
+                  </CardContent>
+                </Card>
+              );
+            })()}
+            <div className="flex items-center gap-2 p-3 bg-amber-500/10 rounded-lg text-amber-700 text-xs">
+              <Clock className="w-4 h-4 flex-shrink-0" />
+              <span>Wire expires in 72 hours. Include the reference exactly as shown.</span>
+            </div>
+            {senderCountry === "US" && (
+              <div className="flex items-center gap-2 p-3 bg-blue-500/10 rounded-lg text-blue-700 text-xs">
+                <Building2 className="w-4 h-4 flex-shrink-0" />
+                <span>Log into your Bank of America (or any US bank) app → Transfer → Wire/ACH → Enter the routing number and account number above → Use the reference as memo.</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowInstructions(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2. Agent Banking Tab
+// ═══════════════════════════════════════════════════════════════════════════
+
+function AgentBankingTab() {
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [cashCurrency, setCashCurrency] = useState("USD");
+  const [walletCurrency, setWalletCurrency] = useState("USDC");
+  const [cashAmount, setCashAmount] = useState("");
+  const [showQR, setShowQR] = useState(false);
+
+  const agentQuote = trpc.foreignTouristLoading.agent.getQuote.useMutation({
+    onSuccess: () => {
+      setShowQR(true);
+      toast.success("QR code generated! Show this to the kiosk agent.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const agents = [
+    { id: "AGT-MMIA-001", name: "TourismPay Kiosk — MMIA Terminal 1", location: "Lagos Airport", currencies: ["USD", "EUR", "GBP", "NGN"] },
+    { id: "AGT-MMIA-002", name: "TourismPay Kiosk — MMIA Terminal 2", location: "Lagos Airport", currencies: ["USD", "EUR", "GBP", "NGN"] },
+    { id: "AGT-NAI-001", name: "TourismPay Kiosk — Nnamdi Azikiwe", location: "Abuja Airport", currencies: ["USD", "EUR", "NGN"] },
+    { id: "AGT-CAL-001", name: "Calabar Airport BDC", location: "Calabar Airport", currencies: ["USD", "NGN"] },
+    { id: "AGT-SER-001", name: "Serena Safari Lodge", location: "Nairobi, Kenya", currencies: ["USD", "KES"] },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Banknote className="w-5 h-5" />
+            Cash-to-Wallet at Airport/Hotel
+          </CardTitle>
+          <CardDescription className="text-xs sm:text-sm">
+            Hand cash (USD/EUR/GBP/NGN) to an agent at an airport kiosk or hotel.
+            Show your passport for KYC verification. Wallet credited instantly.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 space-y-4">
+          {/* Agent Selection */}
+          <Label className="text-xs sm:text-sm font-semibold">Select Nearest Agent</Label>
+          <div className="grid grid-cols-1 gap-2">
+            {agents.map((agent) => (
+              <button
+                key={agent.id}
+                onClick={() => setSelectedAgent(agent.id)}
+                className={`p-3 rounded-lg border text-left transition-all ${
+                  selectedAgent === agent.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-medium text-xs sm:text-sm">{agent.name}</div>
+                    <div className="text-[10px] sm:text-xs text-muted-foreground">{agent.location}</div>
+                  </div>
+                  <div className="flex gap-1">
+                    {agent.currencies.map((c) => (
+                      <Badge key={c} variant="outline" className="text-[10px]">{c}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {selectedAgent && (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-xs sm:text-sm">Cash Currency</Label>
+                  <Select value={cashCurrency} onValueChange={setCashCurrency}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["USD", "EUR", "GBP", "NGN", "KES"].map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs sm:text-sm">Amount</Label>
+                  <Input type="number" value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} placeholder="200" />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <Label className="text-xs sm:text-sm">Credit To</Label>
+                  <Select value={walletCurrency} onValueChange={setWalletCurrency}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["USDC", "NGN", "USD", "KES"].map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-muted/50 space-y-2 text-xs sm:text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Fee</span><span>1.5%</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">KYC Required</span><span>Passport scan (Tier 1 — up to $500/day)</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Process</span><span>Show passport → Agent scans → Wallet credited instantly</span></div>
+              </div>
+
+              <div className="flex items-center gap-2 p-3 bg-blue-500/10 rounded-lg text-blue-700 text-xs">
+                <Shield className="w-4 h-4 flex-shrink-0" />
+                <span>Your passport number is hashed (SHA-256) and never stored in plaintext. KYC verification powered by Smile Identity.</span>
+              </div>
+
+              <Button
+                className="w-full"
+                disabled={!cashAmount || agentQuote.isPending}
+                onClick={() => selectedAgent && agentQuote.mutate({
+                  agentId: selectedAgent,
+                  cashCurrency: cashCurrency as "USD" | "EUR" | "GBP" | "NGN" | "KES" | "GHS" | "ZAR",
+                  walletCurrency: walletCurrency as "USDC" | "USDT" | "DAI" | "NGN" | "KES" | "GHS" | "ZAR" | "USD",
+                  cashAmount: parseFloat(cashAmount) || 0,
+                })}
+              >
+                {agentQuote.isPending ? "Generating..." : (
+                  <><QrCode className="w-4 h-4 mr-2" />Show QR Code to Agent</>
+                )}
+              </Button>
+
+              {showQR && (
+                <Card className="bg-muted/50 text-center">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="w-32 h-32 mx-auto bg-white rounded-lg flex items-center justify-center border-2 border-dashed border-muted-foreground/30">
+                      <QrCode className="w-16 h-16 text-primary" />
+                    </div>
+                    <div className="text-xs font-medium">Show this to the kiosk agent</div>
+                    <div className="text-[10px] text-muted-foreground">Agent scans your QR \u2192 verifies passport \u2192 accepts cash \u2192 wallet credited instantly</div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3. Partner Apps Tab
+// ═══════════════════════════════════════════════════════════════════════════
+
+function PartnerAppsTab() {
+  const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
+  const [sourceCurrency, setSourceCurrency] = useState("USD");
+  const [targetCurrency, setTargetCurrency] = useState("USDC");
+  const [amount, setAmount] = useState("");
+  const [partnerQuote, setPartnerQuote] = useState<Record<string, unknown> | null>(null);
+
+  const getPartnerQuote = trpc.foreignTouristLoading.partner.getQuote.useMutation({
+    onSuccess: (data: Record<string, unknown>) => {
+      setPartnerQuote(data);
+      toast.success("Quote received!");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const partners = [
+    { id: "wise", name: "Wise", logo: "💚", fee: "0.5% + $1.50", time: "1-2 hours", desc: "Best for USD/EUR/GBP" },
+    { id: "revolut", name: "Revolut", logo: "💙", fee: "0.3%", time: "~30 min", desc: "Best for EU residents" },
+    { id: "remitly", name: "Remitly", logo: "🟢", fee: "1% + $3.99", time: "15 min - 5 days", desc: "US/UK → Africa" },
+    { id: "lemfi", name: "LemFi", logo: "🟡", fee: "Free", time: "~5 min", desc: "Diaspora favorite" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Globe className="w-5 h-5" />
+            Load via Partner Apps
+          </CardTitle>
+          <CardDescription className="text-xs sm:text-sm">
+            Use your existing Wise, Revolut, Remitly, or LemFi account to load your wallet.
+            We find the cheapest option for your currency.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 space-y-4">
+          {/* Partner Selection */}
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
+            {partners.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setSelectedPartner(p.id)}
+                className={`p-3 sm:p-4 rounded-lg border text-left transition-all ${
+                  selectedPartner === p.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                }`}
+              >
+                <div className="text-2xl mb-1">{p.logo}</div>
+                <div className="font-semibold text-sm">{p.name}</div>
+                <div className="text-[10px] sm:text-xs text-muted-foreground">{p.desc}</div>
+                <div className="mt-2 flex flex-col sm:flex-row gap-1">
+                  <Badge variant="outline" className="text-[10px]">{p.fee}</Badge>
+                  <Badge variant="outline" className="text-[10px]">{p.time}</Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {selectedPartner && (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-xs sm:text-sm">Send</Label>
+                  <Select value={sourceCurrency} onValueChange={setSourceCurrency}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {SOURCE_CURRENCIES.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs sm:text-sm">Amount</Label>
+                  <Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="200" />
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <Label className="text-xs sm:text-sm">Receive</Label>
+                  <Select value={targetCurrency} onValueChange={setTargetCurrency}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {TARGET_CURRENCIES.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button
+                className="w-full"
+                disabled={!amount || getPartnerQuote.isPending}
+                onClick={() => selectedPartner && getPartnerQuote.mutate({
+                  partner: selectedPartner as "wise" | "revolut" | "remitly" | "lemfi",
+                  sourceCurrency,
+                  targetCurrency,
+                  sourceAmount: parseFloat(amount) || 0,
+                  senderCountry: "US",
+                })}
+              >
+                {getPartnerQuote.isPending ? "Getting quote..." : (
+                  <><Send className="w-4 h-4 mr-2" />Get {partners.find((p) => p.id === selectedPartner)?.name} Quote</>
+                )}
+              </Button>
+
+              {partnerQuote && (
+                <Card className="bg-muted/50">
+                  <CardContent className="p-3 space-y-2 text-xs">
+                    <div className="font-semibold text-sm mb-2">Quote from {partners.find(p => p.id === selectedPartner)?.name}</div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">You Send</span><span className="font-mono">{(partnerQuote as Record<string, unknown>).source_amount as number} {sourceCurrency}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">You Receive</span><span className="font-mono font-bold">{((partnerQuote as Record<string, unknown>).target_amount as number)?.toFixed?.(2)} {targetCurrency}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Fee</span><span className="font-mono">${((partnerQuote as Record<string, unknown>).fee as number)?.toFixed?.(2)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Rate</span><span className="font-mono">{((partnerQuote as Record<string, unknown>).exchange_rate as number)?.toFixed?.(6)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Est. Time</span><span>{(partnerQuote as Record<string, unknown>).estimated_time as string}</span></div>
+                    <Button className="w-full mt-2" size="sm">
+                      Continue to {partners.find(p => p.id === selectedPartner)?.name}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="text-xs text-muted-foreground text-center">
+                You&apos;ll be redirected to {partners.find((p) => p.id === selectedPartner)?.name} to complete payment.
+                Your wallet is credited automatically when funds arrive.
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. USSD Tab
+// ═══════════════════════════════════════════════════════════════════════════
+
+function USSDTab() {
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Smartphone className="w-5 h-5" />
+            USSD — Feature Phone Access
+          </CardTitle>
+          <CardDescription className="text-xs sm:text-sm">
+            No smartphone? No internet? Dial our USSD shortcode from any phone.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6 pt-0 sm:pt-0 space-y-4">
+          {/* USSD Code Display */}
+          <div className="text-center p-6 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border">
+            <div className="text-4xl sm:text-5xl font-mono font-bold tracking-wider">*555#</div>
+            <div className="mt-2 text-sm text-muted-foreground">Dial from any Nigerian mobile phone</div>
+          </div>
+
+          {/* Menu Preview */}
+          <div className="space-y-2">
+            <Label className="text-xs sm:text-sm font-semibold">Menu Options</Label>
+            <div className="p-4 rounded-lg bg-black text-green-400 font-mono text-xs sm:text-sm space-y-1">
+              <div>Welcome to TourismPay</div>
+              <div>1. Check Balance</div>
+              <div>2. Load Wallet</div>
+              <div>3. Send Money</div>
+              <div>4. Mini Statement</div>
+              <div>5. My QR Code</div>
+              <div>6. Exchange Rate</div>
+              <div>0. Exit</div>
+            </div>
+          </div>
+
+          {/* Features */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              { icon: <Wallet className="w-4 h-4" />, title: "Check Balance", desc: "View all currency balances" },
+              { icon: <CreditCard className="w-4 h-4" />, title: "Load Wallet", desc: "Fund via mobile money" },
+              { icon: <Send className="w-4 h-4" />, title: "Send Money", desc: "Transfer to any phone number" },
+              { icon: <QrCode className="w-4 h-4" />, title: "My QR Code", desc: "Get SMS with payment QR link" },
+            ].map((f) => (
+              <div key={f.title} className="flex items-start gap-3 p-3 rounded-lg border">
+                <div className="mt-0.5 text-muted-foreground">{f.icon}</div>
+                <div>
+                  <div className="font-medium text-xs sm:text-sm">{f.title}</div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground">{f.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 p-3 bg-amber-500/10 rounded-lg text-amber-700 text-xs">
+            <Phone className="w-4 h-4 flex-shrink-0" />
+            <span>USSD works on any phone (smartphone or feature phone), even without internet. Requires Nigerian SIM card. Shortcode pending NCC approval.</span>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. Bank SWIFT Tab — Direct Bank Partner (GTBank, Access Bank, CurrencyCloud, Banking Circle)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const BANK_PARTNERS = [
+  {
+    id: "gtbank", name: "GTBank (GTBINGLA)", description: "Nigerian SWIFT member — direct correspondent banking",
+    swift: "GTBINGLA", fee: "0.25% + $10", settle: "1-2 business days",
+    currencies: ["USD", "EUR", "GBP", "NGN"], countries: ["US", "GB", "DE", "FR", "NL", "CA", "AU", "AE"],
+    badge: "SWIFT Direct",
+  },
+  {
+    id: "access_bank", name: "Access Bank (ABORNGLA)", description: "Pan-African SWIFT member — 10 African country presence",
+    swift: "ABORNGLA", fee: "0.30% + $12", settle: "1-2 business days",
+    currencies: ["USD", "EUR", "GBP", "NGN", "KES", "GHS", "ZAR"], countries: ["US", "GB", "DE", "FR", "ZA", "KE", "GH", "TZ"],
+    badge: "Pan-African",
+  },
+  {
+    id: "currencycloud", name: "CurrencyCloud (Visa)", description: "API-first SWIFT member — 35+ currencies, same-day settlement",
+    swift: "CABORB22", fee: "0.15% + $5", settle: "Same-day (T+0) to T+1",
+    currencies: ["USD", "EUR", "GBP", "CHF", "CAD", "AUD", "NGN", "KES", "GHS", "ZAR"], countries: ["US", "GB", "DE", "FR", "NL", "CA", "AU", "SG", "JP"],
+    badge: "Fastest",
+  },
+  {
+    id: "banking_circle", name: "Banking Circle", description: "European SWIFT member — lowest fees, instant SEPA",
+    swift: "BKCHDKKK", fee: "0.10% + $3", settle: "Same-day (SEPA Instant) / T+1",
+    currencies: ["USD", "EUR", "GBP", "CHF", "DKK", "SEK", "NOK"], countries: ["US", "GB", "DE", "FR", "NL", "DK", "SE", "NO", "CH"],
+    badge: "Lowest Fee",
+  },
+];
+
+function BankSWIFTTab() {
+  const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
+  const [sourceCurrency, setSourceCurrency] = useState("USD");
+  const [targetCurrency, setTargetCurrency] = useState("USDC");
+  const [amount, setAmount] = useState("");
+
+  const partner = BANK_PARTNERS.find(p => p.id === selectedPartner);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+            <Shield className="w-5 h-5" />
+            Direct Bank SWIFT Transfer
+          </CardTitle>
+          <CardDescription className="text-xs sm:text-sm">
+            Send via SWIFT directly through a member bank — no aggregator intermediary. Each provider is a real SWIFT network participant with their own BIC code.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
+
+          {/* Provider Selection */}
+          <div className="space-y-2">
+            <Label className="text-xs sm:text-sm font-semibold">Select SWIFT Bank Partner</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {BANK_PARTNERS.map(bp => (
+                <button
+                  key={bp.id}
+                  onClick={() => setSelectedPartner(bp.id)}
+                  className={`text-left p-3 sm:p-4 rounded-lg border transition-all ${
+                    selectedPartner === bp.id
+                      ? "bg-primary/10 border-primary shadow-md"
+                      : "bg-card border-border hover:bg-accent"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-xs sm:text-sm">{bp.name}</span>
+                    <Badge variant="outline" className="text-[10px]">{bp.badge}</Badge>
+                  </div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground mb-2">{bp.description}</div>
+                  <div className="flex flex-wrap gap-1.5 text-[10px]">
+                    <span className="bg-muted px-1.5 py-0.5 rounded">BIC: {bp.swift}</span>
+                    <span className="bg-muted px-1.5 py-0.5 rounded">Fee: {bp.fee}</span>
+                    <span className="bg-muted px-1.5 py-0.5 rounded">{bp.settle}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Transfer Form — shown when provider selected */}
+          {partner && (
+            <div className="space-y-4 border-t pt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">You Send</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Amount"
+                      value={amount}
+                      onChange={e => setAmount(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Select value={sourceCurrency} onValueChange={setSourceCurrency}>
+                      <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {partner.currencies.filter(c => !["NGN","KES","GHS","ZAR","USDC"].includes(c)).map(c => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex items-end justify-center">
+                  <ArrowRight className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">You Receive</Label>
+                  <Select value={targetCurrency} onValueChange={setTargetCurrency}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {TARGET_CURRENCIES.map(c => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button
+                className="w-full gap-2"
+                disabled={!amount || Number(amount) <= 0}
+                onClick={() => toast.info(`Getting quote from ${partner.name}...`)}
+              >
+                <Building2 className="w-4 h-4" />
+                Get {partner.name.split(" ")[0]} SWIFT Quote
+              </Button>
+
+              {/* Virtual IBAN Preview */}
+              <Card className="bg-muted/50">
+                <CardContent className="p-3 sm:p-4 space-y-2">
+                  <div className="text-xs font-semibold flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-emerald-500" />
+                    Virtual Account Details (SWIFT Direct)
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">Bank: </span>
+                      <span className="font-mono font-medium">{partner.name.split("(")[0].trim()}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">BIC/SWIFT: </span>
+                      <span className="font-mono font-medium">{partner.swift}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Type: </span>
+                      <span className="font-medium">Virtual IBAN (dedicated per user)</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Settlement: </span>
+                      <span className="font-medium">{partner.settle}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-emerald-600 bg-emerald-500/10 rounded p-2">
+                    <CheckCircle className="w-3 h-3 flex-shrink-0" />
+                    <span>SWIFT member — your bank sends MT103 directly to {partner.swift}. No aggregator intermediary.</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Comparison info */}
+          <div className="text-xs text-muted-foreground space-y-1 p-3 bg-muted/30 rounded-lg">
+            <div className="font-semibold mb-1">How this differs from IMTO wire transfers:</div>
+            <div className="flex items-start gap-1.5">
+              <ArrowRight className="w-3 h-3 mt-0.5 flex-shrink-0" />
+              <span><strong>IMTO (Flutterwave):</strong> Your bank → SWIFT → Flutterwave&apos;s correspondent bank → Flutterwave → TourismPay (2 hops)</span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <ArrowRight className="w-3 h-3 mt-0.5 flex-shrink-0" />
+              <span><strong>Direct Bank Partner:</strong> Your bank → SWIFT → GTBank/Access/CurrencyCloud/Banking Circle → TourismPay (1 hop, lower fee)</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

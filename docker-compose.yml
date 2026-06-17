@@ -159,6 +159,36 @@ services:
       timeout: 3s
       retries: 3
 
+  # ─── Partner Remittance Service (Python) ─────────────────────────────────
+  partner-remittance:
+    build:
+      context: ./python-services/partner-remittance
+      dockerfile: ../../python-services/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      WISE_API_KEY: ${WISE_API_KEY:-}
+      REVOLUT_API_KEY: ${REVOLUT_API_KEY:-}
+      REMITLY_API_KEY: ${REMITLY_API_KEY:-}
+      LEMFI_API_KEY: ${LEMFI_API_KEY:-}
+      CORS_ORIGIN: http://localhost:5173
+      PORT: "8085"
+    ports:
+      - "8085:8085"
+    command: ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8085"]
+    working_dir: /app/partner-remittance
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
 volumes:
   pgdata:
   redisdata:

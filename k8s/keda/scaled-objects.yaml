@@ -368,6 +368,74 @@ spec:
       key: REDIS_PASSWORD
 
 ---
+# ══════════════════════════════════════════════════════════════════════════════
+# 7. Partner Remittance Service — scale on Kafka webhook events
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: tourismpay-partner-remittance-scaler
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: tourismpay-partner-remittance
+spec:
+  scaleTargetRef:
+    name: tourismpay-partner-remittance
+  pollingInterval: 15
+  cooldownPeriod: 120
+  minReplicaCount: 2
+  maxReplicaCount: 6
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka-cluster-kafka-bootstrap.kafka.svc:9092
+        consumerGroup: partner-remittance-consumer
+        topic: tourismpay.partner.webhooks
+        lagThreshold: "50"
+      authenticationRef:
+        name: kafka-trigger-auth
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc:9090
+        metricName: tourismpay_partner_transfers_total
+        query: sum(rate(tourismpay_partner_transfers_total[2m]))
+        threshold: "10"
+
+---
+# ══════════════════════════════════════════════════════════════════════════════
+# 8. USSD Service — scale on Kafka USSD session events
+# ══════════════════════════════════════════════════════════════════════════════
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: tourismpay-ussd-scaler
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: tourismpay-ussd
+spec:
+  scaleTargetRef:
+    name: tourismpay-settlement
+  pollingInterval: 10
+  cooldownPeriod: 60
+  minReplicaCount: 2
+  maxReplicaCount: 8
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka-cluster-kafka-bootstrap.kafka.svc:9092
+        consumerGroup: ussd-session-consumer
+        topic: tourismpay.ussd.sessions
+        lagThreshold: "100"
+      authenticationRef:
+        name: kafka-trigger-auth
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc:9090
+        metricName: tourismpay_ussd_sessions_total
+        query: sum(rate(tourismpay_ussd_sessions_total[2m]))
+        threshold: "20"
+
+---
 apiVersion: keda.sh/v1alpha1
 kind: TriggerAuthentication
 metadata:

@@ -37,12 +37,26 @@ func main() {
 	nfcService := services.NewOfflineNFCService()
 	cbdcBridge := services.NewCBDCBridge()
 	rampService := services.NewOnrampOfframpService(cryptoService, cbdcBridge)
+	wireService := services.NewSWIFTWireService(cryptoService, cbdcBridge)
+	agentService := services.NewAgentBankingService()
+	ussdService := services.NewUSSDService()
+	bankPartnerService := services.NewBankPartnerService(cryptoService, cbdcBridge)
+	billPaymentService := services.NewBillPaymentService()
+	virtualCardService := services.NewVirtualCardService()
+	bankTransferOutService := services.NewBankTransferOutService()
 
 	h := handlers.NewHandlers(ledgerService, mojaloopService, inventoryService, settlementService)
 	cryptoHandlers := handlers.NewCryptoHandlers(cryptoService)
 	nfcHandlers := services.NewNFCHandlers(nfcService)
 	cbdcHandlers := services.NewCBDCHandlers(cbdcBridge)
 	rampHandlers := handlers.NewRampHandlers(rampService)
+	wireHandlers := handlers.NewWireHandlers(wireService)
+	agentHandlers := handlers.NewAgentHandlers(agentService)
+	ussdHandlers := handlers.NewUSSDHandlers(ussdService)
+	bankPartnerHandlers := handlers.NewBankPartnerHandlers(bankPartnerService)
+	billHandlers := handlers.NewBillHandlers(billPaymentService)
+	virtualCardHandlers := handlers.NewVirtualCardHandlers(virtualCardService)
+	bankTransferOutHandlers := handlers.NewBankTransferOutHandlers(bankTransferOutService)
 
 	router := gin.New()
 
@@ -198,6 +212,83 @@ func main() {
 			ramp.GET("/offramp/history/:user_id", rampHandlers.OfframpHistory)
 			ramp.GET("/best-rail", rampHandlers.BestRail)
 			ramp.GET("/status", rampHandlers.GetStatus)
+		}
+
+		// SWIFT / SEPA / ACH Wire Transfer
+		wire := api.Group("/wire")
+		{
+			wire.POST("/quote", wireHandlers.GetQuote)
+			wire.POST("/initiate", wireHandlers.InitiateTransfer)
+			wire.POST("/:order_id/settle", wireHandlers.ConfirmSettlement)
+			wire.POST("/:order_id/credit", wireHandlers.CreditWallet)
+			wire.GET("/:order_id", wireHandlers.GetOrder)
+			wire.GET("/history/:user_id", wireHandlers.ListOrders)
+		}
+
+		// Agent Banking / Airport Kiosk
+		agent := api.Group("/agent")
+		{
+			agent.GET("/agents", agentHandlers.ListAgents)
+			agent.GET("/agents/:agent_id", agentHandlers.GetAgent)
+			agent.POST("/quote", agentHandlers.GetQuote)
+			agent.POST("/load", agentHandlers.ExecuteLoad)
+			agent.GET("/orders/:order_id", agentHandlers.GetOrder)
+			agent.GET("/orders/tourist/:tourist_id", agentHandlers.ListOrders)
+			agent.POST("/orders/:order_id/refund", agentHandlers.RefundFloat)
+		}
+
+		// Bank Partner SWIFT (Direct Bank, CurrencyCloud, Banking Circle)
+		bankPartner := api.Group("/bank-partner")
+		{
+			bankPartner.GET("/providers", bankPartnerHandlers.ListProviders)
+			bankPartner.GET("/providers/:provider", bankPartnerHandlers.GetProvider)
+			bankPartner.POST("/quote", bankPartnerHandlers.GetQuote)
+			bankPartner.POST("/compare", bankPartnerHandlers.CompareProviders)
+			bankPartner.POST("/initiate", bankPartnerHandlers.InitiateTransfer)
+			bankPartner.POST("/:transfer_id/webhook", bankPartnerHandlers.WebhookFundsReceived)
+			bankPartner.POST("/:transfer_id/credit", bankPartnerHandlers.CreditWallet)
+			bankPartner.GET("/:transfer_id", bankPartnerHandlers.GetTransfer)
+			bankPartner.GET("/history/:user_id", bankPartnerHandlers.ListTransfers)
+		}
+
+		// USSD Menu Service
+		ussd := api.Group("/ussd")
+		{
+			ussd.POST("/callback", ussdHandlers.ProcessUSSD)
+			ussd.POST("/callback/form", ussdHandlers.ProcessUSSDForm)
+		}
+
+		// Bill Payment Service
+		bill := api.Group("/bill")
+		{
+			bill.GET("/providers", billHandlers.ListProviders)
+			bill.GET("/providers/:provider_id/plans", billHandlers.GetDataPlans)
+			bill.POST("/validate", billHandlers.ValidateAccount)
+			bill.POST("/pay", billHandlers.ProcessPayment)
+			bill.GET("/history", billHandlers.GetHistory)
+		}
+
+		// Virtual Card Service
+		vc := api.Group("/virtual-card")
+		{
+			vc.POST("/issue", virtualCardHandlers.IssueCard)
+			vc.GET("/cards", virtualCardHandlers.ListCards)
+			vc.GET("/cards/:card_id", virtualCardHandlers.GetCard)
+			vc.POST("/cards/:card_id/fund", virtualCardHandlers.FundCard)
+			vc.POST("/cards/:card_id/freeze", virtualCardHandlers.FreezeCard)
+			vc.POST("/cards/:card_id/unfreeze", virtualCardHandlers.UnfreezeCard)
+			vc.GET("/cards/:card_id/transactions", virtualCardHandlers.GetTransactions)
+			vc.PUT("/cards/:card_id/controls", virtualCardHandlers.UpdateControls)
+		}
+
+		// Bank Transfer Out (NIBSS NIP)
+		bankOut := api.Group("/bank-transfer")
+		{
+			bankOut.GET("/banks", bankTransferOutHandlers.ListBanks)
+			bankOut.POST("/name-enquiry", bankTransferOutHandlers.NameEnquiry)
+			bankOut.POST("/initiate", bankTransferOutHandlers.InitiateTransfer)
+			bankOut.GET("/beneficiaries", bankTransferOutHandlers.GetBeneficiaries)
+			bankOut.DELETE("/beneficiaries/:beneficiary_id", bankTransferOutHandlers.DeleteBeneficiary)
 		}
 	}
 

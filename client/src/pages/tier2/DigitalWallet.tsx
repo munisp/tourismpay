@@ -1444,6 +1444,9 @@ export default function DigitalWallet() {
               </div>
               <p className="text-xs text-muted-foreground">Test card: 4242 4242 4242 4242 · Any future date · Any CVC</p>
             </div>
+            <a href="/wallet/loading" className="block p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg text-xs text-blue-400 hover:bg-blue-500/20 transition-all text-center font-semibold">
+              All Loading Options: Wire Transfer (ACH/SWIFT/SEPA), Cash at Airport, Wise/Revolut, USSD, Bank SWIFT
+            </a>
             <div className="flex items-center gap-2 text-xs text-muted-foreground"><span className="flex-1 border-t border-border" /> or bank transfer <span className="flex-1 border-t border-border" /></div>
             <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg text-xs text-primary">
               Submit a bank transfer request to top up your wallet. Funds will be credited to your wallet address after admin approval.
