@@ -75,7 +75,7 @@ fn tier_daily_limit(tier: u8) -> f64 {
 }
 
 /// Check if passport has expired
-fn is_passport_expired(expiry_date: &str) -> bool {
+pub fn is_passport_expired(expiry_date: &str) -> bool {
     // Expected format: YYMMDD from MRZ
     if expiry_date.len() != 6 {
         return true;

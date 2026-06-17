@@ -44,6 +44,7 @@ func main() {
 	billPaymentService := services.NewBillPaymentService()
 	virtualCardService := services.NewVirtualCardService()
 	bankTransferOutService := services.NewBankTransferOutService()
+	travelReadinessService := services.NewTravelReadinessService()
 
 	h := handlers.NewHandlers(ledgerService, mojaloopService, inventoryService, settlementService)
 	cryptoHandlers := handlers.NewCryptoHandlers(cryptoService)
@@ -57,6 +58,7 @@ func main() {
 	billHandlers := handlers.NewBillHandlers(billPaymentService)
 	virtualCardHandlers := handlers.NewVirtualCardHandlers(virtualCardService)
 	bankTransferOutHandlers := handlers.NewBankTransferOutHandlers(bankTransferOutService)
+	travelReadinessHandlers := services.NewTravelReadinessHandlers(travelReadinessService)
 
 	router := gin.New()
 
@@ -289,6 +291,18 @@ func main() {
 			bankOut.POST("/initiate", bankTransferOutHandlers.InitiateTransfer)
 			bankOut.GET("/beneficiaries", bankTransferOutHandlers.GetBeneficiaries)
 			bankOut.DELETE("/beneficiaries/:beneficiary_id", bankTransferOutHandlers.DeleteBeneficiary)
+		}
+
+		// Travel Readiness (Pre-travel checklist, bank notifications, eSIM, agent network, corridors)
+		travel := api.Group("/travel")
+		{
+			travel.GET("/banks", travelReadinessHandlers.ListSupportedBanks)
+			travel.POST("/bank-notify", travelReadinessHandlers.SendBankNotification)
+			travel.GET("/esim", travelReadinessHandlers.ListeSIMPackages)
+			travel.POST("/esim/purchase", travelReadinessHandlers.PurchaseeSIM)
+			travel.GET("/kiosks", travelReadinessHandlers.ListAgentKiosks)
+			travel.GET("/corridors", travelReadinessHandlers.ListCurrencyCorridors)
+			travel.POST("/checklist", travelReadinessHandlers.GenerateChecklist)
 		}
 	}
 

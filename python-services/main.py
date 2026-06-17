@@ -581,6 +581,160 @@ async def download_report(report_id: str):
         "size_bytes": 50000 + secrets.randbelow(450000),
     }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  PRE-TRAVEL RISK SCORING & CURRENCY CORRIDOR ML
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class PreTravelRiskRequest(BaseModel):
+    user_id: str
+    origin_country: str  # Tourist's home country (2-letter ISO)
+    destination_country: str  # Travel destination (2-letter ISO)
+    travel_start: str
+    travel_end: str
+    planned_spend_usd: float = 0.0
+    payment_methods: List[str] = []  # card, wire, crypto, cash, mobile_money
+
+class CurrencyConversionRequest(BaseModel):
+    from_currency: str
+    to_currency: str
+    amount: float
+
+# Country risk database (ML model weights in production)
+COUNTRY_RISK_SCORES: Dict[str, Dict[str, Any]] = {
+    "US": {"risk": 0.05, "card_block_prob": 0.35, "wire_delay_days": 1, "popular_rails": ["card", "ach", "wise"]},
+    "GB": {"risk": 0.05, "card_block_prob": 0.25, "wire_delay_days": 1, "popular_rails": ["card", "fps", "revolut"]},
+    "DE": {"risk": 0.05, "card_block_prob": 0.15, "wire_delay_days": 1, "popular_rails": ["card", "sepa", "wise"]},
+    "FR": {"risk": 0.05, "card_block_prob": 0.15, "wire_delay_days": 1, "popular_rails": ["card", "sepa"]},
+    "JP": {"risk": 0.05, "card_block_prob": 0.20, "wire_delay_days": 2, "popular_rails": ["card", "wire"]},
+    "BR": {"risk": 0.10, "card_block_prob": 0.40, "wire_delay_days": 2, "popular_rails": ["card", "pix"]},
+    "IN": {"risk": 0.10, "card_block_prob": 0.45, "wire_delay_days": 2, "popular_rails": ["card", "upi"]},
+    "CN": {"risk": 0.20, "card_block_prob": 0.60, "wire_delay_days": 3, "popular_rails": ["alipay", "wechat_pay"]},
+    "NG": {"risk": 0.15, "card_block_prob": 0.10, "wire_delay_days": 0, "popular_rails": ["bank_transfer", "ussd", "mobile_money"]},
+    "KE": {"risk": 0.12, "card_block_prob": 0.10, "wire_delay_days": 0, "popular_rails": ["mpesa", "card"]},
+    "GH": {"risk": 0.12, "card_block_prob": 0.15, "wire_delay_days": 1, "popular_rails": ["mobile_money", "card"]},
+    "ZA": {"risk": 0.10, "card_block_prob": 0.12, "wire_delay_days": 1, "popular_rails": ["card", "eft"]},
+    "RU": {"risk": 0.95, "card_block_prob": 0.99, "wire_delay_days": -1, "popular_rails": []},
+    "KP": {"risk": 1.00, "card_block_prob": 1.00, "wire_delay_days": -1, "popular_rails": []},
+    "IR": {"risk": 1.00, "card_block_prob": 1.00, "wire_delay_days": -1, "popular_rails": []},
+    "SY": {"risk": 1.00, "card_block_prob": 1.00, "wire_delay_days": -1, "popular_rails": []},
+    "CU": {"risk": 0.90, "card_block_prob": 0.95, "wire_delay_days": -1, "popular_rails": []},
+}
+
+# FX rates (in production, fetch from exchange rate ML service)
+FX_RATES: Dict[str, float] = {
+    "USD": 1.0, "EUR": 0.92, "GBP": 0.79, "NGN": 1539.73, "KES": 129.74,
+    "GHS": 14.92, "ZAR": 18.46, "BRL": 5.05, "INR": 83.50, "CNY": 7.24,
+    "JPY": 157.50, "AED": 3.67, "SAR": 3.75, "CAD": 1.37, "AUD": 1.54,
+    "CHF": 0.88, "USDC": 1.0, "USDT": 1.0, "DAI": 1.0,
+}
+
+@app.post("/api/v1/travel-risk/assess")
+async def assess_pre_travel_risk(req: PreTravelRiskRequest):
+    origin = COUNTRY_RISK_SCORES.get(req.origin_country.upper(), {"risk": 0.15, "card_block_prob": 0.30, "wire_delay_days": 2, "popular_rails": ["card", "wire"]})
+    dest = COUNTRY_RISK_SCORES.get(req.destination_country.upper(), {"risk": 0.15, "card_block_prob": 0.10, "wire_delay_days": 1, "popular_rails": ["card"]})
+
+    # Composite risk score
+    combined_risk = (origin["risk"] + dest["risk"]) / 2
+    card_block_probability = origin["card_block_prob"]
+
+    # Recommendations based on risk profile
+    recommendations = []
+    warnings = []
+
+    if card_block_probability > 0.30:
+        warnings.append({
+            "severity": "high",
+            "code": "CARD_BLOCK_LIKELY",
+            "message": f"Your bank in {req.origin_country} has a {card_block_probability*100:.0f}% probability of blocking transactions to {req.destination_country}. Send a travel notification before departure.",
+            "action_url": "/wallet/pre-travel",
+        })
+        recommendations.append("Send bank travel notification immediately")
+
+    if origin.get("wire_delay_days", 0) > 1:
+        warnings.append({
+            "severity": "medium",
+            "code": "WIRE_DELAY",
+            "message": f"Wire transfers from {req.origin_country} typically take {origin['wire_delay_days']} business days. Load your wallet before departure.",
+            "action_url": "/wallet/loading",
+        })
+        recommendations.append(f"Initiate wire transfer at least {origin['wire_delay_days'] + 2} days before departure")
+
+    if req.planned_spend_usd > 2000 and "card" in req.payment_methods:
+        recommendations.append("Consider loading USDC for amounts over $2,000 — avoids FX fees and card blocks")
+
+    if req.planned_spend_usd > 500:
+        recommendations.append("Purchase an eSIM before travel for reliable app connectivity")
+
+    if dest.get("risk", 0) >= 0.90:
+        warnings.append({
+            "severity": "critical",
+            "code": "SANCTIONED_DESTINATION",
+            "message": f"Destination {req.destination_country} is under sanctions. Most payment services are unavailable.",
+            "action_url": None,
+        })
+
+    # Recommended loading strategy
+    loading_strategy = []
+    if req.planned_spend_usd > 0:
+        pre_load = min(req.planned_spend_usd * 0.7, 5000)
+        loading_strategy.append({"method": "card_before_travel", "amount_usd": round(pre_load, 2), "timing": "3-5 days before departure"})
+        remaining = req.planned_spend_usd - pre_load
+        if remaining > 0:
+            loading_strategy.append({"method": "agent_kiosk_on_arrival", "amount_usd": round(min(remaining, 500), 2), "timing": "At airport on arrival"})
+            remaining -= min(remaining, 500)
+        if remaining > 0:
+            loading_strategy.append({"method": "card_topup_in_country", "amount_usd": round(remaining, 2), "timing": "As needed during trip"})
+
+    return {
+        "user_id": req.user_id,
+        "origin_country": req.origin_country,
+        "destination_country": req.destination_country,
+        "risk_score": round(combined_risk, 3),
+        "risk_level": "low" if combined_risk < 0.10 else "medium" if combined_risk < 0.30 else "high" if combined_risk < 0.70 else "critical",
+        "card_block_probability": round(card_block_probability, 3),
+        "estimated_wire_delay_days": origin.get("wire_delay_days", 2),
+        "recommended_payment_rails": origin.get("popular_rails", []),
+        "warnings": warnings,
+        "recommendations": recommendations,
+        "loading_strategy": loading_strategy,
+        "assessed_at": datetime.utcnow().isoformat(),
+    }
+
+@app.post("/api/v1/travel-risk/fx-quote")
+async def get_fx_quote(req: CurrencyConversionRequest):
+    from_rate = FX_RATES.get(req.from_currency.upper())
+    to_rate = FX_RATES.get(req.to_currency.upper())
+    if from_rate is None or to_rate is None:
+        raise HTTPException(status_code=400, detail=f"Unsupported currency pair: {req.from_currency} → {req.to_currency}")
+
+    rate = to_rate / from_rate
+    converted = req.amount * rate
+    fee_pct = 0.003 if req.from_currency.upper() in ("USDC", "USDT", "DAI") else 0.005
+    fee = req.amount * fee_pct
+    net_amount = (req.amount - fee) * rate
+
+    return {
+        "from_currency": req.from_currency.upper(),
+        "to_currency": req.to_currency.upper(),
+        "amount": req.amount,
+        "exchange_rate": round(rate, 6),
+        "fee_percent": fee_pct * 100,
+        "fee_amount": round(fee, 4),
+        "gross_amount": round(converted, 4),
+        "net_amount": round(net_amount, 4),
+        "rate_valid_until": (datetime.utcnow() + timedelta(minutes=5)).isoformat(),
+    }
+
+@app.get("/api/v1/travel-risk/supported-currencies")
+async def list_supported_currencies():
+    return {
+        "currencies": [
+            {"code": k, "rate_to_usd": v, "type": "stablecoin" if k in ("USDC","USDT","DAI") else "fiat"}
+            for k, v in sorted(FX_RATES.items())
+        ],
+        "total": len(FX_RATES),
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")
