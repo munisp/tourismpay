@@ -38,6 +38,7 @@ import { groupBookingsRouter } from "./routes/group-bookings";
 import { healthRouter } from "./routes/health";
 import meteringRouter from "./routes/metering";
 import sandboxRouter from "./routes/sandbox";
+import { onboardingRouter } from "./routes/onboarding";
 import { config } from "./config";
 
 const app = express();
@@ -83,6 +84,7 @@ app.use("/api/v1/gds/revenue", revenueRouter);
 app.use("/api/v1/gds/groups", groupBookingsRouter);
 app.use("/api/v1/gds/metering", meteringRouter);
 app.use("/api/v1/gds/sandbox", sandboxRouter);
+app.use("/api/v1/gds/onboarding", onboardingRouter);
 
 // --- Error Handler ---
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

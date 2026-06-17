@@ -1,0 +1,12 @@
+{
+  "name": "Africa GDS — Global Distribution System",
+  "short_name": "Africa GDS",
+  "description": "Sabre/Amadeus-class booking platform for African tourism",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1120",
+  "theme_color": "#0ea5e9",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
