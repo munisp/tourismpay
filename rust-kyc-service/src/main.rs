@@ -15,6 +15,8 @@ mod models;
 mod permify;
 #[allow(dead_code)]
 mod verification;
+#[allow(dead_code)]
+mod nfc_payment;
 
 use actix_web::{web, App, HttpServer, middleware::Logger};
 use std::env;
@@ -67,6 +69,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/verify/nin", web::post().to(agent_kyc::verify_nin))
                     .route("/verify/bvn", web::post().to(agent_kyc::verify_bvn))
             )
+            .configure(nfc_payment::configure_nfc_routes)
     })
     .bind(("0.0.0.0", port))?
     .run();

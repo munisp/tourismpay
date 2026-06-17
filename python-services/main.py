@@ -61,6 +61,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ─── Ride-Hailing Integration ─────────────────────────────────────────────────
+from ride_hailing import router as ride_hailing_router
+app.include_router(ride_hailing_router)
+
 # ─── Health ───────────────────────────────────────────────────────────────────
 @app.get("/health")
 async def health():

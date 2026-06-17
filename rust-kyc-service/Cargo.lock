@@ -3503,6 +3503,7 @@ dependencies = [
  "actix-web",
  "base64 0.22.1",
  "chrono",
+ "hex",
  "hmac",
  "image",
  "reqwest",

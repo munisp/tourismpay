@@ -1071,8 +1071,33 @@ function BillPaymentDemo() {
     },
   };
 
+  const billPayMutation = trpc.localPayments.bill.pay.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`${data.provider_name ?? provider} payment of ₦${parseFloat(amount).toLocaleString()} completed!${data.token ? ` Token: ${data.token}` : ''}`);
+    },
+    onError: (err: any) => {
+      toast.error(err.message ?? 'Payment failed — try again');
+    },
+  });
+
   const handlePayment = () => {
-    toast.success(`Payment of ₦${parseFloat(amount).toLocaleString()} to ${provider} successful!`);
+    const providerMap: Record<string, string> = {
+      EKEDC: 'ekedc-prepaid', IKEDC: 'ikedc-prepaid', AEDC: 'aedc-prepaid',
+      IBEDC: 'ibedc-prepaid', PHED: 'phed-prepaid',
+      DStv: 'dstv-ng', GOtv: 'gotv-ng', Startimes: 'startimes-ng',
+      MTN: category === 'airtime' ? 'mtn-ng-airtime' : 'mtn-ng-data',
+      Airtel: category === 'airtime' ? 'airtel-ng-airtime' : 'airtel-ng-data',
+      Glo: category === 'airtime' ? 'glo-ng-airtime' : 'glo-ng-data',
+      '9mobile': '9mobile-ng-airtime',
+    };
+    const providerId = providerMap[provider] ?? provider.toLowerCase();
+    billPayMutation.mutate({
+      providerId,
+      accountNumber,
+      amount: parseFloat(amount),
+      currency: 'NGN',
+      phoneNumber: category === 'airtime' || category === 'data' ? accountNumber : undefined,
+    });
   };
 
   return (
