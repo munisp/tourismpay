@@ -40,6 +40,7 @@ func main() {
 	wireService := services.NewSWIFTWireService(cryptoService, cbdcBridge)
 	agentService := services.NewAgentBankingService()
 	ussdService := services.NewUSSDService()
+	bankPartnerService := services.NewBankPartnerService(cryptoService, cbdcBridge)
 
 	h := handlers.NewHandlers(ledgerService, mojaloopService, inventoryService, settlementService)
 	cryptoHandlers := handlers.NewCryptoHandlers(cryptoService)
@@ -49,6 +50,7 @@ func main() {
 	wireHandlers := handlers.NewWireHandlers(wireService)
 	agentHandlers := handlers.NewAgentHandlers(agentService)
 	ussdHandlers := handlers.NewUSSDHandlers(ussdService)
+	bankPartnerHandlers := handlers.NewBankPartnerHandlers(bankPartnerService)
 
 	router := gin.New()
 
@@ -227,6 +229,20 @@ func main() {
 			agent.GET("/orders/:order_id", agentHandlers.GetOrder)
 			agent.GET("/orders/tourist/:tourist_id", agentHandlers.ListOrders)
 			agent.POST("/orders/:order_id/refund", agentHandlers.RefundFloat)
+		}
+
+		// Bank Partner SWIFT (Direct Bank, CurrencyCloud, Banking Circle)
+		bankPartner := api.Group("/bank-partner")
+		{
+			bankPartner.GET("/providers", bankPartnerHandlers.ListProviders)
+			bankPartner.GET("/providers/:provider", bankPartnerHandlers.GetProvider)
+			bankPartner.POST("/quote", bankPartnerHandlers.GetQuote)
+			bankPartner.POST("/compare", bankPartnerHandlers.CompareProviders)
+			bankPartner.POST("/initiate", bankPartnerHandlers.InitiateTransfer)
+			bankPartner.POST("/:transfer_id/webhook", bankPartnerHandlers.WebhookFundsReceived)
+			bankPartner.POST("/:transfer_id/credit", bankPartnerHandlers.CreditWallet)
+			bankPartner.GET("/:transfer_id", bankPartnerHandlers.GetTransfer)
+			bankPartner.GET("/history/:user_id", bankPartnerHandlers.ListTransfers)
 		}
 
 		// USSD Menu Service

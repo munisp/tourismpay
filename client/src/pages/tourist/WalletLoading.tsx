@@ -48,13 +48,14 @@ import {
 
 // ─── Tab Types ──────────────────────────────────────────────────────────────
 
-type LoadingTab = "wire" | "agent" | "partner" | "ussd";
+type LoadingTab = "wire" | "agent" | "partner" | "ussd" | "bank_swift";
 
 const TABS: { id: LoadingTab; label: string; icon: React.ReactNode; description: string }[] = [
   { id: "wire", label: "Wire Transfer", icon: <Building2 className="w-4 h-4" />, description: "SWIFT, SEPA, ACH" },
   { id: "agent", label: "Cash at Kiosk", icon: <Banknote className="w-4 h-4" />, description: "Airport BDC" },
   { id: "partner", label: "Partner Apps", icon: <Globe className="w-4 h-4" />, description: "Wise, Revolut" },
   { id: "ussd", label: "USSD", icon: <Phone className="w-4 h-4" />, description: "Feature phone" },
+  { id: "bank_swift", label: "Bank SWIFT", icon: <Shield className="w-4 h-4" />, description: "Direct bank partner" },
 ];
 
 const SOURCE_CURRENCIES = ["USD", "EUR", "GBP", "CHF", "CAD", "AUD"];
@@ -109,6 +110,7 @@ export default function WalletLoading() {
       {activeTab === "agent" && <AgentBankingTab />}
       {activeTab === "partner" && <PartnerAppsTab />}
       {activeTab === "ussd" && <USSDTab />}
+      {activeTab === "bank_swift" && <BankSWIFTTab />}
     </div>
   );
 }
@@ -573,6 +575,189 @@ function USSDTab() {
           <div className="flex items-center gap-2 p-3 bg-amber-500/10 rounded-lg text-amber-700 text-xs">
             <Phone className="w-4 h-4 flex-shrink-0" />
             <span>USSD works on any phone (smartphone or feature phone), even without internet. Requires Nigerian SIM card. Shortcode pending NCC approval.</span>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. Bank SWIFT Tab — Direct Bank Partner (GTBank, Access Bank, CurrencyCloud, Banking Circle)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const BANK_PARTNERS = [
+  {
+    id: "gtbank", name: "GTBank (GTBINGLA)", description: "Nigerian SWIFT member — direct correspondent banking",
+    swift: "GTBINGLA", fee: "0.25% + $10", settle: "1-2 business days",
+    currencies: ["USD", "EUR", "GBP", "NGN"], countries: ["US", "GB", "DE", "FR", "NL", "CA", "AU", "AE"],
+    badge: "SWIFT Direct",
+  },
+  {
+    id: "access_bank", name: "Access Bank (ABORNGLA)", description: "Pan-African SWIFT member — 10 African country presence",
+    swift: "ABORNGLA", fee: "0.30% + $12", settle: "1-2 business days",
+    currencies: ["USD", "EUR", "GBP", "NGN", "KES", "GHS", "ZAR"], countries: ["US", "GB", "DE", "FR", "ZA", "KE", "GH", "TZ"],
+    badge: "Pan-African",
+  },
+  {
+    id: "currencycloud", name: "CurrencyCloud (Visa)", description: "API-first SWIFT member — 35+ currencies, same-day settlement",
+    swift: "CABORB22", fee: "0.15% + $5", settle: "Same-day (T+0) to T+1",
+    currencies: ["USD", "EUR", "GBP", "CHF", "CAD", "AUD", "NGN", "KES", "GHS", "ZAR"], countries: ["US", "GB", "DE", "FR", "NL", "CA", "AU", "SG", "JP"],
+    badge: "Fastest",
+  },
+  {
+    id: "banking_circle", name: "Banking Circle", description: "European SWIFT member — lowest fees, instant SEPA",
+    swift: "BKCHDKKK", fee: "0.10% + $3", settle: "Same-day (SEPA Instant) / T+1",
+    currencies: ["USD", "EUR", "GBP", "CHF", "DKK", "SEK", "NOK"], countries: ["US", "GB", "DE", "FR", "NL", "DK", "SE", "NO", "CH"],
+    badge: "Lowest Fee",
+  },
+];
+
+function BankSWIFTTab() {
+  const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
+  const [sourceCurrency, setSourceCurrency] = useState("USD");
+  const [targetCurrency, setTargetCurrency] = useState("USDC");
+  const [amount, setAmount] = useState("");
+
+  const partner = BANK_PARTNERS.find(p => p.id === selectedPartner);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+            <Shield className="w-5 h-5" />
+            Direct Bank SWIFT Transfer
+          </CardTitle>
+          <CardDescription className="text-xs sm:text-sm">
+            Send via SWIFT directly through a member bank — no aggregator intermediary. Each provider is a real SWIFT network participant with their own BIC code.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
+
+          {/* Provider Selection */}
+          <div className="space-y-2">
+            <Label className="text-xs sm:text-sm font-semibold">Select SWIFT Bank Partner</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {BANK_PARTNERS.map(bp => (
+                <button
+                  key={bp.id}
+                  onClick={() => setSelectedPartner(bp.id)}
+                  className={`text-left p-3 sm:p-4 rounded-lg border transition-all ${
+                    selectedPartner === bp.id
+                      ? "bg-primary/10 border-primary shadow-md"
+                      : "bg-card border-border hover:bg-accent"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-xs sm:text-sm">{bp.name}</span>
+                    <Badge variant="outline" className="text-[10px]">{bp.badge}</Badge>
+                  </div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground mb-2">{bp.description}</div>
+                  <div className="flex flex-wrap gap-1.5 text-[10px]">
+                    <span className="bg-muted px-1.5 py-0.5 rounded">BIC: {bp.swift}</span>
+                    <span className="bg-muted px-1.5 py-0.5 rounded">Fee: {bp.fee}</span>
+                    <span className="bg-muted px-1.5 py-0.5 rounded">{bp.settle}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Transfer Form — shown when provider selected */}
+          {partner && (
+            <div className="space-y-4 border-t pt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">You Send</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Amount"
+                      value={amount}
+                      onChange={e => setAmount(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Select value={sourceCurrency} onValueChange={setSourceCurrency}>
+                      <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {partner.currencies.filter(c => !["NGN","KES","GHS","ZAR","USDC"].includes(c)).map(c => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex items-end justify-center">
+                  <ArrowRight className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">You Receive</Label>
+                  <Select value={targetCurrency} onValueChange={setTargetCurrency}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {TARGET_CURRENCIES.map(c => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button
+                className="w-full gap-2"
+                disabled={!amount || Number(amount) <= 0}
+                onClick={() => toast.info(`Getting quote from ${partner.name}...`)}
+              >
+                <Building2 className="w-4 h-4" />
+                Get {partner.name.split(" ")[0]} SWIFT Quote
+              </Button>
+
+              {/* Virtual IBAN Preview */}
+              <Card className="bg-muted/50">
+                <CardContent className="p-3 sm:p-4 space-y-2">
+                  <div className="text-xs font-semibold flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-emerald-500" />
+                    Virtual Account Details (SWIFT Direct)
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">Bank: </span>
+                      <span className="font-mono font-medium">{partner.name.split("(")[0].trim()}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">BIC/SWIFT: </span>
+                      <span className="font-mono font-medium">{partner.swift}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Type: </span>
+                      <span className="font-medium">Virtual IBAN (dedicated per user)</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Settlement: </span>
+                      <span className="font-medium">{partner.settle}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-emerald-600 bg-emerald-500/10 rounded p-2">
+                    <CheckCircle className="w-3 h-3 flex-shrink-0" />
+                    <span>SWIFT member — your bank sends MT103 directly to {partner.swift}. No aggregator intermediary.</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Comparison info */}
+          <div className="text-xs text-muted-foreground space-y-1 p-3 bg-muted/30 rounded-lg">
+            <div className="font-semibold mb-1">How this differs from IMTO wire transfers:</div>
+            <div className="flex items-start gap-1.5">
+              <ArrowRight className="w-3 h-3 mt-0.5 flex-shrink-0" />
+              <span><strong>IMTO (Flutterwave):</strong> Your bank → SWIFT → Flutterwave&apos;s correspondent bank → Flutterwave → TourismPay (2 hops)</span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <ArrowRight className="w-3 h-3 mt-0.5 flex-shrink-0" />
+              <span><strong>Direct Bank Partner:</strong> Your bank → SWIFT → GTBank/Access/CurrencyCloud/Banking Circle → TourismPay (1 hop, lower fee)</span>
+            </div>
           </div>
         </CardContent>
       </Card>

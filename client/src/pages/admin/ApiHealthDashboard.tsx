@@ -141,6 +141,41 @@ function generateEndpoints(): ServiceEndpoint[] {
       status: "healthy", latencyMs: 8, lastChecked: now, uptimePercent: 100,
       errorRate: 0, circuitBreaker: "closed", checksLast24h: 8640, failuresLast24h: 0,
     },
+    {
+      id: "gtbank-swift", name: "Virtual IBAN / SWIFT", provider: "GTBank",
+      category: "payment", icon: <Globe className="w-4 h-4" />,
+      url: "https://api.gtbank.com/v1/virtual-iban", method: "POST",
+      status: "healthy", latencyMs: 320, lastChecked: now, uptimePercent: 99.85,
+      errorRate: 0.15, circuitBreaker: "closed", checksLast24h: 1440, failuresLast24h: 2,
+    },
+    {
+      id: "currencycloud-convert", name: "Conversion API", provider: "CurrencyCloud",
+      category: "payment", icon: <Globe className="w-4 h-4" />,
+      url: "https://devapi.currencycloud.com/v2/conversions/create", method: "POST",
+      status: "healthy", latencyMs: 178, lastChecked: now, uptimePercent: 99.97,
+      errorRate: 0.03, circuitBreaker: "closed", checksLast24h: 1440, failuresLast24h: 0,
+    },
+    {
+      id: "currencycloud-payments", name: "Virtual Accounts", provider: "CurrencyCloud",
+      category: "payment", icon: <Globe className="w-4 h-4" />,
+      url: "https://devapi.currencycloud.com/v2/virtual_accounts", method: "GET",
+      status: "healthy", latencyMs: 145, lastChecked: now, uptimePercent: 99.99,
+      errorRate: 0.01, circuitBreaker: "closed", checksLast24h: 1440, failuresLast24h: 0,
+    },
+    {
+      id: "banking-circle-payments", name: "SEPA/SWIFT Payments", provider: "Banking Circle",
+      category: "payment", icon: <Globe className="w-4 h-4" />,
+      url: "https://sandbox.bankingcircle.com/api/v1/payments", method: "POST",
+      status: "healthy", latencyMs: 210, lastChecked: now, uptimePercent: 99.92,
+      errorRate: 0.08, circuitBreaker: "closed", checksLast24h: 1440, failuresLast24h: 1,
+    },
+    {
+      id: "go-bank-partner", name: "Bank Partner Service", provider: "Internal (Go)",
+      category: "settlement", icon: <Server className="w-4 h-4" />,
+      url: "http://localhost:8081/api/v1/bank-partner/providers", method: "GET",
+      status: "healthy", latencyMs: 5, lastChecked: now, uptimePercent: 100,
+      errorRate: 0, circuitBreaker: "closed", checksLast24h: 8640, failuresLast24h: 0,
+    },
   ];
 }
 

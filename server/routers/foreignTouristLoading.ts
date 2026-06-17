@@ -533,6 +533,158 @@ const ussdRouter = router({
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 5. Bank Partner SWIFT (Direct Bank, CurrencyCloud, Banking Circle)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const BANK_PARTNERS = ["gtbank", "access_bank", "currencycloud", "banking_circle"] as const;
+
+const bankPartnerRouter = router({
+  // List all bank partner providers (GTBank, Access Bank, CurrencyCloud, Banking Circle)
+  listProviders: protectedProcedure
+    .query(async () => {
+      return callGoService("/api/v1/bank-partner/providers");
+    }),
+
+  // Get specific provider details
+  getProvider: protectedProcedure
+    .input(z.object({ provider: z.enum(BANK_PARTNERS) }))
+    .query(async ({ input }) => {
+      return callGoService(`/api/v1/bank-partner/providers/${input.provider}`);
+    }),
+
+  // Get a quote from a specific bank partner (includes virtual IBAN)
+  getQuote: protectedProcedure
+    .input(z.object({
+      provider: z.enum(BANK_PARTNERS),
+      sourceCurrency: z.string(),
+      targetCurrency: z.string(),
+      amount: z.number().positive(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return callGoService("/api/v1/bank-partner/quote", "POST", {
+        provider: input.provider,
+        source_currency: input.sourceCurrency,
+        target_currency: input.targetCurrency,
+        amount: input.amount,
+        user_id: String(ctx.user.id),
+      });
+    }),
+
+  // Compare quotes across all bank partners for the same transfer
+  compareProviders: protectedProcedure
+    .input(z.object({
+      sourceCurrency: z.string(),
+      targetCurrency: z.string(),
+      amount: z.number().positive(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return callGoService("/api/v1/bank-partner/compare", "POST", {
+        source_currency: input.sourceCurrency,
+        target_currency: input.targetCurrency,
+        amount: input.amount,
+        user_id: String(ctx.user.id),
+      });
+    }),
+
+  // Initiate a transfer via bank partner (tourist sends SWIFT wire to virtual IBAN)
+  initiate: protectedProcedure
+    .input(z.object({
+      quote: z.any(),
+      senderName: z.string().min(1),
+      travelRule: z.object({
+        originatorName: z.string(),
+        originatorAccount: z.string(),
+        originatorAddress: z.string().optional(),
+        originatorCountry: z.string(),
+        beneficiaryName: z.string(),
+        beneficiaryAccount: z.string(),
+        purpose: z.string(),
+      }).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await callGoService("/api/v1/bank-partner/initiate", "POST", {
+        user_id: String(ctx.user.id),
+        quote: input.quote,
+        sender_name: input.senderName,
+        travel_rule: input.travelRule ? {
+          originator_name: input.travelRule.originatorName,
+          originator_account: input.travelRule.originatorAccount,
+          originator_address: input.travelRule.originatorAddress,
+          originator_country: input.travelRule.originatorCountry,
+          beneficiary_name: input.travelRule.beneficiaryName,
+          beneficiary_account: input.travelRule.beneficiaryAccount,
+          purpose: input.travelRule.purpose,
+        } : undefined,
+      });
+
+      await createAuditLog({
+        actorId: ctx.user.id,
+        action: "bank_partner.transfer.initiated",
+        entityType: "bank_partner_transfer",
+        entityId: result.id,
+        after: { provider: input.quote.provider, sourceCurrency: input.quote.source_currency, amount: input.quote.source_amount },
+      });
+
+      return result;
+    }),
+
+  // Get transfer status
+  getTransfer: protectedProcedure
+    .input(z.object({ transferId: z.string() }))
+    .query(async ({ input }) => {
+      return callGoService(`/api/v1/bank-partner/${input.transferId}`);
+    }),
+
+  // List transfer history
+  history: protectedProcedure
+    .query(async ({ ctx }) => {
+      return callGoService(`/api/v1/bank-partner/history/${ctx.user.id}`);
+    }),
+
+  // Webhook: Bank partner confirms SWIFT funds received (admin/system)
+  webhookFundsReceived: adminProcedure
+    .input(z.object({
+      transferId: z.string(),
+      swiftRef: z.string(),
+      amount: z.number().positive(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const transfer = await callGoService(`/api/v1/bank-partner/${input.transferId}/webhook`, "POST", {
+        swift_ref: input.swiftRef,
+        amount: input.amount,
+      });
+
+      // Credit tourist's wallet
+      const credited = await callGoService(`/api/v1/bank-partner/${input.transferId}/credit`, "POST");
+
+      await creditWallet(
+        credited.user_id,
+        credited.target_currency,
+        credited.target_amount,
+        `bank_partner_${credited.provider}`,
+        credited.id
+      );
+
+      await createAuditLog({
+        actorId: ctx.user.id,
+        action: "bank_partner.funds.credited",
+        entityType: "bank_partner_transfer",
+        entityId: input.transferId,
+        after: { swiftRef: input.swiftRef, amount: input.amount, provider: credited.provider },
+      });
+
+      await createUserNotification({
+        userId: credited.user_id,
+        category: "wallet",
+        title: "SWIFT Funds Received",
+        content: `Your ${credited.source_currency} ${credited.source_amount} wire via ${credited.provider} has been credited as ${credited.target_currency} ${credited.target_amount.toFixed(2)} to your wallet.`,
+      });
+
+      return credited;
+    }),
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Combined Router
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -541,4 +693,5 @@ export const foreignTouristLoadingRouter = router({
   agent: agentBankingRouter,
   partner: partnerRemittanceRouter,
   ussd: ussdRouter,
+  bankPartner: bankPartnerRouter,
 });
