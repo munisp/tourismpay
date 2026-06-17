@@ -60,6 +60,7 @@ const navItems: NavItem[] = [
   { label: "Stablecoin Swap", icon: ArrowDownUp, href: "/wallet/stablecoin", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Load Wallet", icon: Banknote, href: "/wallet/loading", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Local Payments", icon: ShoppingBag, href: "/wallet/local-payments", section: "tourist", roles: ["tourist", "admin"] },
+  { label: "Pre-Travel Readiness", icon: Shield, href: "/wallet/pre-travel", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Loyalty & Rewards", icon: Award, href: "/loyalty", section: "tourist", roles: ["tourist", "admin"] },
   { label: "AI Co-Pilot", icon: MessageSquareText, href: "/copilot", section: "tourist", roles: ["tourist", "admin"] },
   { label: "AR Tourism", icon: Scan, href: "/ar", section: "tourist", roles: ["tourist", "admin"] },
