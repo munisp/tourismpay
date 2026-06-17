@@ -128,6 +128,7 @@ function WireTransferTab() {
   const [showQuote, setShowQuote] = useState(false);
   const [quote, setQuote] = useState<Record<string, unknown> | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [wireOrder, setWireOrder] = useState<Record<string, unknown> | null>(null);
 
   const getQuote = trpc.foreignTouristLoading.wire.getQuote.useMutation({
     onSuccess: (data: Record<string, unknown>) => {
@@ -138,7 +139,8 @@ function WireTransferTab() {
   });
 
   const initiateWire = trpc.foreignTouristLoading.wire.initiate.useMutation({
-    onSuccess: () => {
+    onSuccess: (data: Record<string, unknown>) => {
+      setWireOrder(data);
       setShowQuote(false);
       setShowInstructions(true);
       toast.success("Wire transfer initiated! Follow the instructions to complete payment.");
@@ -277,22 +279,42 @@ function WireTransferTab() {
           </DialogHeader>
           <div className="space-y-3 text-sm">
             <p>Send your wire transfer using the details below. Your wallet will be credited automatically once we receive the funds.</p>
-            <Card className="bg-muted/50">
-              <CardContent className="p-3 space-y-2 text-xs font-mono">
-                <div className="flex justify-between"><span className="text-muted-foreground">Bank</span><span>Flutterwave International</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Account</span><span>TourismPay Ltd</span></div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Reference</span>
-                  <button className="flex items-center gap-1 hover:text-primary" onClick={() => { navigator.clipboard.writeText("TPWIRE-REF"); toast.success("Copied!"); }}>
-                    <span>TPWIRE-REF</span><Copy className="w-3 h-3" />
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
+            {quote && (() => {
+              const ci = (quote as Record<string, unknown>).collection_instructions as Record<string, string> | undefined;
+              const rail = (quote as Record<string, unknown>).rail as string;
+              const ref = ci?.reference || wireOrder?.collection_ref as string || "";
+              return (
+                <Card className="bg-muted/50">
+                  <CardContent className="p-3 space-y-2 text-xs font-mono">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Bank</span><span>{ci?.bank_name || "Flutterwave International"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Account Name</span><span>{ci?.account_name || "TourismPay Ltd"}</span></div>
+                    {ci?.iban && <div className="flex justify-between"><span className="text-muted-foreground">IBAN</span><span>{ci.iban}</span></div>}
+                    {ci?.bic && <div className="flex justify-between"><span className="text-muted-foreground">BIC/SWIFT</span><span>{ci.bic}</span></div>}
+                    {ci?.account_number && <div className="flex justify-between"><span className="text-muted-foreground">Account #</span><span>{ci.account_number}</span></div>}
+                    {ci?.routing_number && <div className="flex justify-between"><span className="text-muted-foreground">Routing #</span><span>{ci.routing_number}</span></div>}
+                    {ci?.sort_code && <div className="flex justify-between"><span className="text-muted-foreground">Sort Code</span><span>{ci.sort_code}</span></div>}
+                    <div className="flex justify-between"><span className="text-muted-foreground">Rail</span><Badge variant="outline">{rail}</Badge></div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Reference</span>
+                      <button className="flex items-center gap-1 hover:text-primary" onClick={() => { navigator.clipboard.writeText(ref); toast.success("Copied!"); }}>
+                        <span>{ref}</span><Copy className="w-3 h-3" />
+                      </button>
+                    </div>
+                    {wireOrder?.id ? <div className="flex justify-between"><span className="text-muted-foreground">Order ID</span><span>{String(wireOrder.id)}</span></div> : null}
+                  </CardContent>
+                </Card>
+              );
+            })()}
             <div className="flex items-center gap-2 p-3 bg-amber-500/10 rounded-lg text-amber-700 text-xs">
               <Clock className="w-4 h-4 flex-shrink-0" />
               <span>Wire expires in 72 hours. Include the reference exactly as shown.</span>
             </div>
+            {senderCountry === "US" && (
+              <div className="flex items-center gap-2 p-3 bg-blue-500/10 rounded-lg text-blue-700 text-xs">
+                <Building2 className="w-4 h-4 flex-shrink-0" />
+                <span>Log into your Bank of America (or any US bank) app → Transfer → Wire/ACH → Enter the routing number and account number above → Use the reference as memo.</span>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button onClick={() => setShowInstructions(false)}>Done</Button>
@@ -312,6 +334,15 @@ function AgentBankingTab() {
   const [cashCurrency, setCashCurrency] = useState("USD");
   const [walletCurrency, setWalletCurrency] = useState("USDC");
   const [cashAmount, setCashAmount] = useState("");
+  const [showQR, setShowQR] = useState(false);
+
+  const agentQuote = trpc.foreignTouristLoading.agent.getQuote.useMutation({
+    onSuccess: () => {
+      setShowQR(true);
+      toast.success("QR code generated! Show this to the kiosk agent.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   const agents = [
     { id: "AGT-MMIA-001", name: "TourismPay Kiosk — MMIA Terminal 1", location: "Lagos Airport", currencies: ["USD", "EUR", "GBP", "NGN"] },
@@ -403,10 +434,32 @@ function AgentBankingTab() {
                 <span>Your passport number is hashed (SHA-256) and never stored in plaintext. KYC verification powered by Smile Identity.</span>
               </div>
 
-              <Button className="w-full" disabled={!cashAmount}>
-                <QrCode className="w-4 h-4 mr-2" />
-                Show QR Code to Agent
+              <Button
+                className="w-full"
+                disabled={!cashAmount || agentQuote.isPending}
+                onClick={() => selectedAgent && agentQuote.mutate({
+                  agentId: selectedAgent,
+                  cashCurrency: cashCurrency as "USD" | "EUR" | "GBP" | "NGN" | "KES" | "GHS" | "ZAR",
+                  walletCurrency: walletCurrency as "USDC" | "USDT" | "DAI" | "NGN" | "KES" | "GHS" | "ZAR" | "USD",
+                  cashAmount: parseFloat(cashAmount) || 0,
+                })}
+              >
+                {agentQuote.isPending ? "Generating..." : (
+                  <><QrCode className="w-4 h-4 mr-2" />Show QR Code to Agent</>
+                )}
               </Button>
+
+              {showQR && (
+                <Card className="bg-muted/50 text-center">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="w-32 h-32 mx-auto bg-white rounded-lg flex items-center justify-center border-2 border-dashed border-muted-foreground/30">
+                      <QrCode className="w-16 h-16 text-primary" />
+                    </div>
+                    <div className="text-xs font-medium">Show this to the kiosk agent</div>
+                    <div className="text-[10px] text-muted-foreground">Agent scans your QR \u2192 verifies passport \u2192 accepts cash \u2192 wallet credited instantly</div>
+                  </CardContent>
+                </Card>
+              )}
             </>
           )}
         </CardContent>
@@ -424,9 +477,18 @@ function PartnerAppsTab() {
   const [sourceCurrency, setSourceCurrency] = useState("USD");
   const [targetCurrency, setTargetCurrency] = useState("USDC");
   const [amount, setAmount] = useState("");
+  const [partnerQuote, setPartnerQuote] = useState<Record<string, unknown> | null>(null);
+
+  const getPartnerQuote = trpc.foreignTouristLoading.partner.getQuote.useMutation({
+    onSuccess: (data: Record<string, unknown>) => {
+      setPartnerQuote(data);
+      toast.success("Quote received!");
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   const partners = [
-    { id: "wise", name: "Wise", logo: "💚", fee: "0.5% + $1.50", time: "1-2 hours", desc: "Best for EUR/GBP" },
+    { id: "wise", name: "Wise", logo: "💚", fee: "0.5% + $1.50", time: "1-2 hours", desc: "Best for USD/EUR/GBP" },
     { id: "revolut", name: "Revolut", logo: "💙", fee: "0.3%", time: "~30 min", desc: "Best for EU residents" },
     { id: "remitly", name: "Remitly", logo: "🟢", fee: "1% + $3.99", time: "15 min - 5 days", desc: "US/UK → Africa" },
     { id: "lemfi", name: "LemFi", logo: "🟡", fee: "Free", time: "~5 min", desc: "Diaspora favorite" },
@@ -498,13 +560,40 @@ function PartnerAppsTab() {
                 </div>
               </div>
 
-              <Button className="w-full" disabled={!amount}>
-                <Send className="w-4 h-4 mr-2" />
-                Get {partners.find((p) => p.id === selectedPartner)?.name} Quote
+              <Button
+                className="w-full"
+                disabled={!amount || getPartnerQuote.isPending}
+                onClick={() => selectedPartner && getPartnerQuote.mutate({
+                  partner: selectedPartner as "wise" | "revolut" | "remitly" | "lemfi",
+                  sourceCurrency,
+                  targetCurrency,
+                  sourceAmount: parseFloat(amount) || 0,
+                  senderCountry: "US",
+                })}
+              >
+                {getPartnerQuote.isPending ? "Getting quote..." : (
+                  <><Send className="w-4 h-4 mr-2" />Get {partners.find((p) => p.id === selectedPartner)?.name} Quote</>
+                )}
               </Button>
 
+              {partnerQuote && (
+                <Card className="bg-muted/50">
+                  <CardContent className="p-3 space-y-2 text-xs">
+                    <div className="font-semibold text-sm mb-2">Quote from {partners.find(p => p.id === selectedPartner)?.name}</div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">You Send</span><span className="font-mono">{(partnerQuote as Record<string, unknown>).source_amount as number} {sourceCurrency}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">You Receive</span><span className="font-mono font-bold">{((partnerQuote as Record<string, unknown>).target_amount as number)?.toFixed?.(2)} {targetCurrency}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Fee</span><span className="font-mono">${((partnerQuote as Record<string, unknown>).fee as number)?.toFixed?.(2)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Rate</span><span className="font-mono">{((partnerQuote as Record<string, unknown>).exchange_rate as number)?.toFixed?.(6)}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Est. Time</span><span>{(partnerQuote as Record<string, unknown>).estimated_time as string}</span></div>
+                    <Button className="w-full mt-2" size="sm">
+                      Continue to {partners.find(p => p.id === selectedPartner)?.name}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
               <div className="text-xs text-muted-foreground text-center">
-                You'll be redirected to {partners.find((p) => p.id === selectedPartner)?.name} to complete payment.
+                You&apos;ll be redirected to {partners.find((p) => p.id === selectedPartner)?.name} to complete payment.
                 Your wallet is credited automatically when funds arrive.
               </div>
             </>
