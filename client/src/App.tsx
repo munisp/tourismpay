@@ -114,6 +114,7 @@ import EmailPreview from "@/pages/admin/EmailPreview";
 import SettlementConsole from "@/pages/settlement/SettlementConsole";
 import StablecoinSwap from "@/pages/tier2/StablecoinSwap";
 import LiquidityProvider from "@/pages/tier2/LiquidityProvider";
+import WalletLoading from "@/pages/tourist/WalletLoading";
 import PaymentReceipt from "@/pages/tourist/PaymentReceipt";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { OfflinePaymentBanner } from "@/components/OfflinePaymentBanner";
@@ -145,6 +146,7 @@ function Router() {
             <Route path="/wallet" component={DigitalWallet} />
             <Route path="/wallet/stablecoin" component={StablecoinSwap} />
             <Route path="/wallet/liquidity" component={LiquidityProvider} />
+            <Route path="/wallet/loading" component={WalletLoading} />
             <Route path="/finance" component={EmbeddedFinance} />
             <Route path="/loyalty" component={LoyaltyRewards} />
             {/* Tier 3 — Visionary */}

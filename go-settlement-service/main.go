@@ -37,12 +37,18 @@ func main() {
 	nfcService := services.NewOfflineNFCService()
 	cbdcBridge := services.NewCBDCBridge()
 	rampService := services.NewOnrampOfframpService(cryptoService, cbdcBridge)
+	wireService := services.NewSWIFTWireService(cryptoService, cbdcBridge)
+	agentService := services.NewAgentBankingService()
+	ussdService := services.NewUSSDService()
 
 	h := handlers.NewHandlers(ledgerService, mojaloopService, inventoryService, settlementService)
 	cryptoHandlers := handlers.NewCryptoHandlers(cryptoService)
 	nfcHandlers := services.NewNFCHandlers(nfcService)
 	cbdcHandlers := services.NewCBDCHandlers(cbdcBridge)
 	rampHandlers := handlers.NewRampHandlers(rampService)
+	wireHandlers := handlers.NewWireHandlers(wireService)
+	agentHandlers := handlers.NewAgentHandlers(agentService)
+	ussdHandlers := handlers.NewUSSDHandlers(ussdService)
 
 	router := gin.New()
 
@@ -198,6 +204,36 @@ func main() {
 			ramp.GET("/offramp/history/:user_id", rampHandlers.OfframpHistory)
 			ramp.GET("/best-rail", rampHandlers.BestRail)
 			ramp.GET("/status", rampHandlers.GetStatus)
+		}
+
+		// SWIFT / SEPA / ACH Wire Transfer
+		wire := api.Group("/wire")
+		{
+			wire.POST("/quote", wireHandlers.GetQuote)
+			wire.POST("/initiate", wireHandlers.InitiateTransfer)
+			wire.POST("/:order_id/settle", wireHandlers.ConfirmSettlement)
+			wire.POST("/:order_id/credit", wireHandlers.CreditWallet)
+			wire.GET("/:order_id", wireHandlers.GetOrder)
+			wire.GET("/history/:user_id", wireHandlers.ListOrders)
+		}
+
+		// Agent Banking / Airport Kiosk
+		agent := api.Group("/agent")
+		{
+			agent.GET("/agents", agentHandlers.ListAgents)
+			agent.GET("/agents/:agent_id", agentHandlers.GetAgent)
+			agent.POST("/quote", agentHandlers.GetQuote)
+			agent.POST("/load", agentHandlers.ExecuteLoad)
+			agent.GET("/orders/:order_id", agentHandlers.GetOrder)
+			agent.GET("/orders/tourist/:tourist_id", agentHandlers.ListOrders)
+			agent.POST("/orders/:order_id/refund", agentHandlers.RefundFloat)
+		}
+
+		// USSD Menu Service
+		ussd := api.Group("/ussd")
+		{
+			ussd.POST("/callback", ussdHandlers.ProcessUSSD)
+			ussd.POST("/callback/form", ussdHandlers.ProcessUSSDForm)
 		}
 	}
 

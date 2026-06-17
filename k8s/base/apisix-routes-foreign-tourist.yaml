@@ -1,0 +1,187 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# APISIX Routes — Foreign Tourist Wallet Loading
+#
+# Routes for SWIFT wire transfer webhooks, agent banking, partner remittance
+# webhooks (Wise, Revolut, Remitly, LemFi), and USSD telco callbacks.
+#
+# Security: OpenAppSec WAF, rate limiting, API key validation for webhooks,
+#           IP whitelisting for telco USSD callbacks.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# 1. SWIFT/IMTO Partner Settlement Webhook
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: wire-settlement-webhook
+  namespace: tourismpay
+spec:
+  http:
+    - name: wire-settlement-webhook
+      match:
+        hosts: ["api.tourismpay.com"]
+        paths: ["/webhooks/wire/settlement"]
+      backends:
+        - serviceName: tourismpay-server
+          servicePort: 5000
+      plugins:
+        - name: api-key
+          enable: true
+          config:
+            header: X-Wire-Webhook-Key
+        - name: limit-count
+          enable: true
+          config:
+            count: 100
+            time_window: 60
+            rejected_code: 429
+            key_type: "var"
+            key: "remote_addr"
+        - name: openappsec
+          enable: true
+          config:
+            mode: "prevent"
+
+---
+# 2. Partner Remittance Webhooks (Wise, Revolut, Remitly, LemFi)
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: partner-remittance-webhook
+  namespace: tourismpay
+spec:
+  http:
+    - name: wise-webhook
+      match:
+        hosts: ["api.tourismpay.com"]
+        paths: ["/webhooks/partner/wise"]
+      backends:
+        - serviceName: tourismpay-partner-remittance
+          servicePort: 8085
+      plugins:
+        - name: api-key
+          enable: true
+          config:
+            header: X-Wise-Signature
+        - name: limit-count
+          enable: true
+          config:
+            count: 200
+            time_window: 60
+        - name: openappsec
+          enable: true
+    - name: revolut-webhook
+      match:
+        hosts: ["api.tourismpay.com"]
+        paths: ["/webhooks/partner/revolut"]
+      backends:
+        - serviceName: tourismpay-partner-remittance
+          servicePort: 8085
+      plugins:
+        - name: api-key
+          enable: true
+          config:
+            header: X-Revolut-Signature
+        - name: limit-count
+          enable: true
+          config:
+            count: 200
+            time_window: 60
+    - name: remitly-webhook
+      match:
+        hosts: ["api.tourismpay.com"]
+        paths: ["/webhooks/partner/remitly"]
+      backends:
+        - serviceName: tourismpay-partner-remittance
+          servicePort: 8085
+      plugins:
+        - name: api-key
+          enable: true
+          config:
+            header: X-Remitly-Signature
+    - name: lemfi-webhook
+      match:
+        hosts: ["api.tourismpay.com"]
+        paths: ["/webhooks/partner/lemfi"]
+      backends:
+        - serviceName: tourismpay-partner-remittance
+          servicePort: 8085
+      plugins:
+        - name: api-key
+          enable: true
+          config:
+            header: X-LemFi-Signature
+
+---
+# 3. USSD Telco Callback (Africa's Talking / Twilio)
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: ussd-callback
+  namespace: tourismpay
+spec:
+  http:
+    - name: ussd-africas-talking
+      match:
+        hosts: ["api.tourismpay.com"]
+        paths: ["/webhooks/ussd/at"]
+      backends:
+        - serviceName: tourismpay-settlement
+          servicePort: 8081
+      plugins:
+        - name: ip-restriction
+          enable: true
+          config:
+            whitelist:
+              - "54.87.68.148/32"    # Africa's Talking IP range
+              - "54.173.33.231/32"
+              - "52.206.38.199/32"
+        - name: limit-count
+          enable: true
+          config:
+            count: 1000
+            time_window: 60
+            key_type: "var"
+            key: "remote_addr"
+    - name: ussd-twilio
+      match:
+        hosts: ["api.tourismpay.com"]
+        paths: ["/webhooks/ussd/twilio"]
+      backends:
+        - serviceName: tourismpay-settlement
+          servicePort: 8081
+      plugins:
+        - name: api-key
+          enable: true
+          config:
+            header: X-Twilio-Signature
+
+---
+# 4. Agent Banking API (rate limited per agent)
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: agent-banking-api
+  namespace: tourismpay
+spec:
+  http:
+    - name: agent-api
+      match:
+        hosts: ["api.tourismpay.com"]
+        paths: ["/api/v1/agent/*"]
+      backends:
+        - serviceName: tourismpay-settlement
+          servicePort: 8081
+      plugins:
+        - name: limit-count
+          enable: true
+          config:
+            count: 60
+            time_window: 60
+            rejected_code: 429
+            key_type: "var"
+            key: "consumer_name"
+        - name: openappsec
+          enable: true
+          config:
+            mode: "prevent"

@@ -1,4 +1,6 @@
 #[allow(dead_code)]
+mod agent_kyc;
+#[allow(dead_code)]
 mod auth;
 #[allow(dead_code)]
 mod biometric_pay;
@@ -58,6 +60,12 @@ async fn main() -> std::io::Result<()> {
                     .route("/admin/review", web::post().to(handlers::admin_review))
                     .route("/sanctions/screen", web::post().to(handlers::sanctions_screening))
                     .route("/risk/score/{user_id}", web::get().to(handlers::get_risk_score))
+            )
+            .service(
+                web::scope("/api/v1/agent-kyc")
+                    .route("/verify", web::post().to(agent_kyc::verify_agent_kyc))
+                    .route("/verify/nin", web::post().to(agent_kyc::verify_nin))
+                    .route("/verify/bvn", web::post().to(agent_kyc::verify_bvn))
             )
     })
     .bind(("0.0.0.0", port))?

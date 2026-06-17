@@ -62,6 +62,7 @@ import { gdsPortalRouter } from "./routers/gdsPortal";
 import { stablecoinSwapRouter } from "./routers/stablecoinSwap";
 import { liquidityProviderRouter } from "./routers/liquidityProvider";
 import { smartContractRouter } from "./routers/smartContract";
+import { foreignTouristLoadingRouter } from "./routers/foreignTouristLoading";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -188,6 +189,7 @@ export const appRouter = router({
   stablecoinSwap: stablecoinSwapRouter,
   liquidityProvider: liquidityProviderRouter,
   smartContract: smartContractRouter,
+  foreignTouristLoading: foreignTouristLoadingRouter,
 });
 
 export type AppRouter = typeof appRouter;

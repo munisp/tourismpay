@@ -57,6 +57,7 @@ jobs:
       - run: python -m py_compile pdf-report-generator/main.py
       - run: python -m py_compile compliance-risk-engine/main.py
       - run: python -m py_compile exchange-rate-ml/main.py
+      - run: python -m py_compile partner-remittance/main.py
 
   rust:
     name: Rust (check)
