@@ -6,20 +6,7 @@
  */
 import { useState, useEffect, useCallback } from "react";
 
-const API = {
-  pnr: "http://localhost:8082/api/v1",
-  queue: "http://localhost:8083/api/v1",
-  guest: "http://localhost:8084/api/v1",
-  content: "http://localhost:8085/api/v1",
-  revenue: "http://localhost:8086/api/v1",
-  group: "http://localhost:8087/api/v1",
-  gateway: "http://localhost:8090",
-  commission: "http://localhost:8110/api/v1",
-  discount: "http://localhost:8111/api/v1",
-  cancellation: "http://localhost:8112/api/v1",
-  negotiated: "http://localhost:8113/api/v1",
-  settlement: "http://localhost:8114/api/v1",
-};
+const GW = "http://localhost:8090/api/v1/gds";
 
 type User = { email: string; name: string; role: string; token: string };
 type View = "dashboard" | "pnr" | "queues" | "guests" | "content" | "revenue" | "groups" | "search" | "commission" | "discounts" | "cancellation" | "rates" | "settlement";
@@ -199,7 +186,7 @@ function PNRView() {
 
   const fetchPnrs = useCallback(async () => {
     try {
-      const res = await fetch(`${API.pnr}/pnr`);
+      const res = await fetch(`${GW}/pnr`);
       if (res.ok) { const data = await res.json(); setPnrs(data.pnrs || []); }
     } catch { /* service offline */ }
   }, []);
@@ -209,7 +196,7 @@ function PNRView() {
   const createPnr = async () => {
     setCreating(true);
     try {
-      const res = await fetch(`${API.pnr}/pnr`, {
+      const res = await fetch(`${GW}/pnr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ guest_name: "John Traveler", contact_email: "john@example.com", agency_id: "AGY001", agent_id: "AGT001" }),
@@ -278,7 +265,7 @@ function QueueView() {
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
-    fetch(`${API.queue}/queues/stats`).then(r => r.json()).then(setStats).catch(() => {});
+    fetch(`${GW}/queues/stats`).then(r => r.json()).then(setStats).catch(() => {});
   }, []);
 
   const queueTypes = [
@@ -333,7 +320,7 @@ function GuestView() {
   const [guests, setGuests] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch(`${API.guest}/guests/search?q=&limit=10`).then(r => r.json()).then(d => setGuests(d.guests || [])).catch(() => {});
+    fetch(`${GW}/guests/search?q=&limit=10`).then(r => r.json()).then(d => setGuests(d.guests || [])).catch(() => {});
   }, []);
 
   return (
@@ -394,7 +381,7 @@ function ContentView() {
   const [languages, setLanguages] = useState<string[]>([]);
 
   useEffect(() => {
-    fetch(`${API.content}/content/languages`).then(r => r.json()).then(d => setLanguages(d.languages || [])).catch(() => {});
+    fetch(`${GW}/content/languages`).then(r => r.json()).then(d => setLanguages(d.languages || [])).catch(() => {});
   }, []);
 
   return (
@@ -639,12 +626,12 @@ function CommissionView() {
   const [splitResult, setSplitResult] = useState<any>(null);
 
   useEffect(() => {
-    fetch(`${API.commission}/commission/rate-card`).then(r => r.json()).then(setRateCard).catch(() => {});
+    fetch(`${GW}/commission/rate-card`).then(r => r.json()).then(setRateCard).catch(() => {});
   }, []);
 
   const simulateSplit = async () => {
     try {
-      const res = await fetch(`${API.commission}/commission/split`, {
+      const res = await fetch(`${GW}/commission/split`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -738,12 +725,12 @@ function DiscountsView() {
   const [code, setCode] = useState("WELCOME15");
 
   useEffect(() => {
-    fetch(`${API.discount}/promos`).then(r => r.json()).then(d => setPromos(d.promotions || [])).catch(() => {});
+    fetch(`${GW}/discount/promos`).then(r => r.json()).then(d => setPromos(d.promotions || [])).catch(() => {});
   }, []);
 
   const validateCode = async () => {
     try {
-      const res = await fetch(`${API.discount}/promos/validate?code=${code}&booking_amount=500&nights=3&country=KE&is_new_user=true`);
+      const res = await fetch(`${GW}/discount/validate?code=${code}&booking_amount=500&nights=3&country=KE&is_new_user=true`);
       if (res.ok) setValidateResult(await res.json());
     } catch { /* */ }
   };
@@ -813,14 +800,14 @@ function CancellationView() {
   const [feeResult, setFeeResult] = useState<any>(null);
 
   useEffect(() => {
-    fetch(`${API.cancellation}/cancellation/policies`).then(r => r.json()).then(d => setPolicies(d.policies || [])).catch(() => {});
-    fetch(`${API.cancellation}/cancellation/presets`).then(r => r.json()).then(setPresets).catch(() => {});
+    fetch(`${GW}/cancellation/policies`).then(r => r.json()).then(d => setPolicies(d.policies || [])).catch(() => {});
+    fetch(`${GW}/cancellation/presets`).then(r => r.json()).then(setPresets).catch(() => {});
   }, []);
 
   const simulateCancellation = async () => {
     const tomorrow = new Date(Date.now() + 5 * 86400000).toISOString().split("T")[0];
     try {
-      const res = await fetch(`${API.cancellation}/cancellation/calculate`, {
+      const res = await fetch(`${GW}/cancellation/calculate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -896,8 +883,8 @@ function NegotiatedRatesView() {
   const [volume, setVolume] = useState<any>(null);
 
   useEffect(() => {
-    fetch(`${API.negotiated}/rates/agreements`).then(r => r.json()).then(d => setAgreements(d.agreements || [])).catch(() => {});
-    fetch(`${API.negotiated}/rates/volume-report`).then(r => r.json()).then(setVolume).catch(() => {});
+    fetch(`${GW}/negotiated-rates/agreements`).then(r => r.json()).then(d => setAgreements(d.agreements || [])).catch(() => {});
+    fetch(`${GW}/negotiated-rates/volume-report`).then(r => r.json()).then(setVolume).catch(() => {});
   }, []);
 
   return (
@@ -957,12 +944,12 @@ function SettlementView() {
   const [sagaResult, setSagaResult] = useState<any>(null);
 
   useEffect(() => {
-    fetch(`${API.settlement}/settlement/rate-card`).then(r => r.json()).then(setRateCard).catch(() => {});
+    fetch(`${GW}/settlement-saga/rate-card`).then(r => r.json()).then(setRateCard).catch(() => {});
   }, []);
 
   const executeSaga = async () => {
     try {
-      const res = await fetch(`${API.settlement}/settlement/execute`, {
+      const res = await fetch(`${GW}/settlement-saga/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
