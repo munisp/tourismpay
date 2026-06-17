@@ -39,6 +39,11 @@ import { healthRouter } from "./routes/health";
 import meteringRouter from "./routes/metering";
 import sandboxRouter from "./routes/sandbox";
 import { onboardingRouter } from "./routes/onboarding";
+import { commissionRouter } from "./routes/commission";
+import { discountRouter } from "./routes/discount";
+import { cancellationRouter } from "./routes/cancellation";
+import { negotiatedRatesRouter } from "./routes/negotiated-rates";
+import { settlementSagaRouter } from "./routes/settlement-saga";
 import { config } from "./config";
 
 const app = express();
@@ -85,6 +90,11 @@ app.use("/api/v1/gds/groups", groupBookingsRouter);
 app.use("/api/v1/gds/metering", meteringRouter);
 app.use("/api/v1/gds/sandbox", sandboxRouter);
 app.use("/api/v1/gds/onboarding", onboardingRouter);
+app.use("/api/v1/gds/commission", commissionRouter);
+app.use("/api/v1/gds/discount", discountRouter);
+app.use("/api/v1/gds/cancellation", cancellationRouter);
+app.use("/api/v1/gds/negotiated-rates", negotiatedRatesRouter);
+app.use("/api/v1/gds/settlement-saga", settlementSagaRouter);
 
 // --- Error Handler ---
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

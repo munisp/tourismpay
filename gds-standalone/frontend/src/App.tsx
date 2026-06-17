@@ -14,10 +14,15 @@ const API = {
   revenue: "http://localhost:8086/api/v1",
   group: "http://localhost:8087/api/v1",
   gateway: "http://localhost:8090",
+  commission: "http://localhost:8110/api/v1",
+  discount: "http://localhost:8111/api/v1",
+  cancellation: "http://localhost:8112/api/v1",
+  negotiated: "http://localhost:8113/api/v1",
+  settlement: "http://localhost:8114/api/v1",
 };
 
 type User = { email: string; name: string; role: string; token: string };
-type View = "dashboard" | "pnr" | "queues" | "guests" | "content" | "revenue" | "groups" | "search";
+type View = "dashboard" | "pnr" | "queues" | "guests" | "content" | "revenue" | "groups" | "search" | "commission" | "discounts" | "cancellation" | "rates" | "settlement";
 
 // ─── Login Page ────────────────────────────────────────────────
 function LoginPage({ onLogin }: { onLogin: (user: User) => void }) {
@@ -628,6 +633,425 @@ function SearchView() {
   );
 }
 
+// ─── Commission Dashboard View ───────────────────────────────────
+function CommissionView() {
+  const [rateCard, setRateCard] = useState<any>(null);
+  const [splitResult, setSplitResult] = useState<any>(null);
+
+  useEffect(() => {
+    fetch(`${API.commission}/commission/rate-card`).then(r => r.json()).then(setRateCard).catch(() => {});
+  }, []);
+
+  const simulateSplit = async () => {
+    try {
+      const res = await fetch(`${API.commission}/commission/split`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          booking_id: "BK-" + Date.now(), property_id: "PROP-001",
+          agent_id: "AGT-001", field_agent_id: "FA-001",
+          gross_amount: 500, currency: "USD", country: "KE",
+          booking_type: "standard", room_nights: 3,
+          property_tier: "web_lite", agent_tier: "gold",
+          is_group_booking: false, channel: "gds_portal",
+        }),
+      });
+      if (res.ok) setSplitResult(await res.json());
+    } catch { /* */ }
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <div>
+          <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Commission Engine</h2>
+          <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Real-time multi-party payment split — Rust service (port 8110)</p>
+        </div>
+        <button onClick={simulateSplit} style={{ padding: "0.625rem 1.25rem", background: "#0ea5e9", color: "#fff", border: "none", borderRadius: "0.5rem", cursor: "pointer", fontWeight: 600 }}>
+          Simulate Split
+        </button>
+      </div>
+
+      {/* Rate Card */}
+      {rateCard && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
+          <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1.25rem", border: "1px solid #334155" }}>
+            <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>Agent Tiers</h3>
+            {Object.entries(rateCard.rate_card?.agent_tiers || rateCard.agent_tiers || {}).map(([tier, data]: [string, any]) => (
+              <div key={tier} style={{ display: "flex", justifyContent: "space-between", padding: "0.375rem 0", borderBottom: "1px solid #334155" }}>
+                <span style={{ textTransform: "capitalize", fontSize: "0.8rem" }}>{tier}</span>
+                <span style={{ color: "#0ea5e9", fontWeight: 600, fontSize: "0.8rem" }}>{((data.rate || data) * 100).toFixed(0)}%</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1.25rem", border: "1px solid #334155" }}>
+            <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>Property Tiers</h3>
+            {Object.entries(rateCard.rate_card?.property_tiers || rateCard.property_tiers || {}).map(([tier, data]: [string, any]) => (
+              <div key={tier} style={{ display: "flex", justifyContent: "space-between", padding: "0.375rem 0", borderBottom: "1px solid #334155" }}>
+                <span style={{ textTransform: "capitalize", fontSize: "0.8rem" }}>{tier.replace("_", " ")}</span>
+                <span style={{ color: "#f59e0b", fontWeight: 600, fontSize: "0.8rem" }}>{((data.commission_charged || data) * 100).toFixed(0)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Split Result */}
+      {splitResult && (
+        <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1.5rem", border: "1px solid #334155" }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Split Result — ${splitResult.gross_amount} {splitResult.currency}</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.75rem" }}>
+            {splitResult.splits?.map((s: any, i: number) => (
+              <div key={i} style={{ padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}>
+                <p style={{ fontSize: "0.7rem", color: "#94a3b8", textTransform: "capitalize" }}>{s.stakeholder_type}</p>
+                <p style={{ fontSize: "1.25rem", fontWeight: 700, color: s.stakeholder_type === "property" ? "#22c55e" : "#0ea5e9" }}>${s.amount}</p>
+                <p style={{ fontSize: "0.65rem", color: "#64748b" }}>{s.payout_method} • {s.payout_schedule}</p>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}>
+            <p style={{ fontSize: "0.75rem", color: "#94a3b8" }}>TigerBeetle Ledger Entries: {splitResult.ledger_entries?.length || 0}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Flow diagram */}
+      <div style={{ marginTop: "1.5rem", background: "#1e293b", borderRadius: "0.75rem", padding: "1.5rem", border: "1px solid #334155" }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Payment Flow</h3>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+          {["Guest Pays", "Tax Withheld", "Platform Fee", "Agent Commission", "Field Agent", "Property Net"].map((step, i) => (
+            <div key={step} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ padding: "0.5rem 0.75rem", background: "#0f172a", borderRadius: "0.375rem", fontSize: "0.7rem", border: "1px solid #334155" }}>{step}</span>
+              {i < 5 && <span style={{ color: "#64748b" }}>→</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Discounts & Promotions View ─────────────────────────────────
+function DiscountsView() {
+  const [promos, setPromos] = useState<any[]>([]);
+  const [validateResult, setValidateResult] = useState<any>(null);
+  const [code, setCode] = useState("WELCOME15");
+
+  useEffect(() => {
+    fetch(`${API.discount}/promos`).then(r => r.json()).then(d => setPromos(d.promotions || [])).catch(() => {});
+  }, []);
+
+  const validateCode = async () => {
+    try {
+      const res = await fetch(`${API.discount}/promos/validate?code=${code}&booking_amount=500&nights=3&country=KE&is_new_user=true`);
+      if (res.ok) setValidateResult(await res.json());
+    } catch { /* */ }
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>Discounts & Promotions</h2>
+      <p style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "1.5rem" }}>Coupon codes, volume discounts, flash sales, loyalty redemptions — Python service (port 8111)</p>
+
+      {/* Code Validator */}
+      <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1.25rem", border: "1px solid #334155", marginBottom: "1.5rem" }}>
+        <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>Validate Promo Code</h3>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <input value={code} onChange={e => setCode(e.target.value)} placeholder="Enter code..." style={{ flex: 1, padding: "0.625rem", borderRadius: "0.375rem", border: "1px solid #334155", background: "#0f172a", color: "#e2e8f0" }} />
+          <button onClick={validateCode} style={{ padding: "0.625rem 1rem", background: "#22c55e", color: "#fff", border: "none", borderRadius: "0.375rem", cursor: "pointer", fontWeight: 600, fontSize: "0.8rem" }}>Validate</button>
+        </div>
+        {validateResult && (
+          <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: validateResult.valid ? "#14532d" : "#7f1d1d", borderRadius: "0.375rem" }}>
+            <p style={{ fontSize: "0.8rem", fontWeight: 600 }}>{validateResult.valid ? `Save $${validateResult.discount}!` : validateResult.message}</p>
+            {validateResult.valid && <p style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: "0.25rem" }}>{validateResult.promo_name} — Final: ${validateResult.final_amount}</p>}
+          </div>
+        )}
+      </div>
+
+      {/* Active Promos */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
+        {promos.map((p: any) => (
+          <div key={p.id} style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1.25rem", border: "1px solid #334155" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+              <span style={{ fontWeight: 600, fontSize: "0.875rem" }}>{p.name}</span>
+              <span style={{ padding: "0.2rem 0.5rem", background: "#14532d", color: "#4ade80", borderRadius: "0.25rem", fontSize: "0.65rem" }}>{p.status}</span>
+            </div>
+            <p style={{ fontFamily: "monospace", color: "#0ea5e9", fontSize: "0.9rem", marginBottom: "0.5rem" }}>{p.code}</p>
+            <p style={{ color: "#64748b", fontSize: "0.7rem" }}>{p.discount_type}: {p.value}{p.discount_type === "percentage" ? "%" : ""} off</p>
+            <p style={{ color: "#64748b", fontSize: "0.7rem" }}>Uses: {p.current_uses}/{p.max_uses || "∞"}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Discount Types */}
+      <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1.5rem", border: "1px solid #334155" }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Discount Types</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem" }}>
+          {[
+            { type: "Percentage", desc: "% off booking (capped)" },
+            { type: "Flat Fee", desc: "Fixed amount off" },
+            { type: "Nights Free", desc: "Stay 5 pay 4" },
+            { type: "Volume", desc: "5+ rooms = 5-20% off" },
+            { type: "Flash Sale", desc: "Time-limited deals" },
+            { type: "Loyalty Points", desc: "1pt = $0.01 (max 30%)" },
+          ].map(d => (
+            <div key={d.type} style={{ padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}>
+              <p style={{ fontWeight: 600, fontSize: "0.8rem" }}>{d.type}</p>
+              <p style={{ color: "#64748b", fontSize: "0.7rem" }}>{d.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Cancellation Policy View ────────────────────────────────────
+function CancellationView() {
+  const [policies, setPolicies] = useState<any[]>([]);
+  const [presets, setPresets] = useState<any>(null);
+  const [feeResult, setFeeResult] = useState<any>(null);
+
+  useEffect(() => {
+    fetch(`${API.cancellation}/cancellation/policies`).then(r => r.json()).then(d => setPolicies(d.policies || [])).catch(() => {});
+    fetch(`${API.cancellation}/cancellation/presets`).then(r => r.json()).then(setPresets).catch(() => {});
+  }, []);
+
+  const simulateCancellation = async () => {
+    const tomorrow = new Date(Date.now() + 5 * 86400000).toISOString().split("T")[0];
+    try {
+      const res = await fetch(`${API.cancellation}/cancellation/calculate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          booking_id: "BK-TEST-001", property_id: "PROP-002",
+          guest_id: "GUEST-001", check_in: tomorrow,
+          check_out: new Date(Date.now() + 8 * 86400000).toISOString().split("T")[0],
+          booking_amount: 750, currency: "USD", rooms: 1, reason: "Change of plans",
+        }),
+      });
+      if (res.ok) setFeeResult(await res.json());
+    } catch { /* */ }
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <div>
+          <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Cancellation Policies</h2>
+          <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Per-property tiered penalties with refund waterfall — Go service (port 8112)</p>
+        </div>
+        <button onClick={simulateCancellation} style={{ padding: "0.625rem 1.25rem", background: "#ef4444", color: "#fff", border: "none", borderRadius: "0.5rem", cursor: "pointer", fontWeight: 600 }}>
+          Simulate Cancel
+        </button>
+      </div>
+
+      {/* Fee Result */}
+      {feeResult && (
+        <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1.25rem", border: "1px solid #334155", marginBottom: "1.5rem" }}>
+          <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>Cancellation Result</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem" }}>
+            <div style={{ textAlign: "center" }}><p style={{ color: "#94a3b8", fontSize: "0.7rem" }}>Policy</p><p style={{ fontWeight: 700 }}>{feeResult.policy_applied}</p></div>
+            <div style={{ textAlign: "center" }}><p style={{ color: "#94a3b8", fontSize: "0.7rem" }}>Fee</p><p style={{ fontWeight: 700, color: "#ef4444" }}>${feeResult.cancellation_fee}</p></div>
+            <div style={{ textAlign: "center" }}><p style={{ color: "#94a3b8", fontSize: "0.7rem" }}>Refund</p><p style={{ fontWeight: 700, color: "#22c55e" }}>${feeResult.refund_amount}</p></div>
+            <div style={{ textAlign: "center" }}><p style={{ color: "#94a3b8", fontSize: "0.7rem" }}>Days Before</p><p style={{ fontWeight: 700 }}>{feeResult.days_before_checkin}</p></div>
+          </div>
+          <p style={{ marginTop: "0.75rem", fontSize: "0.75rem", color: "#64748b" }}>Tier: {feeResult.tier_applied}</p>
+          <p style={{ fontSize: "0.75rem", color: "#64748b" }}>Absorption: {feeResult.fee_absorption?.description}</p>
+        </div>
+      )}
+
+      {/* Policy Presets */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem", marginBottom: "1.5rem" }}>
+        {["flexible", "moderate", "strict", "super_strict"].map(preset => (
+          <div key={preset} style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1.25rem", border: "1px solid #334155" }}>
+            <h3 style={{ fontSize: "0.9rem", fontWeight: 600, textTransform: "capitalize", marginBottom: "0.75rem" }}>{preset.replace("_", " ")}</h3>
+            {(presets?.presets?.[preset] || []).map((tier: any, i: number) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "0.25rem 0", borderBottom: "1px solid #0f172a" }}>
+                <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>{tier.description || `${tier.min_days_before}-${tier.max_days_before}d`}</span>
+                <span style={{ fontSize: "0.7rem", color: tier.refund_percent >= 75 ? "#22c55e" : tier.refund_percent >= 50 ? "#f59e0b" : "#ef4444" }}>{tier.refund_percent}% refund</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Active Policies */}
+      <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1.5rem", border: "1px solid #334155" }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Property Policies ({policies.length})</h3>
+        {policies.map((p: any) => (
+          <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: "0.5rem 0", borderBottom: "1px solid #0f172a" }}>
+            <span style={{ fontSize: "0.8rem" }}>{p.name}</span>
+            <span style={{ fontSize: "0.75rem", color: "#64748b", textTransform: "capitalize" }}>{p.policy_type}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Negotiated Rates View ───────────────────────────────────────
+function NegotiatedRatesView() {
+  const [agreements, setAgreements] = useState<any[]>([]);
+  const [volume, setVolume] = useState<any>(null);
+
+  useEffect(() => {
+    fetch(`${API.negotiated}/rates/agreements`).then(r => r.json()).then(d => setAgreements(d.agreements || [])).catch(() => {});
+    fetch(`${API.negotiated}/rates/volume-report`).then(r => r.json()).then(setVolume).catch(() => {});
+  }, []);
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>Negotiated Rates</h2>
+      <p style={{ color: "#64748b", fontSize: "0.875rem", marginBottom: "1.5rem" }}>Corporate agreements, consortium rates, wholesale contracts — Go service (port 8113)</p>
+
+      {/* Volume Summary */}
+      {volume?.summary && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
+          <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1rem", border: "1px solid #334155" }}>
+            <p style={{ color: "#94a3b8", fontSize: "0.75rem" }}>Total Committed</p>
+            <p style={{ fontSize: "1.5rem", fontWeight: 700 }}>{volume.summary.total_committed?.toLocaleString()} RNs</p>
+          </div>
+          <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1rem", border: "1px solid #334155" }}>
+            <p style={{ color: "#94a3b8", fontSize: "0.75rem" }}>Actual Delivered</p>
+            <p style={{ fontSize: "1.5rem", fontWeight: 700 }}>{volume.summary.total_actual?.toLocaleString()} RNs</p>
+          </div>
+          <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1rem", border: "1px solid #334155" }}>
+            <p style={{ color: "#94a3b8", fontSize: "0.75rem" }}>Compliance</p>
+            <p style={{ fontSize: "1.5rem", fontWeight: 700, color: volume.summary.overall_compliance >= 70 ? "#22c55e" : "#f59e0b" }}>{volume.summary.overall_compliance}%</p>
+          </div>
+        </div>
+      )}
+
+      {/* Agreements */}
+      <div style={{ background: "#1e293b", borderRadius: "0.75rem", border: "1px solid #334155", overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ borderBottom: "1px solid #334155" }}>
+              {["Agreement", "Type", "Party B", "Rate Type", "Discount", "Status"].map(h => (
+                <th key={h} style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {agreements.map((a: any) => (
+              <tr key={a.id} style={{ borderBottom: "1px solid #1e293b" }}>
+                <td style={{ padding: "0.75rem 1rem", fontSize: "0.8rem" }}>{a.name}</td>
+                <td style={{ padding: "0.75rem 1rem" }}><span style={{ padding: "0.2rem 0.5rem", background: "#1a3a4a", borderRadius: "0.25rem", fontSize: "0.7rem", textTransform: "capitalize" }}>{a.agreement_type}</span></td>
+                <td style={{ padding: "0.75rem 1rem", fontSize: "0.8rem", color: "#94a3b8" }}>{a.party_b?.name}</td>
+                <td style={{ padding: "0.75rem 1rem", fontSize: "0.75rem" }}>{a.rate_type}</td>
+                <td style={{ padding: "0.75rem 1rem", color: "#22c55e", fontWeight: 600, fontSize: "0.8rem" }}>{a.base_discount_percent || 0}%</td>
+                <td style={{ padding: "0.75rem 1rem" }}><span style={{ padding: "0.2rem 0.5rem", background: a.status === "active" ? "#14532d" : "#78350f", color: a.status === "active" ? "#4ade80" : "#fbbf24", borderRadius: "0.25rem", fontSize: "0.65rem" }}>{a.status}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Settlement Saga View ────────────────────────────────────────
+function SettlementView() {
+  const [rateCard, setRateCard] = useState<any>(null);
+  const [sagaResult, setSagaResult] = useState<any>(null);
+
+  useEffect(() => {
+    fetch(`${API.settlement}/settlement/rate-card`).then(r => r.json()).then(setRateCard).catch(() => {});
+  }, []);
+
+  const executeSaga = async () => {
+    try {
+      const res = await fetch(`${API.settlement}/settlement/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          booking_id: "BK-" + Date.now(), gross_amount: 1000,
+          currency: "USD", country: "KE", property_id: "PROP-001",
+          property_tier: "web_lite", agent_id: "AGT-001",
+          agent_tier: "gold", field_agent_id: "FA-001",
+          channel: "api", is_group: false, booking_type: "standard",
+        }),
+      });
+      if (res.ok) setSagaResult(await res.json());
+    } catch { /* */ }
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <div>
+          <h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Settlement Saga</h2>
+          <p style={{ color: "#64748b", fontSize: "0.875rem" }}>Temporal workflow + TigerBeetle atomic splits — Python service (port 8114)</p>
+        </div>
+        <button onClick={executeSaga} style={{ padding: "0.625rem 1.25rem", background: "#8b5cf6", color: "#fff", border: "none", borderRadius: "0.5rem", cursor: "pointer", fontWeight: 600 }}>
+          Execute Saga
+        </button>
+      </div>
+
+      {/* Saga Result */}
+      {sagaResult && (
+        <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1.5rem", border: "1px solid #334155", marginBottom: "1.5rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "1rem" }}>
+            <h3 style={{ fontSize: "0.9rem", fontWeight: 600 }}>Saga: {sagaResult.saga_id}</h3>
+            <span style={{ padding: "0.2rem 0.5rem", background: sagaResult.status === "completed" ? "#14532d" : "#7f1d1d", color: sagaResult.status === "completed" ? "#4ade80" : "#fca5a5", borderRadius: "0.25rem", fontSize: "0.7rem" }}>{sagaResult.status}</span>
+          </div>
+
+          {/* Steps */}
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+            {sagaResult.steps?.map((s: any, i: number) => (
+              <div key={i} style={{ padding: "0.5rem 0.75rem", background: "#0f172a", borderRadius: "0.375rem", borderLeft: "3px solid #22c55e" }}>
+                <p style={{ fontSize: "0.65rem", color: "#94a3b8" }}>Step {s.step}: {s.name}</p>
+                <p style={{ fontSize: "0.8rem", fontWeight: 600 }}>${s.amount}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Summary */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "0.5rem" }}>
+            {Object.entries(sagaResult.summary || {}).map(([key, val]: [string, any]) => (
+              <div key={key} style={{ textAlign: "center", padding: "0.5rem", background: "#0f172a", borderRadius: "0.375rem" }}>
+                <p style={{ fontSize: "0.6rem", color: "#94a3b8" }}>{key.replace(/_/g, " ")}</p>
+                <p style={{ fontSize: "0.9rem", fontWeight: 700 }}>${val}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Rate Card Overview */}
+      {rateCard && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem" }}>
+          <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1.25rem", border: "1px solid #334155" }}>
+            <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>Tax Rates by Country</h3>
+            {Object.entries(rateCard.tax_withholding_by_country || {}).slice(0, 8).map(([country, rate]: [string, any]) => (
+              <div key={country} style={{ display: "flex", justifyContent: "space-between", padding: "0.25rem 0" }}>
+                <span style={{ fontSize: "0.75rem" }}>{country}</span>
+                <span style={{ fontSize: "0.75rem", color: "#f59e0b" }}>{(rate * 100).toFixed(1)}%</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1.25rem", border: "1px solid #334155" }}>
+            <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>Payout Methods</h3>
+            {(rateCard.payout_methods || []).map((m: string) => (
+              <p key={m} style={{ fontSize: "0.75rem", padding: "0.25rem 0", color: "#94a3b8" }}>{m.replace(/_/g, " ")}</p>
+            ))}
+          </div>
+          <div style={{ background: "#1e293b", borderRadius: "0.75rem", padding: "1.25rem", border: "1px solid #334155" }}>
+            <h3 style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>Payout Schedules</h3>
+            {Object.entries(rateCard.payout_schedules || {}).map(([who, when]: [string, any]) => (
+              <div key={who} style={{ display: "flex", justifyContent: "space-between", padding: "0.25rem 0" }}>
+                <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>{who.replace(/_/g, " ")}</span>
+                <span style={{ fontSize: "0.7rem", color: "#22c55e" }}>{when}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main App (Authenticated Shell) ─────────────────────────────
 function AuthenticatedApp({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [view, setView] = useState<View>("dashboard");
@@ -641,6 +1065,11 @@ function AuthenticatedApp({ user, onLogout }: { user: User; onLogout: () => void
     { id: "content", label: "Content", icon: "📝" },
     { id: "revenue", label: "Revenue", icon: "💰" },
     { id: "groups", label: "Groups", icon: "👥" },
+    { id: "commission", label: "Commission", icon: "🏦" },
+    { id: "discounts", label: "Discounts", icon: "🏷️" },
+    { id: "cancellation", label: "Cancellation", icon: "🚫" },
+    { id: "rates", label: "Neg. Rates", icon: "📊" },
+    { id: "settlement", label: "Settlement", icon: "⚡" },
   ];
 
   return (
@@ -701,6 +1130,11 @@ function AuthenticatedApp({ user, onLogout }: { user: User; onLogout: () => void
         {view === "content" && <ContentView />}
         {view === "revenue" && <RevenueView />}
         {view === "groups" && <GroupView />}
+        {view === "commission" && <CommissionView />}
+        {view === "discounts" && <DiscountsView />}
+        {view === "cancellation" && <CancellationView />}
+        {view === "rates" && <NegotiatedRatesView />}
+        {view === "settlement" && <SettlementView />}
       </main>
     </div>
   );

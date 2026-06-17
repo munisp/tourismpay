@@ -748,6 +748,238 @@ upstreams:
           interval: 10
           http_failures: 3
 
+  # === Commission Engine API (Rust service) ===
+  - id: gds-commission
+    uri: /api/v1/gds/commission*
+    methods: [GET, POST]
+    upstream_id: gds-commission-engine
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 100
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
+        allow_credential: true
+
+  # === Discount/Promo API (Python service) ===
+  - id: gds-discount
+    uri: /api/v1/gds/discount*
+    methods: [GET, POST]
+    upstream_id: gds-discount-promo
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 200
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
+        allow_credential: true
+
+  # === Cancellation Policy API (Go service) ===
+  - id: gds-cancellation
+    uri: /api/v1/gds/cancellation*
+    methods: [GET, POST]
+    upstream_id: gds-cancellation-policy
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 100
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
+        allow_credential: true
+
+  # === Negotiated Rates API (Go service) ===
+  - id: gds-negotiated-rates
+    uri: /api/v1/gds/negotiated-rates*
+    methods: [GET, POST]
+    upstream_id: gds-negotiated-rates
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 100
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID"
+        allow_credential: true
+
+  # === Settlement Saga API (Python/Temporal service) ===
+  - id: gds-settlement-saga
+    uri: /api/v1/gds/settlement-saga*
+    methods: [GET, POST]
+    upstream_id: gds-settlement-saga
+    plugins:
+      openid-connect:
+        client_id: "${KEYCLOAK_GDS_CLIENT_ID}"
+        client_secret: "${KEYCLOAK_GDS_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        scope: openid
+      key-auth:
+        header: X-GDS-API-Key
+      limit-count:
+        count: 30
+        time_window: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+        policy: local
+      cors:
+        allow_origins: "${GDS_CORS_ORIGINS}"
+        allow_methods: "GET, POST, OPTIONS"
+        allow_headers: "Authorization, Content-Type, X-GDS-API-Key, X-GDS-Tenant-ID, X-Idempotency-Key"
+        allow_credential: true
+
+  - id: gds-commission-engine
+    type: roundrobin
+    nodes:
+      "gds-commission-engine:8110": 1
+    timeout:
+      connect: 3
+      send: 10
+      read: 10
+    retries: 2
+    checks:
+      active:
+        type: http
+        http_path: /health
+        healthy:
+          interval: 5
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+
+  - id: gds-discount-promo
+    type: roundrobin
+    nodes:
+      "gds-discount-promo:8111": 1
+    timeout:
+      connect: 3
+      send: 10
+      read: 10
+    checks:
+      active:
+        type: http
+        http_path: /health
+        healthy:
+          interval: 10
+          successes: 2
+        unhealthy:
+          interval: 10
+          http_failures: 3
+
+  - id: gds-cancellation-policy
+    type: roundrobin
+    nodes:
+      "gds-cancellation-policy:8112": 1
+    timeout:
+      connect: 3
+      send: 10
+      read: 10
+    checks:
+      active:
+        type: http
+        http_path: /health
+        healthy:
+          interval: 10
+          successes: 2
+        unhealthy:
+          interval: 10
+          http_failures: 3
+
+  - id: gds-negotiated-rates
+    type: roundrobin
+    nodes:
+      "gds-negotiated-rates:8113": 1
+    timeout:
+      connect: 3
+      send: 10
+      read: 10
+    checks:
+      active:
+        type: http
+        http_path: /health
+        healthy:
+          interval: 10
+          successes: 2
+        unhealthy:
+          interval: 10
+          http_failures: 3
+
+  - id: gds-settlement-saga
+    type: roundrobin
+    nodes:
+      "gds-settlement-saga:8114": 1
+    timeout:
+      connect: 5
+      send: 60
+      read: 60
+    retries: 0
+    checks:
+      active:
+        type: http
+        http_path: /health
+        healthy:
+          interval: 5
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+
 # === Global Plugins ===
 global_rules:
   - id: request-id

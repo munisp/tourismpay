@@ -8,6 +8,9 @@ import 'screens/pnr_screen.dart';
 import 'screens/queue_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/commission_screen.dart';
+import 'screens/discounts_screen.dart';
+import 'screens/cancellation_screen.dart';
 
 void main() {
   runApp(const GDSMobileApp());
@@ -55,6 +58,9 @@ class GDSMobileApp extends StatelessWidget {
           '/pnr': (context) => const PNRScreen(),
           '/queues': (context) => const QueueScreen(),
           '/profiles': (context) => const ProfileScreen(),
+          '/commission': (context) => const CommissionScreen(),
+          '/discounts': (context) => const DiscountsScreen(),
+          '/cancellation': (context) => const CancellationScreen(),
         },
       ),
     );
