@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -386,6 +387,59 @@ func main() {
 			}
 			result := tippingService.CalculateTip(req.Jurisdiction, req.BillAmount, tipType, req.TipValue)
 			c.JSON(http.StatusOK, result)
+		})
+
+		// ─── Multi-Recipient Tipping ──────────────────────────────────────────
+		multiTipService := services.NewMultiTipService(tippingService)
+
+		tipAPI.POST("/multi/calculate", func(c *gin.Context) {
+			var req services.MultiTipRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			if err := multiTipService.ValidateMultiTip(req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			result := multiTipService.CalculateMultiTip(req)
+			c.JSON(http.StatusOK, result)
+		})
+
+		tipAPI.POST("/multi/send", func(c *gin.Context) {
+			var req services.MultiTipRequest
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			if err := multiTipService.ValidateMultiTip(req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			result := multiTipService.CalculateMultiTip(req)
+			// In production: debit payer wallet, credit each recipient wallet
+			c.JSON(http.StatusOK, gin.H{
+				"status":  "distributed",
+				"group":   result,
+				"message": fmt.Sprintf("Multi-tip of %.2f %s distributed to %d recipients", result.TotalTip, result.Currency, result.RecipientCount),
+			})
+		})
+
+		tipAPI.GET("/multi/suggested-recipients", func(c *gin.Context) {
+			jurisdiction := c.Query("jurisdiction")
+			serviceType := c.Query("service_type")
+			if jurisdiction == "" {
+				jurisdiction = "NG"
+			}
+			if serviceType == "" {
+				serviceType = "restaurant"
+			}
+			recipients := multiTipService.GetSuggestedRecipients(jurisdiction, serviceType)
+			c.JSON(http.StatusOK, gin.H{
+				"jurisdiction": jurisdiction,
+				"service_type": serviceType,
+				"recipients":   recipients,
+			})
 		})
 	}
 

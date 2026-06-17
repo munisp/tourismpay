@@ -5,6 +5,7 @@
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import MultiTipSelector from "@/components/MultiTipSelector";
 
 // ─── Tip Selector Component ─────────────────────────────────────────────────
 
@@ -236,7 +237,7 @@ function JurisdictionSelector({ selected, onChange }: { selected: string; onChan
 
 export default function TippingTaxPage() {
   const [jurisdiction, setJurisdiction] = useState("NG");
-  const [activeTab, setActiveTab] = useState<"tipping" | "tax" | "remittance">("tipping");
+  const [activeTab, setActiveTab] = useState<"tipping" | "tax" | "multi" | "remittance">("tipping");
   const [taxCategory, setTaxCategory] = useState("food");
   const [taxAmount, setTaxAmount] = useState("");
 
@@ -259,7 +260,7 @@ export default function TippingTaxPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 px-4 pt-4">
-        {(["tipping", "tax", "remittance"] as const).map(tab => (
+        {(["tipping", "tax", "multi", "remittance"] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -359,6 +360,16 @@ export default function TippingTaxPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === "multi" && (
+          <div className="space-y-4">
+            <MultiTipSelector
+              jurisdictionCode={jurisdiction}
+              currency={tipJurisdictions.data?.find(j => j.code === jurisdiction)?.currency ?? "NGN"}
+              billAmount={5000}
+            />
           </div>
         )}
 

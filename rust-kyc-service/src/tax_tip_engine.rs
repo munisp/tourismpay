@@ -347,6 +347,132 @@ impl TaxTipEngine {
     pub fn get_tip_config(&self, jurisdiction: &str) -> Option<&TipPoolConfig> {
         self.tip_configs.get(&jurisdiction.to_uppercase())
     }
+
+    /// Calculate a multi-recipient tip with concurrent-safe split computation
+    pub fn calculate_multi_tip(&self, jurisdiction: &str, bill_amount: f64, total_tip: f64, recipients: &[MultiTipRecipient], split_mode: &str) -> MultiTipResult {
+        let j = jurisdiction.to_uppercase();
+        let config = self.tip_configs.get(&j);
+        let currency = config.map(|c| c.currency.clone()).unwrap_or_else(|| "USD".into());
+
+        let net_tip = round_2(total_tip); // No tax on tips in most African jurisdictions
+        let distributions = match split_mode {
+            "equal" => self.split_equal(net_tip, recipients),
+            "custom_percent" => self.split_by_percent(net_tip, recipients),
+            "custom_amount" => self.split_by_amount(net_tip, recipients),
+            _ => self.split_equal(net_tip, recipients),
+        };
+
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        MultiTipResult {
+            group_id: format!("MTIP-{}-{}", j, now_ms),
+            total_tip: net_tip,
+            tax_on_tip: 0.0,
+            net_tip,
+            grand_total: round_2(bill_amount + total_tip),
+            currency,
+            split_mode: split_mode.into(),
+            recipient_count: recipients.len(),
+            distributions,
+            receipt: format!("RCPT-MTIP-{}-{}", j, now_ms),
+        }
+    }
+
+    fn split_equal(&self, net_tip: f64, recipients: &[MultiTipRecipient]) -> Vec<MultiTipDistribution> {
+        let n = recipients.len() as f64;
+        if n == 0.0 { return vec![]; }
+        let per_person = round_2(net_tip / n);
+        let remainder = round_2(net_tip - per_person * n);
+
+        recipients.iter().enumerate().map(|(i, r)| {
+            let amount = if i == 0 { round_2(per_person + remainder) } else { per_person };
+            MultiTipDistribution {
+                recipient_id: r.recipient_id.clone(),
+                recipient_name: r.recipient_name.clone(),
+                role: r.role.clone(),
+                amount,
+                percentage_bps: ((amount / net_tip) * 10000.0).round() as u32,
+            }
+        }).collect()
+    }
+
+    fn split_by_percent(&self, net_tip: f64, recipients: &[MultiTipRecipient]) -> Vec<MultiTipDistribution> {
+        let total_pct: f64 = recipients.iter().map(|r| r.percentage_bps as f64).sum();
+        if total_pct == 0.0 { return self.split_equal(net_tip, recipients); }
+
+        let mut result: Vec<MultiTipDistribution> = recipients.iter().map(|r| {
+            let normalized = r.percentage_bps as f64 / total_pct;
+            let amount = round_2(net_tip * normalized);
+            MultiTipDistribution {
+                recipient_id: r.recipient_id.clone(),
+                recipient_name: r.recipient_name.clone(),
+                role: r.role.clone(),
+                amount,
+                percentage_bps: r.percentage_bps,
+            }
+        }).collect();
+
+        // Fix rounding error on last recipient
+        let len = result.len();
+        if len > 1 {
+            let sum_others: f64 = result.iter().take(len - 1).map(|d| d.amount).sum();
+            result[len - 1].amount = round_2(net_tip - sum_others);
+        }
+        result
+    }
+
+    fn split_by_amount(&self, net_tip: f64, recipients: &[MultiTipRecipient]) -> Vec<MultiTipDistribution> {
+        let sum_requested: f64 = recipients.iter().map(|r| r.amount).sum();
+        let scale = if sum_requested > 0.0 { net_tip / sum_requested } else { 1.0 };
+
+        recipients.iter().map(|r| {
+            let amount = round_2(r.amount * scale);
+            MultiTipDistribution {
+                recipient_id: r.recipient_id.clone(),
+                recipient_name: r.recipient_name.clone(),
+                role: r.role.clone(),
+                amount,
+                percentage_bps: if net_tip > 0.0 { ((amount / net_tip) * 10000.0).round() as u32 } else { 0 },
+            }
+        }).collect()
+    }
+}
+
+// ─── Multi-Tip Types ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MultiTipRecipient {
+    pub recipient_id: String,
+    pub recipient_name: String,
+    pub role: String,
+    pub amount: f64,           // For custom_amount mode
+    pub percentage_bps: u32,   // For custom_percent mode (basis points)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MultiTipDistribution {
+    pub recipient_id: String,
+    pub recipient_name: String,
+    pub role: String,
+    pub amount: f64,
+    pub percentage_bps: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MultiTipResult {
+    pub group_id: String,
+    pub total_tip: f64,
+    pub tax_on_tip: f64,
+    pub net_tip: f64,
+    pub grand_total: f64,
+    pub currency: String,
+    pub split_mode: String,
+    pub recipient_count: usize,
+    pub distributions: Vec<MultiTipDistribution>,
+    pub receipt: String,
 }
 
 fn round_2(v: f64) -> f64 {

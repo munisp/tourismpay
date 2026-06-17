@@ -67,6 +67,7 @@ import { localPaymentsRouter } from "./routers/localPayments";
 import { travelReadinessRouter } from "./routers/travelReadiness";
 import { tripPlannerRouter } from "./routers/tripPlanner";
 import { tippingRouter } from "./routers/tipping";
+import { multiTippingRouter } from "./routers/multiTipping";
 import { taxCollectionRouter } from "./routers/taxCollection";
 import {
   rateAlertsRouter,
@@ -199,6 +200,7 @@ export const appRouter = router({
   travelReadiness: travelReadinessRouter,
   tripPlanner: tripPlannerRouter,
   tipping: tippingRouter,
+  multiTipping: multiTippingRouter,
   taxCollection: taxCollectionRouter,
 });
 
