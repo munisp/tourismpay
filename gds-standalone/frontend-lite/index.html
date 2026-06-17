@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5">
+<title>Africa GDS Lite</title>
+<meta name="description" content="Lightweight GDS dashboard for low-bandwidth connections">
+<meta name="theme-color" content="#0ea5e9">
+<link rel="manifest" href="/manifest.json">
+<style>
+/* Ultra-minimal CSS — targets <5KB total */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0b1120;--card:#1e293b;--accent:#0ea5e9;--text:#e2e8f0;--muted:#94a3b8;--green:#22c55e;--red:#ef4444;--orange:#f59e0b}
+body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
+.container{max-width:640px;margin:0 auto;padding:12px}
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #334155;margin-bottom:16px}
+header h1{font-size:18px;font-weight:700;color:var(--accent)}
+header .tier{font-size:11px;background:var(--accent);color:#fff;padding:2px 8px;border-radius:99px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+.stat{background:var(--card);padding:12px;border-radius:8px}
+.stat .label{font-size:11px;color:var(--muted);text-transform:uppercase}
+.stat .value{font-size:20px;font-weight:700;margin-top:2px}
+.stat .change{font-size:11px;color:var(--green)}
+.card{background:var(--card);border-radius:8px;padding:16px;margin-bottom:12px}
+.card h2{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+.booking{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #334155}
+.booking:last-child{border:none}
+.booking .info{flex:1}
+.booking .guest{font-weight:600;font-size:13px}
+.booking .dates{font-size:12px;color:var(--muted)}
+.booking .actions{display:flex;gap:6px}
+.btn{border:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer}
+.btn-confirm{background:var(--green);color:#fff}
+.btn-reject{background:var(--red);color:#fff}
+.btn-primary{background:var(--accent);color:#fff;width:100%;padding:10px;font-size:14px;margin-top:8px}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;font-size:11px}
+.calendar .day{padding:6px 2px;border-radius:4px}
+.calendar .day.booked{background:var(--accent);color:#fff}
+.calendar .day.today{border:1px solid var(--accent)}
+.calendar .day.unavail{background:#374151;color:var(--muted)}
+.calendar .hdr{font-weight:600;color:var(--muted);padding:4px}
+.rate-input{display:flex;gap:8px;align-items:center}
+.rate-input input{flex:1;background:#0f172a;border:1px solid #334155;color:var(--text);padding:8px 12px;border-radius:6px;font-size:16px}
+.qr{text-align:center;padding:20px}
+.qr svg{width:120px;height:120px}
+.nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid #334155;padding:8px 0}
+.nav a{flex:1;text-align:center;font-size:10px;color:var(--muted);text-decoration:none;padding:4px}
+.nav a.active{color:var(--accent)}
+.nav a .icon{font-size:18px;display:block}
+.badge{background:var(--red);color:#fff;font-size:9px;padding:1px 4px;border-radius:99px;position:relative;top:-8px;left:2px}
+.offline-bar{background:var(--orange);color:#000;text-align:center;padding:4px;font-size:11px;font-weight:600;display:none}
+.upgrade-banner{background:linear-gradient(135deg,#0ea5e9,#8b5cf6);padding:12px 16px;border-radius:8px;margin-bottom:12px;font-size:12px}
+.upgrade-banner strong{font-size:14px;display:block;margin-bottom:4px}
+#app{padding-bottom:60px}
+@media(max-width:360px){.stats{grid-template-columns:1fr}.container{padding:8px}}
+</style>
+</head>
+<body>
+<div class="offline-bar" id="offline">Offline — changes will sync when connected</div>
+<div class="container" id="app">
+
+<header>
+  <h1>Africa GDS</h1>
+  <span class="tier">Tier 3: Web Lite</span>
+</header>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat">
+    <div class="label">This Month</div>
+    <div class="value">KES 67.5K</div>
+    <div class="change">+12% vs last month</div>
+  </div>
+  <div class="stat">
+    <div class="label">Bookings</div>
+    <div class="value">14</div>
+    <div class="change">3 pending</div>
+  </div>
+  <div class="stat">
+    <div class="label">Occupancy</div>
+    <div class="value">72%</div>
+    <div class="change">+8%</div>
+  </div>
+  <div class="stat">
+    <div class="label">Rating</div>
+    <div class="value">4.6</div>
+    <div class="change">23 reviews</div>
+  </div>
+</div>
+
+<!-- Pending Bookings -->
+<div class="card" id="bookings-card">
+  <h2>Pending Bookings (3)</h2>
+  <div class="booking">
+    <div class="info">
+      <div class="guest">Sarah M.</div>
+      <div class="dates">Jun 15-18 • 1 room • KES 15,000</div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-confirm" onclick="confirmBooking(1)">✓</button>
+      <button class="btn btn-reject" onclick="rejectBooking(1)">✗</button>
+    </div>
+  </div>
+  <div class="booking">
+    <div class="info">
+      <div class="guest">James K.</div>
+      <div class="dates">Jun 20-22 • 2 rooms • KES 20,000</div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-confirm" onclick="confirmBooking(2)">✓</button>
+      <button class="btn btn-reject" onclick="rejectBooking(2)">✗</button>
+    </div>
+  </div>
+  <div class="booking">
+    <div class="info">
+      <div class="guest">Tour Group (8)</div>
+      <div class="dates">Jul 1-5 • 4 rooms • KES 80,000</div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-confirm" onclick="confirmBooking(3)">✓</button>
+      <button class="btn btn-reject" onclick="rejectBooking(3)">✗</button>
+    </div>
+  </div>
+</div>
+
+<!-- Calendar -->
+<div class="card">
+  <h2>Availability — June 2026</h2>
+  <div class="calendar" id="calendar">
+    <div class="hdr">M</div><div class="hdr">T</div><div class="hdr">W</div><div class="hdr">T</div><div class="hdr">F</div><div class="hdr">S</div><div class="hdr">S</div>
+    <div class="day">1</div><div class="day">2</div><div class="day">3</div><div class="day">4</div><div class="day">5</div><div class="day">6</div><div class="day">7</div>
+    <div class="day">8</div><div class="day">9</div><div class="day">10</div><div class="day today">11</div><div class="day">12</div><div class="day">13</div><div class="day">14</div>
+    <div class="day booked">15</div><div class="day booked">16</div><div class="day booked">17</div><div class="day booked">18</div><div class="day">19</div><div class="day booked">20</div><div class="day booked">21</div>
+    <div class="day booked">22</div><div class="day">23</div><div class="day">24</div><div class="day">25</div><div class="day">26</div><div class="day">27</div><div class="day">28</div>
+    <div class="day">29</div><div class="day">30</div><div class="day unavail"></div><div class="day unavail"></div><div class="day unavail"></div><div class="day unavail"></div><div class="day unavail"></div>
+  </div>
+</div>
+
+<!-- Rate Update -->
+<div class="card">
+  <h2>Update Rate</h2>
+  <div class="rate-input">
+    <span>KES</span>
+    <input type="number" id="rate" value="5000" inputmode="numeric">
+    <span>/night</span>
+  </div>
+  <button class="btn btn-primary" onclick="updateRate()">Save Rate</button>
+</div>
+
+<!-- Upgrade Banner -->
+<div class="upgrade-banner">
+  <strong>Ready to upgrade to Full Platform!</strong>
+  You've completed 35 bookings with 97% response rate. Unlock revenue management, OTA distribution, and group bookings. <a href="#" style="color:#fff;text-decoration:underline">Upgrade Now</a>
+</div>
+
+<!-- QR Code for Walk-ins -->
+<div class="card">
+  <h2>Walk-in QR Code</h2>
+  <div class="qr">
+    <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="120" height="120" fill="#fff" rx="8"/>
+      <rect x="10" y="10" width="30" height="30" fill="#000" rx="2"/>
+      <rect x="80" y="10" width="30" height="30" fill="#000" rx="2"/>
+      <rect x="10" y="80" width="30" height="30" fill="#000" rx="2"/>
+      <rect x="15" y="15" width="20" height="20" fill="#fff" rx="1"/>
+      <rect x="85" y="15" width="20" height="20" fill="#fff" rx="1"/>
+      <rect x="15" y="85" width="20" height="20" fill="#fff" rx="1"/>
+      <rect x="20" y="20" width="10" height="10" fill="#000"/>
+      <rect x="90" y="20" width="10" height="10" fill="#000"/>
+      <rect x="20" y="90" width="10" height="10" fill="#000"/>
+      <rect x="50" y="10" width="5" height="5" fill="#000"/>
+      <rect x="60" y="10" width="5" height="5" fill="#000"/>
+      <rect x="50" y="20" width="5" height="5" fill="#000"/>
+      <rect x="55" y="50" width="10" height="10" fill="#000"/>
+      <rect x="80" y="50" width="5" height="5" fill="#000"/>
+      <rect x="90" y="60" width="5" height="5" fill="#000"/>
+      <rect x="50" y="80" width="5" height="5" fill="#000"/>
+      <rect x="60" y="90" width="5" height="5" fill="#000"/>
+      <rect x="80" y="80" width="30" height="30" fill="#0ea5e9" rx="4"/>
+      <text x="95" y="100" text-anchor="middle" fill="#fff" font-size="10" font-weight="bold">GDS</text>
+    </svg>
+    <p style="margin-top:8px;font-size:12px;color:var(--muted)">Guests scan to book directly • No commission on walk-ins</p>
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<!-- Bottom Navigation -->
+<nav class="nav">
+  <a href="#" class="active"><span class="icon">🏠</span>Home</a>
+  <a href="#"><span class="icon">📅</span>Calendar</a>
+  <a href="#"><span class="icon">📋</span>Bookings<span class="badge">3</span></a>
+  <a href="#"><span class="icon">💰</span>Earnings</a>
+  <a href="#"><span class="icon">⚙️</span>Settings</a>
+</nav>
+
+<script>
+// Minimal JS — offline-first with queue
+const queue = JSON.parse(localStorage.getItem('gds-queue') || '[]');
+
+function confirmBooking(id) {
+  const el = event.target.closest('.booking');
+  el.style.opacity = '0.5';
+  el.innerHTML = '<div class="info"><div class="guest" style="color:var(--green)">✓ Confirmed</div></div>';
+  addToQueue({ action: 'confirm_booking', id, timestamp: Date.now() });
+}
+
+function rejectBooking(id) {
+  const el = event.target.closest('.booking');
+  el.style.opacity = '0.5';
+  el.innerHTML = '<div class="info"><div class="guest" style="color:var(--red)">✗ Declined</div></div>';
+  addToQueue({ action: 'reject_booking', id, timestamp: Date.now() });
+}
+
+function updateRate() {
+  const rate = document.getElementById('rate').value;
+  addToQueue({ action: 'update_rate', rate: parseInt(rate), timestamp: Date.now() });
+  alert('Rate updated to KES ' + parseInt(rate).toLocaleString() + '/night');
+}
+
+function addToQueue(item) {
+  queue.push(item);
+  localStorage.setItem('gds-queue', JSON.stringify(queue));
+  syncQueue();
+}
+
+async function syncQueue() {
+  if (!navigator.onLine || queue.length === 0) return;
+  try {
+    // In production: POST to GDS API
+    console.log('Syncing', queue.length, 'items');
+    queue.length = 0;
+    localStorage.setItem('gds-queue', '[]');
+  } catch (e) {
+    console.log('Sync failed, will retry');
+  }
+}
+
+// Offline detection
+window.addEventListener('offline', () => { document.getElementById('offline').style.display = 'block'; });
+window.addEventListener('online', () => { document.getElementById('offline').style.display = 'none'; syncQueue(); });
+
+// Service Worker registration
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
+// Auto-sync on load
+syncQueue();
+</script>
+</body>
+</html>
