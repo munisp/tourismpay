@@ -113,6 +113,7 @@ import TouristOrderConfirm from "@/pages/tourist/TouristOrderConfirm";
 import ComplianceDashboard from "@/pages/compliance/ComplianceDashboard";
 import GDSAgentPortal from "@/pages/gds/GDSAgentPortal";
 import GDSPropertyManager from "@/pages/gds/GDSPropertyManager";
+import GDSDashboard from "@/pages/gds/GDSDashboard";
 import EmailPreview from "@/pages/admin/EmailPreview";
 import SettlementConsole from "@/pages/settlement/SettlementConsole";
 import StablecoinSwap from "@/pages/tier2/StablecoinSwap";
@@ -255,6 +256,7 @@ function Router() {
             {/* GDS — merchant + admin */}
             <Route path="/gds/agent">{() => <ProtectedRoute roles={["merchant", "admin"]}><GDSAgentPortal /></ProtectedRoute>}</Route>
             <Route path="/gds/property">{() => <ProtectedRoute roles={["merchant", "admin"]}><GDSPropertyManager /></ProtectedRoute>}</Route>
+            <Route path="/gds/dashboard">{() => <ProtectedRoute roles={["merchant", "admin", "settlement_officer"]}><GDSDashboard /></ProtectedRoute>}</Route>
             {/* Settlement — settlement_officer + admin */}
             <Route path="/settlement">{() => <ProtectedRoute roles={["admin", "settlement_officer"]}><SettlementConsole /></ProtectedRoute>}</Route>
             {/* QR Payment Receipt — public-ish, auth required for data */}

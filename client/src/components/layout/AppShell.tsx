@@ -98,6 +98,7 @@ const navItems: NavItem[] = [
   { label: "Exchange Rate Overrides", icon: TrendingUp, href: "/admin/exchange-rates", section: "compliance", roles: ["admin"] },
 
   // ─── GDS (agents + property managers + admin) ──────────────────────────────
+  { label: "GDS Dashboard", icon: Globe, href: "/gds/dashboard", section: "gds", roles: ["merchant", "admin", "settlement_officer"] },
   { label: "Agent Portal", icon: Globe, href: "/gds/agent", section: "gds", roles: ["merchant", "admin"] },
   { label: "Property Manager", icon: Building2, href: "/gds/property", section: "gds", roles: ["merchant", "admin"] },
 
