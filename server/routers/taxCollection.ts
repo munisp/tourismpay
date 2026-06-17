@@ -3,7 +3,7 @@
  * receipt generation, remittance tracking, and compliance reporting.
  */
 import { z } from "zod";
-import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
+import { protectedProcedure, adminProcedure, settlementProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
 import { sql } from "drizzle-orm";
@@ -273,8 +273,8 @@ export const taxCollectionRouter = router({
       };
     }),
 
-  // Admin: remittance tracking per jurisdiction
-  remittance: adminProcedure
+  // Admin / settlement_officer: remittance tracking per jurisdiction
+  remittance: settlementProcedure
     .input(z.object({ jurisdictionCode: z.string().length(2).optional(), period: z.string().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();

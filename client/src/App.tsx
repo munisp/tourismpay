@@ -10,6 +10,7 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import AppShell from "./components/layout/AppShell";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -134,19 +135,19 @@ function Router() {
         <AppShell>
           <Switch>
             <Route path="/" component={Dashboard} />
-            {/* Africa Expansion */}
-            <Route path="/africa/registry" component={AfricaRegistry} />
-            <Route path="/africa/kyb" component={KYBOnboarding} />
-            {/* Background Investigation Service */}
-            <Route path="/bis" component={BISDashboard} />
-            <Route path="/bis/new" component={BISInvestigation} />
-            <Route path="/bis/report/:id" component={BISReport} />
-            <Route path="/bis/auto-flag-history" component={BISAutoFlagHistory} />
-            <Route path="/bis/:id" component={BISInvestigationDetail} />
-            {/* Tier 1 — Security */}
-            <Route path="/security/fraud" component={FraudMonitor} />
-            <Route path="/security/soc" component={SOCDashboard} />
-            <Route path="/security/biometric" component={BiometricAuth} />
+            {/* Africa Expansion — merchant + admin */}
+            <Route path="/africa/registry">{() => <ProtectedRoute roles={["merchant", "admin"]}><AfricaRegistry /></ProtectedRoute>}</Route>
+            <Route path="/africa/kyb">{() => <ProtectedRoute roles={["merchant", "admin"]}><KYBOnboarding /></ProtectedRoute>}</Route>
+            {/* Background Investigation Service — bis_analyst + admin */}
+            <Route path="/bis">{() => <ProtectedRoute roles={["bis_analyst", "admin"]}><BISDashboard /></ProtectedRoute>}</Route>
+            <Route path="/bis/new">{() => <ProtectedRoute roles={["bis_analyst", "admin"]}><BISInvestigation /></ProtectedRoute>}</Route>
+            <Route path="/bis/report/:id">{() => <ProtectedRoute roles={["bis_analyst", "admin"]}><BISReport /></ProtectedRoute>}</Route>
+            <Route path="/bis/auto-flag-history">{() => <ProtectedRoute roles={["bis_analyst", "admin"]}><BISAutoFlagHistory /></ProtectedRoute>}</Route>
+            <Route path="/bis/:id">{() => <ProtectedRoute roles={["bis_analyst", "admin"]}><BISInvestigationDetail /></ProtectedRoute>}</Route>
+            {/* Tier 1 — Security — admin only */}
+            <Route path="/security/fraud">{() => <ProtectedRoute roles={["admin", "bis_analyst"]}><FraudMonitor /></ProtectedRoute>}</Route>
+            <Route path="/security/soc">{() => <ProtectedRoute roles={["admin", "bis_analyst"]}><SOCDashboard /></ProtectedRoute>}</Route>
+            <Route path="/security/biometric">{() => <ProtectedRoute roles={["admin"]}><BiometricAuth /></ProtectedRoute>}</Route>
             {/* Tier 2 — Digital Finance */}
             <Route path="/copilot" component={AICopilot} />
             <Route path="/wallet" component={DigitalWallet} />
@@ -162,32 +163,32 @@ function Router() {
             <Route path="/ar" component={ARTourism} />
             <Route path="/sustainability" component={Sustainability} />
             <Route path="/mesh" component={MeshPayments} />
-            {/* Admin */}
-            <Route path="/admin" component={AdminPanel} />
-            <Route path="/admin/kyb-documents" component={KybDocumentReview} />
-            <Route path="/admin/kyb-applications" component={KybApplicationsDashboard} />
-            <Route path="/admin/exchange-rates" component={ExchangeRateOverrides} />
+            {/* Admin — admin + compliance_officer for KYB */}
+            <Route path="/admin">{() => <ProtectedRoute roles={["admin"]}><AdminPanel /></ProtectedRoute>}</Route>
+            <Route path="/admin/kyb-documents">{() => <ProtectedRoute roles={["admin", "compliance_officer"]}><KybDocumentReview /></ProtectedRoute>}</Route>
+            <Route path="/admin/kyb-applications">{() => <ProtectedRoute roles={["admin", "compliance_officer"]}><KybApplicationsDashboard /></ProtectedRoute>}</Route>
+            <Route path="/admin/exchange-rates">{() => <ProtectedRoute roles={["admin", "settlement_officer"]}><ExchangeRateOverrides /></ProtectedRoute>}</Route>
             <Route path="/notifications" component={Notifications} />
             <Route path="/settings/notifications" component={NotificationSettings} />
             <Route path="/settings/biometric" component={BiometricSettings} />
             <Route path="/settings/privacy" component={PrivacySettings} />
-            <Route path="/admin/bis-queue" component={BISQueueManagement} />
-            <Route path="/admin/audit-log" component={AuditLog} />
-            <Route path="/admin/users" component={UsersManagement} />
-            <Route path="/admin/finance" component={AdminFinanceDashboard} />
-            <Route path="/admin/service-health" component={ServiceHealth} />
-            <Route path="/admin/ml-services" component={MLServicesDashboard} />
-            <Route path="/admin/loyalty-rewards" component={LoyaltyRewardsAdmin} />
-            <Route path="/admin/bis-settings" component={BISSettings} />
-            <Route path="/admin/bis-auto-flag-settings" component={BISAutoFlagSettings} />
-            <Route path="/admin/ha-status" component={HAStatus} />
-            <Route path="/admin/provider-onboarding" component={ProviderOnboarding} />
-            <Route path="/admin/api-health" component={ApiHealthDashboard} />
-            <Route path="/admin/email-preview" component={EmailPreview} />
-            {/* PaymentSwitch — Core */}
-            <Route path="/paymentswitch" component={PSDashboard} />
-            <Route path="/paymentswitch/noc" component={PSNOCDashboard} />
-            <Route path="/paymentswitch/admin" component={PSAdminDashboard} />
+            <Route path="/admin/bis-queue">{() => <ProtectedRoute roles={["admin", "bis_analyst"]}><BISQueueManagement /></ProtectedRoute>}</Route>
+            <Route path="/admin/audit-log">{() => <ProtectedRoute roles={["admin", "compliance_officer"]}><AuditLog /></ProtectedRoute>}</Route>
+            <Route path="/admin/users">{() => <ProtectedRoute roles={["admin"]}><UsersManagement /></ProtectedRoute>}</Route>
+            <Route path="/admin/finance">{() => <ProtectedRoute roles={["admin", "settlement_officer"]}><AdminFinanceDashboard /></ProtectedRoute>}</Route>
+            <Route path="/admin/service-health">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><ServiceHealth /></ProtectedRoute>}</Route>
+            <Route path="/admin/ml-services">{() => <ProtectedRoute roles={["admin"]}><MLServicesDashboard /></ProtectedRoute>}</Route>
+            <Route path="/admin/loyalty-rewards">{() => <ProtectedRoute roles={["admin"]}><LoyaltyRewardsAdmin /></ProtectedRoute>}</Route>
+            <Route path="/admin/bis-settings">{() => <ProtectedRoute roles={["admin"]}><BISSettings /></ProtectedRoute>}</Route>
+            <Route path="/admin/bis-auto-flag-settings">{() => <ProtectedRoute roles={["admin"]}><BISAutoFlagSettings /></ProtectedRoute>}</Route>
+            <Route path="/admin/ha-status">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><HAStatus /></ProtectedRoute>}</Route>
+            <Route path="/admin/provider-onboarding">{() => <ProtectedRoute roles={["admin"]}><ProviderOnboarding /></ProtectedRoute>}</Route>
+            <Route path="/admin/api-health">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><ApiHealthDashboard /></ProtectedRoute>}</Route>
+            <Route path="/admin/email-preview">{() => <ProtectedRoute roles={["admin"]}><EmailPreview /></ProtectedRoute>}</Route>
+            {/* PaymentSwitch — Core — noc_operator + settlement_officer + admin */}
+            <Route path="/paymentswitch">{() => <ProtectedRoute roles={["admin", "noc_operator", "settlement_officer"]}><PSDashboard /></ProtectedRoute>}</Route>
+            <Route path="/paymentswitch/noc">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><PSNOCDashboard /></ProtectedRoute>}</Route>
+            <Route path="/paymentswitch/admin">{() => <ProtectedRoute roles={["admin"]}><PSAdminDashboard /></ProtectedRoute>}</Route>
             <Route path="/paymentswitch/analytics">{() => <PSAnalytics merchantId={0} />}</Route>
             <Route path="/paymentswitch/gateway" component={PSPaymentGateway} />
             <Route path="/paymentswitch/developer" component={PSDeveloperPortal} />
@@ -218,44 +219,44 @@ function Router() {
             <Route path="/paymentswitch/go-live">{() => <PSProductionGoLive applicationId={0} />}</Route>
             <Route path="/paymentswitch/testing">{() => <PSTestingCertification credentialId={0} />}</Route>
             <Route path="/paymentswitch/settlement" component={PSRemittanceAdmin} />
-            <Route path="/paymentswitch/service-status" component={PSServiceStatus} />
-            <Route path="/paymentswitch/kill-switch" component={PSKillSwitch} />
-            <Route path="/paymentswitch/webhooks" component={PSWebhooks} />
-            <Route path="/paymentswitch/rate-limits" component={PSRateLimits} />
+            <Route path="/paymentswitch/service-status">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><PSServiceStatus /></ProtectedRoute>}</Route>
+            <Route path="/paymentswitch/kill-switch">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><PSKillSwitch /></ProtectedRoute>}</Route>
+            <Route path="/paymentswitch/webhooks">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><PSWebhooks /></ProtectedRoute>}</Route>
+            <Route path="/paymentswitch/rate-limits">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><PSRateLimits /></ProtectedRoute>}</Route>
             <Route path="/paymentswitch/portal" component={PSPortal} />
-            <Route path="/analytics" component={CrossPlatformAnalytics} />
-            <Route path="/integration-overview" component={IntegrationOverview} />
-            <Route path="/tourist" component={TouristExperience} />
-            <Route path="/tourist-portal" component={TouristPortal} />
-            <Route path="/tourist/onboarding" component={TouristOnboarding} />
-            <Route path="/tourist/itinerary" component={ItineraryBuilder} />
-            <Route path="/tourist/trip-planner" component={TripPlanner} />
-            <Route path="/wallet/tipping-tax" component={TippingTaxPage} />
+            <Route path="/analytics">{() => <ProtectedRoute roles={["admin", "compliance_officer", "noc_operator", "settlement_officer", "bis_analyst"]}><CrossPlatformAnalytics /></ProtectedRoute>}</Route>
+            <Route path="/integration-overview">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><IntegrationOverview /></ProtectedRoute>}</Route>
+            <Route path="/tourist">{() => <ProtectedRoute roles={["tourist", "admin"]}><TouristExperience /></ProtectedRoute>}</Route>
+            <Route path="/tourist-portal">{() => <ProtectedRoute roles={["tourist", "admin"]}><TouristPortal /></ProtectedRoute>}</Route>
+            <Route path="/tourist/onboarding">{() => <ProtectedRoute roles={["tourist", "admin"]}><TouristOnboarding /></ProtectedRoute>}</Route>
+            <Route path="/tourist/itinerary">{() => <ProtectedRoute roles={["tourist", "admin"]}><ItineraryBuilder /></ProtectedRoute>}</Route>
+            <Route path="/tourist/trip-planner">{() => <ProtectedRoute roles={["tourist", "admin"]}><TripPlanner /></ProtectedRoute>}</Route>
+            <Route path="/wallet/tipping-tax">{() => <ProtectedRoute roles={["tourist", "merchant", "admin", "settlement_officer"]}><TippingTaxPage /></ProtectedRoute>}</Route>
             {/* Public shared trip itinerary — no auth required */}
             <Route path="/trip/:shareToken" component={SharedItinerary} />
-            <Route path="/restaurant-onboarding" component={RestaurantOnboarding} />
-            {/* Merchant */}
-            <Route path="/merchant/revenue" component={MerchantRevenue} />
-            <Route path="/merchant/qr" component={MerchantQRCodes} />
-            <Route path="/merchant/payouts" component={MerchantPayouts} />
-            <Route path="/merchant/stripe-connect" component={StripeConnectOnboarding} />
-            <Route path="/merchant/products" component={MerchantProducts} />
-            <Route path="/merchant/employee-bis" component={MerchantEmployeeBIS} />
-            <Route path="/merchant/staff" component={MerchantStaff} />
-            <Route path="/merchant/cashier" component={MerchantCashier} />
-            <Route path="/merchant/bookings" component={MerchantBookings} />
-            <Route path="/merchant/deals/leaderboard" component={DealLeaderboard} />
-            <Route path="/merchant/leaderboard" component={MerchantKpiLeaderboard} />
-            <Route path="/merchant/availability" component={ServiceAvailabilityCalendar} />
-            <Route path="/merchant/bis-status" component={MerchantBisStatus} />
-            <Route path="/merchant/channels" component={ChannelManager} />
-            {/* Compliance */}
-            <Route path="/compliance" component={ComplianceDashboard} />
-            {/* GDS */}
-            <Route path="/gds/agent" component={GDSAgentPortal} />
-            <Route path="/gds/property" component={GDSPropertyManager} />
-            {/* Settlement */}
-            <Route path="/settlement" component={SettlementConsole} />
+            <Route path="/restaurant-onboarding">{() => <ProtectedRoute roles={["merchant", "admin"]}><RestaurantOnboarding /></ProtectedRoute>}</Route>
+            {/* Merchant — merchant + admin */}
+            <Route path="/merchant/revenue">{() => <ProtectedRoute roles={["merchant", "admin"]}><MerchantRevenue /></ProtectedRoute>}</Route>
+            <Route path="/merchant/qr">{() => <ProtectedRoute roles={["merchant", "admin"]}><MerchantQRCodes /></ProtectedRoute>}</Route>
+            <Route path="/merchant/payouts">{() => <ProtectedRoute roles={["merchant", "admin"]}><MerchantPayouts /></ProtectedRoute>}</Route>
+            <Route path="/merchant/stripe-connect">{() => <ProtectedRoute roles={["merchant", "admin"]}><StripeConnectOnboarding /></ProtectedRoute>}</Route>
+            <Route path="/merchant/products">{() => <ProtectedRoute roles={["merchant", "admin"]}><MerchantProducts /></ProtectedRoute>}</Route>
+            <Route path="/merchant/employee-bis">{() => <ProtectedRoute roles={["merchant", "admin"]}><MerchantEmployeeBIS /></ProtectedRoute>}</Route>
+            <Route path="/merchant/staff">{() => <ProtectedRoute roles={["merchant", "admin"]}><MerchantStaff /></ProtectedRoute>}</Route>
+            <Route path="/merchant/cashier">{() => <ProtectedRoute roles={["merchant", "admin"]}><MerchantCashier /></ProtectedRoute>}</Route>
+            <Route path="/merchant/bookings">{() => <ProtectedRoute roles={["merchant", "admin"]}><MerchantBookings /></ProtectedRoute>}</Route>
+            <Route path="/merchant/deals/leaderboard">{() => <ProtectedRoute roles={["merchant", "admin"]}><DealLeaderboard /></ProtectedRoute>}</Route>
+            <Route path="/merchant/leaderboard">{() => <ProtectedRoute roles={["merchant", "admin"]}><MerchantKpiLeaderboard /></ProtectedRoute>}</Route>
+            <Route path="/merchant/availability">{() => <ProtectedRoute roles={["merchant", "admin"]}><ServiceAvailabilityCalendar /></ProtectedRoute>}</Route>
+            <Route path="/merchant/bis-status">{() => <ProtectedRoute roles={["merchant", "admin"]}><MerchantBisStatus /></ProtectedRoute>}</Route>
+            <Route path="/merchant/channels">{() => <ProtectedRoute roles={["merchant", "admin"]}><ChannelManager /></ProtectedRoute>}</Route>
+            {/* Compliance — compliance_officer + admin */}
+            <Route path="/compliance">{() => <ProtectedRoute roles={["admin", "compliance_officer"]}><ComplianceDashboard /></ProtectedRoute>}</Route>
+            {/* GDS — merchant + admin */}
+            <Route path="/gds/agent">{() => <ProtectedRoute roles={["merchant", "admin"]}><GDSAgentPortal /></ProtectedRoute>}</Route>
+            <Route path="/gds/property">{() => <ProtectedRoute roles={["merchant", "admin"]}><GDSPropertyManager /></ProtectedRoute>}</Route>
+            {/* Settlement — settlement_officer + admin */}
+            <Route path="/settlement">{() => <ProtectedRoute roles={["admin", "settlement_officer"]}><SettlementConsole /></ProtectedRoute>}</Route>
             {/* QR Payment Receipt — public-ish, auth required for data */}
             <Route path="/receipt/:token" component={PaymentReceipt} />
             {/* Staff Invite Accept — public, auth required to accept */}

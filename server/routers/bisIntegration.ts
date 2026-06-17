@@ -14,7 +14,7 @@
  */
 
 import { z } from "zod";
-import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
+import { router, protectedProcedure, adminProcedure, bisProcedure, nocProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import {
   bisAutoFlagConfig,
@@ -210,7 +210,7 @@ export const bisIntegrationRouter = router({
   /**
    * List all auto-flag threshold configurations.
    */
-  getAutoFlagConfig: protectedProcedure.query(async () => {
+  getAutoFlagConfig: bisProcedure.query(async () => {
     const db = await getDb();
     if (!db) return [];
     await seedDefaultConfigs().catch(() => {});
@@ -293,7 +293,7 @@ export const bisIntegrationRouter = router({
   /**
    * Paginated list of auto-triggered BIS investigations.
    */
-  getAutoFlagHistory: protectedProcedure
+  getAutoFlagHistory: bisProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(200).default(50),
@@ -331,7 +331,7 @@ export const bisIntegrationRouter = router({
   /**
    * List BIS-triggered PaymentSwitch kill switch activations.
    */
-  getKillSwitchActivations: protectedProcedure
+  getKillSwitchActivations: nocProcedure
     .input(
       z.object({
         bisInvestigationId: z.number().optional(),

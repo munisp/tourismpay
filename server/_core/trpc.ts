@@ -97,3 +97,32 @@ export const paymentSwitchProcedure = t.procedure.use(
     return next({ ctx: { ...ctx, user: ctx.user } });
   }),
 );
+
+// tourist OR admin (tourist-facing features)
+export const touristProcedure = t.procedure.use(
+  t.middleware(async opts => {
+    const { ctx, next } = opts;
+    if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+    if (ctx.user.role !== 'admin' && ctx.user.role !== 'tourist') throw new TRPCError({ code: "FORBIDDEN", message: "Tourist or admin access required" });
+    return next({ ctx: { ...ctx, user: ctx.user } });
+  }),
+);
+
+// Jurisdiction-scoped procedure — adds jurisdictionCode to context for merchants
+export const jurisdictionScopedProcedure = t.procedure.use(
+  t.middleware(async opts => {
+    const { ctx, next } = opts;
+    if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+    // Merchants get scoped to their establishment's jurisdiction
+    const jurisdictionCode = ctx.user.role === 'merchant'
+      ? (ctx.user as Record<string, unknown>).jurisdictionCode as string | undefined ?? null
+      : null; // admins + others see all
+    return next({
+      ctx: {
+        ...ctx,
+        user: ctx.user,
+        jurisdictionCode,
+      },
+    });
+  }),
+);
