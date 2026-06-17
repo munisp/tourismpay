@@ -735,6 +735,70 @@ async def list_supported_currencies():
         "total": len(FX_RATES),
     }
 
+# ─── Trip Planner NL Service ─────────────────────────────────────────────────
+
+from trip_planner import (
+    parse_travel_intent, build_itinerary_prompt, build_refinement_prompt,
+    get_country_profile, optimize_for_budget, TravelIntent, CountryProfile,
+)
+
+class TripPlannerRequest(BaseModel):
+    query: str
+
+class TripRefineRequest(BaseModel):
+    itinerary: Dict[str, Any]
+    instruction: str
+    merchant_context: str = ""
+
+class BudgetOptimizeRequest(BaseModel):
+    itinerary: Dict[str, Any]
+    target_budget: float
+
+
+@app.post("/api/trip-planner/parse-intent")
+async def parse_intent_endpoint(req: TripPlannerRequest):
+    intent = parse_travel_intent(req.query)
+    return {
+        "intent": intent.dict(),
+        "prompt_preview": build_itinerary_prompt(intent, "[merchant context will be injected]")[:500] + "...",
+    }
+
+@app.post("/api/trip-planner/generate-prompt")
+async def generate_prompt_endpoint(req: TripPlannerRequest):
+    intent = parse_travel_intent(req.query)
+    merchant_context = req.query  # In practice, fetched from Go catalog service
+    prompt = build_itinerary_prompt(intent, merchant_context)
+    return {"intent": intent.dict(), "prompt": prompt}
+
+@app.post("/api/trip-planner/refine-prompt")
+async def refine_prompt_endpoint(req: TripRefineRequest):
+    prompt = build_refinement_prompt(
+        json.dumps(req.itinerary), req.instruction, req.merchant_context
+    )
+    return {"prompt": prompt}
+
+@app.post("/api/trip-planner/cost-optimize")
+async def cost_optimize_endpoint(req: BudgetOptimizeRequest):
+    optimized = optimize_for_budget(req.itinerary, req.target_budget)
+    return {"itinerary": optimized, "target_budget": req.target_budget}
+
+@app.get("/api/trip-planner/country-profile/{country_code}")
+async def country_profile_endpoint(country_code: str):
+    profile = get_country_profile(country_code)
+    return profile.dict()
+
+@app.get("/api/trip-planner/countries")
+async def list_trip_countries():
+    from trip_planner import COUNTRY_PROFILES
+    return {
+        "countries": [
+            {"code": k, "name": v["name"], "top_cities": v["top_cities"]}
+            for k, v in COUNTRY_PROFILES.items()
+        ],
+        "total": len(COUNTRY_PROFILES),
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info")

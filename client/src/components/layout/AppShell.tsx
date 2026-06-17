@@ -55,6 +55,7 @@ const navItems: NavItem[] = [
   { label: "Tourist Experience", icon: MapPin, href: "/tourist", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Tourist Portal ✦", icon: Sparkles, href: "/tourist-portal", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Onboarding Wizard", icon: UserCheck, href: "/tourist/onboarding", section: "tourist", roles: ["tourist", "admin"] },
+  { label: "AI Trip Planner ✦", icon: Globe, href: "/tourist/trip-planner", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Trip Itinerary", icon: Map, href: "/tourist/itinerary", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Digital Wallet", icon: Wallet, href: "/wallet", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Stablecoin Swap", icon: ArrowDownUp, href: "/wallet/stablecoin", section: "tourist", roles: ["tourist", "admin"] },

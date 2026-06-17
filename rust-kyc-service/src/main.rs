@@ -19,6 +19,8 @@ mod verification;
 mod nfc_payment;
 #[allow(dead_code)]
 mod travel_readiness;
+#[allow(dead_code)]
+mod pricing_engine;
 
 use actix_web::{web, App, HttpServer, middleware::Logger};
 use std::env;
@@ -73,6 +75,7 @@ async fn main() -> std::io::Result<()> {
             )
             .configure(nfc_payment::configure_nfc_routes)
             .configure(travel_readiness::configure_travel_readiness_routes)
+            .configure(pricing_engine::configure_pricing_routes)
     })
     .bind(("0.0.0.0", port))?
     .run();

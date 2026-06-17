@@ -45,6 +45,7 @@ func main() {
 	virtualCardService := services.NewVirtualCardService()
 	bankTransferOutService := services.NewBankTransferOutService()
 	travelReadinessService := services.NewTravelReadinessService()
+	merchantCatalogService := services.NewMerchantCatalogService()
 
 	h := handlers.NewHandlers(ledgerService, mojaloopService, inventoryService, settlementService)
 	cryptoHandlers := handlers.NewCryptoHandlers(cryptoService)
@@ -59,6 +60,7 @@ func main() {
 	virtualCardHandlers := handlers.NewVirtualCardHandlers(virtualCardService)
 	bankTransferOutHandlers := handlers.NewBankTransferOutHandlers(bankTransferOutService)
 	travelReadinessHandlers := services.NewTravelReadinessHandlers(travelReadinessService)
+	merchantCatalogHandlers := services.NewMerchantCatalogHandlers(merchantCatalogService)
 
 	router := gin.New()
 
@@ -303,6 +305,16 @@ func main() {
 			travel.GET("/kiosks", travelReadinessHandlers.ListAgentKiosks)
 			travel.GET("/corridors", travelReadinessHandlers.ListCurrencyCorridors)
 			travel.POST("/checklist", travelReadinessHandlers.GenerateChecklist)
+		}
+
+		// Merchant Catalog (geo-indexed search, pricing, itinerary estimates)
+		catalog := api.Group("/catalog")
+		{
+			catalog.POST("/search", merchantCatalogHandlers.SearchMerchants)
+			catalog.GET("/search", merchantCatalogHandlers.SearchMerchants)
+			catalog.GET("/products", merchantCatalogHandlers.GetProducts)
+			catalog.GET("/estimate", merchantCatalogHandlers.GetItineraryEstimate)
+			catalog.GET("/context", merchantCatalogHandlers.GetMerchantContext)
 		}
 	}
 
