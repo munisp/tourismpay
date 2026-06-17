@@ -65,6 +65,7 @@ import { smartContractRouter } from "./routers/smartContract";
 import { foreignTouristLoadingRouter } from "./routers/foreignTouristLoading";
 import { localPaymentsRouter } from "./routers/localPayments";
 import { travelReadinessRouter } from "./routers/travelReadiness";
+import { tripPlannerRouter } from "./routers/tripPlanner";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -194,6 +195,7 @@ export const appRouter = router({
   foreignTouristLoading: foreignTouristLoadingRouter,
   localPayments: localPaymentsRouter,
   travelReadiness: travelReadinessRouter,
+  tripPlanner: tripPlannerRouter,
 });
 
 export type AppRouter = typeof appRouter;
