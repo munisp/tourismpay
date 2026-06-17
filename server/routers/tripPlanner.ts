@@ -18,6 +18,7 @@ import {
   touristBookings,
 } from "../../drizzle/schema";
 import { eq, and, sql, ilike, or } from "drizzle-orm";
+import { sendPushToUser } from "../_core/webPush";
 
 // ─── Go Settlement Service Client ─────────────────────────────────────────────
 
@@ -157,6 +158,8 @@ interface ItineraryItem {
   cost_usd: number;
   item_type: string;
   bookable: boolean;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface GeneratedDay {
@@ -275,11 +278,11 @@ RULES:
 3. Include transport between locations.
 4. Fill morning, afternoon, and evening time slots.
 5. Stay within the budget (${budgetStr}).
-6. Each item must have: time_slot (morning/afternoon/evening), start_time (HH:MM), end_time (HH:MM), title, description, merchant_id (integer from data), merchant_name, product_name, cost_usd (number), item_type (activity/accommodation/transport/meal/free_time), bookable (true if merchant_id > 0).
+6. Each item must have: time_slot (morning/afternoon/evening), start_time (HH:MM), end_time (HH:MM), title, description, merchant_id (integer from data), merchant_name, product_name, cost_usd (number), item_type (activity/accommodation/transport/meal/free_time), bookable (true if merchant_id > 0), latitude (float from merchant data), longitude (float from merchant data).
 
 OUTPUT: valid JSON with this structure:
 {
-  "days": [{ "day_number": 1, "title": "Day title", "items": [{ ...item fields }] }],
+  "days": [{ "day_number": 1, "title": "Day title", "items": [{ ...item fields including latitude, longitude }] }],
   "tips": ["tip 1", "tip 2"],
   "total_cost_usd": 1250.00
 }`;
@@ -464,6 +467,15 @@ Apply the modification. Return the COMPLETE modified itinerary in the same JSON 
       await db.update(touristItineraryItems)
         .set({ bookingId: booking.id, status: "confirmed", updatedAt: new Date() })
         .where(eq(touristItineraryItems.id, input.itineraryItemId));
+
+      // Send push notification for booking confirmation
+      sendPushToUser(ctx.user.id, {
+        title: "Booking Confirmed!",
+        body: `Your booking for $${input.amount.toFixed(2)} ${input.currency} has been confirmed. Reference: #${booking.id}`,
+        url: "/tourist/trip-planner",
+        tag: `booking-${booking.id}`,
+        data: { bookingId: booking.id, amount: input.amount, currency: input.currency },
+      }).catch(() => {}); // Fire-and-forget
 
       return { bookingId: booking.id, status: "pending" };
     }),

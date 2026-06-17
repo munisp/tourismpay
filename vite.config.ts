@@ -26,6 +26,12 @@ const pwaPlugin = VitePWA({
     categories: ["finance", "travel", "lifestyle"],
     shortcuts: [
       {
+        name: "AI Trip Planner",
+        short_name: "Trip Plan",
+        url: "/tourist/trip-planner",
+        icons: [{ src: "/icons/pwa-192.png", sizes: "192x192" }],
+      },
+      {
         name: "Tourist Experience",
         short_name: "Tourist",
         url: "/tourist",
@@ -49,6 +55,22 @@ const pwaPlugin = VitePWA({
         options: {
           cacheName: "trpc-api-cache",
           expiration: { maxEntries: 50, maxAgeSeconds: 300 },
+        },
+      },
+      {
+        urlPattern: /^\/api\/trpc\/tripPlanner\.(countryMerchants|merchantProducts|searchMerchants)/,
+        handler: "StaleWhileRevalidate" as const,
+        options: {
+          cacheName: "trip-planner-cache",
+          expiration: { maxEntries: 100, maxAgeSeconds: 86400 }, // 24h
+        },
+      },
+      {
+        urlPattern: /^https:\/\/tile\.openstreetmap\.org\//,
+        handler: "CacheFirst" as const,
+        options: {
+          cacheName: "osm-tiles-cache",
+          expiration: { maxEntries: 500, maxAgeSeconds: 604800 }, // 7 days
         },
       },
     ],
