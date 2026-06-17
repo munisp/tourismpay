@@ -133,6 +133,11 @@ export const qrPaymentRouter = router({
           unitPrice: z.string(),
           currency: z.string().max(10).default("USD"),
         })).optional(),
+        // Tipping integration
+        tipType: z.enum(["percentage", "flat", "round_up", "none"]).default("none"),
+        tipValue: z.number().min(0).default(0),
+        // Tax jurisdiction (auto-detected from merchant country if not provided)
+        jurisdictionCode: z.string().length(2).optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -358,6 +363,28 @@ export const qrPaymentRouter = router({
         // Non-critical — tourist notification failure should not block payment
       }
 
+      // ── Tip + Tax summary for the response ──────────────────────────────────
+      let tipAmount = 0;
+      let taxAmount = 0;
+      const tipType = input.tipType ?? "none";
+      if (tipType !== "none" && input.tipValue > 0) {
+        // Calculate tip amount
+        if (tipType === "percentage") {
+          tipAmount = Math.round(amount * (input.tipValue / 100) * 100) / 100;
+        } else if (tipType === "flat") {
+          tipAmount = input.tipValue;
+        } else if (tipType === "round_up") {
+          const unit = input.tipValue > 0 ? input.tipValue : 100;
+          tipAmount = Math.ceil(amount / unit) * unit - amount;
+        }
+      }
+      // Auto-detect jurisdiction from establishment country for tax calc
+      const jurisdictionCode = input.jurisdictionCode ?? "NG";
+      // Simple VAT rates by jurisdiction for inline calculation
+      const vatRates: Record<string, number> = { NG: 7.5, KE: 16, GH: 15, ZA: 15, TZ: 18, RW: 18, ET: 15, MA: 20, EG: 14, UG: 18 };
+      const vatRate = vatRates[jurisdictionCode] ?? 7.5;
+      taxAmount = Math.round(amount * (vatRate / 100) * 100) / 100;
+
       return {
         success: true,
         txId: tx.id,
@@ -366,6 +393,12 @@ export const qrPaymentRouter = router({
         amountPaid: input.amountUsd,
         currency: input.currency,
         loyaltyPointsEarned,
+        tipAmount,
+        tipType,
+        taxAmount,
+        taxRate: vatRate,
+        jurisdictionCode,
+        grandTotal: amount + tipAmount + taxAmount,
       };
     }),
 

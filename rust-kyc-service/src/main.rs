@@ -21,6 +21,8 @@ mod nfc_payment;
 mod travel_readiness;
 #[allow(dead_code)]
 mod pricing_engine;
+#[allow(dead_code)]
+mod tax_tip_engine;
 
 use actix_web::{web, App, HttpServer, middleware::Logger};
 use std::env;
