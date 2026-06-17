@@ -3,6 +3,7 @@ import { createServer } from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import { logger } from "./_core/logger";
+import { securityHeaders } from "./middleware/securityHeaders";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -10,6 +11,9 @@ const __dirname = path.dirname(__filename);
 async function startServer() {
   const app = express();
   const server = createServer(app);
+
+  // Security headers (CSP, HSTS, X-Frame-Options, etc.)
+  app.use(securityHeaders());
 
   // Serve static files from dist/public in production
   const staticPath =

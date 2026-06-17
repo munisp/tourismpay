@@ -26,6 +26,13 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useRole, UserRole } from "@/hooks/useRole";
 import { useOnboardingRedirect } from "@/hooks/useOnboardingRedirect";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { EmergencySOS } from "@/components/EmergencySOS";
+import { FXRateTicker } from "@/components/FXRateTicker";
+import { useSessionTimeout } from "@/hooks/useSessionTimeout";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 
 interface NavItem {
   label: string;
@@ -177,10 +184,20 @@ interface AppShellProps {
 export default function AppShell({ children }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [location, navigate] = useLocation();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
   const { role, hasRole } = useRole();
   // Redirect first-time users to their role-specific onboarding flow
   useOnboardingRedirect();
+
+  // Session timeout — auto-logout after 15 min of inactivity
+  const { showWarning, secondsLeft, extendSession } = useSessionTimeout({
+    timeoutMs: 15 * 60 * 1000,
+    warningBeforeMs: 60 * 1000,
+    onLogout: () => {
+      logout();
+      navigate("/login");
+    },
+  });
 
   // Live unread notification count
   const { data: unreadData } = trpc.notifications.unreadCount.useQuery(
@@ -392,6 +409,8 @@ export default function AppShell({ children }: AppShellProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Language switcher */}
+            <LanguageSwitcher />
             {/* Theme toggle */}
             <ThemeToggle />
             {/* Live indicator */}
@@ -419,6 +438,9 @@ export default function AppShell({ children }: AppShellProps) {
           </div>
         </header>
 
+        {/* FX rate ticker */}
+        <FXRateTicker />
+
         {/* Page content */}
         <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
           {children}
@@ -426,6 +448,28 @@ export default function AppShell({ children }: AppShellProps) {
       </div>
       {/* Mobile bottom nav */}
       <MobileNav />
+
+      {/* Emergency SOS — floating button available on every page */}
+      <EmergencySOS />
+
+      {/* Session timeout warning dialog */}
+      <Dialog open={showWarning} onOpenChange={() => extendSession()}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-500">
+              <AlertTriangle className="w-5 h-5" />
+              Session Expiring
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Your session will expire in <span className="font-mono font-bold text-foreground">{secondsLeft}s</span> due to inactivity.
+            Click below to stay signed in.
+          </p>
+          <DialogFooter>
+            <Button onClick={extendSession} className="w-full">Stay Signed In</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
