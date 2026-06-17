@@ -69,6 +69,7 @@ import { tripPlannerRouter } from "./routers/tripPlanner";
 import { tippingRouter } from "./routers/tipping";
 import { multiTippingRouter } from "./routers/multiTipping";
 import { taxCollectionRouter } from "./routers/taxCollection";
+import { gdsIntegrationRouter } from "./routers/gdsIntegration";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -202,6 +203,7 @@ export const appRouter = router({
   tipping: tippingRouter,
   multiTipping: multiTippingRouter,
   taxCollection: taxCollectionRouter,
+  gdsIntegration: gdsIntegrationRouter,
 });
 
 

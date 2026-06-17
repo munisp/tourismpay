@@ -6,6 +6,8 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import MultiTipSelector from "@/components/MultiTipSelector";
+import { ShowFor } from "@/components/RoleGuard";
+import { useRole } from "@/hooks/useRole";
 
 // ─── Tip Selector Component ─────────────────────────────────────────────────
 
@@ -236,10 +238,22 @@ function JurisdictionSelector({ selected, onChange }: { selected: string; onChan
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export default function TippingTaxPage() {
+  const { role, hasRole } = useRole();
+  const isMerchant = role === "merchant";
+  const isAdmin = hasRole("admin", "settlement_officer");
+
+  // Merchants only see their own jurisdiction (scoped by backend)
   const [jurisdiction, setJurisdiction] = useState("NG");
   const [activeTab, setActiveTab] = useState<"tipping" | "tax" | "multi" | "remittance">("tipping");
   const [taxCategory, setTaxCategory] = useState("food");
   const [taxAmount, setTaxAmount] = useState("");
+
+  // Available tabs differ by role
+  const availableTabs = isMerchant
+    ? ["tipping", "tax", "multi"] as const
+    : isAdmin
+      ? ["tipping", "tax", "multi", "remittance"] as const
+      : ["tipping", "tax", "multi", "remittance"] as const;
 
   const tipJurisdictions = trpc.tipping.jurisdictions.useQuery();
   const taxRules = trpc.taxCollection.getRules.useQuery({ jurisdictionCode: jurisdiction });
@@ -258,12 +272,12 @@ export default function TippingTaxPage() {
         <JurisdictionSelector selected={jurisdiction} onChange={setJurisdiction} />
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — role-based visibility */}
       <div className="flex gap-1 px-4 pt-4">
-        {(["tipping", "tax", "multi", "remittance"] as const).map(tab => (
+        {availableTabs.map(tab => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => setActiveTab(tab as typeof activeTab)}
             className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium capitalize transition-colors ${
               activeTab === tab ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
@@ -272,6 +286,15 @@ export default function TippingTaxPage() {
           </button>
         ))}
       </div>
+
+      {/* Merchant jurisdiction notice */}
+      {isMerchant && (
+        <div className="mx-4 mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <p className="text-xs text-amber-800">
+            Showing data for your registered jurisdiction ({jurisdiction}). Contact admin to update.
+          </p>
+        </div>
+      )}
 
       {/* Tab Content */}
       <div className="px-4 pt-4">
@@ -378,7 +401,7 @@ export default function TippingTaxPage() {
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
               <h4 className="text-sm font-semibold text-amber-900">Tax Remittance Tracker</h4>
               <p className="text-xs text-amber-700 mt-1">
-                Track collected taxes and remittance status per jurisdiction. Admin access required for full details.
+                Track collected taxes and remittance status per jurisdiction.
               </p>
             </div>
 
@@ -395,6 +418,24 @@ export default function TippingTaxPage() {
                 );
               })}
             </div>
+
+            {/* Admin-only actions */}
+            <ShowFor roles={["admin", "settlement_officer"]}>
+              <div className="bg-white border border-blue-200 rounded-xl p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-blue-900">Admin Actions</h4>
+                <div className="flex gap-2">
+                  <button className="flex-1 py-2 px-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                    Initiate Remittance
+                  </button>
+                  <button className="flex-1 py-2 px-3 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">
+                    Reconcile
+                  </button>
+                </div>
+                <button className="w-full py-2 px-3 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
+                  Generate Compliance Report
+                </button>
+              </div>
+            </ShowFor>
           </div>
         )}
       </div>

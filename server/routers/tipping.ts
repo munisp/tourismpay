@@ -3,7 +3,7 @@
  * percentage/flat/round-up options, pool distribution, and merchant config.
  */
 import { z } from "zod";
-import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
+import { protectedProcedure, adminProcedure, merchantProcedure, router } from "../_core/trpc";
 import { getDb, createUserNotification } from "../db";
 import { TRPCError } from "@trpc/server";
 import { sql } from "drizzle-orm";
@@ -334,7 +334,7 @@ export const tippingRouter = router({
     }),
 
   // Merchant: get tip summary for their establishment
-  merchantSummary: protectedProcedure
+  merchantSummary: merchantProcedure
     .input(z.object({ establishmentId: z.number(), period: z.string().optional() }))
     .query(async ({ input }) => {
       const db = await getDb();
