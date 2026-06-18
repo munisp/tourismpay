@@ -1,93 +1,78 @@
-/**
- * Properties API — Full CRUD for African tourism properties.
- * Uses in-memory store with seed data. In production, queries PostgreSQL.
- */
 import { Router, Request, Response } from "express";
-import { requireRole } from "../auth";
-import { establishments, generateId } from "../lib/store";
+import { query, queryOne } from "../lib/database";
+import { cacheGet, cacheSet, cacheDelete } from "../lib/redis";
+import { publishEvent, TOPICS } from "../lib/kafka";
 
 export const propertiesRouter = Router();
+const TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
-const africanCountries = ["KE", "ZA", "TZ", "NG", "GH", "RW", "UG", "ET", "MA", "EG", "BW", "NA", "ZW", "MU", "MZ", "SN", "CI", "CM", "TN", "MG"];
+propertiesRouter.get("/", async (req: Request, res: Response) => {
+  const { country, type, status } = req.query;
+  const cached = await cacheGet("properties:list");
+  if (cached && !country && !type && !status) return res.json(JSON.parse(cached));
 
-// List properties
-propertiesRouter.get("/", (req: Request, res: Response) => {
-  let results = [...establishments];
-  const { country, type, star_rating, status, tier } = req.query;
-  if (country) results = results.filter(e => e.country === country);
-  if (type) results = results.filter(e => e.type === type);
-  if (star_rating) results = results.filter(e => e.star_rating >= Number(star_rating));
-  if (status) results = results.filter(e => e.status === status);
-  if (tier) results = results.filter(e => e.tier === tier);
+  let sql = "SELECT * FROM gds_properties WHERE tenant_id = $1";
+  const params: unknown[] = [TENANT_ID];
+  let idx = 2;
+  if (country) { sql += ` AND country_code = $${idx++}`; params.push(country); }
+  if (type) { sql += ` AND type = $${idx++}`; params.push(type); }
+  if (status) { sql += ` AND status = $${idx++}`; params.push(status); }
+  sql += " ORDER BY created_at DESC";
 
-  const page = parseInt(req.query.page as string) || 1;
-  const pageSize = parseInt(req.query.page_size as string) || 20;
-  const start = (page - 1) * pageSize;
-
-  res.json({
-    properties: results.slice(start, start + pageSize),
-    total: results.length,
-    page, pageSize,
-  });
+  const result = await query(sql, params);
+  const resp = { properties: result.rows, total: result.rowCount };
+  if (!country && !type && !status) await cacheSet("properties:list", JSON.stringify(resp), 120);
+  res.json(resp);
 });
 
-// Get single property
-propertiesRouter.get("/:id", (req: Request, res: Response) => {
-  const prop = establishments.find(e => e.id === req.params.id);
-  if (!prop) return res.status(404).json({ error: "Property not found" });
-  res.json(prop);
+propertiesRouter.get("/:id", async (req: Request, res: Response) => {
+  const cached = await cacheGet(`properties:${req.params.id}`);
+  if (cached) return res.json(JSON.parse(cached));
+
+  const row = await queryOne("SELECT * FROM gds_properties WHERE id = $1 AND tenant_id = $2", [req.params.id, TENANT_ID]);
+  if (!row) return res.status(404).json({ error: "Property not found" });
+
+  const rooms = await query("SELECT * FROM gds_room_types WHERE property_id = $1", [req.params.id]);
+  const resp = { ...row, room_types: rooms.rows };
+  await cacheSet(`properties:${req.params.id}`, JSON.stringify(resp), 300);
+  res.json(resp);
 });
 
-// Create property
-propertiesRouter.post("/", requireRole("property_manager", "admin"), (req: Request, res: Response) => {
-  const { name, type, country, currency, contact_name, contact_email } = req.body;
-  const missing = ["name", "type", "country"].filter(f => !req.body[f]);
-  if (missing.length > 0) return res.status(400).json({ error: "Missing required fields", missing });
-  if (!africanCountries.includes(country)) {
-    return res.status(400).json({ error: "GDS supports African countries only", supported: africanCountries });
-  }
+propertiesRouter.post("/", async (req: Request, res: Response) => {
+  const { name, type, country_code, city, star_rating, currency, commission_pct, amenities, contact_email, contact_phone, property_code } = req.body;
+  if (!name || !type || !country_code) return res.status(400).json({ error: "name, type, country_code required" });
 
-  const property = {
-    id: generateId("EST"),
-    name, type, country, city: req.body.city || "", address: req.body.address || "",
-    contact_name: contact_name || "", contact_email: contact_email || "",
-    contact_phone: req.body.contact_phone || "", rooms: req.body.rooms || 0,
-    star_rating: req.body.star_rating || 0, tier: "sms_only",
-    status: "pending_verification", onboarding_step: 1, onboarding_channel: "web",
-    amenities: req.body.amenities || [], currency: currency || "USD",
-    base_rate: req.body.base_rate || 0, verified: false,
-    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-  };
-  establishments.push(property);
-  res.status(201).json(property);
+  const result = await queryOne(
+    `INSERT INTO gds_properties (tenant_id, name, type, country_code, city, star_rating, currency, commission_pct, amenities, contact_email, contact_phone, property_code, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'pending')
+     RETURNING *`,
+    [TENANT_ID, name, type, country_code, city || null, star_rating || null, currency || "NGN", commission_pct || 15, amenities || [], contact_email || null, contact_phone || null, property_code || null]
+  );
+  await cacheDelete("properties:list");
+  await publishEvent({ topic: TOPICS.AVAILABILITY_UPDATED, key: result?.id as string, value: { action: "property_created", property: result } });
+  res.status(201).json(result);
 });
 
-// Update property
-propertiesRouter.put("/:id", requireRole("property_manager", "admin"), (req: Request, res: Response) => {
-  const idx = establishments.findIndex(e => e.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Property not found" });
-  establishments[idx] = { ...establishments[idx], ...req.body, id: establishments[idx].id, updated_at: new Date().toISOString() };
-  res.json(establishments[idx]);
+propertiesRouter.put("/:id", async (req: Request, res: Response) => {
+  const { name, type, country_code, city, star_rating, currency, commission_pct, amenities, contact_email, contact_phone, status } = req.body;
+  const result = await queryOne(
+    `UPDATE gds_properties SET name=COALESCE($2,name), type=COALESCE($3,type), country_code=COALESCE($4,country_code),
+     city=COALESCE($5,city), star_rating=COALESCE($6,star_rating), currency=COALESCE($7,currency),
+     commission_pct=COALESCE($8,commission_pct), amenities=COALESCE($9,amenities), contact_email=COALESCE($10,contact_email),
+     contact_phone=COALESCE($11,contact_phone), status=COALESCE($12,status), updated_at=NOW()
+     WHERE id=$1 AND tenant_id=$13 RETURNING *`,
+    [req.params.id, name, type, country_code, city, star_rating, currency, commission_pct, amenities, contact_email, contact_phone, status, TENANT_ID]
+  );
+  if (!result) return res.status(404).json({ error: "Property not found" });
+  await cacheDelete("properties:list");
+  await cacheDelete(`properties:${req.params.id}`);
+  res.json(result);
 });
 
-// Delete property
-propertiesRouter.delete("/:id", requireRole("admin"), (req: Request, res: Response) => {
-  const idx = establishments.findIndex(e => e.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Property not found" });
-  establishments.splice(idx, 1);
+propertiesRouter.delete("/:id", async (req: Request, res: Response) => {
+  const result = await query("DELETE FROM gds_properties WHERE id = $1 AND tenant_id = $2", [req.params.id, TENANT_ID]);
+  if (result.rowCount === 0) return res.status(404).json({ error: "Property not found" });
+  await cacheDelete("properties:list");
+  await cacheDelete(`properties:${req.params.id}`);
   res.json({ deleted: true, id: req.params.id });
-});
-
-// Get room types for a property
-propertiesRouter.get("/:id/room-types", (req: Request, res: Response) => {
-  const prop = establishments.find(e => e.id === req.params.id);
-  if (!prop) return res.status(404).json({ error: "Property not found" });
-  res.json({
-    propertyId: req.params.id,
-    roomTypes: [
-      { id: "RT-STD", name: "Standard", max_occupancy: 2, base_rate: prop.base_rate },
-      { id: "RT-DLX", name: "Deluxe", max_occupancy: 2, base_rate: Math.round(prop.base_rate * 1.4) },
-      { id: "RT-STE", name: "Suite", max_occupancy: 3, base_rate: Math.round(prop.base_rate * 2.0) },
-    ],
-  });
 });

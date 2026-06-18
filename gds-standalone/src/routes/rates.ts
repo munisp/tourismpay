@@ -1,92 +1,48 @@
-/**
- * Rates API — Manage rate plans, dynamic pricing, rate parity.
- */
 import { Router, Request, Response } from "express";
-import { requireRole } from "../auth";
+import { query, queryOne } from "../lib/database";
+import { cacheGet, cacheSet, cacheDelete } from "../lib/redis";
+import { publishEvent, TOPICS } from "../lib/kafka";
 
 export const ratesRouter = Router();
 
-// Get rates for a property
 ratesRouter.get("/", async (req: Request, res: Response) => {
-  const { propertyId, roomType, dateFrom, dateTo, currency = "USD" } = req.query;
-
-  if (!propertyId) {
-    res.status(400).json({ error: "propertyId required" });
-    return;
-  }
-
-  res.json({
-    propertyId,
-    roomType: roomType || "all",
-    dateFrom,
-    dateTo,
-    currency,
-    rates: [],
-  });
+  const { property_id, room_type_code, from_date, to_date } = req.query;
+  let sql = "SELECT rp.*, p.name as property_name FROM gds_rate_plans rp JOIN gds_properties p ON rp.property_id = p.id WHERE 1=1";
+  const params: unknown[] = [];
+  let idx = 1;
+  if (property_id) { sql += ` AND rp.property_id = $${idx++}`; params.push(property_id); }
+  if (room_type_code) { sql += ` AND rp.room_type_code = $${idx++}`; params.push(room_type_code); }
+  if (from_date) { sql += ` AND rp.date >= $${idx++}`; params.push(from_date); }
+  if (to_date) { sql += ` AND rp.date <= $${idx++}`; params.push(to_date); }
+  sql += " ORDER BY rp.date ASC LIMIT 100";
+  const result = await query(sql, params);
+  res.json({ rates: result.rows, total: result.rowCount });
 });
 
-// Get dynamic price (ML-adjusted)
-ratesRouter.get("/dynamic", async (req: Request, res: Response) => {
-  const { propertyId, roomType, date, baseRate } = req.query;
-
-  if (!propertyId || !roomType || !date || !baseRate) {
-    res.status(400).json({ error: "propertyId, roomType, date, baseRate required" });
-    return;
-  }
-
-  const base = parseFloat(baseRate as string);
-  // Simplified dynamic pricing (in production: call Python ML service)
-  const multiplier = 1.0;
-  const dynamic = base * multiplier;
-
-  res.json({
-    propertyId,
-    roomType,
-    date,
-    baseRate: base,
-    dynamicRate: dynamic,
-    multiplier,
-    factors: { occupancy: 0, leadTime: 0, season: 0, demand: 0 },
-  });
+ratesRouter.post("/", async (req: Request, res: Response) => {
+  const { property_id, room_type_code, rate_plan_code, date, rate, currency, meal_plan, min_stay } = req.body;
+  if (!property_id || !room_type_code || !date || !rate) return res.status(400).json({ error: "property_id, room_type_code, date, rate required" });
+  const result = await queryOne(
+    "INSERT INTO gds_rate_plans (property_id,room_type_code,rate_plan_code,date,rate,currency,meal_plan,min_stay) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",
+    [property_id, room_type_code, rate_plan_code || "BAR", date, rate, currency || "NGN", meal_plan || "RO", min_stay || 1]
+  );
+  await publishEvent({ topic: TOPICS.RATE_CHANGED, value: { property_id, room_type_code, date, rate } });
+  res.status(201).json(result);
 });
 
-// Set/update rate plan (property managers)
-ratesRouter.post("/plans", requireRole("property_manager", "admin"), async (req: Request, res: Response) => {
-  const { propertyId, roomType, ratePlanCode, rate, currency, mealPlan, dateFrom, dateTo } = req.body;
-
-  if (!propertyId || !roomType || !rate || !dateFrom || !dateTo) {
-    res.status(400).json({ error: "Missing required rate plan fields" });
-    return;
-  }
-
-  res.status(201).json({
-    created: true,
-    ratePlan: {
-      propertyId,
-      roomType,
-      ratePlanCode: ratePlanCode || "BAR",
-      rate,
-      currency: currency || "USD",
-      mealPlan: mealPlan || "RO",
-      dateFrom,
-      dateTo,
-    },
-  });
+ratesRouter.put("/:id", async (req: Request, res: Response) => {
+  const { rate, currency, meal_plan, min_stay, stop_sell } = req.body;
+  const result = await queryOne(
+    "UPDATE gds_rate_plans SET rate=COALESCE($2,rate),currency=COALESCE($3,currency),meal_plan=COALESCE($4,meal_plan),min_stay=COALESCE($5,min_stay),stop_sell=COALESCE($6,stop_sell),updated_at=NOW() WHERE id=$1 RETURNING *",
+    [req.params.id, rate, currency, meal_plan, min_stay, stop_sell]
+  );
+  if (!result) return res.status(404).json({ error: "Rate plan not found" });
+  await publishEvent({ topic: TOPICS.RATE_CHANGED, value: { id: req.params.id, rate } });
+  res.json(result);
 });
 
-// Bulk rate update (date range)
-ratesRouter.put("/bulk", requireRole("property_manager", "admin"), async (req: Request, res: Response) => {
-  const { propertyId, roomType, dateFrom, dateTo, rate, currency } = req.body;
-  res.json({ updated: true, propertyId, roomType, dateFrom, dateTo, rate, currency });
-});
-
-// Rate parity check
-ratesRouter.get("/parity", async (req: Request, res: Response) => {
-  const { propertyId } = req.query;
-  res.json({
-    propertyId,
-    parityAlerts: [],
-    status: "no_alerts",
-    lastChecked: new Date().toISOString(),
-  });
+ratesRouter.delete("/:id", async (req: Request, res: Response) => {
+  const result = await query("DELETE FROM gds_rate_plans WHERE id = $1", [req.params.id]);
+  if (result.rowCount === 0) return res.status(404).json({ error: "Rate plan not found" });
+  res.json({ deleted: true, id: req.params.id });
 });
