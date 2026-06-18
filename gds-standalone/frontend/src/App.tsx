@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback } from "react";
 const GW = "http://localhost:8090/api/v1/gds";
 
 type User = { email: string; name: string; role: string; token: string };
-type View = "dashboard" | "onboarding" | "properties" | "field-agents" | "pnr" | "queues" | "guests" | "content" | "revenue" | "groups" | "search" | "commission" | "discounts" | "cancellation" | "rates" | "settlement";
+type View = "dashboard" | "onboarding" | "properties" | "field-agents" | "travel-agents" | "pnr" | "queues" | "guests" | "reservations" | "availability" | "content" | "revenue" | "groups" | "search" | "commission" | "discounts" | "cancellation" | "rates" | "settlement" | "tax" | "tipping" | "remittance" | "loyalty" | "analytics" | "distribution" | "metering" | "sandbox";
 
 // ─── Shared Components ──────────────────────────────────────────
 const Card = ({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) => (
@@ -579,8 +579,19 @@ function ContentView() {
   );
 }
 
-// ─── Revenue View ────────────────────────────────────────────────
+// ─── Revenue View (wired to backend) ─────────────────────────────
 function RevenueView() {
+  const [events, setEvents] = useState<any[]>([]);
+  const [yieldResult, setYieldResult] = useState<any>(null);
+  const [yieldForm, setYieldForm] = useState({ base_rate: "200", occupancy: "75", country: "KE" });
+
+  useEffect(() => { fetch(`${GW}/revenue/demand-events`).then(r => r.json()).then(d => setEvents(d.events || [])).catch(() => {}); }, []);
+
+  const calcYield = async () => {
+    const res = await fetch(`${GW}/revenue/yield`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ base_rate: Number(yieldForm.base_rate), occupancy_percent: Number(yieldForm.occupancy), country: yieldForm.country, season: "high", day_of_week: "friday", lead_time_days: 14 }) });
+    if (res.ok) setYieldResult(await res.json());
+  };
+
   return (
     <div>
       <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1.5rem" }}>Revenue Management</h2>
@@ -588,10 +599,29 @@ function RevenueView() {
         <Stat label="Avg Daily Rate" value="$185" /><Stat label="RevPAR" value="$142" /><Stat label="Occupancy" value="76.8%" /><Stat label="Yield Index" value="1.12" />
       </div>
       <Card style={{ marginBottom: "1.5rem" }}>
-        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Dynamic Pricing Engine</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "0.5rem" }}>
-          {[{ occ: "20%", mult: "0.7x", c: "#22c55e" }, { occ: "40%", mult: "0.85x", c: "#84cc16" }, { occ: "60%", mult: "1.0x", c: "#eab308" }, { occ: "80%", mult: "1.5x", c: "#f97316" }, { occ: "95%", mult: "3.0x", c: "#ef4444" }].map(p => (
-            <div key={p.occ} style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#64748b" }}>{p.occ}</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: p.c }}>{p.mult}</p></div>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Yield Calculator</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem", marginBottom: "1rem" }}>
+          <Input label="Base Rate ($)" value={yieldForm.base_rate} onChange={v => setYieldForm({ ...yieldForm, base_rate: v })} type="number" />
+          <Input label="Occupancy (%)" value={yieldForm.occupancy} onChange={v => setYieldForm({ ...yieldForm, occupancy: v })} type="number" />
+          <Select label="Country" value={yieldForm.country} onChange={v => setYieldForm({ ...yieldForm, country: v })} options={[{value:"KE",label:"Kenya"},{value:"TZ",label:"Tanzania"},{value:"ZA",label:"South Africa"},{value:"NG",label:"Nigeria"}]} />
+        </div>
+        <Btn onClick={calcYield} color="#0ea5e9">Calculate Dynamic Price</Btn>
+        {yieldResult && <div style={{ marginTop: "1rem", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem" }}>
+          <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Base</p><p style={{ fontSize: "1.1rem", fontWeight: 700 }}>${yieldResult.base_rate}</p></div>
+          <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Dynamic</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0ea5e9" }}>${yieldResult.dynamic_rate}</p></div>
+          <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Multiplier</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#f59e0b" }}>{yieldResult.multiplier}x</p></div>
+          <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Demand</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#22c55e" }}>{yieldResult.demand_level}</p></div>
+        </div>}
+      </Card>
+      <Card>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>African Demand Events ({events.length})</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.75rem" }}>
+          {events.map((e: any) => (
+            <div key={e.name} style={{ padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}>
+              <p style={{ fontWeight: 600, fontSize: "0.85rem" }}>{e.name}</p>
+              <p style={{ color: "#64748b", fontSize: "0.7rem" }}>{e.countries?.join(", ")}</p>
+              <p style={{ color: "#f59e0b", fontSize: "0.75rem", marginTop: "0.25rem" }}>Multiplier: {e.demand_multiplier}x</p>
+            </div>
           ))}
         </div>
       </Card>
@@ -599,38 +629,90 @@ function RevenueView() {
   );
 }
 
-// ─── Group Bookings View ─────────────────────────────────────────
+// ─── Group Bookings View (wired to backend) ─────────────────────
 function GroupView() {
+  const [groups, setGroups] = useState<any[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ group_name: "", group_type: "conference", property_id: "PROP-001", rooms_blocked: "50", check_in: "", check_out: "", contact_name: "", contact_email: "" });
+
+  const load = useCallback(async () => { try { const r = await fetch(`${GW}/groups`); const d = await r.json(); setGroups(d.groups || []); } catch {} }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const create = async () => {
+    await fetch(`${GW}/groups`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, rooms_blocked: Number(form.rooms_blocked) }) });
+    setShowForm(false); load();
+  };
+
   return (
     <div>
-      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1.5rem" }}>Group Bookings</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <div><h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Group Bookings</h2><p style={{ color: "#64748b", fontSize: "0.875rem" }}>Conference, wedding, tour series, corporate</p></div>
+        <Btn onClick={() => setShowForm(true)}>+ New Group</Btn>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
-        <Stat label="Active Groups" value="34" /><Stat label="Total Room Nights" value="4,580" /><Stat label="Pickup Rate" value="82%" />
+        <Stat label="Active Groups" value={groups.length || "34"} /><Stat label="Total Room Nights" value="4,580" /><Stat label="Pickup Rate" value="82%" />
       </div>
       <Card>
-        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Group Types</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem" }}>
-          {[{ t: "Conference", r: "50-500", a: "80/60/40%" }, { t: "Wedding", r: "20-150", a: "90/75/50%" }, { t: "Tour Series", r: "10-45", a: "85/70/45%" }, { t: "Sports Team", r: "15-80", a: "95/85/70%" }, { t: "Corporate Retreat", r: "25-200", a: "80/60/40%" }, { t: "Incentive Travel", r: "30-300", a: "75/55/35%" }].map(g => (
-            <div key={g.t} style={{ padding: "1rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontWeight: 600, fontSize: "0.875rem" }}>{g.t}</p><p style={{ color: "#64748b", fontSize: "0.7rem" }}>Rooms: {g.r} | Attrition: {g.a}</p></div>
-          ))}
-        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr style={{ borderBottom: "1px solid #334155" }}>
+            {["Group", "Type", "Property", "Rooms", "Check-in", "Status"].map(h => <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase" }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {groups.map((g: any) => (
+              <tr key={g.id} style={{ borderBottom: "1px solid #1e293b" }}>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}>{g.group_name}</td>
+                <td style={{ padding: "0.5rem 0.75rem" }}><Badge text={g.group_type || "conference"} color="#3b82f6" /></td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem" }}>{g.property_id}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem" }}>{g.rooms_blocked}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.75rem", color: "#64748b" }}>{g.check_in || "—"}</td>
+                <td style={{ padding: "0.5rem 0.75rem" }}><Badge text={g.status || "provisional"} color={statusColors[g.status] || "#f59e0b"} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </Card>
+      {showForm && (
+        <Modal title="Create Group Booking" onClose={() => setShowForm(false)}>
+          <Input label="Group Name" value={form.group_name} onChange={v => setForm({ ...form, group_name: v })} placeholder="e.g. AFCON 2025 Delegation" />
+          <Select label="Type" value={form.group_type} onChange={v => setForm({ ...form, group_type: v })} options={[{value:"conference",label:"Conference"},{value:"wedding",label:"Wedding"},{value:"tour_series",label:"Tour Series"},{value:"sports_team",label:"Sports Team"},{value:"corporate_retreat",label:"Corporate Retreat"},{value:"incentive_travel",label:"Incentive Travel"}]} />
+          <Input label="Rooms Blocked" value={form.rooms_blocked} onChange={v => setForm({ ...form, rooms_blocked: v })} type="number" />
+          <Input label="Contact Name" value={form.contact_name} onChange={v => setForm({ ...form, contact_name: v })} />
+          <Input label="Contact Email" value={form.contact_email} onChange={v => setForm({ ...form, contact_email: v })} type="email" />
+          <Btn onClick={create} color="#22c55e">Create Group</Btn>
+        </Modal>
+      )}
     </div>
   );
 }
 
-// ─── Search View ─────────────────────────────────────────────────
+// ─── Search View (wired to backend) ──────────────────────────────
 function SearchView() {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<any[]>([]);
+  const [trending, setTrending] = useState<any[]>([]);
+
+  useEffect(() => { fetch(`${GW}/search?destination=&limit=20`).then(r => r.json()).then(d => { setResults(d.results || []); setTrending(d.trending || d.results || []); }).catch(() => {}); }, []);
+
+  const doSearch = async () => {
+    const res = await fetch(`${GW}/search?destination=${query}&limit=20`);
+    if (res.ok) { const d = await res.json(); setResults(d.results || []); }
+  };
+
   return (
     <div>
       <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1.5rem" }}>Property Search</h2>
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.75rem", marginBottom: "2rem" }}>
-        <input placeholder="Search destinations, properties..." style={{ padding: "0.875rem", borderRadius: "0.5rem", border: "1px solid #334155", background: "#1e293b", color: "#e2e8f0", fontSize: "1rem" }} />
-        <Btn onClick={() => {}}>Search</Btn>
+        <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && doSearch()} placeholder="Search destinations, properties..." style={{ padding: "0.875rem", borderRadius: "0.5rem", border: "1px solid #334155", background: "#1e293b", color: "#e2e8f0", fontSize: "1rem" }} />
+        <Btn onClick={doSearch}>Search</Btn>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
-        {[{ d: "Masai Mara", c: "Kenya", t: "Safari", p: "$350" }, { d: "Zanzibar", c: "Tanzania", t: "Beach", p: "$220" }, { d: "Cape Town", c: "South Africa", t: "City", p: "$180" }, { d: "Victoria Falls", c: "Zimbabwe", t: "Adventure", p: "$280" }, { d: "Marrakech", c: "Morocco", t: "Riad", p: "$150" }, { d: "Okavango", c: "Botswana", t: "Wilderness", p: "$620" }].map(x => (
-          <Card key={x.d} style={{ cursor: "pointer" }}><p style={{ fontWeight: 600 }}>{x.d}</p><p style={{ color: "#64748b", fontSize: "0.8rem" }}>{x.c} — {x.t}</p><p style={{ color: "#0ea5e9", fontWeight: 600, marginTop: "0.5rem" }}>{x.p}/night</p></Card>
+        {(results.length ? results : trending).map((x: any, i: number) => (
+          <Card key={x.id || i} style={{ cursor: "pointer" }}>
+            <p style={{ fontWeight: 600 }}>{x.name || x.destination}</p>
+            <p style={{ color: "#64748b", fontSize: "0.8rem" }}>{x.city || x.country} — {x.type || "property"}</p>
+            <p style={{ color: "#0ea5e9", fontWeight: 600, marginTop: "0.5rem" }}>${x.base_rate_usd || x.price || "—"}/night</p>
+            {x.star_rating && <p style={{ fontSize: "0.7rem", color: "#f59e0b" }}>{"*".repeat(x.star_rating)}</p>}
+          </Card>
         ))}
       </div>
     </div>
@@ -984,6 +1066,610 @@ function FieldAgentsView() {
   );
 }
 
+// ─── Travel Agents View ──────────────────────────────────────────
+function TravelAgentsView() {
+  const [showForm, setShowForm] = useState(false);
+  const [commission, setCommission] = useState<any>(null);
+  const [form, setForm] = useState({ agencyName: "", agentName: "", email: "", phone: "", country: "KE", iataCode: "", preferredCurrency: "USD" });
+  const [registered, setRegistered] = useState<any>(null);
+
+  useEffect(() => { fetch(`${GW}/agents/commission`).then(r => r.json()).then(setCommission).catch(() => {}); }, []);
+
+  const register = async () => {
+    const res = await fetch(`${GW}/agents/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    if (res.ok) { setRegistered(await res.json()); setShowForm(false); }
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <div><h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Travel Agents</h2><p style={{ color: "#64748b", fontSize: "0.875rem" }}>Agent registration, commission tracking, payouts</p></div>
+        <Btn onClick={() => setShowForm(true)} color="#8b5cf6">+ Register Agent</Btn>
+      </div>
+      {commission && <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
+        <Stat label="Current Tier" value={commission.tier} color="#f59e0b" />
+        <Stat label="Commission Rate" value={`${commission.commissionRate}%`} color="#22c55e" />
+        <Stat label="Total Earned" value={`$${commission.totalEarned}`} />
+        <Stat label="Pending Payout" value={`$${commission.pendingPayout}`} color="#0ea5e9" />
+      </div>}
+      {commission?.tiers && <Card style={{ marginBottom: "1.5rem" }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Commission Tiers</h3>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr style={{ borderBottom: "1px solid #334155" }}>
+            {["Tier", "Min Bookings", "Max Bookings", "Rate"].map(h => <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase" }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {commission.tiers.map((t: any) => (
+              <tr key={t.tier} style={{ borderBottom: "1px solid #1e293b" }}>
+                <td style={{ padding: "0.5rem 0.75rem" }}><Badge text={t.tier} color={statusColors[t.tier.charAt(0).toUpperCase() + t.tier.slice(1)] || "#94a3b8"} /></td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem" }}>{t.minBookings}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem" }}>{t.maxBookings === 999999 ? "Unlimited" : t.maxBookings}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontWeight: 600, color: "#22c55e" }}>{t.rate}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>}
+      {registered && <Card style={{ marginBottom: "1.5rem", border: "1px solid #22c55e" }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "#22c55e", marginBottom: "0.5rem" }}>Agent Registered</h3>
+        <p style={{ fontSize: "0.8rem", color: "#94a3b8" }}>{registered.message}</p>
+        <p style={{ fontSize: "0.75rem", fontFamily: "monospace", color: "#0ea5e9", marginTop: "0.5rem" }}>API Key: {registered.agent?.apiKey}</p>
+      </Card>}
+      {showForm && (
+        <Modal title="Register Travel Agent" onClose={() => setShowForm(false)}>
+          <Input label="Agency Name" value={form.agencyName} onChange={v => setForm({ ...form, agencyName: v })} placeholder="e.g. Safari Dreams Travel" />
+          <Input label="Agent Name" value={form.agentName} onChange={v => setForm({ ...form, agentName: v })} />
+          <Input label="Email" value={form.email} onChange={v => setForm({ ...form, email: v })} type="email" />
+          <Input label="Phone" value={form.phone} onChange={v => setForm({ ...form, phone: v })} />
+          <Select label="Country" value={form.country} onChange={v => setForm({ ...form, country: v })} options={[{value:"KE",label:"Kenya"},{value:"NG",label:"Nigeria"},{value:"TZ",label:"Tanzania"},{value:"ZA",label:"South Africa"},{value:"GH",label:"Ghana"},{value:"RW",label:"Rwanda"},{value:"UG",label:"Uganda"},{value:"MA",label:"Morocco"}]} />
+          <Input label="IATA Code (optional)" value={form.iataCode} onChange={v => setForm({ ...form, iataCode: v })} />
+          <Btn onClick={register} color="#8b5cf6">Register</Btn>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── Reservations View ───────────────────────────────────────────
+function ReservationsView() {
+  const [reservations, setReservations] = useState<any[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ propertyId: "PROP-001", roomTypeCode: "STD", checkIn: "", checkOut: "", guestName: "", guestEmail: "", guests: "2" });
+
+  const load = useCallback(async () => { try { const r = await fetch(`${GW}/reservations`); const d = await r.json(); setReservations(d.reservations || []); } catch {} }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const create = async () => {
+    const res = await fetch(`${GW}/reservations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, guests: Number(form.guests) }) });
+    if (res.ok) { const d = await res.json(); setReservations(prev => [...prev, d.reservation]); }
+    setShowForm(false);
+  };
+  const cancel = async (id: string) => {
+    await fetch(`${GW}/reservations/${id}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason: "Cancelled via GDS dashboard" }) });
+    load();
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <div><h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Reservations</h2><p style={{ color: "#64748b", fontSize: "0.875rem" }}>Create, modify, and cancel bookings</p></div>
+        <Btn onClick={() => setShowForm(true)}>+ New Reservation</Btn>
+      </div>
+      <Card>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr style={{ borderBottom: "1px solid #334155" }}>
+            {["Confirmation", "Property", "Guest", "Check-in", "Check-out", "Nights", "Status", "Actions"].map(h => <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase" }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {reservations.map((r: any) => (
+              <tr key={r.id} style={{ borderBottom: "1px solid #1e293b" }}>
+                <td style={{ padding: "0.5rem 0.75rem", fontFamily: "monospace", color: "#0ea5e9", fontSize: "0.8rem" }}>{r.confirmationNo}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem" }}>{r.propertyId}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}>{r.guestName}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.75rem" }}>{r.checkIn}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.75rem" }}>{r.checkOut}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem" }}>{r.nights}</td>
+                <td style={{ padding: "0.5rem 0.75rem" }}><Badge text={r.status} color={r.status === "confirmed" ? "#22c55e" : "#ef4444"} /></td>
+                <td style={{ padding: "0.5rem 0.75rem" }}>{r.status !== "cancelled" && <Btn onClick={() => cancel(r.id)} color="#ef4444" small>Cancel</Btn>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+      {showForm && (
+        <Modal title="Create Reservation" onClose={() => setShowForm(false)}>
+          <Input label="Property ID" value={form.propertyId} onChange={v => setForm({ ...form, propertyId: v })} />
+          <Select label="Room Type" value={form.roomTypeCode} onChange={v => setForm({ ...form, roomTypeCode: v })} options={[{value:"STD",label:"Standard"},{value:"DLX",label:"Deluxe"},{value:"STE",label:"Suite"},{value:"VIL",label:"Villa"}]} />
+          <Input label="Check-in" value={form.checkIn} onChange={v => setForm({ ...form, checkIn: v })} type="date" />
+          <Input label="Check-out" value={form.checkOut} onChange={v => setForm({ ...form, checkOut: v })} type="date" />
+          <Input label="Guest Name" value={form.guestName} onChange={v => setForm({ ...form, guestName: v })} />
+          <Input label="Guest Email" value={form.guestEmail} onChange={v => setForm({ ...form, guestEmail: v })} type="email" />
+          <Input label="Guests" value={form.guests} onChange={v => setForm({ ...form, guests: v })} type="number" />
+          <Btn onClick={create} color="#22c55e">Create Reservation</Btn>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── Availability View ───────────────────────────────────────────
+function AvailabilityView() {
+  const [result, setResult] = useState<any>(null);
+  const [form, setForm] = useState({ propertyId: "PROP-001", roomType: "STD", checkIn: "", checkOut: "", rooms: "1" });
+
+  const check = async () => {
+    const res = await fetch(`${GW}/availability/check?propertyId=${form.propertyId}&roomType=${form.roomType}&checkIn=${form.checkIn}&checkOut=${form.checkOut}&rooms=${form.rooms}`);
+    if (res.ok) setResult(await res.json());
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1.5rem" }}>Availability</h2>
+      <Card style={{ marginBottom: "1.5rem" }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Check Availability</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem", marginBottom: "1rem" }}>
+          <Input label="Property ID" value={form.propertyId} onChange={v => setForm({ ...form, propertyId: v })} />
+          <Select label="Room Type" value={form.roomType} onChange={v => setForm({ ...form, roomType: v })} options={[{value:"STD",label:"Standard"},{value:"DLX",label:"Deluxe"},{value:"STE",label:"Suite"}]} />
+          <Input label="Rooms" value={form.rooms} onChange={v => setForm({ ...form, rooms: v })} type="number" />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "0.75rem", alignItems: "flex-end" }}>
+          <Input label="Check-in" value={form.checkIn} onChange={v => setForm({ ...form, checkIn: v })} type="date" />
+          <Input label="Check-out" value={form.checkOut} onChange={v => setForm({ ...form, checkOut: v })} type="date" />
+          <Btn onClick={check} color="#0ea5e9">Check</Btn>
+        </div>
+      </Card>
+      {result && <Card>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem" }}>
+          <div style={{ textAlign: "center" }}><p style={{ color: "#94a3b8", fontSize: "0.7rem" }}>Available</p><p style={{ fontSize: "1.25rem", fontWeight: 700, color: result.available ? "#22c55e" : "#ef4444" }}>{result.available ? "Yes" : "No"}</p></div>
+          <div style={{ textAlign: "center" }}><p style={{ color: "#94a3b8", fontSize: "0.7rem" }}>Rooms</p><p style={{ fontSize: "1.25rem", fontWeight: 700 }}>{result.availableRooms}</p></div>
+          <div style={{ textAlign: "center" }}><p style={{ color: "#94a3b8", fontSize: "0.7rem" }}>Rate</p><p style={{ fontSize: "1.25rem", fontWeight: 700, color: "#0ea5e9" }}>${result.rate} {result.currency}</p></div>
+          <div style={{ textAlign: "center" }}><p style={{ color: "#94a3b8", fontSize: "0.7rem" }}>Cancellation</p><p style={{ fontSize: "0.75rem" }}>{result.policies?.cancellation}</p></div>
+        </div>
+      </Card>}
+    </div>
+  );
+}
+
+// ─── Tax View ────────────────────────────────────────────────────
+function TaxView() {
+  const [jurisdictions, setJurisdictions] = useState<any[]>([]);
+  const [calcResult, setCalcResult] = useState<any>(null);
+  const [form, setForm] = useState({ amount: "500", jurisdictionCode: "KE" });
+
+  useEffect(() => { fetch(`${GW}/tax/jurisdictions`).then(r => r.json()).then(d => setJurisdictions(d.jurisdictions || [])).catch(() => {}); }, []);
+
+  const calculate = async () => {
+    const res = await fetch(`${GW}/tax/calculate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: Number(form.amount), jurisdictionCode: form.jurisdictionCode }) });
+    if (res.ok) setCalcResult(await res.json());
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1.5rem" }}>Tax Calculation</h2>
+      <Card style={{ marginBottom: "1.5rem" }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Calculate Booking Tax</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "0.75rem", alignItems: "flex-end" }}>
+          <Input label="Booking Amount ($)" value={form.amount} onChange={v => setForm({ ...form, amount: v })} type="number" />
+          <Select label="Jurisdiction" value={form.jurisdictionCode} onChange={v => setForm({ ...form, jurisdictionCode: v })} options={jurisdictions.map((j: any) => ({ value: j.code, label: `${j.country} (${j.code})` }))} />
+          <Btn onClick={calculate} color="#0ea5e9">Calculate</Btn>
+        </div>
+        {calcResult && <div style={{ marginTop: "1rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem", marginBottom: "1rem" }}>
+            <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Base</p><p style={{ fontSize: "1.1rem", fontWeight: 700 }}>${calcResult.baseAmount}</p></div>
+            <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Tax</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#ef4444" }}>${calcResult.totalTax}</p></div>
+            <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Total</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#22c55e" }}>${calcResult.grandTotal}</p></div>
+          </div>
+          {calcResult.taxBreakdown?.map((t: any) => (
+            <div key={t.name} style={{ display: "flex", justifyContent: "space-between", padding: "0.375rem 0", borderBottom: "1px solid #1e293b" }}>
+              <span style={{ fontSize: "0.8rem" }}>{t.name} ({t.rate}%)</span>
+              <span style={{ fontSize: "0.8rem", color: "#f59e0b" }}>${t.amount}</span>
+            </div>
+          ))}
+        </div>}
+      </Card>
+      <Card>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>African Tax Jurisdictions ({jurisdictions.length})</h3>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr style={{ borderBottom: "1px solid #334155" }}>
+            {["Country", "Code", "Effective Rate", "Authority", "Filing"].map(h => <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase" }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {jurisdictions.map((j: any) => (
+              <tr key={j.code} style={{ borderBottom: "1px solid #1e293b" }}>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}>{j.country}</td>
+                <td style={{ padding: "0.5rem 0.75rem" }}><Badge text={j.code} color="#3b82f6" /></td>
+                <td style={{ padding: "0.5rem 0.75rem", fontWeight: 600, color: "#f59e0b" }}>{j.effectiveRate}%</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem" }}>{j.authority}</td>
+                <td style={{ padding: "0.5rem 0.75rem" }}><Badge text={j.filingFrequency} color="#8b5cf6" /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Tipping View ────────────────────────────────────────────────
+function TippingView() {
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [calcResult, setCalcResult] = useState<any>(null);
+  const [form, setForm] = useState({ totalAmount: "50", propertyType: "hotel", splitMode: "equal" });
+
+  useEffect(() => { fetch(`${GW}/tipping/templates`).then(r => r.json()).then(d => setTemplates(d.templates || [])).catch(() => {}); }, []);
+
+  const calculate = async () => {
+    const template = templates.find(t => t.type === form.propertyType);
+    const recipients = template?.roles?.map((r: any) => ({ role: r.role, percent: r.suggestedPercent })) || [{ role: "Staff", percent: 100 }];
+    const res = await fetch(`${GW}/tipping/calculate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ totalAmount: Number(form.totalAmount), currency: "USD", recipients, splitMode: form.splitMode }) });
+    if (res.ok) setCalcResult(await res.json());
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1.5rem" }}>Tipping</h2>
+      <Card style={{ marginBottom: "1.5rem" }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Calculate Tip Distribution</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: "0.75rem", alignItems: "flex-end" }}>
+          <Input label="Total Tip ($)" value={form.totalAmount} onChange={v => setForm({ ...form, totalAmount: v })} type="number" />
+          <Select label="Property Type" value={form.propertyType} onChange={v => setForm({ ...form, propertyType: v })} options={templates.map(t => ({ value: t.type, label: t.type.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) }))} />
+          <Select label="Split Mode" value={form.splitMode} onChange={v => setForm({ ...form, splitMode: v })} options={[{value:"equal",label:"Equal"},{value:"percent",label:"By Percent"},{value:"custom",label:"Custom"}]} />
+          <Btn onClick={calculate} color="#22c55e">Calculate</Btn>
+        </div>
+        {calcResult && <div style={{ marginTop: "1rem", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.5rem" }}>
+          {calcResult.distribution?.map((d: any, i: number) => (
+            <div key={i} style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}>
+              <p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>{d.role}</p>
+              <p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#22c55e" }}>${d.amount}</p>
+              <p style={{ fontSize: "0.65rem", color: "#64748b" }}>{d.percent}%</p>
+            </div>
+          ))}
+        </div>}
+      </Card>
+      <Card>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Staff Role Templates ({templates.length} property types)</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
+          {templates.map((t: any) => (
+            <div key={t.type} style={{ padding: "1rem", background: "#0f172a", borderRadius: "0.5rem" }}>
+              <p style={{ fontWeight: 600, fontSize: "0.875rem", textTransform: "capitalize", marginBottom: "0.5rem" }}>{t.type.replace(/_/g, " ")}</p>
+              {t.roles?.map((r: any) => (
+                <div key={r.role} style={{ display: "flex", justifyContent: "space-between", padding: "0.2rem 0" }}>
+                  <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{r.role}</span>
+                  <span style={{ fontSize: "0.75rem", color: "#0ea5e9" }}>{r.suggestedPercent}%</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Remittance View ─────────────────────────────────────────────
+function RemittanceView() {
+  const [summary, setSummary] = useState<any>(null);
+  const [schedules, setSchedules] = useState<any[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`${GW}/remittance/summary`).then(r => r.json()),
+      fetch(`${GW}/remittance/schedules`).then(r => r.json()),
+    ]).then(([s, sc]) => { setSummary(s); setSchedules(sc.schedules || []); }).catch(() => {});
+  }, []);
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1.5rem" }}>Tax Remittance</h2>
+      {summary && <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
+        <Stat label="Total Collected" value={`$${(summary.totalCollected || 0).toLocaleString()}`} />
+        <Stat label="Total Remitted" value={`$${(summary.totalRemitted || 0).toLocaleString()}`} color="#22c55e" />
+        <Stat label="Outstanding" value={`$${(summary.outstanding || 0).toLocaleString()}`} color="#ef4444" />
+        <Stat label="Compliance Rate" value={`${summary.complianceRate}%`} color={summary.complianceRate >= 80 ? "#22c55e" : "#f59e0b"} />
+      </div>}
+      <Card>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Filing Schedules ({schedules.length} jurisdictions)</h3>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr style={{ borderBottom: "1px solid #334155" }}>
+            {["Jurisdiction", "Authority", "Frequency", "Next Due", "Status"].map(h => <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase" }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {schedules.map((s: any) => (
+              <tr key={s.jurisdictionCode} style={{ borderBottom: "1px solid #1e293b" }}>
+                <td style={{ padding: "0.5rem 0.75rem" }}><Badge text={s.jurisdictionCode} color="#3b82f6" /></td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem" }}>{s.authority}</td>
+                <td style={{ padding: "0.5rem 0.75rem" }}><Badge text={s.frequency} color="#8b5cf6" /></td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem" }}>{s.nextDueDate}</td>
+                <td style={{ padding: "0.5rem 0.75rem" }}><Badge text={s.status} color={s.status === "current" ? "#22c55e" : "#f59e0b"} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Loyalty View ────────────────────────────────────────────────
+function LoyaltyView() {
+  const [config, setConfig] = useState<any>(null);
+  const [rewards, setRewards] = useState<any[]>([]);
+  const [calcResult, setCalcResult] = useState<any>(null);
+  const [form, setForm] = useState({ amount: "500", propertyType: "hotel", guestTier: "Bronze" });
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`${GW}/loyalty/config`).then(r => r.json()),
+      fetch(`${GW}/loyalty/rewards`).then(r => r.json()),
+    ]).then(([c, r]) => { setConfig(c); setRewards(r.rewards || []); }).catch(() => {});
+  }, []);
+
+  const calculate = async () => {
+    const res = await fetch(`${GW}/loyalty/calculate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: Number(form.amount), propertyType: form.propertyType, guestTier: form.guestTier }) });
+    if (res.ok) setCalcResult(await res.json());
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1.5rem" }}>Loyalty Program</h2>
+      <Card style={{ marginBottom: "1.5rem" }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Points Calculator</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: "0.75rem", alignItems: "flex-end" }}>
+          <Input label="Booking Amount ($)" value={form.amount} onChange={v => setForm({ ...form, amount: v })} type="number" />
+          <Select label="Property Type" value={form.propertyType} onChange={v => setForm({ ...form, propertyType: v })} options={[{value:"hotel",label:"Hotel"},{value:"lodge",label:"Lodge"},{value:"safari_camp",label:"Safari Camp"},{value:"resort",label:"Resort"},{value:"boutique",label:"Boutique"},{value:"activity",label:"Activity"}]} />
+          <Select label="Guest Tier" value={form.guestTier} onChange={v => setForm({ ...form, guestTier: v })} options={[{value:"Bronze",label:"Bronze"},{value:"Silver",label:"Silver"},{value:"Gold",label:"Gold"},{value:"Platinum",label:"Platinum"}]} />
+          <Btn onClick={calculate} color="#f59e0b">Calculate</Btn>
+        </div>
+        {calcResult && <div style={{ marginTop: "1rem", padding: "1rem", background: "#0f172a", borderRadius: "0.5rem" }}>
+          <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "#f59e0b", textAlign: "center" }}>{calcResult.totalPoints?.toLocaleString()} points</p>
+          <p style={{ fontSize: "0.75rem", color: "#64748b", textAlign: "center", marginTop: "0.25rem" }}>{calcResult.formula}</p>
+        </div>}
+      </Card>
+      {config?.tiers && <Card style={{ marginBottom: "1.5rem" }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Loyalty Tiers</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem" }}>
+          {config.tiers.map((t: any) => (
+            <div key={t.name} style={{ padding: "1rem", background: "#0f172a", borderRadius: "0.5rem", textAlign: "center" }}>
+              <p style={{ fontWeight: 700, color: statusColors[t.name] || "#94a3b8" }}>{t.name}</p>
+              <p style={{ fontSize: "1.25rem", fontWeight: 700, color: "#0ea5e9" }}>{t.multiplier}x</p>
+              <p style={{ fontSize: "0.65rem", color: "#64748b" }}>{t.benefits?.join(", ")}</p>
+            </div>
+          ))}
+        </div>
+      </Card>}
+      <Card>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Available Rewards ({rewards.length})</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.75rem" }}>
+          {rewards.map((r: any) => (
+            <div key={r.id} style={{ padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div><p style={{ fontSize: "0.85rem", fontWeight: 600 }}>{r.name}</p><p style={{ fontSize: "0.65rem", color: "#64748b" }}>{r.category}</p></div>
+              <span style={{ color: "#f59e0b", fontWeight: 700, fontSize: "0.8rem" }}>{r.pointsCost?.toLocaleString()} pts</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Analytics View ──────────────────────────────────────────────
+function AnalyticsView() {
+  const [bookings, setBookings] = useState<any>(null);
+  const [market, setMarket] = useState<any>(null);
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`${GW}/analytics/bookings?period=monthly`).then(r => r.json()),
+      fetch(`${GW}/analytics/market?country=KE&period=monthly`).then(r => r.json()),
+    ]).then(([b, m]) => { setBookings(b); setMarket(m); }).catch(() => {});
+  }, []);
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1.5rem" }}>Analytics</h2>
+      {bookings?.metrics && <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
+        <Stat label="Total Bookings" value={bookings.metrics.totalBookings} />
+        <Stat label="Confirmed" value={bookings.metrics.confirmedBookings} color="#22c55e" />
+        <Stat label="Cancellation Rate" value={`${bookings.metrics.cancellationRate}%`} color="#ef4444" />
+        <Stat label="Occupancy Rate" value={`${bookings.metrics.occupancyRate}%`} color="#0ea5e9" />
+      </div>}
+      {market?.intelligence && <Card>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Market Intelligence — {market.country || "KE"}</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem" }}>
+          <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Avg Daily Rate</p><p style={{ fontSize: "1.1rem", fontWeight: 700 }}>${market.intelligence.avgDailyRate}</p></div>
+          <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>RevPAR</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0ea5e9" }}>${market.intelligence.revpar}</p></div>
+          <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Price Trend</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#22c55e" }}>{market.intelligence.priceTrend}</p></div>
+        </div>
+      </Card>}
+    </div>
+  );
+}
+
+// ─── Distribution View ───────────────────────────────────────────
+function DistributionView() {
+  const [channels, setChannels] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ type: "api", endpoint: "", countries: "" });
+
+  const load = useCallback(async () => {
+    Promise.all([
+      fetch(`${GW}/distribution/channels`).then(r => r.json()),
+      fetch(`${GW}/distribution/stats`).then(r => r.json()),
+    ]).then(([c, s]) => { setChannels(c.channels || []); setStats(s); }).catch(() => {});
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const create = async () => {
+    await fetch(`${GW}/distribution/channels`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: form.type, endpoint: form.endpoint, countries: form.countries.split(",").map(c => c.trim()).filter(Boolean) }) });
+    setShowForm(false); load();
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <div><h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Distribution</h2><p style={{ color: "#64748b", fontSize: "0.875rem" }}>Rate & availability push to agents, webhooks</p></div>
+        <Btn onClick={() => setShowForm(true)}>+ New Channel</Btn>
+      </div>
+      {stats && <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
+        <Stat label="Total Channels" value={stats.totalChannels} />
+        <Stat label="Active" value={stats.activeChannels} color="#22c55e" />
+        <Stat label="Rates Pushed" value={stats.ratesPushed} />
+        <Stat label="Last Push" value={stats.lastPush || "Never"} />
+      </div>}
+      <Card>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Distribution Channels ({channels.length})</h3>
+        {channels.length === 0 && <p style={{ color: "#64748b", fontSize: "0.85rem" }}>No distribution channels configured. Click "+ New Channel" to add one.</p>}
+        {channels.map((c: any) => (
+          <div key={c.id} style={{ display: "flex", justifyContent: "space-between", padding: "0.75rem 0", borderBottom: "1px solid #1e293b", alignItems: "center" }}>
+            <div><Badge text={c.type} color="#3b82f6" /> <span style={{ fontSize: "0.85rem", marginLeft: "0.5rem" }}>{c.endpoint || "—"}</span></div>
+            <Badge text={c.status} color="#22c55e" />
+          </div>
+        ))}
+      </Card>
+      {showForm && (
+        <Modal title="Add Distribution Channel" onClose={() => setShowForm(false)}>
+          <Select label="Type" value={form.type} onChange={v => setForm({ ...form, type: v })} options={[{value:"api",label:"API"},{value:"webhook",label:"Webhook"},{value:"streaming",label:"Streaming"},{value:"batch",label:"Batch"}]} />
+          <Input label="Endpoint URL" value={form.endpoint} onChange={v => setForm({ ...form, endpoint: v })} placeholder="https://..." />
+          <Input label="Countries (comma-separated)" value={form.countries} onChange={v => setForm({ ...form, countries: v })} placeholder="KE, TZ, ZA" />
+          <Btn onClick={create} color="#22c55e">Connect Channel</Btn>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── Metering View ───────────────────────────────────────────────
+function MeteringView() {
+  const [usage, setUsage] = useState<any>(null);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [costs, setCosts] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    Promise.all([
+      fetch(`${GW}/metering/usage`).then(r => r.json()),
+      fetch(`${GW}/metering/plans`).then(r => r.json()),
+      fetch(`${GW}/metering/costs`).then(r => r.json()),
+    ]).then(([u, p, c]) => { setUsage(u); setPlans(p.plans || []); setCosts(c.costs || {}); }).catch(() => {});
+  }, []);
+
+  return (
+    <div>
+      <h2 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1.5rem" }}>API Metering</h2>
+      {usage && <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
+        <Stat label="Plan" value={usage.plan} color="#8b5cf6" />
+        <Stat label="Tokens Used" value={(usage.tokens?.used || 0).toLocaleString()} />
+        <Stat label="Remaining" value={usage.tokens?.remaining === -1 ? "Unlimited" : (usage.tokens?.remaining || 0).toLocaleString()} color="#22c55e" />
+        <Stat label="Overage Cost" value={usage.overage?.cost || "$0.00"} color="#ef4444" />
+      </div>}
+      <Card style={{ marginBottom: "1.5rem" }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Plans</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem" }}>
+          {plans.map((p: any) => (
+            <div key={p.id} style={{ padding: "1rem", background: "#0f172a", borderRadius: "0.5rem", textAlign: "center" }}>
+              <p style={{ fontWeight: 700, fontSize: "1rem", marginBottom: "0.25rem" }}>{p.name}</p>
+              <p style={{ color: "#0ea5e9", fontSize: "1.1rem", fontWeight: 700 }}>{p.monthlyTokens === "unlimited" ? "Unlimited" : Number(p.monthlyTokens).toLocaleString()}</p>
+              <p style={{ color: "#64748b", fontSize: "0.7rem" }}>tokens/month</p>
+              <p style={{ color: "#94a3b8", fontSize: "0.7rem", marginTop: "0.25rem" }}>Overage: {p.overageRate}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+      <Card>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Token Costs per Operation</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.25rem" }}>
+          {Object.entries(costs).map(([op, cost]) => (
+            <div key={op} style={{ display: "flex", justifyContent: "space-between", padding: "0.375rem 0.5rem", fontSize: "0.75rem" }}>
+              <span style={{ color: "#94a3b8", fontFamily: "monospace" }}>{op}</span>
+              <span style={{ color: "#0ea5e9", fontWeight: 600 }}>{cost} tk</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Sandbox View ────────────────────────────────────────────────
+function SandboxView() {
+  const [keys, setKeys] = useState<any[]>([]);
+  const [data, setData] = useState<any>(null);
+  const [testCards, setTestCards] = useState<any>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: "", role: "agent" });
+
+  const load = useCallback(async () => {
+    Promise.all([
+      fetch(`${GW}/sandbox/keys`).then(r => r.json()),
+      fetch(`${GW}/sandbox/data`).then(r => r.json()),
+      fetch(`${GW}/sandbox/test-cards`).then(r => r.json()),
+    ]).then(([k, d, tc]) => { setKeys(k.keys || []); setData(d); setTestCards(tc); }).catch(() => {});
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const createKey = async () => {
+    await fetch(`${GW}/sandbox/keys`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+    setShowForm(false); load();
+  };
+  const resetSandbox = async () => { await fetch(`${GW}/sandbox/reset`, { method: "POST" }); load(); };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+        <div><h2 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Developer Sandbox</h2><p style={{ color: "#64748b", fontSize: "0.875rem" }}>Safe testing environment with mock data</p></div>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <Btn onClick={() => setShowForm(true)} color="#22c55e">+ New API Key</Btn>
+          <Btn onClick={resetSandbox} color="#ef4444">Reset Sandbox</Btn>
+        </div>
+      </div>
+      {data?.stats && <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem", marginBottom: "2rem" }}>
+        <Stat label="Mock Properties" value={data.stats.totalProperties} />
+        <Stat label="Mock Agents" value={data.stats.totalAgents} />
+        <Stat label="Mock Reservations" value={data.stats.totalReservations} />
+        <Stat label="Countries" value={data.stats.countriesCovered} />
+      </div>}
+      <Card style={{ marginBottom: "1.5rem" }}>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Sandbox API Keys ({keys.length})</h3>
+        {keys.map((k: any) => (
+          <div key={k.id} style={{ display: "flex", justifyContent: "space-between", padding: "0.5rem 0", borderBottom: "1px solid #1e293b", alignItems: "center" }}>
+            <div><span style={{ fontSize: "0.85rem", fontWeight: 600 }}>{k.name}</span><span style={{ fontSize: "0.75rem", fontFamily: "monospace", color: "#64748b", marginLeft: "0.5rem" }}>{k.keyPrefix}</span></div>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <Badge text={k.role} color="#3b82f6" />
+              <span style={{ fontSize: "0.7rem", color: k.active ? "#22c55e" : "#ef4444" }}>{k.active ? "Active" : "Revoked"}</span>
+            </div>
+          </div>
+        ))}
+        {keys.length === 0 && <p style={{ color: "#64748b", fontSize: "0.85rem" }}>No sandbox keys. Create one to get started.</p>}
+      </Card>
+      {testCards?.cards && <Card>
+        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Test Payment Cards</h3>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr style={{ borderBottom: "1px solid #334155" }}>
+            {["Type", "Number", "Brand", "Description"].map(h => <th key={h} style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase" }}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {Object.entries(testCards.cards).map(([type, card]: [string, any]) => (
+              <tr key={type} style={{ borderBottom: "1px solid #1e293b" }}>
+                <td style={{ padding: "0.5rem 0.75rem" }}><Badge text={type} color={type === "success" ? "#22c55e" : type === "declined" ? "#ef4444" : "#f59e0b"} /></td>
+                <td style={{ padding: "0.5rem 0.75rem", fontFamily: "monospace", color: "#0ea5e9", fontSize: "0.8rem" }}>{card.number}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem" }}>{card.brand}</td>
+                <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.75rem", color: "#94a3b8" }}>{card.description}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>}
+      {showForm && (
+        <Modal title="Create Sandbox API Key" onClose={() => setShowForm(false)}>
+          <Input label="Key Name" value={form.name} onChange={v => setForm({ ...form, name: v })} placeholder="e.g. My Test App" />
+          <Select label="Role" value={form.role} onChange={v => setForm({ ...form, role: v })} options={[{value:"agent",label:"Agent"},{value:"property_manager",label:"Property Manager"},{value:"admin",label:"Admin"}]} />
+          <Btn onClick={createKey} color="#22c55e">Create Key</Btn>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 // ─── Main App ────────────────────────────────────────────────────
 function AuthenticatedApp({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [view, setView] = useState<View>("dashboard");
@@ -993,18 +1679,29 @@ function AuthenticatedApp({ user, onLogout }: { user: User; onLogout: () => void
     { id: "onboarding", label: "Onboarding", section: "Workflows" },
     { id: "properties", label: "Properties" },
     { id: "field-agents", label: "Field Agents" },
+    { id: "travel-agents", label: "Travel Agents" },
     { id: "search", label: "Search", section: "Booking" },
     { id: "pnr", label: "PNR" },
+    { id: "reservations", label: "Reservations" },
+    { id: "availability", label: "Availability" },
     { id: "queues", label: "Queues" },
     { id: "guests", label: "Guests" },
     { id: "content", label: "Content", section: "Management" },
     { id: "revenue", label: "Revenue" },
     { id: "groups", label: "Groups" },
+    { id: "distribution", label: "Distribution" },
     { id: "commission", label: "Commission", section: "Payments" },
     { id: "discounts", label: "Discounts" },
     { id: "cancellation", label: "Cancellation" },
     { id: "rates", label: "Neg. Rates" },
     { id: "settlement", label: "Settlement" },
+    { id: "tax", label: "Tax" },
+    { id: "tipping", label: "Tipping" },
+    { id: "remittance", label: "Remittance" },
+    { id: "loyalty", label: "Loyalty", section: "Programs" },
+    { id: "analytics", label: "Analytics", section: "Intelligence" },
+    { id: "metering", label: "API Metering", section: "Developer" },
+    { id: "sandbox", label: "Sandbox" },
   ];
 
   return (
@@ -1035,18 +1732,29 @@ function AuthenticatedApp({ user, onLogout }: { user: User; onLogout: () => void
         {view === "onboarding" && <OnboardingView />}
         {view === "properties" && <PropertiesView />}
         {view === "field-agents" && <FieldAgentsView />}
+        {view === "travel-agents" && <TravelAgentsView />}
         {view === "search" && <SearchView />}
         {view === "pnr" && <PNRView />}
+        {view === "reservations" && <ReservationsView />}
+        {view === "availability" && <AvailabilityView />}
         {view === "queues" && <QueueView />}
         {view === "guests" && <GuestView />}
         {view === "content" && <ContentView />}
         {view === "revenue" && <RevenueView />}
         {view === "groups" && <GroupView />}
+        {view === "distribution" && <DistributionView />}
         {view === "commission" && <CommissionView />}
         {view === "discounts" && <DiscountsView />}
         {view === "cancellation" && <CancellationView />}
         {view === "rates" && <NegotiatedRatesView />}
         {view === "settlement" && <SettlementView />}
+        {view === "tax" && <TaxView />}
+        {view === "tipping" && <TippingView />}
+        {view === "remittance" && <RemittanceView />}
+        {view === "loyalty" && <LoyaltyView />}
+        {view === "analytics" && <AnalyticsView />}
+        {view === "metering" && <MeteringView />}
+        {view === "sandbox" && <SandboxView />}
       </main>
     </div>
   );
