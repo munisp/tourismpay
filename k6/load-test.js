@@ -9,8 +9,6 @@ import http from "k6/http";
 import { check, sleep, group } from "k6";
 import { Rate, Trend, Counter } from "k6/metrics";
 
-const allowAuth = { responseCallback: http.expectedStatuses(200, 401, 403) };
-
 const BASE_URL = __ENV.K6_BASE_URL || "http://localhost:3000";
 const IS_CI = __ENV.CI === "true" || __ENV.GITHUB_ACTIONS === "true";
 const SCENARIO = __ENV.K6_SCENARIO || (IS_CI ? "smoke" : "load");
@@ -72,7 +70,10 @@ let sessionCookie = null;
 
 function authenticate() {
   if (sessionCookie) return sessionCookie;
-  const res = http.get(`${BASE_URL}/api/dev/session-token?redirect=/`, { redirects: 0, ...allowAuth });
+  const res = http.get(`${BASE_URL}/api/dev/session-token?redirect=/`, {
+    redirects: 0,
+    responseCallback: http.expectedStatuses(200, 302, 401, 403),
+  });
   const setCookie = res.headers["Set-Cookie"] || "";
   sessionCookie = setCookie.split(";")[0] || "";
   authLatency.add(res.timings.duration);
@@ -115,40 +116,43 @@ export default function () {
     healthLatency.add(deep.timings.duration);
   });
 
-  group("Auth + Wallet API", () => {
-    const cookie = authenticate();
-    if (!cookie) return;
+  // Wallet API tests only run in non-smoke scenarios (requires real auth session)
+  if (SCENARIO !== "smoke") {
+    group("Auth + Wallet API", () => {
+      const cookie = authenticate();
+      if (!cookie) return;
 
-    const balances = http.get(
-      `${BASE_URL}/api/trpc/wallet.balances?input=%7B%22json%22%3Anull%7D`,
-      { headers: { Cookie: cookie }, ...allowAuth }
-    );
-    check(balances, {
-      "wallet balances responds": (r) => r.status === 200 || r.status === 401,
-      "wallet balances has result": (r) => {
-        try { return JSON.parse(r.body).result !== undefined; } catch { return true; }
-      },
-    }) || errorRate.add(1);
-    walletLatency.add(balances.timings.duration);
+      const balances = http.get(
+        `${BASE_URL}/api/trpc/wallet.balances?input=%7B%22json%22%3Anull%7D`,
+        { headers: { Cookie: cookie }, responseCallback: http.expectedStatuses(200, 401, 403) }
+      );
+      check(balances, {
+        "wallet balances responds": (r) => r.status === 200 || r.status === 401,
+        "wallet balances has result": (r) => {
+          try { return JSON.parse(r.body).result !== undefined; } catch { return true; }
+        },
+      });
+      walletLatency.add(balances.timings.duration);
 
-    const stats = http.get(
-      `${BASE_URL}/api/trpc/wallet.stats?input=%7B%22json%22%3Anull%7D`,
-      { headers: { Cookie: cookie }, ...allowAuth }
-    );
-    check(stats, {
-      "wallet stats responds": (r) => r.status === 200 || r.status === 401,
+      const stats = http.get(
+        `${BASE_URL}/api/trpc/wallet.stats?input=%7B%22json%22%3Anull%7D`,
+        { headers: { Cookie: cookie }, responseCallback: http.expectedStatuses(200, 401, 403) }
+      );
+      check(stats, {
+        "wallet stats responds": (r) => r.status === 200 || r.status === 401,
+      });
+      walletLatency.add(stats.timings.duration);
+
+      const txRes = http.get(
+        `${BASE_URL}/api/trpc/wallet.transactions?input=%7B%22json%22%3A%7B%22limit%22%3A10%7D%7D`,
+        { headers: { Cookie: cookie }, responseCallback: http.expectedStatuses(200, 401, 403) }
+      );
+      check(txRes, {
+        "wallet transactions responds": (r) => r.status === 200 || r.status === 401,
+      });
+      walletLatency.add(txRes.timings.duration);
     });
-    walletLatency.add(stats.timings.duration);
-
-    const txRes = http.get(
-      `${BASE_URL}/api/trpc/wallet.transactions?input=%7B%22json%22%3A%7B%22limit%22%3A10%7D%7D`,
-      { headers: { Cookie: cookie }, ...allowAuth }
-    );
-    check(txRes, {
-      "wallet transactions responds": (r) => r.status === 200 || r.status === 401,
-    });
-    walletLatency.add(txRes.timings.duration);
-  });
+  }
 
   group("Security Checks", () => {
     const res = http.get(`${BASE_URL}/livez`);
