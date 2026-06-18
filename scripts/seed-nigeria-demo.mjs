@@ -27,8 +27,14 @@ function randomFloat(min, max, dp = 2) { return +(min + Math.random() * (max - m
 function randomInt(min, max) { return Math.floor(min + Math.random() * (max - min + 1)); }
 function pastDate(daysAgo) { const d = new Date(); d.setDate(d.getDate() - daysAgo); return d; }
 function futureDate(daysAhead) { const d = new Date(); d.setDate(d.getDate() + daysAhead); return d; }
-function nowEpoch() { return Math.floor(Date.now() / 1000); }
-function pastEpoch(daysAgo) { return Math.floor(pastDate(daysAgo).getTime() / 1000); }
+function nowEpochSec() { return Math.floor(Date.now() / 1000); }
+function pastEpochSec(daysAgo) { return Math.floor(pastDate(daysAgo).getTime() / 1000); }
+function nowEpochMs() { return Date.now(); }
+function pastEpochMs(daysAgo) { return pastDate(daysAgo).getTime(); }
+
+// OWNER_OPEN_ID from env — the user who logs in via /api/dev/session-token
+const OWNER_OPEN_ID = process.env.OWNER_OPEN_ID || "test-owner-id";
+let ownerDbId = null; // populated in seedUsers
 
 const NGN_USD = 1550;
 const NGN_EUR = 1700;
@@ -211,7 +217,16 @@ async function seedUsers() {
     `;
     userDbIds[u.openId] = rows[0].id;
   }
-  console.log(`    OK ${ALL_USERS.length} users seeded`);
+  // Ensure the OWNER user exists and has role admin
+  const ownerRows = await sql`
+    INSERT INTO users (open_id, name, email, role, preferred_currency, onboarding_completed)
+    VALUES (${OWNER_OPEN_ID}, ${"Tourism Board Admin"}, ${"admin@tourismpay.ng"}, ${"admin"}, ${"NGN"}, ${true})
+    ON CONFLICT (open_id) DO UPDATE SET role = 'admin', preferred_currency = 'NGN', onboarding_completed = true
+    RETURNING id
+  `;
+  ownerDbId = ownerRows[0].id;
+  userDbIds[OWNER_OPEN_ID] = ownerDbId;
+  console.log(`    OK ${ALL_USERS.length + 1} users seeded (owner ID: ${ownerDbId})`);
 }
 
 async function seedEstablishments() {
@@ -304,27 +319,32 @@ async function seedProducts() {
 async function seedWallets() {
   console.log("  -> Seeding wallet balances & transactions...");
   let balCount = 0, txCount = 0;
-  const now = nowEpoch();
+  const now = nowEpochSec(); // wallet_balances uses seconds
 
-  // Tourist wallets
-  for (const tp of TOURIST_PROFILES) {
-    const uId = String(userDbIds[tp.openId]);
-    const ngnBal = randomFloat(50000, 500000, 0);
-    const usdBal = randomFloat(200, 5000, 2);
-
+  // Helper to seed wallet for a userId
+  async function seedWalletForUser(uId, ngnBal, usdBal, eurBal) {
     await sql`
-      INSERT INTO wallet_balances (id, user_id, currency, balance, locked_balance, created_at, updated_at)
-      VALUES (${uuid()}, ${uId}, ${"NGN"}, ${ngnBal}, ${randomFloat(0, 10000, 0)}, ${pastEpoch(randomInt(5, 30))}, ${now})
+      INSERT INTO wallet_balances (id, user_id, currency, balance, locked_balance, wallet_address, network, created_at, updated_at)
+      VALUES (${uuid()}, ${uId}, ${"NGN"}, ${ngnBal}, ${randomFloat(0, 10000, 0)}, ${`tp_ngn_${uId}`}, ${"CBN Digital"}, ${pastEpochSec(randomInt(5, 30))}, ${now})
       ON CONFLICT DO NOTHING
     `;
     await sql`
-      INSERT INTO wallet_balances (id, user_id, currency, balance, locked_balance, created_at, updated_at)
-      VALUES (${uuid()}, ${uId}, ${"USD"}, ${usdBal}, ${randomFloat(0, 100, 2)}, ${pastEpoch(randomInt(5, 30))}, ${now})
+      INSERT INTO wallet_balances (id, user_id, currency, balance, locked_balance, wallet_address, network, created_at, updated_at)
+      VALUES (${uuid()}, ${uId}, ${"USD"}, ${usdBal}, ${randomFloat(0, 100, 2)}, ${`tp_usd_${uId}`}, ${"Circle USDC"}, ${pastEpochSec(randomInt(5, 30))}, ${now})
       ON CONFLICT DO NOTHING
     `;
+    if (eurBal) {
+      await sql`
+        INSERT INTO wallet_balances (id, user_id, currency, balance, locked_balance, wallet_address, network, created_at, updated_at)
+        VALUES (${uuid()}, ${uId}, ${"EUR"}, ${eurBal}, ${0}, ${`tp_eur_${uId}`}, ${"Circle USDC"}, ${pastEpochSec(randomInt(5, 30))}, ${now})
+        ON CONFLICT DO NOTHING
+      `;
+      balCount++;
+    }
     balCount += 2;
+  }
 
-    // Transactions
+  async function seedTxsForUser(uId) {
     const estNames = Object.keys(estDbIds);
     const txs = [
       { type: "load", from: "NGN", amt: randomFloat(50000, 200000, 0), cpty: randomItem(NIGERIAN_BANKS), note: "Bank transfer load" },
@@ -336,17 +356,40 @@ async function seedWallets() {
       { type: "send", from: "NGN", amt: randomFloat(3000, 95000, 0), cpty: randomItem(estNames), note: "Booking payment" },
       { type: "load", from: "NGN", amt: randomFloat(30000, 150000, 0), cpty: "Flutterwave", note: "Mobile money load" },
     ];
-
     for (const tx of txs) {
       await sql`
         INSERT INTO wallet_transactions (id, user_id, type, status, from_currency, to_currency, amount, to_amount, fee, counterparty, note, created_at, completed_at)
         VALUES (${uuid()}, ${uId}, ${tx.type}, ${"completed"}, ${tx.from}, ${tx.to || tx.from}, ${tx.amt},
                 ${tx.toAmt || null}, ${randomFloat(0, 50, 2)}, ${tx.cpty}, ${tx.note},
-                ${pastEpoch(randomInt(1, 60))}, ${pastEpoch(randomInt(0, 1))})
+                ${pastEpochSec(randomInt(1, 60))}, ${pastEpochSec(randomInt(0, 1))})
         ON CONFLICT DO NOTHING
       `;
       txCount++;
     }
+  }
+
+  // Owner user wallet — this is the user who demos the platform
+  const ownerUId = String(ownerDbId);
+  await seedWalletForUser(ownerUId, 2450000, 3200, 1500);
+  await seedTxsForUser(ownerUId);
+  // Extra owner txs to show more activity
+  for (let i = 0; i < 12; i++) {
+    const estName = randomItem(Object.keys(estDbIds));
+    await sql`
+      INSERT INTO wallet_transactions (id, user_id, type, status, from_currency, to_currency, amount, fee, counterparty, note, created_at, completed_at)
+      VALUES (${uuid()}, ${ownerUId}, ${randomItem(["send", "receive", "load"])}, ${"completed"}, ${"NGN"}, ${"NGN"}, ${randomFloat(5000, 200000, 0)},
+              ${randomFloat(0, 100, 2)}, ${estName}, ${randomItem(["Platform settlement", "Merchant payment", "Tourist refund", "Revenue collection", "FX conversion"])},
+              ${pastEpochSec(randomInt(1, 30))}, ${pastEpochSec(randomInt(0, 1))})
+      ON CONFLICT DO NOTHING
+    `;
+    txCount++;
+  }
+
+  // Tourist wallets
+  for (const tp of TOURIST_PROFILES) {
+    const uId = String(userDbIds[tp.openId]);
+    await seedWalletForUser(uId, randomFloat(50000, 500000, 0), randomFloat(200, 5000, 2), null);
+    await seedTxsForUser(uId);
   }
 
   // Merchant wallets
@@ -354,8 +397,8 @@ async function seedWallets() {
     const uId = String(userDbIds[e.ownerOpenId]);
     const ngnBal = randomFloat(200000, 5000000, 0);
     await sql`
-      INSERT INTO wallet_balances (id, user_id, currency, balance, locked_balance, created_at, updated_at)
-      VALUES (${uuid()}, ${uId}, ${"NGN"}, ${ngnBal}, ${randomFloat(10000, 100000, 0)}, ${pastEpoch(randomInt(30, 90))}, ${now})
+      INSERT INTO wallet_balances (id, user_id, currency, balance, locked_balance, wallet_address, network, created_at, updated_at)
+      VALUES (${uuid()}, ${uId}, ${"NGN"}, ${ngnBal}, ${randomFloat(10000, 100000, 0)}, ${`tp_ngn_${uId}`}, ${"CBN Digital"}, ${pastEpochSec(randomInt(30, 90))}, ${now})
       ON CONFLICT DO NOTHING
     `;
     balCount++;
@@ -366,7 +409,7 @@ async function seedWallets() {
       await sql`
         INSERT INTO wallet_transactions (id, user_id, type, status, from_currency, to_currency, amount, fee, counterparty, note, created_at, completed_at)
         VALUES (${uuid()}, ${uId}, ${"receive"}, ${"completed"}, ${"NGN"}, ${"NGN"}, ${randomFloat(1500, 95000, 0)},
-                ${0}, ${tName}, ${"Payment received"}, ${pastEpoch(randomInt(1, 45))}, ${pastEpoch(randomInt(0, 1))})
+                ${0}, ${tName}, ${"Payment received"}, ${pastEpochSec(randomInt(1, 45))}, ${pastEpochSec(randomInt(0, 1))})
         ON CONFLICT DO NOTHING
       `;
       txCount++;
@@ -511,31 +554,36 @@ async function seedItineraries() {
 async function seedLoyalty() {
   console.log("  -> Seeding loyalty...");
   let acctCount = 0, txCount = 0;
-  const now = nowEpoch();
+  const now = nowEpochSec(); // loyalty_accounts created_at is integer (seconds)
 
-  for (const tp of TOURIST_PROFILES) {
-    const uId = String(userDbIds[tp.openId]);
-    const tier = randomItem(["BRONZE", "SILVER", "GOLD", "PLATINUM"]);
-    const pts = tier === "PLATINUM" ? randomInt(5000, 20000) : tier === "GOLD" ? randomInt(2000, 5000) : tier === "SILVER" ? randomInt(500, 2000) : randomInt(50, 500);
-    const acctId = uuid();
-
+  // Seed loyalty for a list of users
+  async function seedLoyaltyForUser(uId, tier, pts) {
     await sql`
       INSERT INTO loyalty_accounts (id, user_id, tier, points_balance, lifetime_points, created_at, updated_at)
-      VALUES (${acctId}, ${uId}, ${tier}, ${pts}, ${pts + randomInt(100, 5000)}, ${pastEpoch(30)}, ${now})
+      VALUES (${uuid()}, ${uId}, ${tier}, ${pts}, ${pts + randomInt(100, 5000)}, ${pastEpochSec(30)}, ${now})
       ON CONFLICT (user_id) DO NOTHING
     `;
     acctCount++;
-
     for (let i = 0; i < randomInt(3, 8); i++) {
       await sql`
         INSERT INTO loyalty_transactions (id, user_id, type, points, description, created_at)
         VALUES (${uuid()}, ${uId}, ${randomItem(["earn", "earn", "earn", "redeem"])}, ${randomInt(10, 500)},
                 ${randomItem(["Payment at merchant", "Referral bonus", "First visit", "Review reward", "Redeemed for discount"])},
-                ${pastEpoch(randomInt(1, 60))})
+                ${pastEpochSec(randomInt(1, 60))})
         ON CONFLICT DO NOTHING
       `;
       txCount++;
     }
+  }
+
+  // Owner user loyalty
+  await seedLoyaltyForUser(String(ownerDbId), "GOLD", 4200);
+
+  for (const tp of TOURIST_PROFILES) {
+    const uId = String(userDbIds[tp.openId]);
+    const tier = randomItem(["BRONZE", "SILVER", "GOLD", "PLATINUM"]);
+    const pts = tier === "PLATINUM" ? randomInt(5000, 20000) : tier === "GOLD" ? randomInt(2000, 5000) : tier === "SILVER" ? randomInt(500, 2000) : randomInt(50, 500);
+    await seedLoyaltyForUser(uId, tier, pts);
   }
 
   // Loyalty rewards
@@ -637,7 +685,7 @@ async function seedFraudAndSecurity() {
     if (rows.length > 0) {
       await sql`
         INSERT INTO bis_timeline (id, investigation_id, actor_name, event_type, title, description, severity, created_at)
-        VALUES (${uuid()}, ${rows[0].id}, ${"Ngozi Adeyemi"}, ${"created"}, ${"Investigation opened"}, ${`AML investigation opened for ${subj.name}`}, ${"info"}, ${pastEpoch(randomInt(5, 90))})
+        VALUES (${uuid()}, ${rows[0].id}, ${"Ngozi Adeyemi"}, ${"created"}, ${"Investigation opened"}, ${`AML investigation opened for ${subj.name}`}, ${"info"}, ${pastEpochMs(randomInt(5, 90))})
         ON CONFLICT DO NOTHING
       `;
     }
@@ -673,7 +721,7 @@ async function seedAuditLogs() {
 
 async function seedPaymentSwitch() {
   console.log("  -> Seeding payment switch...");
-  const now = nowEpoch();
+  const now = nowEpochMs(); // ps_* tables use bigint with Date.now() (ms)
 
   // PS Participants (Nigerian PSSPs)
   const participants = [
@@ -692,7 +740,7 @@ async function seedPaymentSwitch() {
   for (const p of participants) {
     await sql`
       INSERT INTO ps_participants (id, name, type, status, country, currency, health_score, created_at, updated_at)
-      VALUES (${p.id}, ${p.name}, ${p.type}, ${"active"}, ${"NG"}, ${"NGN"}, ${randomInt(90, 100)}, ${pastEpoch(randomInt(30, 365))}, ${now})
+      VALUES (${p.id}, ${p.name}, ${p.type}, ${"active"}, ${"NG"}, ${"NGN"}, ${randomInt(90, 100)}, ${pastEpochMs(randomInt(30, 365))}, ${now})
       ON CONFLICT DO NOTHING
     `;
   }
@@ -706,7 +754,7 @@ async function seedPaymentSwitch() {
       INSERT INTO ps_settlements (id, batch_id, participant_id, currency, total_amount, transaction_count, status, created_at, updated_at)
       VALUES (${uuid()}, ${`BATCH-NG-${uuid().slice(0, 8)}`}, ${p.id}, ${"NGN"}, ${amount}, ${randomInt(50, 500)},
               ${randomItem(["completed", "completed", "completed", "pending", "processing"])},
-              ${pastEpoch(randomInt(0, 30))}, ${now})
+              ${pastEpochMs(randomInt(0, 30))}, ${now})
       ON CONFLICT DO NOTHING
     `;
   }
@@ -726,7 +774,7 @@ async function seedPaymentSwitch() {
                 "Scheduled database backup completed",
                 "Flutterwave API intermittent 503 responses",
               ])},
-              ${pastEpoch(randomInt(0, 14))})
+              ${pastEpochMs(randomInt(0, 14))})
       ON CONFLICT DO NOTHING
     `;
   }
@@ -741,7 +789,26 @@ async function seedPaymentSwitch() {
     { from: "KES", to: "NGN", rate: 12 },
   ];
 
-  for (let i = 0; i < 25; i++) {
+  // Owner remittances first (so /paymentswitch/remittance shows data)
+  for (let i = 0; i < 10; i++) {
+    const c = randomItem(corridors);
+    const sendAmt = randomFloat(100, 5000, 2);
+    const recvAmt = +(sendAmt * c.rate).toFixed(0);
+    await sql`
+      INSERT INTO remittances (id, user_id, sender_currency, sender_amount, recipient_currency, recipient_amount, exchange_rate, fee, status, delivery_option,
+                                recipient_name, recipient_bank, recipient_account, created_at, updated_at)
+      VALUES (${uuid()}, ${ownerDbId}, ${c.from}, ${sendAmt}, ${c.to}, ${recvAmt}, ${c.rate}, ${randomFloat(2, 25, 2)},
+              ${randomItem(["completed", "completed", "pending", "processing"])},
+              ${randomItem(["bank_transfer", "mobile_money", "wallet"])},
+              ${randomItem(["Oluwaseun Afolabi", "Chioma Obi", "Tayo Falade", "Bukola Ogundimu"])},
+              ${randomItem(NIGERIAN_BANKS)}, ${String(randomInt(1000000000, 9999999999))},
+              ${pastEpochMs(randomInt(0, 30))}, ${nowEpochMs()})
+      ON CONFLICT DO NOTHING
+    `;
+  }
+
+  // Tourist remittances
+  for (let i = 0; i < 15; i++) {
     const c = randomItem(corridors);
     const sendAmt = randomFloat(100, 5000, 2);
     const recvAmt = +(sendAmt * c.rate).toFixed(0);
@@ -754,30 +821,33 @@ async function seedPaymentSwitch() {
               ${randomItem(["bank_transfer", "mobile_money", "wallet"])},
               ${randomItem(["Oluwaseun Afolabi", "Chioma Obi", "Tayo Falade", "Bukola Ogundimu"])},
               ${randomItem(NIGERIAN_BANKS)}, ${String(randomInt(1000000000, 9999999999))},
-              ${pastEpoch(randomInt(0, 30))}, ${nowEpoch()})
+              ${pastEpochMs(randomInt(0, 30))}, ${nowEpochMs()})
       ON CONFLICT DO NOTHING
     `;
   }
-  console.log("    OK 25 remittances seeded");
+  console.log("    OK 25 remittances seeded (10 owner + 15 tourist)");
 
-  // Rate alerts
-  for (let i = 0; i < 8; i++) {
-    const touristUid = String(userDbIds[randomItem(TOURIST_PROFILES).openId]);
+  // Rate alerts — for owner AND tourists
+  const rateAlertUsers = [String(ownerDbId), String(ownerDbId)]; // owner gets 2
+  for (const tp of TOURIST_PROFILES.slice(0, 6)) {
+    rateAlertUsers.push(String(userDbIds[tp.openId]));
+  }
+  for (const uid of rateAlertUsers) {
     await sql`
       INSERT INTO rate_alerts (user_id, base_currency, target_currency, target_rate, condition, status, created_at, updated_at)
-      VALUES (${touristUid}, ${"USD"}, ${"NGN"}, ${NGN_USD + randomInt(-50, 50)},
+      VALUES (${uid}, ${"USD"}, ${"NGN"}, ${NGN_USD + randomInt(-50, 50)},
               ${randomItem(["above", "below"])}, ${randomItem(["active", "triggered"])},
-              ${pastEpoch(randomInt(0, 14))}, ${nowEpoch()})
+              ${pastEpochMs(randomInt(0, 14))}, ${nowEpochMs()})
       ON CONFLICT DO NOTHING
     `;
   }
-  console.log("    OK 8 rate alerts seeded");
+  console.log(`    OK ${rateAlertUsers.length} rate alerts seeded`);
 }
 
 async function seedExchangeRateOverrides() {
   console.log("  -> Seeding FX rate overrides...");
-  const adminId = userDbIds["ng-admin-001"];
-  const now = nowEpoch();
+  const adminId = ownerDbId; // use owner user
+  const now = nowEpochMs(); // exchange_rate_overrides uses bigint (ms)
   const overrides = [
     { base: "USD", target: "NGN", rate: NGN_USD },
     { base: "USD", target: "GHS", rate: 15.5 },
@@ -865,6 +935,71 @@ async function seedQRTokens() {
   console.log(`    OK ${count} QR tokens seeded`);
 }
 
+async function seedOwnerEstablishments() {
+  console.log("  -> Linking owner user to establishments for merchant views...");
+  // Assign 3 establishments to the owner user so they can see merchant pages
+  const ownerEstablishments = ESTABLISHMENTS.slice(0, 3); // Mama Cass, Eko Hotel, Nike Art Gallery
+  for (const e of ownerEstablishments) {
+    const estId = estDbIds[e.name];
+    if (!estId) continue;
+    // Update ownership to include owner user (keep original owner too)
+    // We'll add secondary ownership by inserting additional products, staff, bookings for the owner
+    await sql`
+      UPDATE establishments SET owner_id = ${ownerDbId} WHERE id = ${estId}
+    `;
+  }
+  console.log(`    OK ${ownerEstablishments.length} establishments linked to owner (${ownerDbId})`);
+
+  // Seed owner's merchant payout schedule
+  await sql`
+    INSERT INTO merchant_payout_schedules (merchant_id, frequency, preferred_day, is_active)
+    VALUES (${ownerDbId}, ${"weekly"}, ${3}, ${true})
+    ON CONFLICT DO NOTHING
+  `;
+
+  // Seed owner's QR tokens
+  for (const e of ownerEstablishments) {
+    const estId = estDbIds[e.name];
+    if (!estId) continue;
+    for (let i = 1; i <= 3; i++) {
+      await sql`
+        INSERT INTO qr_payment_tokens (token, establishment_id, amount_usd, currency, description, status, expires_at)
+        VALUES (${uuid()}, ${estId}, ${null}, ${"NGN"}, ${`${e.name} - Table ${i} (Owner)`}, ${"pending"}, ${futureDate(30)})
+        ON CONFLICT DO NOTHING
+      `;
+    }
+  }
+
+  // Seed owner's staff invites
+  const ownerStaff = ["Adesola Adebayo", "Bukola Ogundimu", "Chioma Obi", "Tayo Falade", "Emeka Johnson"];
+  for (const sn of ownerStaff) {
+    const estId = estDbIds[ownerEstablishments[0].name];
+    await sql`
+      INSERT INTO staff_invites (token, establishment_id, inviter_user_id, email, role, status, expires_at)
+      VALUES (${uuid()}, ${estId}, ${ownerDbId}, ${sn.toLowerCase().replace(/\s+/g, ".") + "@mamacass.ng"},
+              ${randomItem(["cashier", "manager", "cashier"])}, ${randomItem(["accepted", "accepted", "pending"])}, ${futureDate(30)})
+      ON CONFLICT DO NOTHING
+    `;
+  }
+
+  // Seed tourist bookings at owner's establishments
+  for (const tp of TOURIST_PROFILES.slice(0, 5)) {
+    const userId = userDbIds[tp.openId];
+    const estName = randomItem(ownerEstablishments.map(e => e.name));
+    const estId = estDbIds[estName];
+    const products = PRODUCTS_MAP[estName] || [];
+    const product = products.length > 0 ? randomItem(products) : { name: "General Service", category: "general" };
+    await sql`
+      INSERT INTO tourist_bookings (user_id, establishment_id, service_type, service_name, booking_date, party_size, price_usd, currency, status, notes, confirmation_code)
+      VALUES (${userId}, ${estId}, ${product.category}, ${product.name}, ${futureDate(randomInt(1, 30))},
+              ${randomInt(1, 4)}, ${randomFloat(5000, 50000, 0)}, ${"NGN"}, ${randomItem(["confirmed", "pending", "completed"])},
+              ${`Booking at ${estName}`}, ${`BK-${uuid().slice(0, 8).toUpperCase()}`})
+      ON CONFLICT DO NOTHING
+    `;
+  }
+  console.log("    OK owner merchant data (QR, staff, bookings, payouts) seeded");
+}
+
 async function seedCarbonOffsets() {
   console.log("  -> Seeding carbon offsets...");
   for (const tp of TOURIST_PROFILES.slice(0, 5)) {
@@ -873,7 +1008,7 @@ async function seedCarbonOffsets() {
       INSERT INTO carbon_offsets (id, user_id, amount, project_name, project_country, cost_usd, vintage_year, created_at)
       VALUES (${uuid()}, ${uId}, ${randomFloat(50, 500, 1)},
               ${randomItem(["Lagos Mangrove Restoration", "Cross River Rainforest Protection", "Niger Delta Cleanup", "Sahel Reforestation"])},
-              ${"NG"}, ${randomFloat(5, 50, 2)}, ${2026}, ${pastEpoch(randomInt(1, 30))})
+              ${"NG"}, ${randomFloat(5, 50, 2)}, ${2026}, ${pastEpochSec(randomInt(1, 30))})
       ON CONFLICT DO NOTHING
     `;
   }
@@ -1046,7 +1181,7 @@ async function main() {
     await seedServiceAvailability();
     console.log("");
 
-    console.log("[Phase 3] Tourist data...");
+    console.log("[Phase 3] Tourist & owner data...");
     await seedWallets();
     await seedTouristProfiles();
     await seedBookingsAndReviews();
@@ -1054,6 +1189,7 @@ async function main() {
     await seedItineraries();
     await seedLoyalty();
     await seedCarbonOffsets();
+    await seedOwnerEstablishments();
     console.log("");
 
     console.log("[Phase 4] Compliance & security...");
