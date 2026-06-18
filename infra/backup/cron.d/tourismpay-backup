@@ -1,0 +1,10 @@
+# TourismPay Automated Database Backups
+# - Daily at 02:00 UTC (off-peak for Nigeria GMT+1)
+# - Weekly full backup on Sundays at 01:00 UTC
+# - Monthly archive on 1st of month at 00:00 UTC
+
+# Daily backup
+0 2 * * * root /opt/tourismpay/infra/backup/backup.sh --tables-only >> /var/log/tourismpay-backup.log 2>&1
+
+# Weekly full backup (Sundays)
+0 1 * * 0 root /opt/tourismpay/infra/backup/backup.sh >> /var/log/tourismpay-backup.log 2>&1

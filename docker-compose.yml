@@ -46,10 +46,20 @@ services:
       KYC_SERVICE_URL: http://kyc:8082
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka:9092
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
+      KEYCLOAK_REALM: tourismpay
+      KEYCLOAK_CLIENT_ID: tourismpay-pwa
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-}
+      PERMIFY_URL: ${PERMIFY_URL:-http://permify:3476}
+      PERMIFY_TENANT_ID: tourismpay
+      MOJALOOP_HUB_URL: ${MOJALOOP_HUB_URL:-}
+      MOJALOOP_DFSP_ID: ${MOJALOOP_DFSP_ID:-tourismpay}
+      VITE_APP_ID: tourismpay
+      OWNER_OPEN_ID: ${OWNER_OPEN_ID:-}
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/livez"]
       interval: 30s
       timeout: 5s
       retries: 3

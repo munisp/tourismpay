@@ -1,227 +1,261 @@
 /**
- * Prometheus-compatible metrics endpoint for observability.
- * Exposes business KPIs and system metrics at /metrics.
+ * Prometheus Metrics + Health Checks
  *
- * Middleware integration: Redis (cache hit rates), Kafka (event counts),
- * Temporal (workflow durations), OpenSearch (query latency).
+ * Exposes /metrics endpoint for Prometheus scraping and /health for k8s probes.
+ * Tracks: HTTP request duration, active connections, DB pool, error rates,
+ * wallet transaction volume, and business KPIs.
  */
-import { Request, Response, Router } from "express";
+import type { Request, Response, NextFunction } from "express";
+import { getDb } from "../db";
+import { getRedis } from "./redis";
 import { logger } from "./logger";
 
-// ─── Metric Types ─────────────────────────────────────────────────────────────
+// ─── Metric Storage ──────────────────────────────────────────────────────────
 
-interface CounterMetric {
-  name: string;
-  help: string;
+interface Histogram {
+  buckets: Record<number, number>;
+  sum: number;
+  count: number;
+}
+
+interface Counter {
+  value: number;
   labels: Record<string, number>;
 }
 
-interface GaugeMetric {
-  name: string;
-  help: string;
-  value: number;
-}
+const HISTOGRAM_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
 
-interface HistogramMetric {
-  name: string;
-  help: string;
-  buckets: number[];
-  observations: number[];
-}
+const metrics = {
+  httpRequestDuration: new Map<string, Histogram>(),
+  httpRequestsTotal: { value: 0, labels: {} } as Counter,
+  httpErrorsTotal: { value: 0, labels: {} } as Counter,
+  activeConnections: 0,
+  dbPoolActive: 0,
+  dbPoolIdle: 0,
+  walletTransactionsTotal: { value: 0, labels: {} } as Counter,
+  walletVolumeNgn: 0,
+  bisInvestigationsTotal: 0,
+  kybApplicationsTotal: 0,
+  settlementVolume: 0,
+};
 
-// ─── Global Metrics Registry ──────────────────────────────────────────────────
-
-const counters: Map<string, CounterMetric> = new Map();
-const gauges: Map<string, GaugeMetric> = new Map();
-const histograms: Map<string, HistogramMetric> = new Map();
-
-// ─── Counter Operations ───────────────────────────────────────────────────────
-
-export function incrementCounter(name: string, labels: Record<string, string> = {}, help = ""): void {
-  const key = `${name}{${Object.entries(labels).map(([k, v]) => `${k}="${v}"`).join(",")}}`;
-  const existing = counters.get(key);
-  if (existing) {
-    existing.labels[key] = (existing.labels[key] || 0) + 1;
-  } else {
-    counters.set(key, { name, help, labels: { [key]: 1 } });
+function getHistogram(method: string, route: string): Histogram {
+  const key = `${method}:${route}`;
+  if (!metrics.httpRequestDuration.has(key)) {
+    const buckets: Record<number, number> = {};
+    for (const b of HISTOGRAM_BUCKETS) buckets[b] = 0;
+    metrics.httpRequestDuration.set(key, { buckets, sum: 0, count: 0 });
   }
+  return metrics.httpRequestDuration.get(key)!;
 }
 
-export function getCounterValue(name: string, labels: Record<string, string> = {}): number {
-  const key = `${name}{${Object.entries(labels).map(([k, v]) => `${k}="${v}"`).join(",")}}`;
-  return counters.get(key)?.labels[key] || 0;
-}
-
-// ─── Gauge Operations ─────────────────────────────────────────────────────────
-
-export function setGauge(name: string, value: number, help = ""): void {
-  gauges.set(name, { name, help, value });
-}
-
-export function incrementGauge(name: string, delta = 1): void {
-  const existing = gauges.get(name);
-  if (existing) existing.value += delta;
-  else gauges.set(name, { name, help: "", value: delta });
-}
-
-export function decrementGauge(name: string, delta = 1): void {
-  const existing = gauges.get(name);
-  if (existing) existing.value -= delta;
-  else gauges.set(name, { name, help: "", value: -delta });
-}
-
-// ─── Histogram Operations ─────────────────────────────────────────────────────
-
-const DEFAULT_BUCKETS = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
-
-export function observeHistogram(name: string, valueMs: number, help = ""): void {
-  const existing = histograms.get(name);
-  if (existing) {
-    existing.observations.push(valueMs);
-  } else {
-    histograms.set(name, { name, help, buckets: DEFAULT_BUCKETS, observations: [valueMs] });
-  }
-}
-
-// ─── Timer Utility ────────────────────────────────────────────────────────────
-
-export function startTimer(): () => number {
-  const start = performance.now();
-  return () => performance.now() - start;
-}
-
-// ─── Business Metrics Helpers ─────────────────────────────────────────────────
-
-export function recordPaymentAttempt(status: "success" | "failed" | "timeout", corridor?: string): void {
-  incrementCounter("tourismpay_payment_attempts_total", { status, corridor: corridor || "unknown" }, "Total payment attempts");
-}
-
-export function recordSettlementLatency(durationMs: number): void {
-  observeHistogram("tourismpay_settlement_duration_ms", durationMs, "Settlement processing time");
-}
-
-export function recordFraudScore(score: number): void {
-  observeHistogram("tourismpay_fraud_score_distribution", score, "Fraud score distribution");
-}
-
-export function recordKafkaEvent(topic: string, status: "published" | "failed"): void {
-  incrementCounter("tourismpay_kafka_events_total", { topic, status }, "Kafka events published");
-}
-
-export function recordRedisOperation(operation: string, hit: boolean): void {
-  incrementCounter("tourismpay_redis_operations_total", { operation, hit: String(hit) }, "Redis cache operations");
-}
-
-export function recordTemporalWorkflow(queue: string, status: "started" | "completed" | "failed"): void {
-  incrementCounter("tourismpay_temporal_workflows_total", { queue, status }, "Temporal workflow executions");
-}
-
-export function recordOpenSearchQuery(index: string, durationMs: number): void {
-  observeHistogram("tourismpay_opensearch_query_duration_ms", durationMs, "OpenSearch query latency");
-  incrementCounter("tourismpay_opensearch_queries_total", { index }, "OpenSearch queries");
-}
-
-export function setActiveConnections(count: number): void {
-  setGauge("tourismpay_active_connections", count, "Active HTTP connections");
-}
-
-export function setMiddlewareStatus(service: string, connected: boolean): void {
-  setGauge(`tourismpay_middleware_connected{service="${service}"}`, connected ? 1 : 0, "Middleware connection status");
-}
-
-// ─── Prometheus Format Serializer ─────────────────────────────────────────────
-
-function serializeMetrics(): string {
-  const lines: string[] = [];
-
-  // System metrics
-  const memUsage = process.memoryUsage();
-  lines.push("# HELP nodejs_heap_used_bytes Node.js heap memory used");
-  lines.push("# TYPE nodejs_heap_used_bytes gauge");
-  lines.push(`nodejs_heap_used_bytes ${memUsage.heapUsed}`);
-  lines.push("# HELP nodejs_heap_total_bytes Node.js heap memory total");
-  lines.push("# TYPE nodejs_heap_total_bytes gauge");
-  lines.push(`nodejs_heap_total_bytes ${memUsage.heapTotal}`);
-  lines.push("# HELP nodejs_rss_bytes Node.js resident set size");
-  lines.push("# TYPE nodejs_rss_bytes gauge");
-  lines.push(`nodejs_rss_bytes ${memUsage.rss}`);
-  lines.push("# HELP process_uptime_seconds Process uptime");
-  lines.push("# TYPE process_uptime_seconds gauge");
-  lines.push(`process_uptime_seconds ${process.uptime()}`);
-
-  // Counters
-  Array.from(counters.entries()).forEach(([key, metric]) => {
-    if (metric.help) {
-      lines.push(`# HELP ${metric.name} ${metric.help}`);
-      lines.push(`# TYPE ${metric.name} counter`);
-    }
-    const value = metric.labels[key] || 0;
-    lines.push(`${key} ${value}`);
-  });
-
-  // Gauges
-  Array.from(gauges.values()).forEach((metric) => {
-    if (metric.help) {
-      lines.push(`# HELP ${metric.name} ${metric.help}`);
-      lines.push(`# TYPE ${metric.name} gauge`);
-    }
-    lines.push(`${metric.name} ${metric.value}`);
-  });
-
-  // Histograms
-  for (const metric of Array.from(histograms.values())) {
-    if (metric.observations.length === 0) continue;
-    if (metric.help) {
-      lines.push(`# HELP ${metric.name} ${metric.help}`);
-      lines.push(`# TYPE ${metric.name} histogram`);
-    }
-    const sorted = [...metric.observations].sort((a, b) => a - b);
-    const sum = sorted.reduce((acc, v) => acc + v, 0);
-    for (const bucket of metric.buckets) {
-      const count = sorted.filter(v => v <= bucket).length;
-      lines.push(`${metric.name}_bucket{le="${bucket}"} ${count}`);
-    }
-    lines.push(`${metric.name}_bucket{le="+Inf"} ${sorted.length}`);
-    lines.push(`${metric.name}_sum ${sum}`);
-    lines.push(`${metric.name}_count ${sorted.length}`);
-  }
-
-  return lines.join("\n") + "\n";
-}
-
-// ─── Express Router ───────────────────────────────────────────────────────────
-
-export function createMetricsRouter(): Router {
-  const metricsRouter = Router();
-
-  metricsRouter.get("/metrics", (_req: Request, res: Response) => {
-    res.setHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
-    res.send(serializeMetrics());
-  });
-
-  return metricsRouter;
-}
-
-// ─── Request Duration Middleware ──────────────────────────────────────────────
+// ─── Middleware ───────────────────────────────────────────────────────────────
 
 export function metricsMiddleware() {
-  return (req: Request, res: Response, next: () => void) => {
-    const start = performance.now();
-    incrementGauge("tourismpay_active_connections");
+  return (req: Request, res: Response, next: NextFunction) => {
+    metrics.activeConnections++;
+    const start = process.hrtime.bigint();
 
     res.on("finish", () => {
-      const duration = performance.now() - start;
-      decrementGauge("tourismpay_active_connections");
-      observeHistogram("tourismpay_http_request_duration_ms", duration, "HTTP request duration");
-      incrementCounter("tourismpay_http_requests_total", {
-        method: req.method,
-        status: String(res.statusCode),
-        path: req.route?.path || req.path,
-      }, "HTTP requests total");
-    });
+      metrics.activeConnections--;
+      const duration = Number(process.hrtime.bigint() - start) / 1e9;
+      const route = req.route?.path || req.path.split("?")[0];
+      const method = req.method;
 
+      // Record histogram
+      const hist = getHistogram(method, route);
+      hist.sum += duration;
+      hist.count++;
+      for (const bucket of HISTOGRAM_BUCKETS) {
+        if (duration <= bucket) {
+          hist.buckets[bucket] = (hist.buckets[bucket] || 0) + 1;
+        }
+      }
+
+      // Count requests
+      metrics.httpRequestsTotal.value++;
+      const statusLabel = `${res.statusCode}`;
+      metrics.httpRequestsTotal.labels[statusLabel] = (metrics.httpRequestsTotal.labels[statusLabel] || 0) + 1;
+
+      // Count errors
+      if (res.statusCode >= 400) {
+        metrics.httpErrorsTotal.value++;
+        metrics.httpErrorsTotal.labels[statusLabel] = (metrics.httpErrorsTotal.labels[statusLabel] || 0) + 1;
+      }
+    });
     next();
   };
 }
 
-logger.info("[Metrics] Prometheus metrics module loaded");
+// ─── Business Metric Recorders ───────────────────────────────────────────────
+
+export function recordWalletTransaction(type: string, amountKobo: number): void {
+  metrics.walletTransactionsTotal.value++;
+  metrics.walletTransactionsTotal.labels[type] = (metrics.walletTransactionsTotal.labels[type] || 0) + 1;
+  metrics.walletVolumeNgn += amountKobo / 100;
+}
+
+export function recordBisInvestigation(): void {
+  metrics.bisInvestigationsTotal++;
+}
+
+export function recordKybApplication(): void {
+  metrics.kybApplicationsTotal++;
+}
+
+export function recordSettlement(amountKobo: number): void {
+  metrics.settlementVolume += amountKobo / 100;
+}
+
+// ─── /metrics Endpoint (Prometheus format) ───────────────────────────────────
+
+export function metricsHandler(_req: Request, res: Response): void {
+  const lines: string[] = [];
+
+  // HTTP request duration histogram
+  lines.push("# HELP tourismpay_http_request_duration_seconds HTTP request duration in seconds");
+  lines.push("# TYPE tourismpay_http_request_duration_seconds histogram");
+  metrics.httpRequestDuration.forEach((hist, key) => {
+    const [method, route] = key.split(":");
+    for (const [bucket, countStr] of Object.entries(hist.buckets)) {
+      lines.push(`tourismpay_http_request_duration_seconds_bucket{method="${method}",route="${route}",le="${bucket}"} ${countStr}`);
+    }
+    lines.push(`tourismpay_http_request_duration_seconds_bucket{method="${method}",route="${route}",le="+Inf"} ${hist.count}`);
+    lines.push(`tourismpay_http_request_duration_seconds_sum{method="${method}",route="${route}"} ${hist.sum.toFixed(6)}`);
+    lines.push(`tourismpay_http_request_duration_seconds_count{method="${method}",route="${route}"} ${hist.count}`);
+  });
+
+  // HTTP total requests
+  lines.push("# HELP tourismpay_http_requests_total Total HTTP requests");
+  lines.push("# TYPE tourismpay_http_requests_total counter");
+  for (const [status, count] of Object.entries(metrics.httpRequestsTotal.labels)) {
+    lines.push(`tourismpay_http_requests_total{status="${status}"} ${count}`);
+  }
+
+  // Active connections gauge
+  lines.push("# HELP tourismpay_active_connections Current active connections");
+  lines.push("# TYPE tourismpay_active_connections gauge");
+  lines.push(`tourismpay_active_connections ${metrics.activeConnections}`);
+
+  // Wallet transactions
+  lines.push("# HELP tourismpay_wallet_transactions_total Total wallet transactions");
+  lines.push("# TYPE tourismpay_wallet_transactions_total counter");
+  for (const [type, count] of Object.entries(metrics.walletTransactionsTotal.labels)) {
+    lines.push(`tourismpay_wallet_transactions_total{type="${type}"} ${count}`);
+  }
+
+  // Wallet volume
+  lines.push("# HELP tourismpay_wallet_volume_ngn Total wallet volume in NGN");
+  lines.push("# TYPE tourismpay_wallet_volume_ngn counter");
+  lines.push(`tourismpay_wallet_volume_ngn ${metrics.walletVolumeNgn.toFixed(2)}`);
+
+  // BIS investigations
+  lines.push("# HELP tourismpay_bis_investigations_total Total BIS investigations");
+  lines.push("# TYPE tourismpay_bis_investigations_total counter");
+  lines.push(`tourismpay_bis_investigations_total ${metrics.bisInvestigationsTotal}`);
+
+  // KYB applications
+  lines.push("# HELP tourismpay_kyb_applications_total Total KYB applications");
+  lines.push("# TYPE tourismpay_kyb_applications_total counter");
+  lines.push(`tourismpay_kyb_applications_total ${metrics.kybApplicationsTotal}`);
+
+  // Settlement volume
+  lines.push("# HELP tourismpay_settlement_volume_ngn Total settlement volume in NGN");
+  lines.push("# TYPE tourismpay_settlement_volume_ngn counter");
+  lines.push(`tourismpay_settlement_volume_ngn ${metrics.settlementVolume.toFixed(2)}`);
+
+  // Error rate
+  lines.push("# HELP tourismpay_http_errors_total Total HTTP errors");
+  lines.push("# TYPE tourismpay_http_errors_total counter");
+  for (const [status, count] of Object.entries(metrics.httpErrorsTotal.labels)) {
+    lines.push(`tourismpay_http_errors_total{status="${status}"} ${count}`);
+  }
+
+  res.setHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+  res.send(lines.join("\n") + "\n");
+}
+
+// ─── /health Endpoint ────────────────────────────────────────────────────────
+
+export async function healthHandler(_req: Request, res: Response): Promise<void> {
+  const checks: Record<string, { status: string; latency?: number }> = {};
+  let overall = true;
+
+  // PostgreSQL
+  const dbStart = Date.now();
+  try {
+    const dbClient = await getDb();
+    if (dbClient) {
+      await dbClient.execute("SELECT 1" as any);
+      checks.postgresql = { status: "connected", latency: Date.now() - dbStart };
+    } else {
+      checks.postgresql = { status: "disconnected", latency: Date.now() - dbStart };
+      overall = false;
+    }
+  } catch {
+    checks.postgresql = { status: "disconnected", latency: Date.now() - dbStart };
+    overall = false;
+  }
+
+  // Redis
+  const redisStart = Date.now();
+  const redis = getRedis();
+  if (redis) {
+    try {
+      await redis.ping();
+      checks.redis = { status: "connected", latency: Date.now() - redisStart };
+    } catch {
+      checks.redis = { status: "disconnected", latency: Date.now() - redisStart };
+    }
+  } else {
+    checks.redis = { status: "not_configured" };
+  }
+
+  // Kafka (check if configured)
+  checks.kafka = { status: process.env.KAFKA_BROKERS ? "configured" : "not_configured" };
+
+  // TigerBeetle (ledger tables)
+  try {
+    const dbClient = await getDb();
+    if (dbClient) {
+      await dbClient.execute("SELECT COUNT(*) FROM ledger_accounts" as any);
+      checks.tigerbeetle_ledger = { status: "active", latency: Date.now() - dbStart };
+    } else {
+      checks.tigerbeetle_ledger = { status: "not_initialized" };
+    }
+  } catch {
+    checks.tigerbeetle_ledger = { status: "not_initialized" };
+  }
+
+  // Mojaloop
+  checks.mojaloop = { status: process.env.MOJALOOP_HUB_URL ? "live" : "simulation" };
+
+  // Keycloak
+  checks.keycloak = { status: process.env.KEYCLOAK_URL ? "configured" : "dev_mode" };
+
+  res.status(overall ? 200 : 503).json({
+    status: overall ? "healthy" : "degraded",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    checks,
+  });
+}
+
+// ─── /health/ready (k8s readiness probe) ─────────────────────────────────────
+
+export async function readinessHandler(_req: Request, res: Response): Promise<void> {
+  try {
+    const dbClient = await getDb();
+    if (!dbClient) throw new Error("no db");
+    await dbClient.execute("SELECT 1" as any);
+    res.status(200).json({ status: "ready" });
+  } catch {
+    res.status(503).json({ status: "not_ready", reason: "database_unavailable" });
+  }
+}
+
+// ─── /health/live (k8s liveness probe) ───────────────────────────────────────
+
+export function livenessHandler(_req: Request, res: Response): void {
+  res.status(200).json({ status: "alive", pid: process.pid });
+}

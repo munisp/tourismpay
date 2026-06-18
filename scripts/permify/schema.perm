@@ -1,0 +1,84 @@
+// TourismPay — Permify ReBAC Authorization Schema
+// 6 resource types with hierarchical relationships
+
+entity user {}
+
+entity organization {
+  relation admin @user
+  relation member @user
+
+  permission manage = admin
+  permission view = admin or member
+}
+
+entity wallet {
+  relation owner @user
+  relation viewer @user
+  relation organization @organization
+
+  permission send = owner
+  permission view_balance = owner or viewer
+  permission view_transactions = owner or viewer
+  permission manage_alerts = owner
+  permission view = owner or viewer or organization.member
+}
+
+entity establishment {
+  relation owner @user
+  relation manager @user
+  relation staff @user
+  relation organization @organization
+
+  permission manage = owner or organization.admin
+  permission edit = owner or manager or organization.admin
+  permission view = owner or manager or staff or organization.member
+  permission manage_rates = owner or manager
+  permission manage_bookings = owner or manager or staff
+}
+
+entity investigation {
+  relation creator @user
+  relation assignee @user
+  relation reviewer @user
+  relation organization @organization
+
+  permission manage = creator or organization.admin
+  permission investigate = assignee or creator or organization.admin
+  permission review = reviewer or organization.admin
+  permission view = creator or assignee or reviewer or organization.member
+  permission escalate = assignee or reviewer or organization.admin
+}
+
+entity settlement {
+  relation initiator @user
+  relation approver @user
+  relation organization @organization
+
+  permission create = initiator or organization.admin
+  permission approve = approver or organization.admin
+  permission view = initiator or approver or organization.member
+  permission void = organization.admin
+}
+
+entity system {
+  relation admin @user
+  relation operator @user
+  relation viewer @user
+
+  permission manage = admin
+  permission operate = admin or operator
+  permission view_health = admin or operator or viewer
+  permission manage_kill_switch = admin
+  permission view_metrics = admin or operator or viewer
+}
+
+entity report {
+  relation owner @user
+  relation viewer @user
+  relation organization @organization
+
+  permission generate = owner or organization.admin
+  permission view = owner or viewer or organization.member
+  permission export = owner or organization.admin
+  permission delete = organization.admin
+}

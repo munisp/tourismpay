@@ -16,6 +16,8 @@ import {
 
 import { encryptPII } from "../_core/encryption";
 import { logger } from "../_core/logger";
+import { publishKybStatusChange } from "../_core/kafka";
+import { recordKybApplication } from "../_core/metrics";
 
 const KYB_SERVICE_URL = process.env.KYB_SERVICE_URL || "http://localhost:8083";
 
@@ -124,6 +126,15 @@ export const kybRouter = router({
         currentStep: 1,
         totalSteps: 5,
       });
+
+      // ── Kafka event + metrics ────────────────────────────────────────────────
+      recordKybApplication();
+      publishKybStatusChange({
+        applicationId: app?.id,
+        establishmentId: input.establishmentId,
+        status: "submitted",
+        submittedBy: ctx.user.id,
+      }).catch(() => {});
 
       // Trigger Go KYB orchestrator
       callKybService("/api/v1/applications/start", {

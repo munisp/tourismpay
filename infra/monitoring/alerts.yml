@@ -1,0 +1,56 @@
+groups:
+  - name: tourismpay
+    rules:
+      - alert: HighErrorRate
+        expr: rate(tourismpay_http_errors_total[5m]) / rate(tourismpay_http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate (> 5%)"
+          description: "Error rate is {{ $value | humanizePercentage }} for the last 5 minutes"
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(tourismpay_http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 latency > 2s"
+          description: "P95 response time is {{ $value }}s"
+
+      - alert: DatabaseDown
+        expr: up{job="postgres-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL exporter has been unreachable for 1 minute"
+
+      - alert: HighActiveConnections
+        expr: tourismpay_active_connections > 800
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High active connections (> 800)"
+          description: "Currently {{ $value }} active connections"
+
+      - alert: WalletHighVolume
+        expr: rate(tourismpay_wallet_volume_ngn[1h]) > 10000000
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "High wallet volume (> ₦10M/hour)"
+          description: "Wallet volume is ₦{{ $value | humanize }}/hour"
+
+      - alert: ServiceDown
+        expr: up{job="tourismpay"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "TourismPay service is down"
+          description: "The main TourismPay service has been unreachable for 30 seconds"
