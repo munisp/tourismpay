@@ -32,6 +32,7 @@ import { createAuditLog, createUserNotification } from "../db";
 import { cacheGet, cacheSet } from "../_core/redis";
 import { checkAndAutoFlag } from "./bisIntegration";
 import crypto from "crypto";
+import { publishEvent, TOPICS } from "../_core/kafka";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -353,6 +354,8 @@ export const stablecoinSwapRouter = router({
         actionUrl: "/wallet",
         actionLabel: "View Wallet",
       });
+
+      publishEvent(TOPICS.WALLET_TRANSACTIONS, { type: "stablecoin.onramp", payload: { orderId, userId: String(ctx.user.id), sourceAmount: input.sourceAmount, sourceCurrency: input.sourceCurrency, targetAmount, targetStablecoin: input.targetStablecoin, fee: feeUsd } });
 
       return {
         success: true,

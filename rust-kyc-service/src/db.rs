@@ -75,6 +75,38 @@ pub async fn run_migrations(pool: &PgPool) {
             result JSONB,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )"#,
+        r#"CREATE TABLE IF NOT EXISTS biometric_templates (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id VARCHAR(128) NOT NULL,
+            template_type VARCHAR(32) NOT NULL,
+            template_hash VARCHAR(256) NOT NULL,
+            device_id VARCHAR(128) NOT NULL,
+            confidence_threshold DOUBLE PRECISION NOT NULL DEFAULT 0.95,
+            enrolled_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"#,
+        "CREATE INDEX IF NOT EXISTS idx_bio_user ON biometric_templates(user_id)",
+        r#"CREATE TABLE IF NOT EXISTS biometric_auth_sessions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id VARCHAR(128),
+            merchant_id VARCHAR(128) NOT NULL,
+            amount_cents BIGINT NOT NULL,
+            currency VARCHAR(10) NOT NULL,
+            auth_level VARCHAR(20) NOT NULL,
+            authorized BOOLEAN NOT NULL DEFAULT false,
+            confidence DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+            transaction_token VARCHAR(128),
+            device_id VARCHAR(128),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"#,
+        r#"CREATE TABLE IF NOT EXISTS merchant_pos_devices (
+            id VARCHAR(128) PRIMARY KEY,
+            merchant_id VARCHAR(128) NOT NULL,
+            location VARCHAR(256),
+            capabilities TEXT[],
+            max_offline_amount BIGINT NOT NULL DEFAULT 0,
+            last_sync TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"#,
     ];
 
     for sql in migrations {

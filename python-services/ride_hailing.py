@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
+import db as database
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -309,6 +311,12 @@ async def request_ride(req: RideRequestModel):
         **driver,
     }
     _rides[ride_id] = ride
+
+    # Persist to PostgreSQL
+    await database.execute(
+        "INSERT INTO ride_bookings (id, user_id, provider, status, pickup_address, dropoff_address, estimated_fare, currency, payment_method) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+        ride_id, req.user_id, req.provider, "driver_assigned", quote["pickup"], quote["dropoff"], quote["fare"], quote["currency"], req.payment_method,
+    )
 
     return RideResponse(**{k: v for k, v in ride.items() if k != "user_id"})
 

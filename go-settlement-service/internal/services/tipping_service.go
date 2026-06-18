@@ -5,7 +5,21 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"github.com/tourismpay/settlement-service/internal/database"
 )
+
+// persistTip writes a tip calculation to PostgreSQL when available
+func persistTip(result TipCalculationResult, jurisdictionCode string) {
+	if database.DB == nil {
+		return
+	}
+	id := fmt.Sprintf("TIP-%s-%d", strings.ToUpper(jurisdictionCode), time.Now().UnixNano()/1000000)
+	database.DB.Exec(
+		"INSERT INTO tip_transactions (id, transaction_id, payer_id, recipient_id, establishment_id, amount, currency, tip_type, distribution, jurisdiction_code, tax_amount, net_amount, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
+		id, id, "system", "system", 0, result.TipAmount, result.Currency, string(result.TipType), string(result.Distribution), jurisdictionCode, result.TaxOnTip, result.NetTip, "completed",
+	)
+}
 
 // TipType represents how the tip is structured
 type TipType string
@@ -351,7 +365,7 @@ func (s *TippingService) CalculateTip(jurisdictionCode string, baseAmount float6
 		})
 	}
 
-	return TipCalculationResult{
+	result := TipCalculationResult{
 		BaseAmount:    baseAmount,
 		TipAmount:     tipAmount,
 		TaxOnTip:      taxOnTip,
@@ -364,6 +378,9 @@ func (s *TippingService) CalculateTip(jurisdictionCode string, baseAmount float6
 		Splits:        splits,
 		CulturalNote:  config.CulturalNote,
 	}
+
+	persistTip(result, jurisdictionCode)
+	return result
 }
 
 // GetConfig returns the tipping configuration for a jurisdiction

@@ -5,8 +5,6 @@ mod auth;
 #[allow(dead_code)]
 mod biometric_pay;
 mod db;
-#[allow(dead_code)]
-mod gds_registry;
 mod handlers;
 mod lifecycle;
 #[allow(dead_code)]

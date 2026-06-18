@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tourismpay/settlement-service/internal/database"
 )
 
 // Ensure sha256 is used
@@ -124,6 +125,14 @@ func (s *OfflineNFCService) CreateVoucher(req VoucherCreateRequest, userID strin
 	s.vouchers[voucherID] = voucher
 	s.keyPairs[voucherID] = priv
 	s.mu.Unlock()
+
+	// Persist to PostgreSQL
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO nfc_transactions (id, payer_device_id, payee_device_id, amount, currency, offline) VALUES ($1,$2,$3,$4,$5,$6)",
+			voucherID, userID, req.WalletID, float64(req.Amount)/100, req.Currency, true,
+		)
+	}
 
 	return voucher, nil
 }

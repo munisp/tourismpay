@@ -7,6 +7,7 @@ import { protectedProcedure, adminProcedure, merchantProcedure, router } from ".
 import { getDb, createUserNotification } from "../db";
 import { TRPCError } from "@trpc/server";
 import { sql } from "drizzle-orm";
+import { publishAuditEvent } from "../_core/kafka";
 
 // ─── Jurisdiction Tipping Defaults ──────────────────────────────────────────
 
@@ -288,6 +289,8 @@ export const tippingRouter = router({
           UPDATE loyalty_accounts SET points_balance = points_balance + ${loyaltyPoints}, lifetime_points = lifetime_points + ${loyaltyPoints}, updated_at = ${now} WHERE user_id = ${String(ctx.user.id)}
         `);
       } catch { /* non-critical */ }
+
+      publishAuditEvent("tip.sent", { tipId, amount: tipAmount, currency: input.currency, jurisdiction: input.jurisdictionCode, payerId: String(ctx.user.id) });
 
       return {
         tipId,

@@ -8,6 +8,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/tourismpay/settlement-service/internal/database"
 )
 
 // ─── Prometheus Metrics ──────────────────────────────────────────────────────
@@ -79,6 +80,15 @@ func (s *USSDService) ProcessRequest(req *USSDRequest) *USSDResponse {
 			ExpiresAt:   time.Now().Add(5 * time.Minute),
 		}
 		s.sessions[req.SessionID] = session
+
+		// Persist session to PostgreSQL
+		if database.DB != nil {
+			database.DB.Exec(
+				"INSERT INTO ussd_sessions (id, phone_number, menu_state, session_data, status) VALUES ($1,$2,$3,$4,$5)",
+				req.SessionID, req.PhoneNumber, "main_menu", "{}", "active",
+			)
+		}
+
 		ussdSessionsTotal.WithLabelValues("started").Inc()
 		return s.mainMenu(session)
 	}

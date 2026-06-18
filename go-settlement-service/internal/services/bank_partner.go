@@ -9,6 +9,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/tourismpay/settlement-service/internal/database"
 )
 
 // ─── Prometheus Metrics ──────────────────────────────────────────────────────
@@ -269,6 +270,15 @@ func (s *BankPartnerService) CreateVirtualIBAN(userID string, provider BankPartn
 	}
 
 	s.ibans[ref] = iban
+
+	// Persist to PostgreSQL
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+			ref, userID, userID, string(provider), iban.AccountNumber, 0.0, currency, iban.IBAN, "active",
+		)
+	}
+
 	return iban, nil
 }
 
@@ -373,6 +383,14 @@ func (s *BankPartnerService) InitiateTransfer(userID string, quote *BankPartnerQ
 	}
 
 	s.transfers[id] = transfer
+
+	// Persist to PostgreSQL
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+			id, userID, senderName, string(quote.Provider), "", quote.SourceAmount, quote.SourceCurrency, id, "awaiting_funds",
+		)
+	}
 
 	bankPartnerTransfersTotal.WithLabelValues(string(quote.Provider), "awaiting_funds").Inc()
 	bankPartnerVolumeUSD.WithLabelValues(string(quote.Provider)).Add(quote.SourceAmount)

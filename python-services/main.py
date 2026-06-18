@@ -222,6 +222,11 @@ def _fraud_score(tx_id: str, amount: float, currency: str) -> float:
 async def fraud_score(req: FraudScoreRequest):
     score = _fraud_score(req.transaction_id, req.amount, req.currency)
     level = "CRITICAL" if score >= 80 else "HIGH" if score >= 60 else "MEDIUM" if score >= 40 else "LOW"
+    factors = json.dumps([{"velocity_anomaly": score > 60}, {"geo_mismatch": score > 70}, {"device_risk": score > 50}])
+    await database.execute(
+        "INSERT INTO fraud_scores (transaction_id, user_id, score, risk_level, factors) VALUES ($1, $2, $3, $4, $5::jsonb)",
+        req.transaction_id, req.user_id, score, level, factors,
+    )
     return {
         "transaction_id": req.transaction_id,
         "fraud_score": score,
@@ -314,6 +319,11 @@ async def aml_risk_score(req: AmlRiskRequest):
     amount_factor = min((req.transaction_amount or 0) / 20000 * 20, 20)
     freq_factor = min((req.transaction_frequency or 0) * 2, 20)
     score = round(min(100, base + amount_factor + freq_factor), 2)
+    level = "HIGH" if score >= 70 else "MEDIUM" if score >= 40 else "LOW"
+    await database.execute(
+        "INSERT INTO compliance_screenings (entity_id, entity_type, risk_score, risk_level, pep_match, sanctions_match, factors) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)",
+        req.entity_name, req.entity_type or "individual", score, level, False, False, json.dumps([{"type": "aml"}]),
+    )
     return {
         "entity_name": req.entity_name,
         "aml_risk_score": score,
@@ -333,6 +343,10 @@ async def aml_risk_score(req: AmlRiskRequest):
 async def pep_screen(req: PepScreenRequest):
     seed = int(hashlib.md5(req.full_name.encode()).hexdigest(), 16) % 100
     is_pep = seed % 8 == 0
+    await database.execute(
+        "INSERT INTO compliance_screenings (entity_id, entity_type, risk_score, risk_level, pep_match, sanctions_match, factors) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)",
+        req.full_name, "individual", 80.0 if is_pep else 10.0, "HIGH" if is_pep else "LOW", is_pep, False, json.dumps([{"type": "pep"}]),
+    )
     return {
         "full_name": req.full_name,
         "is_pep": is_pep,
@@ -348,6 +362,10 @@ async def pep_screen(req: PepScreenRequest):
 async def sanctions_screen(req: SanctionsRequest):
     seed = int(hashlib.md5(req.entity_name.encode()).hexdigest(), 16) % 100
     is_sanctioned = seed % 15 == 0
+    await database.execute(
+        "INSERT INTO compliance_screenings (entity_id, entity_type, risk_score, risk_level, pep_match, sanctions_match, factors) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)",
+        req.entity_name, req.entity_type or "individual", 95.0 if is_sanctioned else 5.0, "CRITICAL" if is_sanctioned else "LOW", False, is_sanctioned, json.dumps([{"type": "sanctions"}]),
+    )
     return {
         "entity_name": req.entity_name,
         "is_sanctioned": is_sanctioned,
@@ -420,6 +438,10 @@ async def rates_forecast(req: ForecastRequest):
                 "upper": round(current_rate * noise * 1.015, 6),
             },
         })
+    await database.execute(
+        "INSERT INTO fx_rate_predictions (base_currency, quote_currency, predicted_rate, confidence, horizon_hours) VALUES ($1, $2, $3, $4, $5)",
+        req.from_currency.upper(), req.to_currency.upper(), current_rate, 0.92, req.horizon_days * 24,
+    )
     return {
         "from_currency": req.from_currency.upper(),
         "to_currency": req.to_currency.upper(),
@@ -499,6 +521,10 @@ class ComplianceReportRequest(BaseModel):
 @app.post("/api/v1/reports/merchant-revenue")
 async def merchant_revenue_report(req: MerchantReportRequest):
     report_id = f"RPT-MR-{hashlib.md5(req.merchant_id.encode()).hexdigest()[:8].upper()}"
+    await database.execute(
+        "INSERT INTO generated_reports (report_type, entity_id, file_key) VALUES ($1, $2, $3)",
+        "MERCHANT_REVENUE", req.merchant_id, report_id,
+    )
     return {
         "report_id": report_id,
         "report_type": "MERCHANT_REVENUE",
@@ -519,6 +545,14 @@ async def merchant_revenue_report(req: MerchantReportRequest):
 @app.post("/api/v1/reports/bis-investigation")
 async def bis_investigation_report(req: BisReportRequest):
     report_id = f"RPT-BIS-{req.investigation_id[:8].upper()}"
+    await database.execute(
+        "INSERT INTO bis_ai_scores (investigation_id, subject_name, risk_score, risk_level, factors) VALUES ($1, $2, $3, $4, $5::jsonb)",
+        req.investigation_id, req.subject_name, req.risk_score, req.risk_level, json.dumps(req.modules or {}),
+    )
+    await database.execute(
+        "INSERT INTO generated_reports (report_type, entity_id, file_key) VALUES ($1, $2, $3)",
+        "BIS_INVESTIGATION", req.investigation_id, report_id,
+    )
     return {
         "report_id": report_id,
         "report_type": "BIS_INVESTIGATION",
@@ -824,6 +858,10 @@ async def get_jurisdiction(code: str):
 async def generate_report(req: TaxReportRequest):
     try:
         report = generate_tax_report(req)
+        await database.execute(
+            "INSERT INTO tax_compliance_reports (jurisdiction, entity_id, report_type, period, total_collected, total_remitted, status) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            req.jurisdiction_code.upper(), req.merchant_id, "tax_report", f"{req.period_start} to {req.period_end}", report.total_tax_collected, 0.0, "generated",
+        )
         return report.dict()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -837,6 +875,10 @@ async def compliance_check(
     filed: float = Query(0),
 ):
     result = check_compliance(jurisdiction_code, merchant_id, collected, filed)
+    await database.execute(
+        "INSERT INTO tax_compliance_reports (jurisdiction, entity_id, report_type, period, total_collected, total_remitted, status) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        jurisdiction_code.upper(), merchant_id, "compliance_check", "", collected, filed, result.compliance_status,
+    )
     return result.dict()
 
 

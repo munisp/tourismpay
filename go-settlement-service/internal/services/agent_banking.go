@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/tourismpay/settlement-service/internal/database"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
@@ -266,6 +267,14 @@ func (s *AgentBankingService) ExecuteLoad(agentID, touristUserID, cashCurrency, 
 	}
 
 	s.orders[orderID] = order
+
+	// Persist to PostgreSQL
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO agent_transactions (id, agent_id, customer_id, transaction_type, amount, currency, commission, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+			orderID, agentID, touristUserID, "cash_load", cashAmount, cashCurrency, agentComm, "completed",
+		)
+	}
 
 	// Deduct from agent float
 	agent.FloatBalances[cashCurrency] -= cashAmount

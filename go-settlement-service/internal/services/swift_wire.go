@@ -9,6 +9,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/tourismpay/settlement-service/internal/database"
 )
 
 // ─── Prometheus Metrics ──────────────────────────────────────────────────────
@@ -285,6 +286,14 @@ func (s *SWIFTWireService) InitiateTransfer(userID string, quote *WireQuote, sen
 	}
 
 	s.orders[orderID] = order
+
+	// Persist to PostgreSQL
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO swift_transfers (id, sender_id, recipient_iban, recipient_swift, amount, currency, fee, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+			orderID, userID, quote.CollectionInstructions.Reference, string(quote.Rail), quote.SourceAmount, quote.SourceCurrency, quote.Fee, order.CollectionRef, "initiated",
+		)
+	}
 
 	swiftTransfersTotal.WithLabelValues("pending_collection", string(quote.Rail)).Inc()
 	swiftVolumeUSD.WithLabelValues(string(quote.Rail)).Add(quote.SourceAmount)
