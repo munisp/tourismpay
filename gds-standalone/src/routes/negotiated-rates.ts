@@ -10,7 +10,7 @@ import { requireRole } from "../auth";
 
 export const negotiatedRatesRouter = Router();
 
-const agreements = [
+let agreements: any[] = [
   {
     id: "AGR-001", name: "Safaricom Corporate Program", agreement_type: "corporate",
     party_a: { id: "CHAIN-001", name: "Serengeti Hotels Group", type: "chain", country: "KE" },
@@ -152,12 +152,33 @@ negotiatedRatesRouter.post("/agreements", requireRole("admin"), async (req: Requ
     res.status(400).json({ error: "name and agreement_type required" });
     return;
   }
-  res.status(201).json({
-    created: true,
-    agreement: {
-      id: `AGR-${Date.now().toString(36)}`, name, agreement_type,
-      party_a, party_b, rate_type, base_discount_percent,
-      status: "pending", created_at: new Date().toISOString(),
-    },
-  });
+  const agr = {
+    id: `AGR-${Date.now().toString(36)}`, name, agreement_type,
+    party_a: party_a || {}, party_b: party_b || {}, rate_type: rate_type || "discount_on_bar",
+    base_discount_percent: base_discount_percent || 0, currency: req.body.currency || "USD",
+    min_room_nights: req.body.min_room_nights || 0, actual_room_nights: 0,
+    meal_plan: req.body.meal_plan || "RO", payment_terms: req.body.payment_terms || "30_days",
+    commission: req.body.commission || 8, last_room_availability: req.body.last_room_availability || false,
+    status: "active", amenities: req.body.amenities || [],
+    valid_from: req.body.valid_from || new Date().toISOString().split("T")[0],
+    valid_to: req.body.valid_to || "2027-12-31",
+  };
+  agreements.push(agr);
+  res.status(201).json({ created: true, agreement: agr });
+});
+
+// Update agreement
+negotiatedRatesRouter.put("/agreements/:id", requireRole("admin"), async (req: Request, res: Response) => {
+  const idx = agreements.findIndex(a => a.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Agreement not found" });
+  agreements[idx] = { ...agreements[idx], ...req.body, id: agreements[idx].id };
+  res.json(agreements[idx]);
+});
+
+// Delete agreement
+negotiatedRatesRouter.delete("/agreements/:id", requireRole("admin"), async (req: Request, res: Response) => {
+  const idx = agreements.findIndex(a => a.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Agreement not found" });
+  agreements.splice(idx, 1);
+  res.json({ deleted: true, id: req.params.id });
 });

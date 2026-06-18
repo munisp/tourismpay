@@ -238,6 +238,25 @@ pnrRouter.post("/:locator/queue", (req, res) =>
     res.json({ message: "PNR queued", queue: req.body.queue_type || "general" });
   }));
 
+// Update PNR
+pnrRouter.put("/:locator", (req, res) => {
+  const pnr = pnrStore.find(p => p.locator === req.params.locator);
+  if (!pnr) return res.status(404).json({ error: "PNR not found" });
+  if (req.body.guest_name) pnr.guest_name = req.body.guest_name;
+  if (req.body.contact_email) pnr.contact_email = req.body.contact_email;
+  if (req.body.status) pnr.status = req.body.status;
+  if (req.body.ticketing_status) pnr.ticketing_status = req.body.ticketing_status;
+  res.json(pnr);
+});
+
+// Delete PNR
+pnrRouter.delete("/:locator", (req, res) => {
+  const idx = pnrStore.findIndex(p => p.locator === req.params.locator);
+  if (idx === -1) return res.status(404).json({ error: "PNR not found" });
+  pnrStore.splice(idx, 1);
+  res.json({ deleted: true, locator: req.params.locator });
+});
+
 // Get history
 pnrRouter.get("/:locator/history", (req, res) =>
   proxyWithFallback(req, res, `/api/v1/pnr/${req.params.locator}/history`, "GET", () => {

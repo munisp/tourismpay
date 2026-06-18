@@ -10,8 +10,8 @@ import { requireRole } from "../auth";
 
 export const discountRouter = Router();
 
-// Seed promotions
-const promotions = [
+// Seed promotions (mutable store)
+let promotions: any[] = [
   { id: "PROMO-001", name: "Welcome 15% Off", code: "WELCOME15", type: "percentage", value: 15, max_discount: 100, target: "new_users", status: "active", uses: 247, max_uses: 1000, countries: ["KE", "NG", "GH", "ZA", "TZ"] },
   { id: "PROMO-002", name: "Safari Season 20% Off", code: "SAFARI20", type: "percentage", value: 20, max_discount: 200, target: "all", status: "active", uses: 89, max_uses: 500, countries: [] },
   { id: "PROMO-003", name: "Stay 5 Pay 4", code: "STAY5PAY4", type: "nights_free", value: 1, max_discount: 0, target: "all", status: "active", uses: 34, max_uses: 200, countries: [] },
@@ -137,12 +137,44 @@ discountRouter.post("/loyalty-redeem", async (req: Request, res: Response) => {
   });
 });
 
+// Create promo
+discountRouter.post("/promos", async (req: Request, res: Response) => {
+  const { name, code, type, value, max_discount, target, max_uses, countries } = req.body;
+  if (!name || !code || !type || value === undefined) {
+    return res.status(400).json({ error: "name, code, type, value required" });
+  }
+  const promo = {
+    id: `PROMO-${Date.now().toString(36)}`,
+    name, code: code.toUpperCase(), type, value, max_discount: max_discount || 0,
+    target: target || "all", status: "active", uses: 0, max_uses: max_uses || 0,
+    countries: countries || [],
+  };
+  promotions.push(promo);
+  res.status(201).json(promo);
+});
+
+// Update promo
+discountRouter.put("/promos/:id", async (req: Request, res: Response) => {
+  const idx = promotions.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Promotion not found" });
+  promotions[idx] = { ...promotions[idx], ...req.body, id: promotions[idx].id };
+  res.json(promotions[idx]);
+});
+
+// Delete promo
+discountRouter.delete("/promos/:id", async (req: Request, res: Response) => {
+  const idx = promotions.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Promotion not found" });
+  promotions.splice(idx, 1);
+  res.json({ deleted: true, id: req.params.id });
+});
+
 // Analytics
 discountRouter.get("/analytics", requireRole("admin"), async (_req: Request, res: Response) => {
   res.json({
     total_promotions: promotions.length,
     active: promotions.filter(p => p.status === "active").length,
     total_uses: promotions.reduce((sum, p) => sum + p.uses, 0),
-    top_codes: promotions.sort((a, b) => b.uses - a.uses).slice(0, 3).map(p => ({ code: p.code, uses: p.uses })),
+    top_codes: [...promotions].sort((a, b) => b.uses - a.uses).slice(0, 3).map(p => ({ code: p.code, uses: p.uses })),
   });
 });

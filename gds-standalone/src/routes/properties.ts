@@ -1,86 +1,93 @@
 /**
- * Properties API — Register, update, search African tourism properties.
- * Proxies to Go GDS engine for high-performance operations.
+ * Properties API — Full CRUD for African tourism properties.
+ * Uses in-memory store with seed data. In production, queries PostgreSQL.
  */
 import { Router, Request, Response } from "express";
 import { requireRole } from "../auth";
-import { config } from "../config";
+import { establishments, generateId } from "../lib/store";
 
 export const propertiesRouter = Router();
 
-// List properties (with pagination + filters)
-propertiesRouter.get("/", async (req: Request, res: Response) => {
-  const { country, type, star_rating, page = "1", page_size = "20" } = req.query;
-  const tenantId = (req as any).tenant?.tenantId || "default";
+const africanCountries = ["KE", "ZA", "TZ", "NG", "GH", "RW", "UG", "ET", "MA", "EG", "BW", "NA", "ZW", "MU", "MZ", "SN", "CI", "CM", "TN", "MG"];
 
-  // In production: proxy to Go engine or query PostgreSQL directly
+// List properties
+propertiesRouter.get("/", (req: Request, res: Response) => {
+  let results = [...establishments];
+  const { country, type, star_rating, status, tier } = req.query;
+  if (country) results = results.filter(e => e.country === country);
+  if (type) results = results.filter(e => e.type === type);
+  if (star_rating) results = results.filter(e => e.star_rating >= Number(star_rating));
+  if (status) results = results.filter(e => e.status === status);
+  if (tier) results = results.filter(e => e.tier === tier);
+
+  const page = parseInt(req.query.page as string) || 1;
+  const pageSize = parseInt(req.query.page_size as string) || 20;
+  const start = (page - 1) * pageSize;
+
   res.json({
-    properties: [],
-    total: 0,
-    page: parseInt(page as string),
-    pageSize: parseInt(page_size as string),
-    filters: { country, type, star_rating, tenantId },
+    properties: results.slice(start, start + pageSize),
+    total: results.length,
+    page, pageSize,
   });
 });
 
 // Get single property
-propertiesRouter.get("/:id", async (req: Request, res: Response) => {
-  const { id } = req.params;
-  res.json({ property: null, message: `Property ${id} — query Go engine at ${config.GDS_ENGINE_URL}` });
+propertiesRouter.get("/:id", (req: Request, res: Response) => {
+  const prop = establishments.find(e => e.id === req.params.id);
+  if (!prop) return res.status(404).json({ error: "Property not found" });
+  res.json(prop);
 });
 
-// Register new property (property managers only)
-propertiesRouter.post("/", requireRole("property_manager", "admin"), async (req: Request, res: Response) => {
-  const body = req.body;
-  const tenantId = (req as any).tenant?.tenantId || "default";
-
-  // Validate required fields
-  const required = ["name", "type", "country", "currency"];
-  const missing = required.filter((f) => !body[f]);
-  if (missing.length > 0) {
-    res.status(400).json({ error: "Missing required fields", missing });
-    return;
+// Create property
+propertiesRouter.post("/", requireRole("property_manager", "admin"), (req: Request, res: Response) => {
+  const { name, type, country, currency, contact_name, contact_email } = req.body;
+  const missing = ["name", "type", "country"].filter(f => !req.body[f]);
+  if (missing.length > 0) return res.status(400).json({ error: "Missing required fields", missing });
+  if (!africanCountries.includes(country)) {
+    return res.status(400).json({ error: "GDS supports African countries only", supported: africanCountries });
   }
 
-  // Validate African country
-  const africanCountries = ["KE", "ZA", "TZ", "NG", "GH", "RW", "UG", "ET", "MA", "EG", "BW", "NA", "ZW", "MU", "MZ", "SN", "CI", "CM", "TN", "MG"];
-  if (!africanCountries.includes(body.country)) {
-    res.status(400).json({ error: "Invalid country. GDS supports African countries only.", supported: africanCountries });
-    return;
-  }
-
-  // In production: forward to Go engine
   const property = {
-    id: `prop_${Date.now().toString(36)}`,
-    tenantId,
-    ...body,
-    status: "pending",
-    createdAt: new Date().toISOString(),
+    id: generateId("EST"),
+    name, type, country, city: req.body.city || "", address: req.body.address || "",
+    contact_name: contact_name || "", contact_email: contact_email || "",
+    contact_phone: req.body.contact_phone || "", rooms: req.body.rooms || 0,
+    star_rating: req.body.star_rating || 0, tier: "sms_only",
+    status: "pending_verification", onboarding_step: 1, onboarding_channel: "web",
+    amenities: req.body.amenities || [], currency: currency || "USD",
+    base_rate: req.body.base_rate || 0, verified: false,
+    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   };
-
-  res.status(201).json({ property, message: "Property registered. Pending review." });
+  establishments.push(property);
+  res.status(201).json(property);
 });
 
 // Update property
-propertiesRouter.put("/:id", requireRole("property_manager", "admin"), async (req: Request, res: Response) => {
-  const { id } = req.params;
-  res.json({ updated: true, propertyId: id });
+propertiesRouter.put("/:id", requireRole("property_manager", "admin"), (req: Request, res: Response) => {
+  const idx = establishments.findIndex(e => e.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Property not found" });
+  establishments[idx] = { ...establishments[idx], ...req.body, id: establishments[idx].id, updated_at: new Date().toISOString() };
+  res.json(establishments[idx]);
 });
 
-// Delete property (admin only)
-propertiesRouter.delete("/:id", requireRole("admin"), async (req: Request, res: Response) => {
-  const { id } = req.params;
-  res.json({ deleted: true, propertyId: id });
+// Delete property
+propertiesRouter.delete("/:id", requireRole("admin"), (req: Request, res: Response) => {
+  const idx = establishments.findIndex(e => e.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Property not found" });
+  establishments.splice(idx, 1);
+  res.json({ deleted: true, id: req.params.id });
 });
 
-// Get property room types
-propertiesRouter.get("/:id/room-types", async (req: Request, res: Response) => {
-  const { id } = req.params;
-  res.json({ propertyId: id, roomTypes: [] });
-});
-
-// Add room type to property
-propertiesRouter.post("/:id/room-types", requireRole("property_manager", "admin"), async (req: Request, res: Response) => {
-  const { id } = req.params;
-  res.status(201).json({ propertyId: id, roomType: req.body });
+// Get room types for a property
+propertiesRouter.get("/:id/room-types", (req: Request, res: Response) => {
+  const prop = establishments.find(e => e.id === req.params.id);
+  if (!prop) return res.status(404).json({ error: "Property not found" });
+  res.json({
+    propertyId: req.params.id,
+    roomTypes: [
+      { id: "RT-STD", name: "Standard", max_occupancy: 2, base_rate: prop.base_rate },
+      { id: "RT-DLX", name: "Deluxe", max_occupancy: 2, base_rate: Math.round(prop.base_rate * 1.4) },
+      { id: "RT-STE", name: "Suite", max_occupancy: 3, base_rate: Math.round(prop.base_rate * 2.0) },
+    ],
+  });
 });
