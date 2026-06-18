@@ -222,7 +222,7 @@ router.get("/health", async (_req: Request, res: Response) => {
     try {
       const r = await fetch(`${url}/health`, { signal: AbortSignal.timeout(2000) });
       const data = await r.json();
-      services.push({ name, url, status: "healthy", ...data });
+      services.push({ name, url, status: "healthy", ...(data as Record<string, unknown>) });
     } catch {
       services.push({ name, url, status: "unavailable" });
     }
