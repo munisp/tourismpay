@@ -42,6 +42,9 @@ export const RESOURCES = {
   SETTLEMENT: "settlement",
   SYSTEM: "system",
   REPORT: "report",
+  PAYMENT: "payment",
+  IDENTITY: "identity",
+  LOYALTY: "loyalty",
 } as const;
 
 export const ACTIONS = {
@@ -62,17 +65,25 @@ const ROLE_PERMISSIONS: Record<string, Set<string>> = {
     "settlement:view", "settlement:execute",
     "system:view", "system:edit",
     "report:view", "report:create",
+    "payment:view", "payment:create", "payment:edit", "payment:approve",
+    "identity:view", "identity:create", "identity:edit", "identity:approve",
+    "loyalty:view", "loyalty:create", "loyalty:edit", "loyalty:delete",
   ]),
   merchant: new Set([
     "wallet:view",
     "establishment:view", "establishment:edit",
     "settlement:view",
     "report:view",
+    "payment:view", "payment:create",
+    "loyalty:view",
   ]),
   tourist: new Set([
     "wallet:view", "wallet:create",
     "establishment:view",
     "report:view",
+    "payment:view", "payment:create",
+    "identity:view", "identity:create",
+    "loyalty:view", "loyalty:create",
   ]),
   bis_analyst: new Set([
     "investigation:view", "investigation:create", "investigation:edit", "investigation:approve",

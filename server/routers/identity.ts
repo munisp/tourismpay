@@ -6,6 +6,7 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { didDocuments, verifiableCredentials } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
+import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
 
 function generateDid(userId: string | number): string {
   return `did:tourismpay:${String(userId)}-${Date.now().toString(36)}`;
@@ -25,6 +26,7 @@ export const identityRouter = router({
 
   // Create a new DID for the user
   createDid: protectedProcedure.mutation(async ({ ctx }) => {
+    await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.IDENTITY, ACTIONS.CREATE);
     const db = await getDb();
     if (!db) throw new Error("Database unavailable");
     const did = generateDid(ctx.user.id);

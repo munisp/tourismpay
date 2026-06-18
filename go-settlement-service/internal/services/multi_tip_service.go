@@ -5,6 +5,8 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"github.com/tourismpay/settlement-service/internal/database"
 )
 
 // ─── Multi-Recipient Tipping ─────────────────────────────────────────────────
@@ -120,8 +122,9 @@ func (s *MultiTipService) CalculateMultiTip(req MultiTipRequest) MultiTipResult 
 
 	distributions := s.calculateDistributions(req.SplitMode, netTip, req.Recipients)
 
-	return MultiTipResult{
-		GroupID:        generateMultiTipGroupID(jurisdiction),
+	groupID := generateMultiTipGroupID(jurisdiction)
+	result := MultiTipResult{
+		GroupID:        groupID,
 		TotalTip:       totalTip,
 		TaxOnTip:       taxOnTip,
 		NetTip:         netTip,
@@ -133,6 +136,22 @@ func (s *MultiTipService) CalculateMultiTip(req MultiTipRequest) MultiTipResult 
 		Receipt:        generateMultiTipReceipt(jurisdiction),
 		CreatedAt:      time.Now().UnixMilli(),
 	}
+
+	if database.DB != nil {
+		now := time.Now()
+		database.DB.Exec(
+			"INSERT INTO multi_tip_sessions (id, jurisdiction, total_tip, tax_on_tip, net_tip, currency, split_mode, recipient_count, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+			groupID, jurisdiction, totalTip, taxOnTip, netTip, currency, req.SplitMode, recipientCount, now,
+		)
+		for _, d := range distributions {
+			database.DB.Exec(
+				"INSERT INTO multi_tip_recipients (session_id, recipient_name, role, amount, created_at) VALUES ($1,$2,$3,$4,$5)",
+				groupID, d.RecipientName, d.Role, d.Amount, now,
+			)
+		}
+	}
+
+	return result
 }
 
 // calculateDistributions computes per-recipient amounts based on split mode

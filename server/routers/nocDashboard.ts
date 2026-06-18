@@ -11,6 +11,7 @@ import { z } from "zod";
 import { adminProcedure, nocProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
+import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
 import {
   nocEvents,
   psKillSwitchState,
@@ -45,6 +46,7 @@ export const nocDashboardRouter = router({
   activateKillSwitch: adminProcedure
     .input(z.object({ reason: z.string().min(1) }))
     .mutation(async ({ input, ctx }) => {
+      await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.SYSTEM, ACTIONS.EDIT);
       const db = await requireDb();
       const now = Date.now();
 

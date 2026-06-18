@@ -186,6 +186,27 @@ async def ensure_tables():
             status VARCHAR(20) NOT NULL DEFAULT 'generated',
             generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )""",
+        """CREATE TABLE IF NOT EXISTS smart_convert_orders (
+            id VARCHAR(64) PRIMARY KEY,
+            user_id VARCHAR(128) NOT NULL,
+            from_currency VARCHAR(10) NOT NULL,
+            to_currency VARCHAR(10) NOT NULL,
+            amount REAL NOT NULL,
+            target_rate REAL NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            expires_at TIMESTAMPTZ NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_smart_convert_user ON smart_convert_orders(user_id)",
+        """CREATE TABLE IF NOT EXISTS analytics_snapshots (
+            id SERIAL PRIMARY KEY,
+            snapshot_type VARCHAR(32) NOT NULL,
+            entity_id VARCHAR(128),
+            data JSONB NOT NULL DEFAULT '{}',
+            period VARCHAR(20),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics_snapshots(snapshot_type)",
     ]
     pool = await get_pool()
     if pool is None:

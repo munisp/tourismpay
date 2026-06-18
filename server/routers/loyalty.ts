@@ -5,6 +5,7 @@ import { TRPCError } from "@trpc/server";
 import { sql, eq, and, desc } from "drizzle-orm";
 import { loyaltyPartners, loyaltyAccounts, loyaltyTransactions, loyaltyReferrals } from "../../drizzle/schema";
 import { generateImage } from "../_core/imageGeneration";
+import { cacheGet, cacheSet } from "../_core/redis";
 
 const TIER_BENEFITS: Record<string, string> = {
   SILVER: "You now enjoy 1.5x points multiplier, priority customer support, and exclusive Silver member discounts.",
@@ -125,6 +126,8 @@ export const loyaltyRouter = router({
 
   // Get available rewards catalog (excludes expired rewards, adds expiringSoon badge)
   rewards: protectedProcedure.query(async () => {
+    const cached = await cacheGet<unknown[]>("loyalty:rewards");
+    if (cached) return cached;
     const db = await getDb();
     if (!db) return DEFAULT_REWARDS;
     try {
@@ -135,7 +138,9 @@ export const loyaltyRouter = router({
             ORDER BY points_cost ASC`
       );
       if ((rows as any[]).length === 0) return DEFAULT_REWARDS;
-      return (rows as any[]).map(r => mapRewardRow(r, nowMs));
+      const result = (rows as any[]).map(r => mapRewardRow(r, nowMs));
+      await cacheSet("loyalty:rewards", result, 60);
+      return result;
     } catch {
       return DEFAULT_REWARDS;
     }

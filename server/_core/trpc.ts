@@ -2,6 +2,7 @@ import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
+import { publishAuditEvent } from "./kafka";
 
 const t = initTRPC.context<TrpcContext>().create({
   transformer: superjson,
@@ -25,7 +26,22 @@ const requireUser = t.middleware(async opts => {
   });
 });
 
-export const protectedProcedure = t.procedure.use(requireUser);
+// Global Kafka audit middleware: publishes an audit event for every mutation
+const kafkaAudit = t.middleware(async opts => {
+  const { ctx, next, type, path } = opts;
+  const result = await next();
+  if (type === "mutation" && ctx.user) {
+    publishAuditEvent(`mutation.${path}`, {
+      userId: String(ctx.user.id),
+      role: ctx.user.role,
+      path,
+      timestamp: new Date().toISOString(),
+    }).catch(() => {});
+  }
+  return result;
+});
+
+export const protectedProcedure = t.procedure.use(requireUser).use(kafkaAudit);
 
 // admin only
 export const adminProcedure = t.procedure.use(
@@ -35,7 +51,7 @@ export const adminProcedure = t.procedure.use(
     if (ctx.user.role !== 'admin') throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     return next({ ctx: { ...ctx, user: ctx.user } });
   }),
-);
+).use(kafkaAudit);
 
 // admin OR settlement_officer
 export const settlementProcedure = t.procedure.use(
@@ -45,7 +61,7 @@ export const settlementProcedure = t.procedure.use(
     if (ctx.user.role !== 'admin' && ctx.user.role !== 'settlement_officer') throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     return next({ ctx: { ...ctx, user: ctx.user } });
   }),
-);
+).use(kafkaAudit);
 
 // admin OR bis_analyst
 export const bisProcedure = t.procedure.use(
@@ -55,7 +71,7 @@ export const bisProcedure = t.procedure.use(
     if (ctx.user.role !== 'admin' && ctx.user.role !== 'bis_analyst') throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     return next({ ctx: { ...ctx, user: ctx.user } });
   }),
-);
+).use(kafkaAudit);
 
 // admin OR noc_operator
 export const nocProcedure = t.procedure.use(
@@ -65,7 +81,7 @@ export const nocProcedure = t.procedure.use(
     if (ctx.user.role !== 'admin' && ctx.user.role !== 'noc_operator') throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     return next({ ctx: { ...ctx, user: ctx.user } });
   }),
-);
+).use(kafkaAudit);
 
 // admin OR compliance_officer
 export const complianceProcedure = t.procedure.use(
@@ -75,7 +91,7 @@ export const complianceProcedure = t.procedure.use(
     if (ctx.user.role !== 'admin' && ctx.user.role !== 'compliance_officer') throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     return next({ ctx: { ...ctx, user: ctx.user } });
   }),
-);
+).use(kafkaAudit);
 
 // admin OR merchant
 export const merchantProcedure = t.procedure.use(
@@ -85,7 +101,7 @@ export const merchantProcedure = t.procedure.use(
     if (ctx.user.role !== 'admin' && ctx.user.role !== 'merchant') throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     return next({ ctx: { ...ctx, user: ctx.user } });
   }),
-);
+).use(kafkaAudit);
 
 // admin OR noc_operator OR settlement_officer (PaymentSwitch operators)
 export const paymentSwitchProcedure = t.procedure.use(
@@ -96,7 +112,7 @@ export const paymentSwitchProcedure = t.procedure.use(
     if (!allowed.includes(ctx.user.role)) throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     return next({ ctx: { ...ctx, user: ctx.user } });
   }),
-);
+).use(kafkaAudit);
 
 // tourist OR admin (tourist-facing features)
 export const touristProcedure = t.procedure.use(
@@ -106,7 +122,7 @@ export const touristProcedure = t.procedure.use(
     if (ctx.user.role !== 'admin' && ctx.user.role !== 'tourist') throw new TRPCError({ code: "FORBIDDEN", message: "Tourist or admin access required" });
     return next({ ctx: { ...ctx, user: ctx.user } });
   }),
-);
+).use(kafkaAudit);
 
 // Jurisdiction-scoped procedure — adds jurisdictionCode to context for merchants
 export const jurisdictionScopedProcedure = t.procedure.use(
@@ -125,4 +141,4 @@ export const jurisdictionScopedProcedure = t.procedure.use(
       },
     });
   }),
-);
+).use(kafkaAudit);

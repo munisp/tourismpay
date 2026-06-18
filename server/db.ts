@@ -158,6 +158,15 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   }
 }
 
+export async function touchUserSignIn(openId: string, signedInAt: Date) {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(users)
+    .set({ lastSignedIn: signedInAt, loginCount: sql`${users.loginCount} + 1` })
+    .where(eq(users.openId, openId));
+}
+
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
