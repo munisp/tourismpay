@@ -41,6 +41,13 @@ jobs:
       - run: npx tsc --noEmit
       - name: Run migrations
         run: pnpm drizzle-kit push 2>/dev/null || true
+      - name: Seed test user
+        run: |
+          PGPASSWORD=tourismpay_dev psql -h localhost -U tourismpay -d tourismpay -c "
+            INSERT INTO users (open_id, name, email, role, login_method, last_signed_in)
+            VALUES ('ci-test-owner-openid', 'CI Test User', 'ci@test.com', 'admin', 'test', NOW())
+            ON CONFLICT (open_id) DO NOTHING;
+          " 2>/dev/null || true
       - name: Start server
         run: pnpm run dev &
         env:
