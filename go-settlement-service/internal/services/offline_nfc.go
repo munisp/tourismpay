@@ -70,13 +70,11 @@ type NFCTapPayload struct {
 
 type OfflineNFCService struct {
 	mu       sync.RWMutex
-	vouchers map[string]*OfflineVoucher
 	keyPairs map[string]ed25519.PrivateKey
 }
 
 func NewOfflineNFCService() *OfflineNFCService {
 	return &OfflineNFCService{
-		vouchers: make(map[string]*OfflineVoucher),
 		keyPairs: make(map[string]ed25519.PrivateKey),
 	}
 }
@@ -122,17 +120,14 @@ func (s *OfflineNFCService) CreateVoucher(req VoucherCreateRequest, userID strin
 	}
 
 	s.mu.Lock()
-	s.vouchers[voucherID] = voucher
 	s.keyPairs[voucherID] = priv
 	s.mu.Unlock()
 
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO nfc_transactions (id, payer_device_id, payee_device_id, amount, currency, offline) VALUES ($1,$2,$3,$4,$5,$6)",
-			voucherID, userID, req.WalletID, float64(req.Amount)/100, req.Currency, true,
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO nfc_transactions (id, payer_device_id, payee_device_id, amount, currency, offline, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+		voucherID, userID, req.WalletID, float64(req.Amount)/100, req.Currency, true, "active",
+	)
 
 	return voucher, nil
 }
@@ -142,8 +137,8 @@ func (s *OfflineNFCService) ProcessNFCTap(payload NFCTapPayload) (*OfflineTransa
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	voucher, exists := s.vouchers[payload.VoucherID]
-	if !exists {
+	voucher := s.GetVoucher(payload.VoucherID)
+	if voucher == nil {
 		return nil, fmt.Errorf("voucher not found: %s", payload.VoucherID)
 	}
 
@@ -191,22 +186,16 @@ func (s *OfflineNFCService) SyncVoucher(voucherID string) (*OfflineVoucher, erro
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	voucher, exists := s.vouchers[voucherID]
-	if !exists {
+	voucher := s.GetVoucher(voucherID)
+	if voucher == nil {
 		return nil, fmt.Errorf("voucher not found: %s", voucherID)
 	}
 
-	// Mark all unsynced transactions as synced
-	for i := range voucher.Transactions {
-		if !voucher.Transactions[i].Synced {
-			voucher.Transactions[i].Synced = true
-		}
+	if database.DB != nil {
+		database.DB.Exec("UPDATE nfc_transactions SET status='synced' WHERE id=$1", voucherID)
 	}
 
-	if voucher.RemainingAmount == 0 {
-		voucher.Status = "synced"
-	}
-
+	voucher.Status = "synced"
 	return voucher, nil
 }
 
@@ -214,7 +203,21 @@ func (s *OfflineNFCService) SyncVoucher(voucherID string) (*OfflineVoucher, erro
 func (s *OfflineNFCService) GetVoucher(voucherID string) *OfflineVoucher {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.vouchers[voucherID]
+
+	if database.DB != nil {
+		v := &OfflineVoucher{Transactions: make([]OfflineTransaction, 0)}
+		var amount float64
+		err := database.DB.QueryRow(
+			"SELECT id, payer_device_id, payee_device_id, amount, currency, COALESCE(status, 'active') FROM nfc_transactions WHERE id=$1",
+			voucherID,
+		).Scan(&v.ID, &v.UserID, &v.WalletID, &amount, &v.Currency, &v.Status)
+		if err == nil {
+			v.Amount = uint64(amount * 100)
+			v.RemainingAmount = v.Amount
+			return v
+		}
+	}
+	return nil
 }
 
 // ListActiveVouchers returns all active vouchers for a user
@@ -223,9 +226,21 @@ func (s *OfflineNFCService) ListActiveVouchers(userID string) []*OfflineVoucher 
 	defer s.mu.RUnlock()
 
 	var result []*OfflineVoucher
-	for _, v := range s.vouchers {
-		if v.UserID == userID && v.Status == "active" {
-			result = append(result, v)
+	if database.DB != nil {
+		rows, err := database.DB.Query(
+			"SELECT id, payer_device_id, payee_device_id, amount, currency, COALESCE(status, 'active') FROM nfc_transactions WHERE payer_device_id=$1 AND (status='active' OR status IS NULL) ORDER BY id",
+			userID,
+		)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				v := &OfflineVoucher{Transactions: make([]OfflineTransaction, 0)}
+				var amount float64
+				rows.Scan(&v.ID, &v.UserID, &v.WalletID, &amount, &v.Currency, &v.Status)
+				v.Amount = uint64(amount * 100)
+				v.RemainingAmount = v.Amount
+				result = append(result, v)
+			}
 		}
 	}
 	return result

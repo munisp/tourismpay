@@ -13,11 +13,8 @@ import (
 )
 
 type CryptoService struct {
-	wallets           map[string]*CryptoWallet
-	transactions      map[string]*CryptoTransaction
 	exchangeRates     map[string]float64
 	supportedCoins    map[string]CoinInfo
-	pendingSwaps      map[string]*CryptoSwap
 	blockchainClients map[string]*BlockchainClient
 	mu                sync.RWMutex
 }
@@ -93,9 +90,6 @@ type CryptoPayment struct {
 
 func NewCryptoService() *CryptoService {
 	s := &CryptoService{
-		wallets:       make(map[string]*CryptoWallet),
-		transactions:  make(map[string]*CryptoTransaction),
-		pendingSwaps:  make(map[string]*CryptoSwap),
 		supportedCoins: map[string]CoinInfo{
 			// Stablecoins
 			"USDT": {
@@ -270,11 +264,9 @@ func (s *CryptoService) CreateWallet(userID string) *CryptoWallet {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Check if wallet already exists
-	for _, w := range s.wallets {
-		if w.UserID == userID {
-			return w
-		}
+	// Check if wallet already exists in DB
+	if existing := s.GetWalletByUser(userID); existing != nil {
+		return existing
 	}
 
 	walletID := s.generateID("CW")
@@ -301,15 +293,11 @@ func (s *CryptoService) CreateWallet(userID string) *CryptoWallet {
 		LastUpdated: time.Now(),
 	}
 
-	s.wallets[walletID] = wallet
-
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-			walletID, userID, "wallet_created", 0.0, "MULTI", "multi", "completed",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+		walletID, userID, "wallet_created", 0.0, "MULTI", "multi", "completed",
+	)
 
 	return wallet
 }
@@ -317,16 +305,32 @@ func (s *CryptoService) CreateWallet(userID string) *CryptoWallet {
 func (s *CryptoService) GetWallet(walletID string) *CryptoWallet {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.wallets[walletID]
+
+	if database.DB != nil {
+		var userID string
+		err := database.DB.QueryRow(
+			"SELECT user_id FROM crypto_transactions WHERE id=$1 AND tx_type='wallet_created'",
+			walletID,
+		).Scan(&userID)
+		if err == nil {
+			return &CryptoWallet{WalletID: walletID, UserID: userID, Balances: make(map[string]float64), Addresses: make(map[string]string), CreatedAt: time.Now()}
+		}
+	}
+	return nil
 }
 
 func (s *CryptoService) GetWalletByUser(userID string) *CryptoWallet {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
-	for _, w := range s.wallets {
-		if w.UserID == userID {
-			return w
+
+	if database.DB != nil {
+		var walletID string
+		err := database.DB.QueryRow(
+			"SELECT id FROM crypto_transactions WHERE user_id=$1 AND tx_type='wallet_created' LIMIT 1",
+			userID,
+		).Scan(&walletID)
+		if err == nil {
+			return &CryptoWallet{WalletID: walletID, UserID: userID, Balances: make(map[string]float64), Addresses: make(map[string]string), CreatedAt: time.Now()}
 		}
 	}
 	return nil
@@ -336,7 +340,7 @@ func (s *CryptoService) GetDepositAddress(walletID, coin string) (string, error)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	wallet := s.wallets[walletID]
+	wallet := s.GetWallet(walletID)
 	if wallet == nil {
 		return "", fmt.Errorf("wallet not found")
 	}
@@ -346,11 +350,7 @@ func (s *CryptoService) GetDepositAddress(walletID, coin string) (string, error)
 		return "", fmt.Errorf("unsupported coin: %s", coin)
 	}
 
-	address := wallet.Addresses[coinInfo.Network]
-	if address == "" {
-		return "", fmt.Errorf("no address for network: %s", coinInfo.Network)
-	}
-
+	address := s.generateAddress(coinInfo.Network, wallet.UserID)
 	return address, nil
 }
 
@@ -370,7 +370,7 @@ func (s *CryptoService) SimulateDeposit(walletID, coin string, amount float64) D
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	wallet := s.wallets[walletID]
+	wallet := s.GetWallet(walletID)
 	if wallet == nil {
 		return DepositResult{Success: false, Error: "wallet not found"}
 	}
@@ -391,39 +391,18 @@ func (s *CryptoService) SimulateDeposit(walletID, coin string, amount float64) D
 	txHash := sha256.Sum256([]byte(txID))
 	blockchainTxn := "0x" + hex.EncodeToString(txHash[:])
 
-	tx := &CryptoTransaction{
-		TxID:          txID,
-		WalletID:      walletID,
-		Type:          "deposit",
-		Coin:          coin,
-		Amount:        amount,
-		Fee:           0,
-		Status:        "confirmed",
-		BlockchainTxn: blockchainTxn,
-		Confirmations: 12,
-		CreatedAt:     time.Now(),
-	}
-	now := time.Now()
-	tx.ConfirmedAt = &now
-
-	s.transactions[txID] = tx
+	address := s.generateAddress(coinInfo.Network, wallet.UserID)
 
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO crypto_transactions (id, user_id, wallet_address, tx_type, amount, token, chain, tx_hash, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-			txID, wallet.UserID, wallet.Addresses[coinInfo.Network], "deposit", amount, coin, coinInfo.Network, blockchainTxn, "confirmed",
-		)
-	}
-
-	// Credit the wallet
-	wallet.Balances[coin] += amount
-	wallet.LastUpdated = time.Now()
+	database.DB.Exec(
+		"INSERT INTO crypto_transactions (id, user_id, wallet_address, tx_type, amount, token, chain, tx_hash, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+		txID, wallet.UserID, address, "deposit", amount, coin, coinInfo.Network, blockchainTxn, "confirmed",
+	)
 
 	return DepositResult{
 		Success: true,
 		TxID:    txID,
-		Address: wallet.Addresses[coinInfo.Network],
+		Address: address,
 		Coin:    coin,
 		Amount:  amount,
 		Status:  "confirmed",
@@ -447,7 +426,7 @@ func (s *CryptoService) Withdraw(walletID, coin, toAddress string, amount float6
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	wallet := s.wallets[walletID]
+	wallet := s.GetWallet(walletID)
 	if wallet == nil {
 		return WithdrawResult{Success: false, Error: "wallet not found"}
 	}
@@ -464,46 +443,15 @@ func (s *CryptoService) Withdraw(walletID, coin, toAddress string, amount float6
 		}
 	}
 
-	totalRequired := amount + coinInfo.WithdrawFee
-	if wallet.Balances[coin] < totalRequired {
-		return WithdrawResult{
-			Success: false,
-			Error:   fmt.Sprintf("insufficient balance: have %f, need %f", wallet.Balances[coin], totalRequired),
-		}
-	}
-
 	txID := s.generateID("WTX")
 	txHash := sha256.Sum256([]byte(txID))
 	blockchainTxn := "0x" + hex.EncodeToString(txHash[:])
 
-	tx := &CryptoTransaction{
-		TxID:          txID,
-		WalletID:      walletID,
-		Type:          "withdraw",
-		Coin:          coin,
-		Amount:        amount,
-		Fee:           coinInfo.WithdrawFee,
-		Status:        "confirmed",
-		BlockchainTxn: blockchainTxn,
-		Confirmations: 1,
-		CreatedAt:     time.Now(),
-	}
-	now := time.Now()
-	tx.ConfirmedAt = &now
-
-	s.transactions[txID] = tx
-
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO crypto_transactions (id, user_id, wallet_address, tx_type, amount, token, chain, tx_hash, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-			txID, wallet.UserID, toAddress, "withdraw", amount, coin, coinInfo.Network, blockchainTxn, "confirmed",
-		)
-	}
-
-	// Debit the wallet
-	wallet.Balances[coin] -= totalRequired
-	wallet.LastUpdated = time.Now()
+	database.DB.Exec(
+		"INSERT INTO crypto_transactions (id, user_id, wallet_address, tx_type, amount, token, chain, tx_hash, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+		txID, wallet.UserID, toAddress, "withdraw", amount, coin, coinInfo.Network, blockchainTxn, "confirmed",
+	)
 
 	return WithdrawResult{
 		Success:       true,
@@ -561,16 +509,9 @@ func (s *CryptoService) Swap(walletID, fromCoin, toCoin string, fromAmount float
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	wallet := s.wallets[walletID]
+	wallet := s.GetWallet(walletID)
 	if wallet == nil {
 		return SwapResult{Success: false, Error: "wallet not found"}
-	}
-
-	if wallet.Balances[fromCoin] < fromAmount {
-		return SwapResult{
-			Success: false,
-			Error:   fmt.Sprintf("insufficient %s balance", fromCoin),
-		}
 	}
 
 	// Get exchange rate (unlocked version)
@@ -612,20 +553,11 @@ func (s *CryptoService) Swap(walletID, fromCoin, toCoin string, fromAmount float
 	now := time.Now()
 	swap.CompletedAt = &now
 
-	s.pendingSwaps[swapID] = swap
-
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-			swapID, wallet.UserID, "swap", fromAmount, fromCoin+"->"+toCoin, "internal", "completed",
-		)
-	}
-
-	// Update balances
-	wallet.Balances[fromCoin] -= fromAmount
-	wallet.Balances[toCoin] += toAmount
-	wallet.LastUpdated = time.Now()
+	database.DB.Exec(
+		"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+		swapID, wallet.UserID, "swap", fromAmount, fromCoin+"->"+toCoin, "internal", "completed",
+	)
 
 	return SwapResult{
 		Success:      true,
@@ -659,7 +591,7 @@ func (s *CryptoService) PayWithCrypto(walletID, bookingID, coin string, fiatAmou
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	wallet := s.wallets[walletID]
+	wallet := s.GetWallet(walletID)
 	if wallet == nil {
 		return PaymentResult{Success: false, Error: "wallet not found"}
 	}
@@ -696,25 +628,12 @@ func (s *CryptoService) PayWithCrypto(walletID, bookingID, coin string, fiatAmou
 
 	paymentID := s.generateID("CPAY")
 
-	// Debit wallet
-	wallet.Balances[coin] -= cryptoAmount
-	wallet.LastUpdated = time.Now()
-
-	// Record transaction
+	// Record payment transaction
 	txID := s.generateID("PTX")
-	tx := &CryptoTransaction{
-		TxID:      txID,
-		WalletID:  walletID,
-		Type:      "payment",
-		Coin:      coin,
-		Amount:    cryptoAmount,
-		Fee:       0,
-		Status:    "confirmed",
-		CreatedAt: time.Now(),
-	}
-	now := time.Now()
-	tx.ConfirmedAt = &now
-	s.transactions[txID] = tx
+	database.DB.Exec(
+		"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+		txID, wallet.UserID, "payment", cryptoAmount, coin, "internal", "completed",
+	)
 
 	return PaymentResult{
 		Success:      true,
@@ -778,9 +697,26 @@ func (s *CryptoService) GetTransactions(walletID string) []*CryptoTransaction {
 	defer s.mu.RUnlock()
 
 	result := make([]*CryptoTransaction, 0)
-	for _, tx := range s.transactions {
-		if tx.WalletID == walletID {
-			result = append(result, tx)
+	if database.DB != nil {
+		wallet := s.GetWallet(walletID)
+		if wallet == nil {
+			return result
+		}
+		rows, err := database.DB.Query(
+			"SELECT id, tx_type, amount, token, chain, tx_hash, status, created_at FROM crypto_transactions WHERE user_id=$1 AND tx_type!='wallet_created' ORDER BY created_at DESC",
+			wallet.UserID,
+		)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				tx := &CryptoTransaction{WalletID: walletID}
+				var txHash *string
+				rows.Scan(&tx.TxID, &tx.Type, &tx.Amount, &tx.Coin, &tx.BlockchainTxn, &txHash, &tx.Status, &tx.CreatedAt)
+				if txHash != nil {
+					tx.BlockchainTxn = *txHash
+				}
+				result = append(result, tx)
+			}
 		}
 	}
 	return result
@@ -850,7 +786,20 @@ func (s *CryptoService) GetStatus() CryptoStatus {
 		Stablecoins:      stablecoins,
 		Cryptocurrencies: cryptocurrencies,
 		Networks:         networkList,
-		TotalWallets:     len(s.wallets),
-		TotalTransactions: len(s.transactions),
+		TotalWallets:     s.countFromDB("wallet_created"),
+		TotalTransactions: s.countFromDB(""),
 	}
+}
+
+func (s *CryptoService) countFromDB(txType string) int {
+	if database.DB == nil {
+		return 0
+	}
+	var count int
+	query := "SELECT COUNT(*) FROM crypto_transactions"
+	if txType != "" {
+		query += " WHERE tx_type='" + txType + "'"
+	}
+	database.DB.QueryRow(query).Scan(&count)
+	return count
 }

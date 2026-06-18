@@ -11,10 +11,9 @@
 
 use actix_web::{web, HttpResponse};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::RwLock;
 use uuid::Uuid;
 use chrono::{Utc, Duration};
+use sqlx::PgPool;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -57,16 +56,14 @@ pub struct NfcValidationResult {
     pub message: String,
 }
 
-/// In-memory NFC token store (production: Redis + PostgreSQL)
+/// NFC token store backed by PostgreSQL
 pub struct NfcTokenStore {
-    tokens: RwLock<HashMap<String, NfcPaymentToken>>,
+    pub pool: PgPool,
 }
 
 impl NfcTokenStore {
-    pub fn new() -> Self {
-        Self {
-            tokens: RwLock::new(HashMap::new()),
-        }
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
     }
 }
 
@@ -84,30 +81,30 @@ pub async fn create_nfc_token(
 
     // Generate NFC payload (NDEF-compatible binary format)
     let payload = generate_nfc_payload(&token_id, body.amount, &currency);
+    let payload_hex = hex::encode(&payload);
 
-    let token = NfcPaymentToken {
-        token_id: token_id.clone(),
-        user_id: body.user_id.clone(),
-        amount: body.amount,
-        currency: currency.clone(),
-        merchant_id: body.merchant_id.clone(),
-        nfc_payload: payload,
-        status: "active".to_string(),
-        expires_at: expires_at.to_rfc3339(),
-        created_at: Utc::now().to_rfc3339(),
-    };
-
-    if let Ok(mut tokens) = store.tokens.write() {
-        tokens.insert(token_id.clone(), token.clone());
-    }
+    // Persist to PostgreSQL
+    let _ = sqlx::query(
+        "INSERT INTO nfc_tokens (token_id, user_id, amount, currency, merchant_id, nfc_payload_hex, status, expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)"
+    )
+    .bind(&token_id)
+    .bind(&body.user_id)
+    .bind(body.amount)
+    .bind(&currency)
+    .bind(&body.merchant_id)
+    .bind(&payload_hex)
+    .bind("active")
+    .bind(expires_at.to_rfc3339())
+    .execute(&store.pool)
+    .await;
 
     HttpResponse::Created().json(serde_json::json!({
-        "token_id": token.token_id,
-        "amount": token.amount,
-        "currency": token.currency,
-        "nfc_payload_hex": hex::encode(&token.nfc_payload),
-        "nfc_payload_size": token.nfc_payload.len(),
-        "expires_at": token.expires_at,
+        "token_id": token_id,
+        "amount": body.amount,
+        "currency": currency,
+        "nfc_payload_hex": payload_hex,
+        "nfc_payload_size": payload.len(),
+        "expires_at": expires_at.to_rfc3339(),
         "status": "active",
     }))
 }
@@ -117,10 +114,17 @@ pub async fn validate_nfc_token(
     store: web::Data<NfcTokenStore>,
     body: web::Json<ValidateNfcTokenRequest>,
 ) -> HttpResponse {
-    let tokens = store.tokens.read().unwrap();
-    let token = match tokens.get(&body.token_id) {
-        Some(t) => t.clone(),
-        None => {
+    // Read token from DB
+    let row = sqlx::query_as::<_, (String, f64, String, String, String)>(
+        "SELECT user_id, amount, currency, status, expires_at FROM nfc_tokens WHERE token_id=$1"
+    )
+    .bind(&body.token_id)
+    .fetch_optional(&store.pool)
+    .await;
+
+    let (user_id, amount, currency, status, expires_at) = match row {
+        Ok(Some(r)) => r,
+        _ => {
             return HttpResponse::NotFound().json(NfcValidationResult {
                 valid: false,
                 token_id: body.token_id.clone(),
@@ -131,45 +135,43 @@ pub async fn validate_nfc_token(
             });
         }
     };
-    drop(tokens);
 
-    if token.status == "used" {
+    if status == "used" {
         return HttpResponse::BadRequest().json(NfcValidationResult {
             valid: false,
             token_id: body.token_id.clone(),
-            amount: token.amount,
-            currency: token.currency,
-            user_id: token.user_id,
+            amount,
+            currency,
+            user_id,
             message: "Token already used".to_string(),
         });
     }
 
     let now = Utc::now().to_rfc3339();
-    if now > token.expires_at {
+    if now > expires_at {
         return HttpResponse::BadRequest().json(NfcValidationResult {
             valid: false,
             token_id: body.token_id.clone(),
-            amount: token.amount,
-            currency: token.currency,
-            user_id: token.user_id,
+            amount,
+            currency,
+            user_id,
             message: "Token expired".to_string(),
         });
     }
 
-    // Mark as used
-    if let Ok(mut tokens) = store.tokens.write() {
-        if let Some(t) = tokens.get_mut(&body.token_id) {
-            t.status = "used".to_string();
-        }
-    }
+    // Mark as used in DB
+    let _ = sqlx::query("UPDATE nfc_tokens SET status='used' WHERE token_id=$1")
+        .bind(&body.token_id)
+        .execute(&store.pool)
+        .await;
 
     HttpResponse::Ok().json(NfcValidationResult {
         valid: true,
         token_id: body.token_id.clone(),
-        amount: token.amount,
-        currency: token.currency.clone(),
-        user_id: token.user_id.clone(),
-        message: format!("Payment of {} {} authorized", token.currency, token.amount),
+        amount,
+        currency: currency.clone(),
+        user_id: user_id.clone(),
+        message: format!("Payment of {} {} authorized", currency, amount),
     })
 }
 
@@ -179,16 +181,21 @@ pub async fn list_nfc_tokens(
     path: web::Path<String>,
 ) -> HttpResponse {
     let user_id = path.into_inner();
-    let tokens = store.tokens.read().unwrap();
-    let user_tokens: Vec<_> = tokens.values()
-        .filter(|t| t.user_id == user_id)
-        .map(|t| serde_json::json!({
-            "token_id": t.token_id,
-            "amount": t.amount,
-            "currency": t.currency,
-            "status": t.status,
-            "expires_at": t.expires_at,
-            "created_at": t.created_at,
+    let rows = sqlx::query_as::<_, (String, f64, String, String, String)>(
+        "SELECT token_id, amount, currency, status, expires_at FROM nfc_tokens WHERE user_id=$1 ORDER BY expires_at DESC"
+    )
+    .bind(&user_id)
+    .fetch_all(&store.pool)
+    .await
+    .unwrap_or_default();
+
+    let user_tokens: Vec<_> = rows.iter()
+        .map(|(tid, amt, cur, st, exp)| serde_json::json!({
+            "token_id": tid,
+            "amount": amt,
+            "currency": cur,
+            "status": st,
+            "expires_at": exp,
         }))
         .collect();
 
@@ -224,8 +231,8 @@ fn generate_nfc_payload(token_id: &str, amount: f64, currency: &str) -> Vec<u8> 
 }
 
 /// Configure NFC routes for actix-web
-pub fn configure_nfc_routes(cfg: &mut web::ServiceConfig) {
-    let store = web::Data::new(NfcTokenStore::new());
+pub fn configure_nfc_routes(cfg: &mut web::ServiceConfig, pool: PgPool) {
+    let store = web::Data::new(NfcTokenStore::new(pool));
     cfg.app_data(store)
         .service(
             web::scope("/api/v1/nfc")

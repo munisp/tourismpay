@@ -115,17 +115,13 @@ var agentKYCLimits = map[int]float64{
 
 type AgentBankingService struct {
 	mu     sync.RWMutex
-	agents map[string]*Agent
-	orders map[string]*CashLoadOrder
+	agents map[string]*Agent // Reference data (seed agents)
 }
 
 func NewAgentBankingService() *AgentBankingService {
 	svc := &AgentBankingService{
 		agents: make(map[string]*Agent),
-		orders: make(map[string]*CashLoadOrder),
 	}
-
-	// Seed default agents (production: loaded from DB)
 	svc.seedDefaultAgents()
 	return svc
 }
@@ -266,15 +262,11 @@ func (s *AgentBankingService) ExecuteLoad(agentID, touristUserID, cashCurrency, 
 		CompletedAt:     &now,
 	}
 
-	s.orders[orderID] = order
-
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO agent_transactions (id, agent_id, customer_id, transaction_type, amount, currency, commission, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-			orderID, agentID, touristUserID, "cash_load", cashAmount, cashCurrency, agentComm, "completed",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO agent_transactions (id, agent_id, customer_id, transaction_type, amount, currency, commission, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+		orderID, agentID, touristUserID, "cash_load", cashAmount, cashCurrency, agentComm, "completed",
+	)
 
 	// Deduct from agent float
 	agent.FloatBalances[cashCurrency] -= cashAmount
@@ -320,11 +312,17 @@ func (s *AgentBankingService) GetOrder(orderID string) (*CashLoadOrder, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	order, ok := s.orders[orderID]
-	if !ok {
-		return nil, fmt.Errorf("order not found: %s", orderID)
+	if database.DB != nil {
+		var o CashLoadOrder
+		err := database.DB.QueryRow(
+			"SELECT id, agent_id, customer_id, transaction_type, amount, currency, commission, status, created_at FROM agent_transactions WHERE id=$1",
+			orderID,
+		).Scan(&o.ID, &o.AgentID, &o.TouristUserID, &o.Status, &o.CashAmount, &o.CashCurrency, &o.AgentCommission, &o.Status, &o.CreatedAt)
+		if err == nil {
+			return &o, nil
+		}
 	}
-	return order, nil
+	return nil, fmt.Errorf("order not found: %s", orderID)
 }
 
 // ListOrders returns all orders for a tourist
@@ -333,9 +331,18 @@ func (s *AgentBankingService) ListOrders(touristUserID string) []*CashLoadOrder 
 	defer s.mu.RUnlock()
 
 	var result []*CashLoadOrder
-	for _, o := range s.orders {
-		if o.TouristUserID == touristUserID {
-			result = append(result, o)
+	if database.DB != nil {
+		rows, err := database.DB.Query(
+			"SELECT id, agent_id, customer_id, amount, currency, commission, status, created_at FROM agent_transactions WHERE customer_id=$1 ORDER BY created_at DESC",
+			touristUserID,
+		)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				o := &CashLoadOrder{}
+				rows.Scan(&o.ID, &o.AgentID, &o.TouristUserID, &o.CashAmount, &o.CashCurrency, &o.AgentCommission, &o.Status, &o.CreatedAt)
+				result = append(result, o)
+			}
 		}
 	}
 	return result
@@ -346,12 +353,16 @@ func (s *AgentBankingService) RefundFloat(orderID string) (*CashLoadOrder, error
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	order, ok := s.orders[orderID]
-	if !ok {
-		return nil, fmt.Errorf("order not found: %s", orderID)
+	order, err := s.GetOrder(orderID)
+	if err != nil {
+		return nil, err
 	}
-	if order.Status != "loaded" {
+	if order.Status != "loaded" && order.Status != "completed" {
 		return nil, fmt.Errorf("order cannot be reversed (current: %s)", order.Status)
+	}
+
+	if database.DB != nil {
+		database.DB.Exec("UPDATE agent_transactions SET status='reversed' WHERE id=$1", orderID)
 	}
 
 	agent, ok := s.agents[order.AgentID]

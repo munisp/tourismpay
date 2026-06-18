@@ -809,7 +809,7 @@ export const merchantRevenueRouter = router({
         .from(touristBookings)
         .where(
           and(
-            sql`${touristBookings.establishmentId} = ANY(ARRAY[${sql.raw(peerIds.join(","))}]::int[])`,
+            inArray(touristBookings.establishmentId, peerIds),
             gte(touristBookings.createdAt, thirtyDaysAgo)
           )
         );
@@ -823,7 +823,7 @@ export const merchantRevenueRouter = router({
         })
         .from(touristReviews)
         .where(
-          sql`${touristReviews.establishmentId} = ANY(ARRAY[${sql.raw(peerIds.join(","))}]::int[])`
+          inArray(touristReviews.establishmentId, peerIds)
         );
 
       // Compute per-peer averages

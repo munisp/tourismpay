@@ -210,18 +210,14 @@ var railCountries = map[PaymentRail][]string{
 
 type OnrampOfframpService struct {
 	mu            sync.RWMutex
-	onrampOrders  map[string]*OnrampOrder
-	offrampReqs   map[string]*OfframpRequest
-	dailyVolume   map[string]float64 // userID → USD volume today
+	dailyVolume   map[string]float64 // userID → USD volume today (resets daily)
 	cryptoService *CryptoService
 	cbdcBridge    *CBDCBridge
 }
 
 func NewOnrampOfframpService(crypto *CryptoService, cbdc *CBDCBridge) *OnrampOfframpService {
 	return &OnrampOfframpService{
-		onrampOrders: make(map[string]*OnrampOrder),
-		offrampReqs:  make(map[string]*OfframpRequest),
-		dailyVolume:  make(map[string]float64),
+		dailyVolume:   make(map[string]float64),
 		cryptoService: crypto,
 		cbdcBridge:    cbdc,
 	}
@@ -351,16 +347,13 @@ func (s *OnrampOfframpService) ExecuteOnramp(req OnrampRequest) (*OnrampOrder, e
 	}
 	now := time.Now()
 	order.CompletedAt = &now
-	s.onrampOrders[order.ID] = order
 	s.mu.Unlock()
 
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO onramp_offramp_transactions (id, user_id, direction, rail, fiat_amount, fiat_currency, crypto_amount, crypto_token, fee, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
-			order.ID, req.UserID, "onramp", string(req.PaymentRail), req.SourceAmount, req.SourceCurrency, targetAmount, req.TargetStablecoin, fee, "completed",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO onramp_offramp_transactions (id, user_id, direction, rail, fiat_amount, fiat_currency, crypto_amount, crypto_token, fee, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+		order.ID, req.UserID, "onramp", string(req.PaymentRail), req.SourceAmount, req.SourceCurrency, targetAmount, req.TargetStablecoin, fee, "completed",
+	)
 
 	// Credit stablecoin to user's crypto wallet
 	wallet := s.cryptoService.GetWalletByUser(req.UserID)
@@ -506,15 +499,11 @@ func (s *OnrampOfframpService) ExecuteOfframp(req OfframpReq) (*OfframpRequest, 
 	}
 	now := time.Now()
 	offramp.CompletedAt = &now
-	s.offrampReqs[offramp.ID] = offramp
-
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO onramp_offramp_transactions (id, user_id, direction, rail, fiat_amount, fiat_currency, crypto_amount, crypto_token, fee, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
-			offramp.ID, req.UserID, "offramp", string(req.PayoutRail), targetAmount, req.TargetCurrency, req.SourceAmount, req.SourceStablecoin, fee, "completed",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO onramp_offramp_transactions (id, user_id, direction, rail, fiat_amount, fiat_currency, crypto_amount, crypto_token, fee, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+		offramp.ID, req.UserID, "offramp", string(req.PayoutRail), targetAmount, req.TargetCurrency, req.SourceAmount, req.SourceStablecoin, fee, "completed",
+	)
 	s.dailyVolume[req.UserID] += amountUSD
 	s.mu.Unlock()
 
@@ -591,32 +580,73 @@ func (s *OnrampOfframpService) GetStatus() RampStatus {
 	return RampStatus{
 		Service:        "Stablecoin On-Ramp/Off-Ramp Service (Go)",
 		Status:         "OPERATIONAL",
-		OnrampCount:    len(s.onrampOrders),
-		OfframpCount:   len(s.offrampReqs),
+		OnrampCount:    s.countRampTxns("onramp"),
+		OfframpCount:   s.countRampTxns("offramp"),
 		SupportedRails: rails,
 		SupportedCoins: []string{"USDC", "USDT", "DAI", "CBDC-NG", "CBDC-KE", "CBDC-GH"},
 	}
 }
 
+func (s *OnrampOfframpService) countRampTxns(direction string) int {
+	if database.DB == nil {
+		return 0
+	}
+	var count int
+	database.DB.QueryRow("SELECT COUNT(*) FROM onramp_offramp_transactions WHERE direction=$1", direction).Scan(&count)
+	return count
+}
+
 func (s *OnrampOfframpService) GetOnrampOrder(id string) *OnrampOrder {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.onrampOrders[id]
+
+	if database.DB != nil {
+		o := &OnrampOrder{}
+		err := database.DB.QueryRow(
+			"SELECT id, user_id, fiat_amount, fiat_currency, crypto_amount, crypto_token, fee, status, created_at FROM onramp_offramp_transactions WHERE id=$1 AND direction='onramp'",
+			id,
+		).Scan(&o.ID, &o.UserID, &o.SourceAmount, &o.SourceCurrency, &o.TargetAmount, &o.TargetStablecoin, &o.Fee, &o.Status, &o.CreatedAt)
+		if err == nil {
+			return o
+		}
+	}
+	return nil
 }
 
 func (s *OnrampOfframpService) GetOfframpRequest(id string) *OfframpRequest {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.offrampReqs[id]
+
+	if database.DB != nil {
+		o := &OfframpRequest{}
+		err := database.DB.QueryRow(
+			"SELECT id, user_id, crypto_amount, crypto_token, fiat_amount, fiat_currency, fee, status, created_at FROM onramp_offramp_transactions WHERE id=$1 AND direction='offramp'",
+			id,
+		).Scan(&o.ID, &o.UserID, &o.SourceAmount, &o.SourceStablecoin, &o.TargetAmount, &o.TargetCurrency, &o.Fee, &o.Status, &o.CreatedAt)
+		if err == nil {
+			return o
+		}
+	}
+	return nil
 }
 
 func (s *OnrampOfframpService) ListOnrampOrders(userID string) []*OnrampOrder {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	var result []*OnrampOrder
-	for _, o := range s.onrampOrders {
-		if o.UserID == userID {
-			result = append(result, o)
+	if database.DB != nil {
+		rows, err := database.DB.Query(
+			"SELECT id, user_id, fiat_amount, fiat_currency, crypto_amount, crypto_token, fee, status, created_at FROM onramp_offramp_transactions WHERE user_id=$1 AND direction='onramp' ORDER BY created_at DESC",
+			userID,
+		)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				o := &OnrampOrder{}
+				rows.Scan(&o.ID, &o.UserID, &o.SourceAmount, &o.SourceCurrency, &o.TargetAmount, &o.TargetStablecoin, &o.Fee, &o.Status, &o.CreatedAt)
+				result = append(result, o)
+			}
 		}
 	}
 	return result
@@ -625,10 +655,20 @@ func (s *OnrampOfframpService) ListOnrampOrders(userID string) []*OnrampOrder {
 func (s *OnrampOfframpService) ListOfframpRequests(userID string) []*OfframpRequest {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	var result []*OfframpRequest
-	for _, r := range s.offrampReqs {
-		if r.UserID == userID {
-			result = append(result, r)
+	if database.DB != nil {
+		rows, err := database.DB.Query(
+			"SELECT id, user_id, crypto_amount, crypto_token, fiat_amount, fiat_currency, fee, status, created_at FROM onramp_offramp_transactions WHERE user_id=$1 AND direction='offramp' ORDER BY created_at DESC",
+			userID,
+		)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				o := &OfframpRequest{}
+				rows.Scan(&o.ID, &o.UserID, &o.SourceAmount, &o.SourceStablecoin, &o.TargetAmount, &o.TargetCurrency, &o.Fee, &o.Status, &o.CreatedAt)
+				result = append(result, o)
+			}
 		}
 	}
 	return result

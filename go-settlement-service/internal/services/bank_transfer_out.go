@@ -88,15 +88,13 @@ type SavedBeneficiary struct {
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 type BankTransferOutService struct {
-	mu           sync.RWMutex
-	banks        []NigerianBank
-	beneficiaries map[string][]SavedBeneficiary // userID -> beneficiaries
+	mu    sync.RWMutex
+	banks []NigerianBank
 }
 
 func NewBankTransferOutService() *BankTransferOutService {
 	return &BankTransferOutService{
-		banks:         defaultNigerianBanks(),
-		beneficiaries: make(map[string][]SavedBeneficiary),
+		banks: defaultNigerianBanks(),
 	}
 }
 
@@ -204,30 +202,18 @@ func (s *BankTransferOutService) InitiateTransfer(req BankTransferOutRequest) (*
 	}
 
 	// Persist transfer to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-			txID, req.UserID, req.BeneficiaryName, req.BankCode, req.AccountNumber, req.Amount, "NGN", ref, "completed",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+		txID, req.UserID, req.BeneficiaryName, req.BankCode, req.AccountNumber, req.Amount, "NGN", ref, "completed",
+	)
 
 	// Save beneficiary if requested
-	benID := generateBeneficiaryID()
 	if req.SaveBeneficiary && req.BeneficiaryName != "" {
-		if database.DB != nil {
-			database.DB.Exec(
-				"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'beneficiary')",
-				benID, req.UserID, req.BeneficiaryName, req.BankCode, req.AccountNumber, 0.0, "NGN", "beneficiary",
-			)
-		}
-		s.beneficiaries[req.UserID] = append(s.beneficiaries[req.UserID], SavedBeneficiary{
-			ID:            benID,
-			UserID:        req.UserID,
-			BankCode:      req.BankCode,
-			BankName:      bank.Name,
-			AccountNumber: req.AccountNumber,
-			AccountName:   req.BeneficiaryName,
-		})
+		benID := generateBeneficiaryID()
+		database.DB.Exec(
+			"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'beneficiary')",
+			benID, req.UserID, req.BeneficiaryName, req.BankCode, req.AccountNumber, 0.0, "NGN", "beneficiary",
+		)
 	}
 
 	bankTransfersOutTotal.WithLabelValues(rail, "completed").Inc()
@@ -239,24 +225,39 @@ func (s *BankTransferOutService) InitiateTransfer(req BankTransferOutRequest) (*
 func (s *BankTransferOutService) GetBeneficiaries(userID string) []SavedBeneficiary {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.beneficiaries[userID]
+
+	var result []SavedBeneficiary
+	if database.DB != nil {
+		rows, err := database.DB.Query(
+			"SELECT id, user_id, bank_code, beneficiary_name, account_number FROM bank_transfers WHERE user_id=$1 AND status='beneficiary' ORDER BY id",
+			userID,
+		)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var b SavedBeneficiary
+				rows.Scan(&b.ID, &b.UserID, &b.BankCode, &b.AccountName, &b.AccountNumber)
+				result = append(result, b)
+			}
+		}
+	}
+	return result
 }
 
 func (s *BankTransferOutService) DeleteBeneficiary(userID string, beneficiaryID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	bens, ok := s.beneficiaries[userID]
-	if !ok {
-		return fmt.Errorf("no beneficiaries found")
-	}
-	for i, b := range bens {
-		if b.ID == beneficiaryID {
-			s.beneficiaries[userID] = append(bens[:i], bens[i+1:]...)
-			return nil
+	if database.DB != nil {
+		result, err := database.DB.Exec("DELETE FROM bank_transfers WHERE id=$1 AND user_id=$2 AND status='beneficiary'", beneficiaryID, userID)
+		if err != nil {
+			return fmt.Errorf("beneficiary not found")
+		}
+		if rows, _ := result.RowsAffected(); rows == 0 {
+			return fmt.Errorf("beneficiary not found")
 		}
 	}
-	return fmt.Errorf("beneficiary not found")
+	return nil
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
