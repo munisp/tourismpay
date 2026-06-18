@@ -58,7 +58,6 @@ import { emailPreviewRouter } from "./routers/emailPreview";
 import { kycRouter } from "./routers/kyc";
 import { nocDashboardRouter } from "./routers/nocDashboard";
 import { channelManagerRouter } from "./routers/channelManager";
-import { gdsPortalRouter } from "./routers/gdsPortal";
 import { stablecoinSwapRouter } from "./routers/stablecoinSwap";
 import { liquidityProviderRouter } from "./routers/liquidityProvider";
 import { smartContractRouter } from "./routers/smartContract";
@@ -192,7 +191,6 @@ export const appRouter = router({
   emailPreview: emailPreviewRouter,
   kyc: kycRouter,
   channelManager: channelManagerRouter,
-  gdsPortal: gdsPortalRouter,
   stablecoinSwap: stablecoinSwapRouter,
   liquidityProvider: liquidityProviderRouter,
   smartContract: smartContractRouter,
