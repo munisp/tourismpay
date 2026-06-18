@@ -1,180 +1,85 @@
-/**
- * Discount & Promotion Proxy Router
- * Proxies to Python discount-promo service (port 8111)
- *
- * Middleware: Redis (coupon validation cache), Kafka (promo events),
- * OpenSearch (promo analytics), Lakehouse (usage patterns), PostgreSQL
- */
 import { Router, Request, Response } from "express";
-import { requireRole } from "../auth";
+import { query, queryOne } from "../lib/database";
+import { cacheDelete } from "../lib/redis";
+import { publishEvent, TOPICS } from "../lib/kafka";
 
 export const discountRouter = Router();
 
-// Seed promotions (mutable store)
-let promotions: any[] = [
-  { id: "PROMO-001", name: "Welcome 15% Off", code: "WELCOME15", type: "percentage", value: 15, max_discount: 100, target: "new_users", status: "active", uses: 247, max_uses: 1000, countries: ["KE", "NG", "GH", "ZA", "TZ"] },
-  { id: "PROMO-002", name: "Safari Season 20% Off", code: "SAFARI20", type: "percentage", value: 20, max_discount: 200, target: "all", status: "active", uses: 89, max_uses: 500, countries: [] },
-  { id: "PROMO-003", name: "Stay 5 Pay 4", code: "STAY5PAY4", type: "nights_free", value: 1, max_discount: 0, target: "all", status: "active", uses: 34, max_uses: 200, countries: [] },
-  { id: "PROMO-004", name: "Corporate 10% Off", code: "CORP10", type: "percentage", value: 10, max_discount: 0, target: "corporate", status: "active", uses: 156, max_uses: 0, countries: [] },
-  { id: "PROMO-005", name: "Loyalty Gold $50 Off", code: "GOLD50", type: "flat", value: 50, max_discount: 50, target: "loyalty_gold", status: "active", uses: 72, max_uses: 0, countries: [] },
-];
-
-// List promos
-discountRouter.get("/promos", async (_req: Request, res: Response) => {
-  res.json({ promotions, total: promotions.length });
+discountRouter.get("/", async (_req: Request, res: Response) => {
+  const result = await query("SELECT * FROM gds_discounts ORDER BY created_at DESC");
+  res.json({ discounts: result.rows, total: result.rowCount });
 });
 
-// Validate code
+discountRouter.get("/:code", async (req: Request, res: Response) => {
+  const row = await queryOne("SELECT * FROM gds_discounts WHERE code = $1", [req.params.code.toUpperCase()]);
+  if (!row) return res.status(404).json({ error: "Discount code not found" });
+  res.json(row);
+});
+
 discountRouter.post("/validate", async (req: Request, res: Response) => {
-  const { code, booking_amount, nights, country, is_new_user, loyalty_tier } = req.body;
-  if (!code || !booking_amount) {
-    res.status(400).json({ error: "code and booking_amount required" });
-    return;
-  }
+  const { code, amount, country } = req.body;
+  if (!code) return res.status(400).json({ error: "code required" });
+  const row = await queryOne("SELECT * FROM gds_discounts WHERE code = $1 AND status = 'active'", [code.toUpperCase()]);
+  if (!row) return res.status(404).json({ error: "Invalid or expired discount code" });
 
-  const promo = promotions.find(p => p.code.toUpperCase() === code.toUpperCase());
-  if (!promo) {
-    res.status(404).json({ valid: false, message: "Invalid promo code" });
-    return;
-  }
+  const now = new Date();
+  if (row.valid_from && new Date(row.valid_from as string) > now) return res.status(400).json({ error: "Discount not yet active" });
+  if (row.valid_until && new Date(row.valid_until as string) < now) return res.status(400).json({ error: "Discount has expired" });
+  if (row.max_uses && Number(row.used_count) >= Number(row.max_uses)) return res.status(400).json({ error: "Discount usage limit reached" });
+  const gross = Number(amount) || 100000;
+  if (gross < Number(row.min_amount || 0)) return res.status(400).json({ error: `Minimum amount is ${row.min_amount}` });
 
-  let discount = 0;
-  if (promo.type === "percentage") {
-    discount = booking_amount * (promo.value / 100);
-    if (promo.max_discount > 0) discount = Math.min(discount, promo.max_discount);
-  } else if (promo.type === "flat") {
-    discount = Math.min(promo.value, booking_amount * 0.5);
-  } else if (promo.type === "nights_free") {
-    const nightly = booking_amount / Math.max(nights || 1, 1);
-    discount = nightly * promo.value;
-  }
+  const countries = row.applicable_countries as string[] || [];
+  if (countries.length > 0 && country && !countries.includes(country)) return res.status(400).json({ error: "Discount not valid in your country" });
 
-  discount = Math.round(discount * 100) / 100;
-  res.json({
-    valid: true, code: promo.code, promo_name: promo.name,
-    discount, discount_type: promo.type,
-    final_amount: Math.round((booking_amount - discount) * 100) / 100,
-    message: `Save $${discount}!`,
-  });
+  let discount: number;
+  if (row.type === "percentage") { discount = Math.round(gross * Number(row.value) / 100 * 100) / 100; }
+  else { discount = Number(row.value); }
+
+  res.json({ valid: true, code: row.code, type: row.type, value: row.value, original_amount: gross, discount_amount: discount, final_amount: gross - discount, currency: "NGN" });
 });
 
-// Apply discount
 discountRouter.post("/apply", async (req: Request, res: Response) => {
-  const { code, booking_amount, nights, rooms, country } = req.body;
-  if (!code || !booking_amount) {
-    res.status(400).json({ error: "code and booking_amount required" });
-    return;
-  }
+  const { code, amount } = req.body;
+  if (!code || !amount) return res.status(400).json({ error: "code and amount required" });
+  const row = await queryOne("SELECT * FROM gds_discounts WHERE code = $1 AND status = 'active'", [code.toUpperCase()]);
+  if (!row) return res.status(404).json({ error: "Invalid discount code" });
 
-  const promo = promotions.find(p => p.code.toUpperCase() === code.toUpperCase());
-  if (!promo) {
-    res.status(404).json({ error: "Invalid promo code" });
-    return;
-  }
+  let discount: number;
+  const gross = Number(amount);
+  if (row.type === "percentage") { discount = Math.round(gross * Number(row.value) / 100 * 100) / 100; }
+  else { discount = Number(row.value); }
 
-  // Promo discount
-  let promo_discount = 0;
-  if (promo.type === "percentage") {
-    promo_discount = booking_amount * (promo.value / 100);
-    if (promo.max_discount > 0) promo_discount = Math.min(promo_discount, promo.max_discount);
-  } else if (promo.type === "flat") {
-    promo_discount = promo.value;
-  }
-
-  // Volume discount
-  let volume_discount = 0;
-  const r = rooms || 1;
-  if (r >= 51) volume_discount = booking_amount * 0.20;
-  else if (r >= 26) volume_discount = booking_amount * 0.15;
-  else if (r >= 11) volume_discount = booking_amount * 0.10;
-  else if (r >= 5) volume_discount = booking_amount * 0.05;
-
-  const total_discount = Math.min(Math.round((promo_discount + volume_discount) * 100) / 100, booking_amount * 0.5);
-
-  res.json({
-    applied: true,
-    original_amount: booking_amount,
-    promo_discount: Math.round(promo_discount * 100) / 100,
-    volume_discount: Math.round(volume_discount * 100) / 100,
-    total_discount,
-    final_amount: Math.round((booking_amount - total_discount) * 100) / 100,
-    savings_percent: Math.round((total_discount / booking_amount) * 1000) / 10,
-    promo_name: promo.name,
-    middleware: { cache: "Redis", events: "Kafka:promo.applied", analytics: "Lakehouse" },
-  });
+  await queryOne("UPDATE gds_discounts SET used_count = used_count + 1 WHERE code = $1", [code.toUpperCase()]);
+  await publishEvent({ topic: TOPICS.DISCOUNT_APPLIED, value: { code, amount: gross, discount, final: gross - discount } });
+  res.json({ applied: true, code: row.code, discount_amount: discount, final_amount: gross - discount });
 });
 
-// Flash sales
-discountRouter.get("/flash-sales", async (_req: Request, res: Response) => {
-  res.json({
-    flash_sales: [
-      { id: "FLASH-001", name: "Nairobi Weekend Flash", discount: 25, countries: ["KE"], status: "active", max_bookings: 100, current: 43 },
-      { id: "FLASH-002", name: "Lagos Mid-Week", discount: 30, countries: ["NG"], status: "scheduled", max_bookings: 50, current: 0 },
-    ],
-  });
+discountRouter.post("/", async (req: Request, res: Response) => {
+  const { code, type, value, min_amount, max_uses, valid_from, valid_until, applicable_countries } = req.body;
+  if (!code || !type || !value) return res.status(400).json({ error: "code, type, value required" });
+  const result = await queryOne(
+    `INSERT INTO gds_discounts (code,type,value,min_amount,max_uses,valid_from,valid_until,applicable_countries)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+    [code.toUpperCase(), type, value, min_amount || 0, max_uses || null, valid_from || null, valid_until || null, applicable_countries || []]
+  );
+  res.status(201).json(result);
 });
 
-// Loyalty redemption
-discountRouter.post("/loyalty-redeem", async (req: Request, res: Response) => {
-  const { user_id, points_to_redeem, booking_amount } = req.body;
-  if (!points_to_redeem || !booking_amount) {
-    res.status(400).json({ error: "points_to_redeem and booking_amount required" });
-    return;
-  }
-
-  const point_value = points_to_redeem * 0.01;
-  const max_redemption = booking_amount * 0.30;
-  const actual = Math.min(point_value, max_redemption);
-  const points_used = Math.floor(actual / 0.01);
-
-  res.json({
-    redeemed: true, points_used,
-    points_remaining: points_to_redeem - points_used,
-    discount_applied: Math.round(actual * 100) / 100,
-    final_amount: Math.round((booking_amount - actual) * 100) / 100,
-    exchange_rate: "1 point = $0.01",
-    max_redemption_percent: 30,
-  });
+discountRouter.put("/:code", async (req: Request, res: Response) => {
+  const { type, value, min_amount, max_uses, valid_from, valid_until, status } = req.body;
+  const result = await queryOne(
+    `UPDATE gds_discounts SET type=COALESCE($2,type),value=COALESCE($3,value),min_amount=COALESCE($4,min_amount),
+     max_uses=COALESCE($5,max_uses),valid_from=COALESCE($6,valid_from),valid_until=COALESCE($7,valid_until),
+     status=COALESCE($8,status) WHERE code=$1 RETURNING *`,
+    [req.params.code.toUpperCase(), type, value, min_amount, max_uses, valid_from, valid_until, status]
+  );
+  if (!result) return res.status(404).json({ error: "Discount not found" });
+  res.json(result);
 });
 
-// Create promo
-discountRouter.post("/promos", async (req: Request, res: Response) => {
-  const { name, code, type, value, max_discount, target, max_uses, countries } = req.body;
-  if (!name || !code || !type || value === undefined) {
-    return res.status(400).json({ error: "name, code, type, value required" });
-  }
-  const promo = {
-    id: `PROMO-${Date.now().toString(36)}`,
-    name, code: code.toUpperCase(), type, value, max_discount: max_discount || 0,
-    target: target || "all", status: "active", uses: 0, max_uses: max_uses || 0,
-    countries: countries || [],
-  };
-  promotions.push(promo);
-  res.status(201).json(promo);
-});
-
-// Update promo
-discountRouter.put("/promos/:id", async (req: Request, res: Response) => {
-  const idx = promotions.findIndex(p => p.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Promotion not found" });
-  promotions[idx] = { ...promotions[idx], ...req.body, id: promotions[idx].id };
-  res.json(promotions[idx]);
-});
-
-// Delete promo
-discountRouter.delete("/promos/:id", async (req: Request, res: Response) => {
-  const idx = promotions.findIndex(p => p.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Promotion not found" });
-  promotions.splice(idx, 1);
-  res.json({ deleted: true, id: req.params.id });
-});
-
-// Analytics
-discountRouter.get("/analytics", requireRole("admin"), async (_req: Request, res: Response) => {
-  res.json({
-    total_promotions: promotions.length,
-    active: promotions.filter(p => p.status === "active").length,
-    total_uses: promotions.reduce((sum, p) => sum + p.uses, 0),
-    top_codes: [...promotions].sort((a, b) => b.uses - a.uses).slice(0, 3).map(p => ({ code: p.code, uses: p.uses })),
-  });
+discountRouter.delete("/:code", async (req: Request, res: Response) => {
+  const result = await query("DELETE FROM gds_discounts WHERE code = $1", [req.params.code.toUpperCase()]);
+  if (result.rowCount === 0) return res.status(404).json({ error: "Discount not found" });
+  res.json({ deleted: true, code: req.params.code.toUpperCase() });
 });

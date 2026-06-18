@@ -1,113 +1,56 @@
-/**
- * Agents API — Travel agent registration, management, commission tracking.
- */
 import { Router, Request, Response } from "express";
-import { requireRole } from "../auth";
-import { v4 as uuidv4 } from "uuid";
+import { query, queryOne } from "../lib/database";
+import { cacheGet, cacheSet, cacheDelete } from "../lib/redis";
+import crypto from "crypto";
 
 export const agentsRouter = Router();
+const TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
-// Register new agent
-agentsRouter.post("/register", async (req: Request, res: Response) => {
-  const { agencyName, agentName, email, phone, country, iataCode, preferredCurrency } = req.body;
-
-  if (!agencyName || !agentName || !email || !country) {
-    res.status(400).json({ error: "agencyName, agentName, email, country required" });
-    return;
-  }
-
-  const apiKey = `gds_${uuidv4().replace(/-/g, "")}`;
-
-  res.status(201).json({
-    agent: {
-      id: `agent_${Date.now().toString(36)}`,
-      agencyName,
-      agentName,
-      email,
-      phone,
-      country,
-      iataCode: iataCode || null,
-      preferredCurrency: preferredCurrency || "USD",
-      tier: "bronze",
-      commissionRate: 10.0,
-      status: "pending_verification",
-      apiKey,
-      tenantId: (req as any).tenant?.tenantId,
-      createdAt: new Date().toISOString(),
-    },
-    message: "Registration submitted. API key will be active after verification (24-48h).",
-  });
+agentsRouter.get("/", async (_req: Request, res: Response) => {
+  const cached = await cacheGet("agents:list");
+  if (cached) return res.json(JSON.parse(cached));
+  const result = await query("SELECT * FROM gds_agents WHERE tenant_id = $1 ORDER BY total_bookings DESC", [TENANT_ID]);
+  const resp = { agents: result.rows, total: result.rowCount };
+  await cacheSet("agents:list", JSON.stringify(resp), 120);
+  res.json(resp);
 });
 
-// Get agent profile
-agentsRouter.get("/me", async (req: Request, res: Response) => {
-  res.json({
-    agent: {
-      id: req.gdsUser?.agentId || req.gdsUser?.sub,
-      name: req.gdsUser?.name,
-      email: req.gdsUser?.email,
-      tier: "bronze",
-      commissionRate: 10.0,
-      totalBookings: 0,
-      status: "active",
-    },
-  });
+agentsRouter.get("/:id", async (req: Request, res: Response) => {
+  const row = await queryOne("SELECT * FROM gds_agents WHERE id = $1 AND tenant_id = $2", [req.params.id, TENANT_ID]);
+  if (!row) return res.status(404).json({ error: "Agent not found" });
+  res.json(row);
 });
 
-// Get commission summary
-agentsRouter.get("/commission", async (req: Request, res: Response) => {
-  res.json({
-    totalEarned: 0,
-    pendingPayout: 0,
-    lastPayout: null,
-    tier: "bronze",
-    commissionRate: 10.0,
-    nextTier: { name: "silver", bookingsNeeded: 50, rate: 12.0 },
-    tiers: [
-      { tier: "bronze", minBookings: 0, maxBookings: 50, rate: 10.0 },
-      { tier: "silver", minBookings: 51, maxBookings: 200, rate: 12.0 },
-      { tier: "gold", minBookings: 201, maxBookings: 500, rate: 15.0 },
-      { tier: "platinum", minBookings: 501, maxBookings: 999999, rate: 18.0 },
-    ],
-  });
+agentsRouter.post("/", async (req: Request, res: Response) => {
+  const { agency_name, agent_name, email, phone, country_code, iata_code, preferred_currency, tier, commission_rate } = req.body;
+  if (!agency_name || !agent_name || !email || !country_code) return res.status(400).json({ error: "agency_name, agent_name, email, country_code required" });
+  const apiKey = `gds_${crypto.randomBytes(24).toString("hex")}`;
+  const result = await queryOne(
+    `INSERT INTO gds_agents (tenant_id,agency_name,agent_name,email,phone,country_code,iata_code,preferred_currency,tier,commission_rate,api_key,status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'active') RETURNING *`,
+    [TENANT_ID, agency_name, agent_name, email, phone || null, country_code, iata_code || null, preferred_currency || "NGN", tier || "bronze", commission_rate || 10, apiKey]
+  );
+  await cacheDelete("agents:list");
+  res.status(201).json(result);
 });
 
-// Get commission history
-agentsRouter.get("/commission/history", async (req: Request, res: Response) => {
-  const { page = "1", page_size = "20" } = req.query;
-  res.json({ history: [], total: 0, page: parseInt(page as string) });
+agentsRouter.put("/:id", async (req: Request, res: Response) => {
+  const { agency_name, agent_name, email, phone, tier, commission_rate, status } = req.body;
+  const result = await queryOne(
+    `UPDATE gds_agents SET agency_name=COALESCE($2,agency_name),agent_name=COALESCE($3,agent_name),
+     email=COALESCE($4,email),phone=COALESCE($5,phone),tier=COALESCE($6,tier),
+     commission_rate=COALESCE($7,commission_rate),status=COALESCE($8,status),updated_at=NOW()
+     WHERE id=$1 AND tenant_id=$9 RETURNING *`,
+    [req.params.id, agency_name, agent_name, email, phone, tier, commission_rate, status, TENANT_ID]
+  );
+  if (!result) return res.status(404).json({ error: "Agent not found" });
+  await cacheDelete("agents:list");
+  res.json(result);
 });
 
-// Request payout
-agentsRouter.post("/payout", async (req: Request, res: Response) => {
-  const { method, amount, currency, destination } = req.body;
-
-  if (!method || !amount) {
-    res.status(400).json({ error: "method and amount required" });
-    return;
-  }
-
-  const validMethods = ["bank_transfer", "mobile_money", "mojaloop_instant"];
-  if (!validMethods.includes(method)) {
-    res.status(400).json({ error: "Invalid payout method", valid: validMethods });
-    return;
-  }
-
-  res.json({
-    payout: {
-      id: `pay_${Date.now().toString(36)}`,
-      method,
-      amount,
-      currency: currency || "USD",
-      destination,
-      status: "processing",
-      estimatedArrival: method === "mojaloop_instant" ? "< 30 seconds" : "1-3 business days",
-    },
-  });
-});
-
-// List all agents (admin only)
-agentsRouter.get("/", requireRole("admin"), async (req: Request, res: Response) => {
-  const { status, tier, page = "1" } = req.query;
-  res.json({ agents: [], total: 0, filters: { status, tier }, page: parseInt(page as string) });
+agentsRouter.delete("/:id", async (req: Request, res: Response) => {
+  const result = await query("DELETE FROM gds_agents WHERE id = $1 AND tenant_id = $2", [req.params.id, TENANT_ID]);
+  if (result.rowCount === 0) return res.status(404).json({ error: "Agent not found" });
+  await cacheDelete("agents:list");
+  res.json({ deleted: true, id: req.params.id });
 });

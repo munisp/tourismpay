@@ -1,178 +1,60 @@
-/**
- * Settlement Saga Proxy Router
- * Proxies to Python settlement-saga service (port 8114)
- *
- * Middleware: Temporal (workflow orchestration), TigerBeetle (double-entry ledger),
- * Mojaloop (cross-border), Kafka (events), PostgreSQL (audit), Fluvio (streams),
- * Redis (idempotency), Dapr (service mesh)
- */
 import { Router, Request, Response } from "express";
-import { requireRole } from "../auth";
+import { query, queryOne, transaction } from "../lib/database";
+import { publishEvent, TOPICS } from "../lib/kafka";
+import crypto from "crypto";
 
 export const settlementSagaRouter = Router();
 
-const AGENT_TIERS: Record<string, number> = { bronze: 0.10, silver: 0.12, gold: 0.15, platinum: 0.18 };
-const PLATFORM_FEES: Record<string, number> = { standard: 0.03, premium: 0.025, group: 0.02, corporate: 0.015 };
-const FA_RATES: Record<string, number> = { sms_only: 0.02, whatsapp: 0.015, web_lite: 0.01, full: 0.005 };
-const TAX_RATES: Record<string, number> = { KE: 0.02, NG: 0.05, GH: 0.025, ZA: 0.03, TZ: 0.02, RW: 0.015, UG: 0.06, ET: 0.02, MA: 0.10, EG: 0.14 };
-const CHANNEL_BONUS: Record<string, number> = { direct: 0.02, api: 0.01, gds_portal: 0.0, whatsapp: -0.02 };
+settlementSagaRouter.get("/", async (_req: Request, res: Response) => {
+  const result = await query("SELECT * FROM gds_settlement_sagas ORDER BY created_at DESC LIMIT 50");
+  res.json({ sagas: result.rows, total: result.rowCount });
+});
 
-const sagas: any[] = [];
+settlementSagaRouter.get("/:id", async (req: Request, res: Response) => {
+  const row = await queryOne("SELECT * FROM gds_settlement_sagas WHERE id = $1", [req.params.id]);
+  if (!row) return res.status(404).json({ error: "Saga not found" });
+  res.json(row);
+});
 
-// Execute saga
 settlementSagaRouter.post("/execute", async (req: Request, res: Response) => {
-  const { booking_id, gross_amount, currency, country, property_id, property_tier,
-    agent_id, agent_tier, field_agent_id, channel, is_group, booking_type } = req.body;
+  const { booking_id, amount, country } = req.body;
+  if (!booking_id || !amount) return res.status(400).json({ error: "booking_id and amount required" });
+  const gross = Number(amount);
+  const cc = country || "NG";
+  const idempotencyKey = `saga-${booking_id}-${Date.now()}`;
 
-  if (!booking_id || !gross_amount || !currency || !country || !property_id) {
-    res.status(400).json({ error: "booking_id, gross_amount, currency, country, property_id required" });
-    return;
-  }
+  const existing = await queryOne("SELECT * FROM gds_settlement_sagas WHERE booking_id = $1 ORDER BY created_at DESC LIMIT 1", [booking_id]);
+  if (existing) return res.json({ saga: existing, message: "Settlement already processed", idempotent: true });
 
-  const sagaId = `SAGA-${Date.now().toString(36).toUpperCase()}`;
-  const steps: any[] = [];
+  const taxRate = 0.02; const platformRate = 0.03; const agentRate = 0.16; const fieldRate = 0.01;
+  const tax = Math.round(gross * taxRate * 100) / 100;
+  const platform = Math.round(gross * platformRate * 100) / 100;
+  const agent = Math.round(gross * agentRate * 100) / 100;
+  const field = Math.round(gross * fieldRate * 100) / 100;
+  const property = Math.round((gross - tax - platform - agent - field) * 100) / 100;
 
-  // Step 1: Tax
-  const taxRate = TAX_RATES[country] || 0.02;
-  const taxAmount = Math.round(gross_amount * taxRate * 100) / 100;
-  steps.push({ step: 1, name: "tax_withholding", status: "completed", amount: taxAmount, rate: taxRate, destination: `tax:${country}`, method: "government_remittance", temporal_activity: "WithholdTaxActivity" });
+  const steps = [
+    { step: 1, name: "calculate_tax", amount: tax, status: "completed", timestamp: new Date().toISOString() },
+    { step: 2, name: "deduct_platform_fee", amount: platform, status: "completed", timestamp: new Date().toISOString() },
+    { step: 3, name: "pay_agent_commission", amount: agent, status: "completed", timestamp: new Date().toISOString() },
+    { step: 4, name: "pay_field_agent", amount: field, status: "completed", timestamp: new Date().toISOString() },
+    { step: 5, name: "remit_to_property", amount: property, status: "completed", timestamp: new Date().toISOString() },
+  ];
 
-  // Step 2: Platform fee
-  const platRate = PLATFORM_FEES[booking_type || "standard"] || 0.03;
-  const platFee = Math.round(gross_amount * (is_group ? Math.max(platRate - 0.005, 0.01) : platRate) * 100) / 100;
-  steps.push({ step: 2, name: "platform_fee", status: "completed", amount: platFee, rate: platRate, destination: "revenue:platform", method: "internal_ledger", temporal_activity: "CollectPlatformFeeActivity" });
-
-  // Step 3: Agent commission
-  let agentComm = 0;
-  if (agent_id) {
-    const baseRate = AGENT_TIERS[agent_tier || "bronze"] || 0.10;
-    const chBonus = CHANNEL_BONUS[channel || "gds_portal"] || 0;
-    const effRate = Math.min(Math.max(baseRate + chBonus, 0.05), 0.25);
-    agentComm = Math.round(gross_amount * effRate * 100) / 100;
-    steps.push({ step: 3, name: "agent_commission", status: "completed", amount: agentComm, rate: effRate, destination: `agent:${agent_id}`, method: "bank_transfer", temporal_activity: "PayAgentCommissionActivity" });
-  }
-
-  // Step 4: Field agent
-  let faComm = 0;
-  if (field_agent_id) {
-    const faRate = FA_RATES[property_tier || "full"] || 0;
-    faComm = Math.round(gross_amount * faRate * 100) / 100;
-    if (faComm > 0) {
-      steps.push({ step: 4, name: "field_agent_commission", status: "completed", amount: faComm, rate: faRate, destination: `field_agent:${field_agent_id}`, method: "mobile_money", temporal_activity: "PayFieldAgentActivity" });
-    }
-  }
-
-  // Step 5: Property net
-  const totalDeductions = taxAmount + platFee + agentComm + faComm;
-  const propertyNet = Math.round((gross_amount - totalDeductions) * 100) / 100;
-  steps.push({ step: 5, name: "property_payout", status: "completed", amount: propertyNet, rate: propertyNet / gross_amount, destination: `property:${property_id}`, method: property_tier === "full" ? "bank_transfer" : "mobile_money", temporal_activity: "PayPropertyActivity" });
-
-  const saga = {
-    saga_id: sagaId, status: "completed", booking_id, gross_amount, currency,
-    steps,
-    summary: { tax_withheld: taxAmount, platform_fee: platFee, agent_commission: agentComm, field_agent: faComm, property_net: propertyNet },
-    temporal_workflow_id: `settlement-${sagaId}`,
-    idempotency_key: `idem-${booking_id}-${Date.now().toString(36)}`,
-    ledger_entries: steps.map((s, i) => ({
-      debit: `escrow:booking:${booking_id}`, credit: s.destination,
-      amount: s.amount, currency, tigerbeetle_transfer_id: `${sagaId}-${i}`,
-    })),
-    completed_at: new Date().toISOString(),
-  };
-
-  sagas.push(saga);
-  res.json(saga);
+  const result = await queryOne(
+    "INSERT INTO gds_settlement_sagas (booking_id,gross_amount,currency,country,steps,status,idempotency_key) VALUES ($1,$2,$3,$4,$5,'completed',$6) RETURNING *",
+    [booking_id, gross, cc === "NG" ? "NGN" : "USD", cc, JSON.stringify(steps), idempotencyKey]
+  );
+  await publishEvent({ topic: TOPICS.SETTLEMENT_COMPLETED, key: booking_id, value: { booking_id, gross, tax, platform, agent, field, property } });
+  res.status(201).json({ saga: result, steps, total_distributed: tax + platform + agent + field + property });
 });
 
-// Refund saga
-settlementSagaRouter.post("/refund", async (req: Request, res: Response) => {
-  const { booking_id, refund_amount, currency, reason, refund_type } = req.body;
-  if (!booking_id || !refund_amount) {
-    res.status(400).json({ error: "booking_id and refund_amount required" });
-    return;
-  }
-
-  const type = refund_type || "full";
-  let waterfall: any[] = [];
-
-  if (type === "full") {
-    waterfall = [
-      { party: "property", absorbs: Math.round(refund_amount * 0.6 * 100) / 100, method: "deduct_from_pending_payout" },
-      { party: "agent", absorbs: Math.round(refund_amount * 0.15 * 100) / 100, method: "deduct_from_next_payout" },
-      { party: "platform", absorbs: Math.round(refund_amount * 0.05 * 100) / 100, method: "internal_write_off" },
-      { party: "tax_authority", absorbs: Math.round(refund_amount * 0.02 * 100) / 100, method: "tax_credit_next_period" },
-    ];
-  } else if (type === "cancellation_fee") {
-    waterfall = [
-      { party: "property", absorbs: 0, keeps: Math.round(refund_amount * 0.5 * 100) / 100, method: "cancellation_fee_retained" },
-      { party: "platform", absorbs: Math.round(refund_amount * 0.3 * 100) / 100, method: "internal_write_off" },
-      { party: "agent", absorbs: Math.round(refund_amount * 0.2 * 100) / 100, method: "deduct_from_next_payout" },
-    ];
-  }
-
+settlementSagaRouter.get("/rates/card", async (_req: Request, res: Response) => {
   res.json({
-    refund_id: `REFUND-${Date.now().toString(36).toUpperCase()}`,
-    booking_id, refund_amount, refund_type: type, reason: reason || "customer_request",
-    waterfall, status: "completed",
-    total_absorbed: waterfall.reduce((s, w) => s + (w.absorbs || 0), 0),
-    temporal_workflow_id: `refund-${Date.now().toString(36)}`,
-  });
-});
-
-// Rate card
-settlementSagaRouter.get("/rate-card", async (_req: Request, res: Response) => {
-  res.json({
-    agent_commission_tiers: AGENT_TIERS,
-    property_commission_rates: { sms_only: 0.15, whatsapp: 0.12, web_lite: 0.10, full: 0.08 },
-    platform_fees: PLATFORM_FEES,
-    field_agent_ongoing: FA_RATES,
-    tax_withholding_by_country: TAX_RATES,
-    channel_bonuses: CHANNEL_BONUS,
-    payout_methods: ["bank_transfer", "mobile_money", "mojaloop_instant", "internal_ledger", "government_remittance"],
-    payout_schedules: {
-      property_full: "daily", property_other: "weekly",
-      agent_platinum: "daily", agent_other: "weekly",
-      field_agent: "monthly", tax: "monthly", platform: "realtime",
+    rates: {
+      NG: { tax: 0.02, platform: 0.03, agent: 0.16, field_agent: 0.01, property: 0.78, currency: "NGN" },
+      KE: { tax: 0.02, platform: 0.03, agent: 0.15, field_agent: 0.01, property: 0.79, currency: "KES" },
+      GH: { tax: 0.025, platform: 0.03, agent: 0.15, field_agent: 0.01, property: 0.785, currency: "GHS" },
     },
-  });
-});
-
-// List sagas
-settlementSagaRouter.get("/sagas", async (_req: Request, res: Response) => {
-  res.json({ sagas: sagas.slice(-50).reverse(), total: sagas.length });
-});
-
-// Reconciliation
-settlementSagaRouter.post("/reconcile", requireRole("admin"), async (_req: Request, res: Response) => {
-  const total_gross = sagas.reduce((s, sg) => s + sg.gross_amount, 0);
-  const total_property = sagas.reduce((s, sg) => s + (sg.summary?.property_net || 0), 0);
-  const total_agent = sagas.reduce((s, sg) => s + (sg.summary?.agent_commission || 0), 0);
-  const total_platform = sagas.reduce((s, sg) => s + (sg.summary?.platform_fee || 0), 0);
-  const total_tax = sagas.reduce((s, sg) => s + (sg.summary?.tax_withheld || 0), 0);
-
-  res.json({
-    report: {
-      id: `RECON-${Date.now().toString(36).toUpperCase()}`,
-      period: "2026-06-01 to 2026-06-30",
-      total_gross: Math.round(total_gross * 100) / 100,
-      total_property_payouts: Math.round(total_property * 100) / 100,
-      total_agent_commissions: Math.round(total_agent * 100) / 100,
-      total_platform_fees: Math.round(total_platform * 100) / 100,
-      total_tax_withheld: Math.round(total_tax * 100) / 100,
-      discrepancies: [],
-      status: "balanced",
-    },
-    balanced: true,
-  });
-});
-
-// Analytics
-settlementSagaRouter.get("/analytics", async (_req: Request, res: Response) => {
-  const total_volume = sagas.reduce((s, sg) => s + sg.gross_amount, 0);
-  res.json({
-    total_sagas: sagas.length,
-    completed: sagas.filter(s => s.status === "completed").length,
-    total_volume: Math.round(total_volume * 100) / 100,
-    avg_booking: sagas.length ? Math.round(total_volume / sagas.length * 100) / 100 : 0,
   });
 });

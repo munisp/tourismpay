@@ -1,148 +1,73 @@
-/**
- * Cancellation Policy Proxy Router
- * Proxies to Go cancellation-policy service (port 8112)
- *
- * Middleware: PostgreSQL (policies), Kafka (cancellation events),
- * TigerBeetle (refund ledger), Temporal (refund workflow), Redis (cache)
- */
 import { Router, Request, Response } from "express";
-import { requireRole } from "../auth";
+import { query, queryOne } from "../lib/database";
+import { publishEvent, TOPICS } from "../lib/kafka";
 
 export const cancellationRouter = Router();
 
-const PRESETS: Record<string, Array<{ min_days: number; max_days: number; fee_pct: number; refund_pct: number; desc: string }>> = {
-  flexible: [
-    { min_days: 0, max_days: 1, fee_pct: 100, refund_pct: 0, desc: "Same day: no refund" },
-    { min_days: 1, max_days: 3, fee_pct: 50, refund_pct: 50, desc: "1-3 days: 50% refund" },
-    { min_days: 3, max_days: 9999, fee_pct: 0, refund_pct: 100, desc: "3+ days: full refund" },
-  ],
-  moderate: [
-    { min_days: 0, max_days: 2, fee_pct: 100, refund_pct: 0, desc: "0-2 days: no refund" },
-    { min_days: 2, max_days: 7, fee_pct: 50, refund_pct: 50, desc: "2-7 days: 50% refund" },
-    { min_days: 7, max_days: 14, fee_pct: 25, refund_pct: 75, desc: "7-14 days: 75% refund" },
-    { min_days: 14, max_days: 9999, fee_pct: 0, refund_pct: 100, desc: "14+ days: full refund" },
-  ],
-  strict: [
-    { min_days: 0, max_days: 7, fee_pct: 100, refund_pct: 0, desc: "0-7 days: no refund" },
-    { min_days: 7, max_days: 14, fee_pct: 75, refund_pct: 25, desc: "7-14 days: 25% refund" },
-    { min_days: 14, max_days: 30, fee_pct: 50, refund_pct: 50, desc: "14-30 days: 50% refund" },
-    { min_days: 30, max_days: 9999, fee_pct: 0, refund_pct: 100, desc: "30+ days: full refund" },
-  ],
-  super_strict: [
-    { min_days: 0, max_days: 14, fee_pct: 100, refund_pct: 0, desc: "0-14 days: no refund" },
-    { min_days: 14, max_days: 30, fee_pct: 75, refund_pct: 25, desc: "14-30 days: 25% refund" },
-    { min_days: 30, max_days: 60, fee_pct: 50, refund_pct: 50, desc: "30-60 days: 50% refund" },
-    { min_days: 60, max_days: 9999, fee_pct: 25, refund_pct: 75, desc: "60+ days: 75% refund" },
-  ],
-};
-
-let policies: any[] = [
-  { id: "POL-001", property_id: "PROP-001", name: "Serengeti Lodge Flexible", policy_type: "flexible", no_show_fee: 100 },
-  { id: "POL-002", property_id: "PROP-002", name: "Lagos Beach Hotel Moderate", policy_type: "moderate", no_show_fee: 100 },
-  { id: "POL-003", property_id: "PROP-003", name: "Cape Town Resort Strict", policy_type: "strict", no_show_fee: 100 },
-  { id: "POL-004", property_id: "PROP-004", name: "Zanzibar Eco Super Strict", policy_type: "super_strict", no_show_fee: 100 },
-];
-
-// Get all policies
-cancellationRouter.get("/policies", async (_req: Request, res: Response) => {
-  res.json({ policies, total: policies.length, presets: Object.keys(PRESETS) });
+cancellationRouter.get("/policies", async (req: Request, res: Response) => {
+  const { property_id } = req.query;
+  let sql = "SELECT cp.*, p.name as property_name FROM gds_cancellation_policies cp LEFT JOIN gds_properties p ON cp.property_id = p.id WHERE 1=1";
+  const params: unknown[] = [];
+  if (property_id) { sql += " AND cp.property_id = $1"; params.push(property_id); }
+  sql += " ORDER BY cp.created_at DESC";
+  const result = await query(sql, params);
+  res.json({ policies: result.rows, total: result.rowCount });
 });
 
-// Get presets
-cancellationRouter.get("/presets", async (_req: Request, res: Response) => {
-  res.json({ presets: PRESETS });
+cancellationRouter.get("/policies/:id", async (req: Request, res: Response) => {
+  const row = await queryOne("SELECT * FROM gds_cancellation_policies WHERE id = $1", [req.params.id]);
+  if (!row) return res.status(404).json({ error: "Policy not found" });
+  res.json(row);
 });
 
-// Calculate cancellation fee
-cancellationRouter.post("/calculate", async (req: Request, res: Response) => {
-  const { booking_id, property_id, check_in, booking_amount, currency, exception_type } = req.body;
-  if (!booking_id || !property_id || !check_in || !booking_amount) {
-    res.status(400).json({ error: "booking_id, property_id, check_in, booking_amount required" });
-    return;
-  }
-
-  const policy = policies.find(p => p.property_id === property_id);
-  const policyType = policy?.policy_type || "moderate";
-  const tiers = PRESETS[policyType] || PRESETS.moderate;
-
-  const checkinDate = new Date(check_in);
-  const now = new Date();
-  const daysBefore = Math.max(0, Math.ceil((checkinDate.getTime() - now.getTime()) / 86400000));
-
-  // Check exception
-  if (exception_type && ["force_majeure", "medical", "visa_denial"].includes(exception_type)) {
-    res.json({
-      booking_id, approved: true, policy_applied: policyType,
-      days_before_checkin: daysBefore, tier_applied: `Exception: ${exception_type} (full refund)`,
-      cancellation_fee: 0, refund_amount: booking_amount, refund_percent: 100,
-      currency: currency || "USD", exception_used: true,
-      refund_method: "original_payment_method", refund_timeline: "5-7 business days",
-      fee_absorption: { description: "Platform absorbs (exception policy)" },
-    });
-    return;
-  }
-
-  // Find tier
-  let fee_pct = 100;
-  let refund_pct = 0;
-  let tierDesc = "No matching tier";
-  for (const tier of tiers) {
-    if (daysBefore >= tier.min_days && daysBefore < tier.max_days) {
-      fee_pct = tier.fee_pct;
-      refund_pct = tier.refund_pct;
-      tierDesc = tier.desc;
-      break;
-    }
-  }
-
-  const fee = Math.round(booking_amount * (fee_pct / 100) * 100) / 100;
-  const refund = Math.round((booking_amount - fee) * 100) / 100;
-
-  let absorption;
-  if (refund_pct >= 75) absorption = { property_absorbs: 0, platform_absorbs: 100, agent_absorbs: 0, description: "Platform absorbs full refund cost" };
-  else if (refund_pct >= 50) absorption = { property_absorbs: 50, platform_absorbs: 30, agent_absorbs: 20, description: "Shared: property 50%, platform 30%, agent 20%" };
-  else absorption = { property_absorbs: 70, platform_absorbs: 20, agent_absorbs: 10, description: "Property absorbs majority (strict policy)" };
-
-  res.json({
-    booking_id, approved: true, policy_applied: policyType,
-    days_before_checkin: daysBefore, tier_applied: tierDesc,
-    cancellation_fee: fee, refund_amount: refund, refund_percent: refund_pct,
-    currency: currency || "USD", exception_used: false,
-    refund_method: "original_payment_method", refund_timeline: "5-7 business days",
-    fee_absorption: absorption,
-    middleware: { ledger: "TigerBeetle", workflow: "Temporal:refund-saga", events: "Kafka:booking.cancelled" },
-  });
+cancellationRouter.post("/policies", async (req: Request, res: Response) => {
+  const { property_id, policy_type, tiers, refund_waterfall } = req.body;
+  if (!policy_type) return res.status(400).json({ error: "policy_type required" });
+  const result = await queryOne(
+    "INSERT INTO gds_cancellation_policies (property_id,policy_type,tiers,refund_waterfall) VALUES ($1,$2,$3,$4) RETURNING *",
+    [property_id || null, policy_type, JSON.stringify(tiers || []), JSON.stringify(refund_waterfall || {})]
+  );
+  res.status(201).json(result);
 });
 
-// Set policy for property
-cancellationRouter.post("/set-policy", requireRole("admin"), async (req: Request, res: Response) => {
-  const { property_id, policy_type, name } = req.body;
-  if (!property_id || !policy_type) {
-    res.status(400).json({ error: "property_id and policy_type required" });
-    return;
-  }
-  if (!PRESETS[policy_type]) {
-    res.status(400).json({ error: "Invalid policy_type", valid: Object.keys(PRESETS) });
-    return;
-  }
-
-  const newPol = { id: `POL-${Date.now().toString(36)}`, property_id, name: name || `${property_id} ${policy_type}`, policy_type, no_show_fee: 100 };
-  policies.push(newPol);
-  res.status(201).json({ created: true, policy: newPol });
-});
-
-// Update policy
 cancellationRouter.put("/policies/:id", async (req: Request, res: Response) => {
-  const idx = policies.findIndex(p => p.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Policy not found" });
-  policies[idx] = { ...policies[idx], ...req.body, id: policies[idx].id };
-  res.json(policies[idx]);
+  const { policy_type, tiers, refund_waterfall } = req.body;
+  const result = await queryOne(
+    "UPDATE gds_cancellation_policies SET policy_type=COALESCE($2,policy_type),tiers=COALESCE($3,tiers),refund_waterfall=COALESCE($4,refund_waterfall) WHERE id=$1 RETURNING *",
+    [req.params.id, policy_type, tiers ? JSON.stringify(tiers) : null, refund_waterfall ? JSON.stringify(refund_waterfall) : null]
+  );
+  if (!result) return res.status(404).json({ error: "Policy not found" });
+  res.json(result);
 });
 
-// Delete policy
 cancellationRouter.delete("/policies/:id", async (req: Request, res: Response) => {
-  const idx = policies.findIndex(p => p.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Policy not found" });
-  policies.splice(idx, 1);
+  const result = await query("DELETE FROM gds_cancellation_policies WHERE id = $1", [req.params.id]);
+  if (result.rowCount === 0) return res.status(404).json({ error: "Policy not found" });
   res.json({ deleted: true, id: req.params.id });
+});
+
+cancellationRouter.post("/simulate", async (req: Request, res: Response) => {
+  const { policy_type, amount, days_before, reason } = req.body;
+  const gross = Number(amount) || 750;
+  const days = Number(days_before) || 5;
+  const ptype = policy_type || "moderate";
+
+  if (reason === "force_majeure") return res.json({ policy_type: ptype, amount: gross, days_before: days, reason, penalty_pct: 0, fee: 0, refund: gross, currency: "NGN" });
+
+  const policies: Record<string, { days: number; pct: number }[]> = {
+    flexible: [{ days: 0, pct: 100 }, { days: 1, pct: 50 }, { days: 3, pct: 0 }],
+    moderate: [{ days: 0, pct: 100 }, { days: 3, pct: 50 }, { days: 7, pct: 25 }, { days: 14, pct: 0 }],
+    strict: [{ days: 0, pct: 100 }, { days: 7, pct: 75 }, { days: 14, pct: 50 }, { days: 30, pct: 25 }],
+    non_refundable: [{ days: 0, pct: 100 }],
+  };
+  const tiers = policies[ptype] || policies.moderate;
+  let penaltyPct = tiers[tiers.length - 1].pct;
+  for (const t of tiers) { if (days >= t.days) { penaltyPct = t.pct; } else { break; } }
+  for (let i = tiers.length - 1; i >= 0; i--) { if (days >= tiers[i].days) { penaltyPct = tiers[i].pct; break; } }
+
+  const fee = Math.round(gross * penaltyPct / 100 * 100) / 100;
+  const refund = Math.round((gross - fee) * 100) / 100;
+
+  await publishEvent({ topic: TOPICS.CANCELLATION_FEE, value: { policy_type: ptype, amount: gross, fee, refund, days_before: days } });
+  res.json({ policy_type: ptype, amount: gross, days_before: days, penalty_pct: penaltyPct, fee, refund, currency: "NGN", waterfall: { property: Math.round(fee * 0.5), platform: Math.round(fee * 0.3), agent: Math.round(fee * 0.2) } });
 });

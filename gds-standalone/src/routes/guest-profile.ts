@@ -1,213 +1,66 @@
-/**
- * Guest Profile CRM Route — Proxies to Go guest-profile service (port 8084).
- * Falls back to in-memory seed data when service is unavailable.
- */
 import { Router, Request, Response } from "express";
+import { query, queryOne } from "../lib/database";
+import { cacheGet, cacheSet, cacheDelete } from "../lib/redis";
+import { publishEvent, TOPICS } from "../lib/kafka";
 
 export const guestProfileRouter = Router();
+const TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
-const GUEST_SERVICE_URL = process.env.GUEST_SERVICE_URL || "http://localhost:8084";
+guestProfileRouter.get("/search", async (req: Request, res: Response) => {
+  const { q, limit } = req.query;
+  const cached = await cacheGet("guests:list");
+  if (cached && !q) return res.json(JSON.parse(cached));
 
-// ─── Seed Data ───────────────────────────────────────────────────
-let guestStore: any[] = [
-  {
-    id: "GST-001", first_name: "Amara", last_name: "Okonkwo", name: "Amara Okonkwo",
-    email: "amara@safaritravel.ng", phone: "+2348012345678", nationality: "NG",
-    tier: "Gold", loyalty_points: 28400, total_stays: 12, total_spend: 18750,
-    preferences: { room_type: "suite", floor: "high", pillow: "firm", dietary: "none", temperature: 22 },
-    corporate_id: null, travel_policy: null,
-    created_at: "2024-03-15T10:00:00Z",
-  },
-  {
-    id: "GST-002", first_name: "Pierre", last_name: "Dubois", name: "Pierre Dubois",
-    email: "pierre@voyageafrique.fr", phone: "+33612345678", nationality: "FR",
-    tier: "Platinum", loyalty_points: 62300, total_stays: 34, total_spend: 89200,
-    preferences: { room_type: "deluxe", floor: "any", pillow: "soft", dietary: "vegetarian", temperature: 20 },
-    corporate_id: "CORP-003", travel_policy: "UN Geneva",
-    created_at: "2023-01-20T08:00:00Z",
-  },
-  {
-    id: "GST-003", first_name: "Fatima", last_name: "Al-Rashid", name: "Fatima Al-Rashid",
-    email: "fatima@gulftravel.ae", phone: "+971501234567", nationality: "AE",
-    tier: "Gold", loyalty_points: 35600, total_stays: 8, total_spend: 42800,
-    preferences: { room_type: "suite", floor: "high", pillow: "medium", dietary: "halal", temperature: 21 },
-    corporate_id: null, travel_policy: null,
-    created_at: "2024-06-10T14:00:00Z",
-  },
-  {
-    id: "GST-004", first_name: "Sarah", last_name: "van der Berg", name: "Sarah van der Berg",
-    email: "sarah@capetownluxury.co.za", phone: "+27821234567", nationality: "ZA",
-    tier: "Silver", loyalty_points: 12800, total_stays: 5, total_spend: 9200,
-    preferences: { room_type: "standard", floor: "low", pillow: "firm", dietary: "none", temperature: 23 },
-    corporate_id: null, travel_policy: null,
-    created_at: "2025-02-18T12:00:00Z",
-  },
-  {
-    id: "GST-005", first_name: "Chen", last_name: "Wei", name: "Chen Wei",
-    email: "chen@asiatravelgroup.cn", phone: "+8613812345678", nationality: "CN",
-    tier: "Platinum", loyalty_points: 78900, total_stays: 42, total_spend: 156000,
-    preferences: { room_type: "villa", floor: "any", pillow: "firm", dietary: "none", temperature: 22 },
-    corporate_id: "CORP-001", travel_policy: "Safaricom Premium",
-    created_at: "2022-09-05T06:00:00Z",
-  },
-  {
-    id: "GST-006", first_name: "David", last_name: "Adeyemi", name: "David Adeyemi",
-    email: "david@lagosluxe.ng", phone: "+2347012345678", nationality: "NG",
-    tier: "Bronze", loyalty_points: 4200, total_stays: 3, total_spend: 5400,
-    preferences: { room_type: "standard", floor: "any", pillow: "soft", dietary: "none", temperature: 24 },
-    corporate_id: null, travel_policy: null,
-    created_at: "2025-11-01T09:00:00Z",
-  },
-  {
-    id: "GST-007", first_name: "Isabel", last_name: "Martinez", name: "Isabel Martinez",
-    email: "isabel@iberiatravel.es", phone: "+34612345678", nationality: "ES",
-    tier: "Silver", loyalty_points: 15400, total_stays: 7, total_spend: 12600,
-    preferences: { room_type: "deluxe", floor: "high", pillow: "medium", dietary: "none", temperature: 21 },
-    corporate_id: null, travel_policy: null,
-    created_at: "2024-08-22T16:00:00Z",
-  },
-  {
-    id: "GST-008", first_name: "James", last_name: "Thompson", name: "James Thompson",
-    email: "thompson@ukholidays.co.uk", phone: "+447712345678", nationality: "GB",
-    tier: "Gold", loyalty_points: 31200, total_stays: 15, total_spend: 34800,
-    preferences: { room_type: "suite", floor: "any", pillow: "firm", dietary: "none", temperature: 20 },
-    corporate_id: null, travel_policy: null,
-    created_at: "2024-01-10T11:00:00Z",
-  },
-  {
-    id: "GST-009", first_name: "Kwame", last_name: "Asante", name: "Kwame Asante",
-    email: "kwame@ghanatours.gh", phone: "+233241234567", nationality: "GH",
-    tier: "Gold", loyalty_points: 22100, total_stays: 18, total_spend: 21400,
-    preferences: { room_type: "standard", floor: "low", pillow: "soft", dietary: "none", temperature: 25 },
-    corporate_id: "CORP-004", travel_policy: "ATTA Consortium",
-    created_at: "2023-05-14T07:00:00Z",
-  },
-  {
-    id: "GST-010", first_name: "Amina", last_name: "Uwimana", name: "Amina Uwimana",
-    email: "amina@rwandatourism.rw", phone: "+250781234567", nationality: "RW",
-    tier: "Platinum", loyalty_points: 54700, total_stays: 28, total_spend: 67200,
-    preferences: { room_type: "deluxe", floor: "high", pillow: "medium", dietary: "none", temperature: 22 },
-    corporate_id: "CORP-005", travel_policy: "Rwanda Tourism Board",
-    created_at: "2023-02-28T13:00:00Z",
-  },
-];
+  let sql = "SELECT * FROM gds_guest_profiles WHERE tenant_id = $1";
+  const params: unknown[] = [TENANT_ID];
+  if (q && String(q).length > 0) { sql += " AND (name ILIKE $2 OR email ILIKE $2)"; params.push(`%${q}%`); }
+  sql += ` ORDER BY total_spend DESC LIMIT ${Number(limit) || 50}`;
 
-// Proxy with fallback
-async function proxyWithFallback(req: Request, res: Response, path: string, method: string, fallback: () => void) {
-  try {
-    const url = `${GUEST_SERVICE_URL}${path}`;
-    const options: RequestInit = {
-      method,
-      headers: { "Content-Type": "application/json", "X-GDS-Tenant-ID": req.headers["x-gds-tenant-id"] as string || "" },
-    };
-    if (method !== "GET") options.body = JSON.stringify(req.body);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000);
-    options.signal = controller.signal;
-    const response = await fetch(url, options);
-    clearTimeout(timeout);
-    const data = await response.json();
-    res.status(response.status).json(data);
-  } catch {
-    fallback();
-  }
-}
-
-// Search profiles (with seed data fallback)
-guestProfileRouter.get("/search", (req, res) => {
-  const q = (req.query.q as string || "").toLowerCase();
-  const limit = parseInt(req.query.limit as string) || 10;
-  proxyWithFallback(req, res, `/api/v1/guests/search?${new URLSearchParams(req.query as Record<string, string>)}`, "GET", () => {
-    const results = q
-      ? guestStore.filter(g => g.name.toLowerCase().includes(q) || g.email.toLowerCase().includes(q) || g.nationality.toLowerCase().includes(q))
-      : guestStore;
-    res.json({ guests: results.slice(0, limit), total: results.length, source: "gds-gateway-seed" });
-  });
+  const result = await query(sql, params);
+  const resp = { guests: result.rows, total: result.rowCount };
+  if (!q) await cacheSet("guests:list", JSON.stringify(resp), 120);
+  res.json(resp);
 });
 
-// Corporate accounts
-guestProfileRouter.get("/corporates", (req, res) => {
-  proxyWithFallback(req, res, "/api/v1/corporates/", "GET", () => {
-    const corporates = guestStore.filter(g => g.corporate_id);
-    res.json({ corporates: corporates.map(g => ({
-      id: g.corporate_id, guest_name: g.name, travel_policy: g.travel_policy,
-      tier: g.tier, total_stays: g.total_stays, total_spend: g.total_spend,
-    })), total: corporates.length });
-  });
-});
-guestProfileRouter.post("/corporates", (req, res) => {
-  proxyWithFallback(req, res, "/api/v1/corporates/", "POST", () => {
-    res.status(201).json({ id: `CORP-${Date.now()}`, ...req.body, status: "active" });
-  });
+guestProfileRouter.get("/:id", async (req: Request, res: Response) => {
+  const row = await queryOne("SELECT * FROM gds_guest_profiles WHERE id = $1 AND tenant_id = $2", [req.params.id, TENANT_ID]);
+  if (!row) return res.status(404).json({ error: "Guest not found" });
+  res.json(row);
 });
 
-// Create profile
-guestProfileRouter.post("/", (req, res) => {
-  proxyWithFallback(req, res, "/api/v1/guests/", "POST", () => {
-    const guest = {
-      id: `GST-${Date.now()}`,
-      first_name: req.body.first_name || "",
-      last_name: req.body.last_name || "",
-      name: `${req.body.first_name || ""} ${req.body.last_name || ""}`.trim(),
-      email: req.body.email || "",
-      phone: req.body.phone || "",
-      nationality: req.body.nationality || "",
-      tier: "Bronze",
-      loyalty_points: 0,
-      total_stays: 0,
-      total_spend: 0,
-      preferences: req.body.preferences || {},
-      corporate_id: req.body.corporate_id || null,
-      travel_policy: req.body.travel_policy || null,
-      created_at: new Date().toISOString(),
-    };
-    guestStore.push(guest);
-    res.status(201).json(guest);
-  });
+guestProfileRouter.post("/", async (req: Request, res: Response) => {
+  const { first_name, last_name, email, phone, nationality, tier } = req.body;
+  const name = `${first_name || ""} ${last_name || ""}`.trim();
+  if (!name || !email) return res.status(400).json({ error: "name and email required" });
+
+  const result = await queryOne(
+    `INSERT INTO gds_guest_profiles (tenant_id, name, email, phone, country_code, loyalty_tier, preferences)
+     VALUES ($1,$2,$3,$4,$5,$6,'{}') RETURNING *`,
+    [TENANT_ID, name, email, phone || null, nationality || "NG", tier || "bronze"]
+  );
+  await cacheDelete("guests:list");
+  await publishEvent({ topic: TOPICS.GUEST_CREATED, key: result?.id as string, value: { name, email, tier } });
+  res.status(201).json(result);
 });
 
-// Get profile
-guestProfileRouter.get("/:id", (req, res) => {
-  proxyWithFallback(req, res, `/api/v1/guests/${req.params.id}`, "GET", () => {
-    const guest = guestStore.find(g => g.id === req.params.id);
-    if (guest) res.json(guest);
-    else res.status(404).json({ error: "Guest not found" });
-  });
+guestProfileRouter.put("/:id", async (req: Request, res: Response) => {
+  const { first_name, last_name, email, phone, nationality, tier } = req.body;
+  const name = first_name && last_name ? `${first_name} ${last_name}` : null;
+  const result = await queryOne(
+    `UPDATE gds_guest_profiles SET name=COALESCE($2,name), email=COALESCE($3,email), phone=COALESCE($4,phone),
+     country_code=COALESCE($5,country_code), loyalty_tier=COALESCE($6,loyalty_tier), updated_at=NOW()
+     WHERE id=$1 AND tenant_id=$7 RETURNING *`,
+    [req.params.id, name, email, phone, nationality, tier, TENANT_ID]
+  );
+  if (!result) return res.status(404).json({ error: "Guest not found" });
+  await cacheDelete("guests:list");
+  await publishEvent({ topic: TOPICS.GUEST_UPDATED, key: req.params.id, value: { id: req.params.id } });
+  res.json(result);
 });
 
-// Update guest
-guestProfileRouter.put("/:id", (req, res) => {
-  const idx = guestStore.findIndex(g => g.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Guest not found" });
-  const updated = { ...guestStore[idx], ...req.body, id: guestStore[idx].id };
-  if (req.body.first_name || req.body.last_name) {
-    updated.name = `${updated.first_name} ${updated.last_name}`.trim();
-  }
-  guestStore[idx] = updated;
-  res.json(updated);
-});
-
-// Delete guest
-guestProfileRouter.delete("/:id", (req, res) => {
-  const idx = guestStore.findIndex(g => g.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Guest not found" });
-  guestStore.splice(idx, 1);
+guestProfileRouter.delete("/:id", async (req: Request, res: Response) => {
+  const result = await query("DELETE FROM gds_guest_profiles WHERE id = $1 AND tenant_id = $2", [req.params.id, TENANT_ID]);
+  if (result.rowCount === 0) return res.status(404).json({ error: "Guest not found" });
+  await cacheDelete("guests:list");
   res.json({ deleted: true, id: req.params.id });
-});
-
-// Update preferences
-guestProfileRouter.put("/:id/preferences", (req, res) => {
-  proxyWithFallback(req, res, `/api/v1/guests/${req.params.id}/preferences`, "PUT", () => {
-    const guest = guestStore.find(g => g.id === req.params.id);
-    if (!guest) return res.status(404).json({ error: "Guest not found" });
-    Object.assign(guest.preferences, req.body);
-    res.json(guest);
-  });
-});
-
-// Add stay record
-guestProfileRouter.post("/:id/stays", (req, res) => {
-  proxyWithFallback(req, res, `/api/v1/guests/${req.params.id}/stays`, "POST", () => {
-    res.status(201).json({ guest_id: req.params.id, stay: req.body, message: "Stay recorded" });
-  });
 });

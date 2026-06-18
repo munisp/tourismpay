@@ -1,107 +1,51 @@
-/**
- * Distribution API — Manage how rates/availability are pushed to agents.
- */
 import { Router, Request, Response } from "express";
-import { requireRole } from "../auth";
+import { query, queryOne } from "../lib/database";
+import { cacheGet, cacheSet, cacheDelete } from "../lib/redis";
 
 export const distributionRouter = Router();
+const TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
-// Get distribution channels
-distributionRouter.get("/channels", async (req: Request, res: Response) => {
-  res.json({ channels: [], total: 0 });
+distributionRouter.get("/", async (_req: Request, res: Response) => {
+  const cached = await cacheGet("distribution:list");
+  if (cached) return res.json(JSON.parse(cached));
+  const result = await query("SELECT * FROM gds_distribution_channels WHERE tenant_id = $1 ORDER BY bookings_count DESC", [TENANT_ID]);
+  const resp = { channels: result.rows, total: result.rowCount };
+  await cacheSet("distribution:list", JSON.stringify(resp), 120);
+  res.json(resp);
 });
 
-// Connect a distribution channel
-distributionRouter.post("/channels", async (req: Request, res: Response) => {
-  const { type, endpoint, properties, countries } = req.body;
-
-  const validTypes = ["api", "webhook", "streaming", "batch"];
-  if (!type || !validTypes.includes(type)) {
-    res.status(400).json({ error: "Valid channel type required", valid: validTypes });
-    return;
-  }
-
-  res.status(201).json({
-    channel: {
-      id: `dist_${Date.now().toString(36)}`,
-      agentId: req.gdsUser?.agentId || req.gdsUser?.sub,
-      type,
-      endpoint: endpoint || null,
-      properties: properties || [],
-      countries: countries || [],
-      status: "active",
-      createdAt: new Date().toISOString(),
-    },
-  });
+distributionRouter.get("/:id", async (req: Request, res: Response) => {
+  const row = await queryOne("SELECT * FROM gds_distribution_channels WHERE id = $1 AND tenant_id = $2", [req.params.id, TENANT_ID]);
+  if (!row) return res.status(404).json({ error: "Channel not found" });
+  res.json(row);
 });
 
-// Disconnect channel
-distributionRouter.delete("/channels/:id", async (req: Request, res: Response) => {
-  res.json({ disconnected: true, channelId: req.params.id });
+distributionRouter.post("/", async (req: Request, res: Response) => {
+  const { name, type, endpoint, countries, status } = req.body;
+  if (!name || !type) return res.status(400).json({ error: "name and type required" });
+  const result = await queryOne(
+    "INSERT INTO gds_distribution_channels (tenant_id,name,type,endpoint,countries,status) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
+    [TENANT_ID, name, type, endpoint || null, countries || [], status || "active"]
+  );
+  await cacheDelete("distribution:list");
+  res.status(201).json(result);
 });
 
-// Get distribution stats
-distributionRouter.get("/stats", async (_req: Request, res: Response) => {
-  res.json({
-    totalChannels: 0,
-    activeChannels: 0,
-    lastPush: null,
-    ratesPushed: 0,
-    availabilityPushed: 0,
-  });
+distributionRouter.put("/:id", async (req: Request, res: Response) => {
+  const { name, type, endpoint, countries, status } = req.body;
+  const result = await queryOne(
+    `UPDATE gds_distribution_channels SET name=COALESCE($2,name),type=COALESCE($3,type),endpoint=COALESCE($4,endpoint),
+     countries=COALESCE($5,countries),status=COALESCE($6,status),updated_at=NOW() WHERE id=$1 AND tenant_id=$7 RETURNING *`,
+    [req.params.id, name, type, endpoint, countries, status, TENANT_ID]
+  );
+  if (!result) return res.status(404).json({ error: "Channel not found" });
+  await cacheDelete("distribution:list");
+  res.json(result);
 });
 
-// Manual rate push trigger (admin)
-distributionRouter.post("/push/rates", requireRole("admin"), async (req: Request, res: Response) => {
-  const { propertyId, channelId } = req.body;
-  res.json({
-    pushed: true,
-    propertyId,
-    channelId: channelId || "all",
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// Manual availability push trigger (admin)
-distributionRouter.post("/push/availability", requireRole("admin"), async (req: Request, res: Response) => {
-  const { propertyId, channelId } = req.body;
-  res.json({
-    pushed: true,
-    propertyId,
-    channelId: channelId || "all",
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// Webhook subscription for external apps
-distributionRouter.post("/webhooks", async (req: Request, res: Response) => {
-  const { url, events } = req.body;
-
-  if (!url) {
-    res.status(400).json({ error: "Webhook URL required" });
-    return;
-  }
-
-  const validEvents = [
-    "property.registered", "property.updated",
-    "availability.changed", "rate.updated",
-    "reservation.created", "reservation.cancelled",
-    "settlement.completed",
-  ];
-
-  res.status(201).json({
-    webhook: {
-      id: `wh_${Date.now().toString(36)}`,
-      url,
-      events: events || validEvents,
-      status: "active",
-      secret: `whsec_${Date.now().toString(36)}`,
-    },
-    message: "Webhook registered. Events will be signed with the secret.",
-  });
-});
-
-// List webhooks
-distributionRouter.get("/webhooks", async (_req: Request, res: Response) => {
-  res.json({ webhooks: [] });
+distributionRouter.delete("/:id", async (req: Request, res: Response) => {
+  const result = await query("DELETE FROM gds_distribution_channels WHERE id = $1 AND tenant_id = $2", [req.params.id, TENANT_ID]);
+  if (result.rowCount === 0) return res.status(404).json({ error: "Channel not found" });
+  await cacheDelete("distribution:list");
+  res.json({ deleted: true, id: req.params.id });
 });

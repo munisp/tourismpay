@@ -608,9 +608,9 @@ function RevenueView() {
         <Btn onClick={calcYield} color="#0ea5e9">Calculate Dynamic Price</Btn>
         {yieldResult && <div style={{ marginTop: "1rem", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem" }}>
           <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Base</p><p style={{ fontSize: "1.1rem", fontWeight: 700 }}>${yieldResult.base_rate}</p></div>
-          <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Dynamic</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0ea5e9" }}>${yieldResult.dynamic_rate}</p></div>
-          <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Multiplier</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#f59e0b" }}>{yieldResult.multiplier}x</p></div>
-          <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Demand</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#22c55e" }}>{yieldResult.demand_level}</p></div>
+          <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Dynamic</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#0ea5e9" }}>${yieldResult.final_rate?.toFixed(2)}</p></div>
+          <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Multiplier</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#f59e0b" }}>{yieldResult.season_multiplier}x</p></div>
+          <div style={{ textAlign: "center", padding: "0.75rem", background: "#0f172a", borderRadius: "0.5rem" }}><p style={{ fontSize: "0.7rem", color: "#94a3b8" }}>Season</p><p style={{ fontSize: "1.1rem", fontWeight: 700, color: "#22c55e" }}>{yieldResult.season}</p></div>
         </div>}
       </Card>
       <Card>
@@ -1674,34 +1674,51 @@ function SandboxView() {
 function AuthenticatedApp({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [view, setView] = useState<View>("dashboard");
 
-  const navItems: { id: View; label: string; section?: string }[] = [
-    { id: "dashboard", label: "Dashboard" },
-    { id: "onboarding", label: "Onboarding", section: "Workflows" },
-    { id: "properties", label: "Properties" },
-    { id: "field-agents", label: "Field Agents" },
-    { id: "travel-agents", label: "Travel Agents" },
-    { id: "search", label: "Search", section: "Booking" },
-    { id: "pnr", label: "PNR" },
-    { id: "reservations", label: "Reservations" },
-    { id: "availability", label: "Availability" },
-    { id: "queues", label: "Queues" },
-    { id: "guests", label: "Guests" },
-    { id: "content", label: "Content", section: "Management" },
-    { id: "revenue", label: "Revenue" },
-    { id: "groups", label: "Groups" },
-    { id: "distribution", label: "Distribution" },
-    { id: "commission", label: "Commission", section: "Payments" },
-    { id: "discounts", label: "Discounts" },
-    { id: "cancellation", label: "Cancellation" },
-    { id: "rates", label: "Neg. Rates" },
-    { id: "settlement", label: "Settlement" },
-    { id: "tax", label: "Tax" },
-    { id: "tipping", label: "Tipping" },
-    { id: "remittance", label: "Remittance" },
-    { id: "loyalty", label: "Loyalty", section: "Programs" },
-    { id: "analytics", label: "Analytics", section: "Intelligence" },
-    { id: "metering", label: "API Metering", section: "Developer" },
-    { id: "sandbox", label: "Sandbox" },
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const toggleSection = (section: string) => setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
+
+  const navSections: { title: string; items: { id: View; label: string }[] }[] = [
+    { title: "Operations", items: [
+      { id: "dashboard", label: "Overview" },
+      { id: "search", label: "Property Search" },
+      { id: "analytics", label: "Market Analytics" },
+    ]},
+    { title: "Onboarding & Partners", items: [
+      { id: "onboarding", label: "Establishment Setup" },
+      { id: "properties", label: "Property Portfolio" },
+      { id: "field-agents", label: "Field Agents" },
+      { id: "travel-agents", label: "Travel Agents" },
+    ]},
+    { title: "Booking & Inventory", items: [
+      { id: "pnr", label: "PNR Records" },
+      { id: "reservations", label: "Reservations" },
+      { id: "availability", label: "Room Availability" },
+      { id: "queues", label: "Service Queues" },
+      { id: "guests", label: "Guest Profiles" },
+      { id: "groups", label: "Group Bookings" },
+    ]},
+    { title: "Revenue & Pricing", items: [
+      { id: "revenue", label: "Yield Management" },
+      { id: "rates", label: "Negotiated Rates" },
+      { id: "commission", label: "Commission Splits" },
+      { id: "discounts", label: "Promotions" },
+      { id: "distribution", label: "Channel Distribution" },
+    ]},
+    { title: "Financial Operations", items: [
+      { id: "settlement", label: "Settlement" },
+      { id: "tax", label: "Tax Compliance" },
+      { id: "tipping", label: "Staff Tipping" },
+      { id: "remittance", label: "Tax Remittance" },
+      { id: "cancellation", label: "Cancellation Policies" },
+    ]},
+    { title: "Content & Loyalty", items: [
+      { id: "content", label: "Content Library" },
+      { id: "loyalty", label: "Loyalty Program" },
+    ]},
+    { title: "Developer Tools", items: [
+      { id: "metering", label: "API Usage & Metering" },
+      { id: "sandbox", label: "Testing Sandbox" },
+    ]},
   ];
 
   return (
@@ -1714,12 +1731,21 @@ function AuthenticatedApp({ user, onLogout }: { user: User; onLogout: () => void
           </div>
         </div>
         <nav style={{ flex: 1, padding: "0.5rem", overflowY: "auto" }}>
-          {navItems.map((item) => (
-            <div key={item.id}>
-              {item.section && <p style={{ padding: "0.75rem 0.75rem 0.25rem", fontSize: "0.65rem", color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>{item.section}</p>}
-              <button onClick={() => setView(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.625rem 0.75rem", marginBottom: "0.125rem", borderRadius: "0.375rem", border: "none", background: view === item.id ? "#1e293b" : "transparent", color: view === item.id ? "#e2e8f0" : "#64748b", cursor: "pointer", fontSize: "0.8rem", textAlign: "left" }}>{item.label}</button>
-            </div>
-          ))}
+          {navSections.map((section) => {
+            const isCollapsed = collapsedSections[section.title];
+            const hasActiveItem = section.items.some(item => item.id === view);
+            return (
+              <div key={section.title} style={{ marginBottom: "0.25rem" }}>
+                <button onClick={() => toggleSection(section.title)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.75rem", border: "none", background: "transparent", cursor: "pointer", fontSize: "0.65rem", color: hasActiveItem ? "#0ea5e9" : "#475569", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
+                  <span>{section.title}</span>
+                  <span style={{ fontSize: "0.6rem", transition: "transform 0.2s", transform: isCollapsed ? "rotate(-90deg)" : "rotate(0)" }}>{isCollapsed ? "\u25B6" : "\u25BC"}</span>
+                </button>
+                {!isCollapsed && section.items.map((item) => (
+                  <button key={item.id} onClick={() => setView(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem 0.5rem 1.25rem", marginBottom: "0.0625rem", borderRadius: "0.375rem", border: "none", background: view === item.id ? "#1e293b" : "transparent", color: view === item.id ? "#e2e8f0" : "#64748b", cursor: "pointer", fontSize: "0.78rem", textAlign: "left" }}>{item.label}</button>
+                ))}
+              </div>
+            );
+          })}
         </nav>
         <div style={{ padding: "1rem", borderTop: "1px solid #1e293b" }}>
           <p style={{ fontSize: "0.8rem", fontWeight: 600 }}>{user.name}</p>

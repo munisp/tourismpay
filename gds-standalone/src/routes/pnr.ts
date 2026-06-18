@@ -1,268 +1,125 @@
-/**
- * PNR Engine Route — Proxies to Go PNR service (port 8082).
- * Falls back to in-memory seed data when service is unavailable.
- */
 import { Router, Request, Response } from "express";
+import { query, queryOne } from "../lib/database";
+import { cacheGet, cacheSet, cacheDelete } from "../lib/redis";
+import { publishEvent, TOPICS } from "../lib/kafka";
+import crypto from "crypto";
 
 export const pnrRouter = Router();
+const TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
-const PNR_SERVICE_URL = process.env.PNR_SERVICE_URL || "http://localhost:8082";
-
-// ─── Seed Data ───────────────────────────────────────────────────
-const SEED_PNRS = [
-  {
-    id: "pnr-001", record_locator: "AFR7X2", locator: "AFR7X2",
-    guest_name: "Amara Okonkwo", contact_email: "amara@safaritravel.ng",
-    agency_id: "AGY-001", agent_id: "AGT-001",
-    status: "CONFIRMED", ticketing_status: "ISSUED",
-    segments: [
-      { type: "hotel", property: "Serena Nairobi", check_in: "2026-07-15", check_out: "2026-07-18", status: "HK", rooms: 1, rate: 220 },
-      { type: "transfer", from: "JKIA Airport", to: "Serena Nairobi", date: "2026-07-15", status: "HK" },
-    ],
-    remarks: [{ type: "general", text: "VIP guest — early check-in requested" }],
-    created_at: "2026-06-01T10:30:00Z",
-  },
-  {
-    id: "pnr-002", record_locator: "KEN4M9", locator: "KEN4M9",
-    guest_name: "Pierre Dubois", contact_email: "pierre@voyageafrique.fr",
-    agency_id: "AGY-002", agent_id: "AGT-003",
-    status: "CONFIRMED", ticketing_status: "ISSUED",
-    segments: [
-      { type: "hotel", property: "Mara Serena Safari Lodge", check_in: "2026-08-01", check_out: "2026-08-05", status: "HK", rooms: 2, rate: 450 },
-      { type: "activity", name: "Great Migration Game Drive", date: "2026-08-02", status: "HK" },
-      { type: "activity", name: "Hot Air Balloon Safari", date: "2026-08-03", status: "HK" },
-    ],
-    remarks: [{ type: "corporate", text: "Safaricom Corporate Program — 25% discount applied" }],
-    created_at: "2026-06-03T14:20:00Z",
-  },
-  {
-    id: "pnr-003", record_locator: "ZAN8K1", locator: "ZAN8K1",
-    guest_name: "Fatima Al-Rashid", contact_email: "fatima@gulftravel.ae",
-    agency_id: "AGY-003", agent_id: "AGT-005",
-    status: "CONFIRMED", ticketing_status: "PENDING",
-    segments: [
-      { type: "hotel", property: "Zanzibar Beach Resort", check_in: "2026-09-10", check_out: "2026-09-17", status: "HK", rooms: 1, rate: 320 },
-      { type: "hotel", property: "Ngorongoro Crater Lodge", check_in: "2026-09-17", check_out: "2026-09-20", status: "HK", rooms: 1, rate: 580 },
-      { type: "transfer", from: "Zanzibar Airport", to: "Beach Resort", date: "2026-09-10", status: "HK" },
-    ],
-    remarks: [{ type: "dietary", text: "Halal meals required throughout" }],
-    created_at: "2026-06-05T09:15:00Z",
-  },
-  {
-    id: "pnr-004", record_locator: "CPT3L5", locator: "CPT3L5",
-    guest_name: "Sarah van der Berg", contact_email: "sarah@capetownluxury.co.za",
-    agency_id: "AGY-001", agent_id: "AGT-002",
-    status: "WAITLISTED", ticketing_status: "ON_REQUEST",
-    segments: [
-      { type: "hotel", property: "Table Mountain Hotel", check_in: "2026-12-20", check_out: "2026-12-27", status: "HL", rooms: 1, rate: 400 },
-      { type: "car", provider: "Avis Cape Town", pickup: "2026-12-20", dropoff: "2026-12-27", status: "HK" },
-    ],
-    remarks: [{ type: "general", text: "Peak season — waitlist for room upgrade" }],
-    created_at: "2026-06-07T16:45:00Z",
-  },
-  {
-    id: "pnr-005", record_locator: "RWD6P8", locator: "RWD6P8",
-    guest_name: "Chen Wei", contact_email: "chen@asiatravelgroup.cn",
-    agency_id: "AGY-004", agent_id: "AGT-007",
-    status: "CONFIRMED", ticketing_status: "ISSUED",
-    segments: [
-      { type: "hotel", property: "Bisate Lodge", check_in: "2026-07-20", check_out: "2026-07-23", status: "HK", rooms: 1, rate: 1200 },
-      { type: "activity", name: "Gorilla Trekking Permit", date: "2026-07-21", status: "HK" },
-      { type: "activity", name: "Golden Monkey Trek", date: "2026-07-22", status: "HK" },
-      { type: "insurance", provider: "Africa Travel Shield", coverage: "comprehensive", status: "HK" },
-    ],
-    remarks: [{ type: "general", text: "Mandarin-speaking guide requested" }],
-    created_at: "2026-06-08T11:00:00Z",
-  },
-  {
-    id: "pnr-006", record_locator: "LAG2N7", locator: "LAG2N7",
-    guest_name: "David Adeyemi", contact_email: "david@lagosluxe.ng",
-    agency_id: "AGY-005", agent_id: "AGT-008",
-    status: "CANCELLED", ticketing_status: "VOID",
-    segments: [
-      { type: "hotel", property: "Eko Suites Lagos", check_in: "2026-06-15", check_out: "2026-06-18", status: "XX", rooms: 2, rate: 180 },
-    ],
-    remarks: [{ type: "cancellation", text: "Cancelled due to travel restriction — full refund processed" }],
-    created_at: "2026-06-02T08:30:00Z",
-  },
-  {
-    id: "pnr-007", record_locator: "MAR5W3", locator: "MAR5W3",
-    guest_name: "Isabel Martinez", contact_email: "isabel@iberiatravel.es",
-    agency_id: "AGY-002", agent_id: "AGT-004",
-    status: "CONFIRMED", ticketing_status: "ISSUED",
-    segments: [
-      { type: "hotel", property: "La Mamounia Marrakech", check_in: "2026-10-05", check_out: "2026-10-10", status: "HK", rooms: 1, rate: 550 },
-      { type: "activity", name: "Sahara Desert Excursion (2 nights)", date: "2026-10-07", status: "HK" },
-      { type: "transfer", from: "Marrakech Airport", to: "La Mamounia", date: "2026-10-05", status: "HK" },
-    ],
-    remarks: [{ type: "general", text: "Anniversary trip — room with garden view" }],
-    created_at: "2026-06-09T13:20:00Z",
-  },
-  {
-    id: "pnr-008", record_locator: "BOT9J4", locator: "BOT9J4",
-    guest_name: "James & Emily Thompson", contact_email: "thompson@ukholidays.co.uk",
-    agency_id: "AGY-003", agent_id: "AGT-006",
-    status: "CONFIRMED", ticketing_status: "ISSUED",
-    segments: [
-      { type: "hotel", property: "Belmond Eagle Island Lodge", check_in: "2026-08-15", check_out: "2026-08-19", status: "HK", rooms: 1, rate: 950 },
-      { type: "hotel", property: "Chobe Game Lodge", check_in: "2026-08-19", check_out: "2026-08-22", status: "HK", rooms: 1, rate: 680 },
-      { type: "activity", name: "Mokoro Canoe Safari", date: "2026-08-16", status: "HK" },
-      { type: "activity", name: "Chobe River Cruise", date: "2026-08-20", status: "HK" },
-    ],
-    remarks: [{ type: "general", text: "Honeymoon package — champagne welcome" }],
-    created_at: "2026-06-10T10:00:00Z",
-  },
-];
-
-let pnrStore = [...SEED_PNRS];
-
-// Proxy helper with fallback
-async function proxyWithFallback(req: Request, res: Response, path: string, method: string, fallback: () => void) {
-  try {
-    const url = `${PNR_SERVICE_URL}${path}`;
-    const options: RequestInit = {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        "X-GDS-Tenant-ID": req.headers["x-gds-tenant-id"] as string || "",
-        "X-GDS-Agent-ID": req.headers["x-gds-agent-id"] as string || "",
-      },
-    };
-    if (method !== "GET" && method !== "DELETE") {
-      options.body = JSON.stringify(req.body);
-    }
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000);
-    options.signal = controller.signal;
-    const response = await fetch(url, options);
-    clearTimeout(timeout);
-    const data = await response.json();
-    res.status(response.status).json(data);
-  } catch {
-    fallback();
-  }
+function generateLocator(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let loc = "";
+  const bytes = crypto.randomBytes(6);
+  for (let i = 0; i < 6; i++) loc += chars[bytes[i] % chars.length];
+  return loc;
 }
 
-// List PNRs (seed data fallback)
-pnrRouter.get("/", (req, res) => {
-  proxyWithFallback(req, res, "/api/v1/pnr/", "GET", () => {
-    res.json({
-      pnrs: pnrStore,
-      total: pnrStore.length,
-      source: "gds-gateway-seed",
-    });
-  });
+pnrRouter.get("/", async (req: Request, res: Response) => {
+  const { status } = req.query;
+  const cached = await cacheGet("pnr:list");
+  if (cached && !status) return res.json(JSON.parse(cached));
+
+  let sql = "SELECT * FROM gds_pnr_records WHERE tenant_id = $1";
+  const params: unknown[] = [TENANT_ID];
+  if (status) { sql += " AND status = $2"; params.push(status); }
+  sql += " ORDER BY created_at DESC";
+
+  const result = await query(sql, params);
+  const resp = { pnrs: result.rows, total: result.rowCount };
+  if (!status) await cacheSet("pnr:list", JSON.stringify(resp), 60);
+  res.json(resp);
 });
 
-// Search PNRs
-pnrRouter.get("/search", (req, res) => {
-  const q = (req.query.q as string || "").toLowerCase();
-  const results = pnrStore.filter(p =>
-    p.guest_name.toLowerCase().includes(q) ||
-    p.locator.toLowerCase().includes(q) ||
-    p.contact_email.toLowerCase().includes(q)
+pnrRouter.get("/search", async (req: Request, res: Response) => {
+  const { q } = req.query;
+  if (!q) return res.json({ pnrs: [], total: 0 });
+  const result = await query(
+    "SELECT * FROM gds_pnr_records WHERE tenant_id = $1 AND (record_locator ILIKE $2 OR guest_name ILIKE $2 OR contact_email ILIKE $2) ORDER BY created_at DESC LIMIT 20",
+    [TENANT_ID, `%${q}%`]
   );
-  res.json({ pnrs: results, total: results.length });
+  res.json({ pnrs: result.rows, total: result.rowCount });
 });
 
-// Create PNR
-pnrRouter.post("/", (req, res) => {
-  proxyWithFallback(req, res, "/api/v1/pnr/", "POST", () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let locator = "";
-    for (let i = 0; i < 6; i++) locator += chars.charAt(Math.floor(Math.random() * chars.length));
-    const pnr = {
-      id: `pnr-${Date.now()}`,
-      record_locator: locator,
-      locator,
-      guest_name: req.body.guest_name || "Guest",
-      contact_email: req.body.contact_email || "",
-      agency_id: req.body.agency_id || "",
-      agent_id: req.body.agent_id || "",
-      status: "CONFIRMED",
-      ticketing_status: "PENDING",
-      segments: [],
-      remarks: [],
-      created_at: new Date().toISOString(),
-    };
-    pnrStore.unshift(pnr);
-    res.status(201).json(pnr);
-  });
+pnrRouter.get("/:locator", async (req: Request, res: Response) => {
+  const row = await queryOne("SELECT * FROM gds_pnr_records WHERE record_locator = $1 AND tenant_id = $2", [req.params.locator, TENANT_ID]);
+  if (!row) return res.status(404).json({ error: "PNR not found" });
+  res.json(row);
 });
 
-// Get PNR by locator
-pnrRouter.get("/:locator", (req, res) => {
-  proxyWithFallback(req, res, `/api/v1/pnr/${req.params.locator}`, "GET", () => {
-    const pnr = pnrStore.find(p => p.locator === req.params.locator);
-    if (pnr) res.json(pnr);
-    else res.status(404).json({ error: "PNR not found" });
-  });
+pnrRouter.post("/", async (req: Request, res: Response) => {
+  const { guest_name, contact_email, agency_id, agent_id, status, segments, remarks } = req.body;
+  if (!guest_name || !contact_email) return res.status(400).json({ error: "guest_name and contact_email required" });
+
+  const locator = generateLocator();
+  const result = await queryOne(
+    `INSERT INTO gds_pnr_records (tenant_id, record_locator, guest_name, contact_email, agency_id, agent_id, status, ticketing_status, segments, remarks, history)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'PENDING',$8,$9,$10) RETURNING *`,
+    [TENANT_ID, locator, guest_name, contact_email, agency_id || null, agent_id || null, status || "CONFIRMED",
+     JSON.stringify(segments || []), JSON.stringify(remarks || []),
+     JSON.stringify([{ action: "CREATED", timestamp: new Date().toISOString(), details: "PNR created" }])]
+  );
+  await cacheDelete("pnr:list");
+  await publishEvent({ topic: TOPICS.PNR_CREATED, key: locator, value: { locator, guest_name, contact_email } });
+  res.status(201).json(result);
 });
 
-// Add segment
-pnrRouter.post("/:locator/segments", (req, res) =>
-  proxyWithFallback(req, res, `/api/v1/pnr/${req.params.locator}/segments`, "POST", () => {
-    const pnr = pnrStore.find(p => p.locator === req.params.locator);
-    if (!pnr) return res.status(404).json({ error: "PNR not found" });
-    pnr.segments.push({ ...req.body, status: "HK" });
-    res.json(pnr);
-  }));
+pnrRouter.put("/:locator", async (req: Request, res: Response) => {
+  const { guest_name, contact_email, agency_id, agent_id, status } = req.body;
+  const existing = await queryOne("SELECT * FROM gds_pnr_records WHERE record_locator = $1 AND tenant_id = $2", [req.params.locator, TENANT_ID]);
+  if (!existing) return res.status(404).json({ error: "PNR not found" });
 
-// Cancel segment
-pnrRouter.delete("/:locator/segments/:segmentId", (req, res) =>
-  proxyWithFallback(req, res, `/api/v1/pnr/${req.params.locator}/segments/${req.params.segmentId}`, "DELETE", () => {
-    res.json({ message: "Segment cancelled" });
-  }));
+  const history = Array.isArray(existing.history) ? existing.history : [];
+  history.push({ action: "MODIFIED", timestamp: new Date().toISOString(), details: `Updated by agent` });
 
-// Add remark
-pnrRouter.post("/:locator/remarks", (req, res) =>
-  proxyWithFallback(req, res, `/api/v1/pnr/${req.params.locator}/remarks`, "POST", () => {
-    const pnr = pnrStore.find(p => p.locator === req.params.locator);
-    if (!pnr) return res.status(404).json({ error: "PNR not found" });
-    pnr.remarks.push(req.body);
-    res.json(pnr);
-  }));
-
-// Ticket PNR
-pnrRouter.post("/:locator/ticket", (req, res) =>
-  proxyWithFallback(req, res, `/api/v1/pnr/${req.params.locator}/ticket`, "POST", () => {
-    const pnr = pnrStore.find(p => p.locator === req.params.locator);
-    if (!pnr) return res.status(404).json({ error: "PNR not found" });
-    pnr.ticketing_status = "ISSUED";
-    res.json(pnr);
-  }));
-
-// Queue PNR
-pnrRouter.post("/:locator/queue", (req, res) =>
-  proxyWithFallback(req, res, `/api/v1/pnr/${req.params.locator}/queue`, "POST", () => {
-    res.json({ message: "PNR queued", queue: req.body.queue_type || "general" });
-  }));
-
-// Update PNR
-pnrRouter.put("/:locator", (req, res) => {
-  const pnr = pnrStore.find(p => p.locator === req.params.locator);
-  if (!pnr) return res.status(404).json({ error: "PNR not found" });
-  if (req.body.guest_name) pnr.guest_name = req.body.guest_name;
-  if (req.body.contact_email) pnr.contact_email = req.body.contact_email;
-  if (req.body.status) pnr.status = req.body.status;
-  if (req.body.ticketing_status) pnr.ticketing_status = req.body.ticketing_status;
-  res.json(pnr);
+  const result = await queryOne(
+    `UPDATE gds_pnr_records SET guest_name=COALESCE($2,guest_name), contact_email=COALESCE($3,contact_email),
+     agency_id=COALESCE($4,agency_id), agent_id=COALESCE($5,agent_id), status=COALESCE($6,status),
+     history=$7, updated_at=NOW()
+     WHERE record_locator=$1 AND tenant_id=$8 RETURNING *`,
+    [req.params.locator, guest_name, contact_email, agency_id, agent_id, status, JSON.stringify(history), TENANT_ID]
+  );
+  await cacheDelete("pnr:list");
+  await publishEvent({ topic: TOPICS.PNR_MODIFIED, key: req.params.locator, value: { locator: req.params.locator, changes: req.body } });
+  res.json(result);
 });
 
-// Delete PNR
-pnrRouter.delete("/:locator", (req, res) => {
-  const idx = pnrStore.findIndex(p => p.locator === req.params.locator);
-  if (idx === -1) return res.status(404).json({ error: "PNR not found" });
-  pnrStore.splice(idx, 1);
+pnrRouter.delete("/:locator", async (req: Request, res: Response) => {
+  const result = await query("DELETE FROM gds_pnr_records WHERE record_locator = $1 AND tenant_id = $2", [req.params.locator, TENANT_ID]);
+  if (result.rowCount === 0) return res.status(404).json({ error: "PNR not found" });
+  await cacheDelete("pnr:list");
+  await publishEvent({ topic: TOPICS.PNR_CANCELLED, key: req.params.locator, value: { locator: req.params.locator } });
   res.json({ deleted: true, locator: req.params.locator });
 });
 
-// Get history
-pnrRouter.get("/:locator/history", (req, res) =>
-  proxyWithFallback(req, res, `/api/v1/pnr/${req.params.locator}/history`, "GET", () => {
-    res.json({ history: [
-      { action: "CREATE", timestamp: "2026-06-01T10:30:00Z", agent: "AGT-001" },
-      { action: "ADD_SEGMENT", timestamp: "2026-06-01T10:35:00Z", agent: "AGT-001" },
-      { action: "TICKET", timestamp: "2026-06-01T11:00:00Z", agent: "AGT-001" },
-    ]});
-  }));
+pnrRouter.post("/:locator/segments", async (req: Request, res: Response) => {
+  const existing = await queryOne("SELECT * FROM gds_pnr_records WHERE record_locator = $1 AND tenant_id = $2", [req.params.locator, TENANT_ID]);
+  if (!existing) return res.status(404).json({ error: "PNR not found" });
+  const segments = Array.isArray(existing.segments) ? existing.segments : [];
+  segments.push({ ...req.body, id: crypto.randomUUID(), status: "HK" });
+  const result = await queryOne("UPDATE gds_pnr_records SET segments = $2, updated_at = NOW() WHERE record_locator = $1 RETURNING *", [req.params.locator, JSON.stringify(segments)]);
+  await cacheDelete("pnr:list");
+  res.json(result);
+});
+
+pnrRouter.post("/:locator/remarks", async (req: Request, res: Response) => {
+  const existing = await queryOne("SELECT * FROM gds_pnr_records WHERE record_locator = $1 AND tenant_id = $2", [req.params.locator, TENANT_ID]);
+  if (!existing) return res.status(404).json({ error: "PNR not found" });
+  const remarks = Array.isArray(existing.remarks) ? existing.remarks : [];
+  remarks.push({ type: req.body.type || "general", text: req.body.text });
+  const result = await queryOne("UPDATE gds_pnr_records SET remarks = $2, updated_at = NOW() WHERE record_locator = $1 RETURNING *", [req.params.locator, JSON.stringify(remarks)]);
+  res.json(result);
+});
+
+pnrRouter.post("/:locator/ticket", async (req: Request, res: Response) => {
+  const result = await queryOne("UPDATE gds_pnr_records SET ticketing_status = 'ISSUED', updated_at = NOW() WHERE record_locator = $1 AND tenant_id = $2 RETURNING *", [req.params.locator, TENANT_ID]);
+  if (!result) return res.status(404).json({ error: "PNR not found" });
+  await cacheDelete("pnr:list");
+  res.json(result);
+});
+
+pnrRouter.get("/:locator/history", async (req: Request, res: Response) => {
+  const row = await queryOne("SELECT history FROM gds_pnr_records WHERE record_locator = $1 AND tenant_id = $2", [req.params.locator, TENANT_ID]);
+  if (!row) return res.status(404).json({ error: "PNR not found" });
+  res.json({ history: row.history || [] });
+});

@@ -1,91 +1,33 @@
-/**
- * Settlement API — Commission calculation, batch processing, payouts.
- * Integrates with TigerBeetle (ledger) and Mojaloop (cross-border).
- */
 import { Router, Request, Response } from "express";
-import { requireRole } from "../auth";
+import { query, queryOne } from "../lib/database";
 
 export const settlementRouter = Router();
+const TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
-// Get settlement batches
-settlementRouter.get("/batches", async (req: Request, res: Response) => {
-  const { status, period, page = "1" } = req.query;
-  res.json({ batches: [], total: 0, filters: { status, period }, page: parseInt(page as string) });
+settlementRouter.get("/batches", async (_req: Request, res: Response) => {
+  const result = await query("SELECT * FROM gds_settlement_batches WHERE tenant_id = $1 ORDER BY created_at DESC", [TENANT_ID]);
+  res.json({ batches: result.rows, total: result.rowCount });
 });
 
-// Get specific batch
 settlementRouter.get("/batches/:id", async (req: Request, res: Response) => {
-  res.json({ batch: null, id: req.params.id });
+  const row = await queryOne("SELECT * FROM gds_settlement_batches WHERE id = $1 AND tenant_id = $2", [req.params.id, TENANT_ID]);
+  if (!row) return res.status(404).json({ error: "Batch not found" });
+  res.json(row);
 });
 
-// Create settlement batch (admin)
-settlementRouter.post("/batches", requireRole("admin"), async (req: Request, res: Response) => {
-  const { propertyId, agentId, period, reservationIds } = req.body;
-
-  if (!propertyId || !agentId || !period) {
-    res.status(400).json({ error: "propertyId, agentId, period required" });
-    return;
-  }
-
-  res.status(201).json({
-    batch: {
-      id: `batch_${Date.now().toString(36)}`,
-      propertyId,
-      agentId,
-      period,
-      reservations: reservationIds || [],
-      totalGross: 0,
-      totalCommission: 0,
-      totalNet: 0,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    },
-  });
+settlementRouter.post("/batches", async (req: Request, res: Response) => {
+  const { property_id, agent_id, period, total_gross, total_commission, total_net, currency, payout_method } = req.body;
+  if (!period || !total_gross) return res.status(400).json({ error: "period and total_gross required" });
+  const result = await queryOne(
+    `INSERT INTO gds_settlement_batches (tenant_id,property_id,agent_id,period,total_gross,total_commission,total_net,currency,payout_method)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    [TENANT_ID, property_id || null, agent_id || null, period, total_gross, total_commission || 0, total_net || total_gross, currency || "NGN", payout_method || "bank_transfer"]
+  );
+  res.status(201).json(result);
 });
 
-// Process batch payout
-settlementRouter.post("/batches/:id/process", requireRole("admin"), async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { method, destination } = req.body;
-
-  const validMethods = ["bank_transfer", "mobile_money", "mojaloop_instant"];
-  if (!method || !validMethods.includes(method)) {
-    res.status(400).json({ error: "Valid payout method required", valid: validMethods });
-    return;
-  }
-
-  res.json({
-    processed: true,
-    batchId: id,
-    method,
-    destination,
-    payoutRef: `payout_${Date.now().toString(36)}`,
-    status: "processing",
-    ledger: "tigerbeetle",
-    settlement: method === "mojaloop_instant" ? "mojaloop" : "bank",
-  });
-});
-
-// Get settlement summary
-settlementRouter.get("/summary", async (req: Request, res: Response) => {
-  res.json({
-    totalSettled: 0,
-    pendingSettlement: 0,
-    failedSettlements: 0,
-    lastSettlement: null,
-    byCurrency: {},
-    byMethod: { bank_transfer: 0, mobile_money: 0, mojaloop_instant: 0 },
-  });
-});
-
-// Reconciliation report
-settlementRouter.get("/reconciliation", requireRole("admin"), async (req: Request, res: Response) => {
-  const { dateFrom, dateTo } = req.query;
-  res.json({
-    period: { from: dateFrom, to: dateTo },
-    totalBookings: 0,
-    totalSettled: 0,
-    discrepancies: [],
-    status: "balanced",
-  });
+settlementRouter.put("/batches/:id/settle", async (req: Request, res: Response) => {
+  const result = await queryOne("UPDATE gds_settlement_batches SET status='settled',settled_at=NOW(),payout_ref=$2 WHERE id=$1 AND tenant_id=$3 RETURNING *", [req.params.id, req.body.payout_ref || `PAY-${Date.now()}`, TENANT_ID]);
+  if (!result) return res.status(404).json({ error: "Batch not found" });
+  res.json(result);
 });
