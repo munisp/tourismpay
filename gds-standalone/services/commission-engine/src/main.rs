@@ -148,15 +148,14 @@ struct AppState {
 
 // ─── Commission Calculation Logic ────────────────────────────────
 fn calculate_agent_rate(agent_tier: &str, channel: &str) -> f64 {
-    let base = match agent_tier {
+    let base: f64 = match agent_tier {
         "bronze" => 0.10,
         "silver" => 0.12,
         "gold" => 0.15,
         "platinum" => 0.18,
         _ => 0.10,
     };
-    // Channel bonus: direct bookings earn more
-    let channel_bonus = match channel {
+    let channel_bonus: f64 = match channel {
         "direct" => 0.02,
         "api" => 0.01,
         "gds_portal" => 0.0,
@@ -167,14 +166,14 @@ fn calculate_agent_rate(agent_tier: &str, channel: &str) -> f64 {
 }
 
 fn calculate_platform_fee(gross: f64, booking_type: &str, is_group: bool) -> f64 {
-    let base_rate = match booking_type {
+    let base_rate: f64 = match booking_type {
         "standard" => 0.03,
         "premium" => 0.025,
         "group" => 0.02,
         "corporate" => 0.015,
         _ => 0.03,
     };
-    let group_discount = if is_group { 0.005 } else { 0.0 };
+    let group_discount: f64 = if is_group { 0.005 } else { 0.0 };
     gross * (base_rate - group_discount).max(0.01)
 }
 
@@ -452,7 +451,7 @@ async fn get_stakeholder_summary(
         "total_bookings": total_bookings,
         "avg_per_booking": if total_bookings > 0 { round2(total_earned / total_bookings as f64) } else { 0.0 },
         "pending_payout": round2(total_earned * 0.3),
-        "last_payout": null::<String>,
+        "last_payout": serde_json::Value::Null,
     }))
 }
 

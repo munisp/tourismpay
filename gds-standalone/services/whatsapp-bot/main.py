@@ -13,12 +13,15 @@ from datetime import datetime
 from enum import Enum
 import uuid
 import logging
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gds-whatsapp-bot")
 
 app = FastAPI(title="Africa GDS WhatsApp Bot", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:4100,http://localhost:5173,http://localhost:8090").split(",")
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
 
 # ─── Models ───────────────────────────────────────────────────────
 class ConversationState(str, Enum):

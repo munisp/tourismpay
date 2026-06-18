@@ -21,4 +21,142 @@ plugin_attr:
       ip: 0.0.0.0
       port: 9091
 
+routes:
+  # ═══════════════════════════════════════════
+  # HEALTH (no auth, no rate limit)
+  # ═══════════════════════════════════════════
+  - uri: /health*
+    upstream:
+      nodes:
+        "gds-gateway:8090": 1
+      type: roundrobin
+    plugins:
+      proxy-rewrite:
+        uri: /health
+
+  # ═══════════════════════════════════════════
+  # METRICS (internal only)
+  # ═══════════════════════════════════════════
+  - uri: /metrics
+    upstream:
+      nodes:
+        "gds-gateway:8090": 1
+      type: roundrobin
+    plugins:
+      ip-restriction:
+        whitelist:
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+          - "127.0.0.1"
+
+  # ═══════════════════════════════════════════
+  # SEARCH (high rate limit — public facing)
+  # ═══════════════════════════════════════════
+  - uri: /api/v1/gds/search*
+    upstream:
+      nodes:
+        "gds-gateway:8090": 1
+      type: roundrobin
+    plugins:
+      limit-req:
+        rate: 100
+        burst: 50
+        rejected_code: 429
+        key_type: var
+        key: remote_addr
+      openid-connect:
+        client_id: gds-api
+        client_secret: "${KEYCLOAK_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+        realm: gds-agents
+
+  # ═══════════════════════════════════════════
+  # PNR (strict rate limit — write operations)
+  # ═══════════════════════════════════════════
+  - uri: /api/v1/gds/pnr*
+    upstream:
+      nodes:
+        "gds-gateway:8090": 1
+      type: roundrobin
+    plugins:
+      limit-req:
+        rate: 30
+        burst: 10
+        rejected_code: 429
+        key_type: var
+        key: remote_addr
+      limit-count:
+        count: 1000
+        time_window: 3600
+        rejected_code: 429
+        key_type: var
+        key: remote_addr
+      openid-connect:
+        client_id: gds-api
+        client_secret: "${KEYCLOAK_CLIENT_SECRET}"
+        discovery: "${KEYCLOAK_DISCOVERY_URL}"
+        bearer_only: true
+
+  # ═══════════════════════════════════════════
+  # COMMISSION (medium rate limit)
+  # ═══════════════════════════════════════════
+  - uri: /api/v1/gds/commission*
+    upstream:
+      nodes:
+        "gds-gateway:8090": 1
+      type: roundrobin
+    plugins:
+      limit-req:
+        rate: 50
+        burst: 20
+        rejected_code: 429
+        key_type: var
+        key: remote_addr
+
+  # ═══════════════════════════════════════════
+  # SETTLEMENT (low rate limit — financial)
+  # ═══════════════════════════════════════════
+  - uri: /api/v1/gds/settlement*
+    upstream:
+      nodes:
+        "gds-gateway:8090": 1
+      type: roundrobin
+    plugins:
+      limit-req:
+        rate: 10
+        burst: 5
+        rejected_code: 429
+        key_type: var
+        key: remote_addr
+      limit-count:
+        count: 100
+        time_window: 3600
+        rejected_code: 429
+        key_type: var
+        key: remote_addr
+
+  # ═══════════════════════════════════════════
+  # ALL OTHER GDS ROUTES (default rate limit)
+  # ═══════════════════════════════════════════
+  - uri: /api/v1/gds/*
+    upstream:
+      nodes:
+        "gds-gateway:8090": 1
+      type: roundrobin
+    plugins:
+      limit-req:
+        rate: 60
+        burst: 30
+        rejected_code: 429
+        key_type: var
+        key: remote_addr
+      limit-count:
+        count: 5000
+        time_window: 3600
+        rejected_code: 429
+        key_type: var
+        key: remote_addr
+
 #END

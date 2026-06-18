@@ -36,7 +36,7 @@ const PRESETS: Record<string, Array<{ min_days: number; max_days: number; fee_pc
   ],
 };
 
-const policies = [
+let policies: any[] = [
   { id: "POL-001", property_id: "PROP-001", name: "Serengeti Lodge Flexible", policy_type: "flexible", no_show_fee: 100 },
   { id: "POL-002", property_id: "PROP-002", name: "Lagos Beach Hotel Moderate", policy_type: "moderate", no_show_fee: 100 },
   { id: "POL-003", property_id: "PROP-003", name: "Cape Town Resort Strict", policy_type: "strict", no_show_fee: 100 },
@@ -129,4 +129,20 @@ cancellationRouter.post("/set-policy", requireRole("admin"), async (req: Request
   const newPol = { id: `POL-${Date.now().toString(36)}`, property_id, name: name || `${property_id} ${policy_type}`, policy_type, no_show_fee: 100 };
   policies.push(newPol);
   res.status(201).json({ created: true, policy: newPol });
+});
+
+// Update policy
+cancellationRouter.put("/policies/:id", async (req: Request, res: Response) => {
+  const idx = policies.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Policy not found" });
+  policies[idx] = { ...policies[idx], ...req.body, id: policies[idx].id };
+  res.json(policies[idx]);
+});
+
+// Delete policy
+cancellationRouter.delete("/policies/:id", async (req: Request, res: Response) => {
+  const idx = policies.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Policy not found" });
+  policies.splice(idx, 1);
+  res.json({ deleted: true, id: req.params.id });
 });

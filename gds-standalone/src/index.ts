@@ -45,6 +45,11 @@ import { cancellationRouter } from "./routes/cancellation";
 import { negotiatedRatesRouter } from "./routes/negotiated-rates";
 import { settlementSagaRouter } from "./routes/settlement-saga";
 import { config } from "./config";
+import { getPool, closePool } from "./lib/database";
+import { getRedis, closeRedis } from "./lib/redis";
+import { initKafka, closeKafka } from "./lib/kafka";
+import { runMigrations } from "./lib/migrations";
+import { metricsMiddleware, metricsEndpoint } from "./lib/metrics";
 
 const app = express();
 
@@ -52,20 +57,48 @@ const app = express();
 app.use(helmet());
 app.use(compression());
 app.use(express.json({ limit: "16mb" }));
-app.use(morgan("combined"));
+app.use(metricsMiddleware);
+
+// Structured JSON logging
+if (config.NODE_ENV === "production") {
+  app.use(morgan((tokens, req, res) => {
+    return JSON.stringify({
+      level: "access",
+      method: tokens.method(req, res),
+      url: tokens.url(req, res),
+      status: Number(tokens.status(req, res)),
+      response_time_ms: Number(tokens["response-time"](req, res)),
+      content_length: tokens.res(req, res, "content-length"),
+      remote_addr: tokens["remote-addr"](req, res),
+      timestamp: new Date().toISOString(),
+    });
+  }));
+} else {
+  app.use(morgan("dev"));
+}
+
 app.use(cors({
   origin: config.CORS_ORIGINS.split(","),
   credentials: true,
 }));
 
-// --- Health (no auth) ---
+// --- Health + Metrics (no auth) ---
 app.use("/health", healthRouter);
 app.use("/api/v1/gds/health", healthRouter);
+app.get("/metrics", metricsEndpoint);
 
 // --- Auth + Tenant + Rate Limit ---
 app.use("/api", authMiddleware);
 app.use("/api", tenantMiddleware);
 app.use("/api", rateLimiter);
+
+// --- API Versioning Header ---
+app.use("/api", (_req, res, next) => {
+  res.set("X-API-Version", "v1");
+  res.set("X-API-Deprecation", "none");
+  res.set("X-API-Sunset", "none");
+  next();
+});
 
 // --- GDS API Routes ---
 app.use("/api/v1/gds/properties", propertiesRouter);
@@ -96,19 +129,75 @@ app.use("/api/v1/gds/cancellation", cancellationRouter);
 app.use("/api/v1/gds/negotiated-rates", negotiatedRatesRouter);
 app.use("/api/v1/gds/settlement-saga", settlementSagaRouter);
 
-// --- Error Handler ---
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const status = (err as any).status || 500;
-  const message = config.NODE_ENV === "production" ? "Internal server error" : err.message;
-  res.status(status).json({ error: message });
+// --- 404 Handler ---
+app.use((req: express.Request, res: express.Response) => {
+  const traceId = `gds-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  res.status(404).json({
+    error: `Route not found: ${req.method} ${req.path}`,
+    traceId,
+  });
 });
 
-// --- Start Server ---
-const PORT = config.PORT;
-app.listen(PORT, () => {
-  console.log(`[GDS Standalone] Africa-first GDS running on port ${PORT}`);
-  console.log(`[GDS Standalone] Environment: ${config.NODE_ENV}`);
-  console.log(`[GDS Standalone] Tenant mode: ${config.MULTI_TENANT ? "multi-tenant" : "single-tenant"}`);
+// --- Error Handler ---
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const traceId = (req.headers["x-trace-id"] as string) || `gds-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const status = (err as Error & { status?: number }).status || 500;
+  const message = config.NODE_ENV === "production" ? "Internal server error" : err.message;
+  console.error(JSON.stringify({
+    level: "error",
+    traceId,
+    method: req.method,
+    path: req.path,
+    status,
+    error: err.message,
+    stack: config.NODE_ENV !== "production" ? err.stack : undefined,
+    timestamp: new Date().toISOString(),
+  }));
+  res.status(status).json({ error: message, traceId });
+});
+
+// --- Initialize Infrastructure & Start Server ---
+async function start(): Promise<void> {
+  console.log(`[GDS] Initializing infrastructure...`);
+
+  // Connect to infrastructure (non-blocking — degrades gracefully)
+  await Promise.allSettled([
+    getPool().then(() => runMigrations()),
+    getRedis(),
+    initKafka(),
+  ]);
+
+  const PORT = config.PORT;
+  const server = app.listen(PORT, () => {
+    console.log(`[GDS Standalone] Africa-first GDS running on port ${PORT}`);
+    console.log(`[GDS Standalone] Environment: ${config.NODE_ENV}`);
+    console.log(`[GDS Standalone] Tenant mode: ${config.MULTI_TENANT ? "multi-tenant" : "single-tenant"}`);
+    console.log(`[GDS Standalone] Metrics: http://localhost:${PORT}/metrics`);
+    console.log(`[GDS Standalone] Health (deep): http://localhost:${PORT}/health/deep`);
+  });
+
+  // --- Graceful Shutdown ---
+  async function shutdown(signal: string): Promise<void> {
+    console.log(`[GDS Standalone] ${signal} received — shutting down gracefully`);
+    server.close(async () => {
+      console.log("[GDS Standalone] HTTP server closed");
+      await Promise.allSettled([closePool(), closeRedis(), closeKafka()]);
+      console.log("[GDS Standalone] All connections closed");
+      process.exit(0);
+    });
+    setTimeout(() => {
+      console.error("[GDS Standalone] Forced shutdown after 10s timeout");
+      process.exit(1);
+    }, 10000);
+  }
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+}
+
+start().catch(err => {
+  console.error("[GDS Standalone] Fatal startup error:", err);
+  process.exit(1);
 });
 
 export { app };

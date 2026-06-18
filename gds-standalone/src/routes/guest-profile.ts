@@ -9,7 +9,7 @@ export const guestProfileRouter = Router();
 const GUEST_SERVICE_URL = process.env.GUEST_SERVICE_URL || "http://localhost:8084";
 
 // ─── Seed Data ───────────────────────────────────────────────────
-const SEED_GUESTS = [
+let guestStore: any[] = [
   {
     id: "GST-001", first_name: "Amara", last_name: "Okonkwo", name: "Amara Okonkwo",
     email: "amara@safaritravel.ng", phone: "+2348012345678", nationality: "NG",
@@ -119,8 +119,8 @@ guestProfileRouter.get("/search", (req, res) => {
   const limit = parseInt(req.query.limit as string) || 10;
   proxyWithFallback(req, res, `/api/v1/guests/search?${new URLSearchParams(req.query as Record<string, string>)}`, "GET", () => {
     const results = q
-      ? SEED_GUESTS.filter(g => g.name.toLowerCase().includes(q) || g.email.toLowerCase().includes(q) || g.nationality.toLowerCase().includes(q))
-      : SEED_GUESTS;
+      ? guestStore.filter(g => g.name.toLowerCase().includes(q) || g.email.toLowerCase().includes(q) || g.nationality.toLowerCase().includes(q))
+      : guestStore;
     res.json({ guests: results.slice(0, limit), total: results.length, source: "gds-gateway-seed" });
   });
 });
@@ -128,7 +128,7 @@ guestProfileRouter.get("/search", (req, res) => {
 // Corporate accounts
 guestProfileRouter.get("/corporates", (req, res) => {
   proxyWithFallback(req, res, "/api/v1/corporates/", "GET", () => {
-    const corporates = SEED_GUESTS.filter(g => g.corporate_id);
+    const corporates = guestStore.filter(g => g.corporate_id);
     res.json({ corporates: corporates.map(g => ({
       id: g.corporate_id, guest_name: g.name, travel_policy: g.travel_policy,
       tier: g.tier, total_stays: g.total_stays, total_spend: g.total_spend,
@@ -157,8 +157,11 @@ guestProfileRouter.post("/", (req, res) => {
       total_stays: 0,
       total_spend: 0,
       preferences: req.body.preferences || {},
+      corporate_id: req.body.corporate_id || null,
+      travel_policy: req.body.travel_policy || null,
       created_at: new Date().toISOString(),
     };
+    guestStore.push(guest);
     res.status(201).json(guest);
   });
 });
@@ -166,16 +169,36 @@ guestProfileRouter.post("/", (req, res) => {
 // Get profile
 guestProfileRouter.get("/:id", (req, res) => {
   proxyWithFallback(req, res, `/api/v1/guests/${req.params.id}`, "GET", () => {
-    const guest = SEED_GUESTS.find(g => g.id === req.params.id);
+    const guest = guestStore.find(g => g.id === req.params.id);
     if (guest) res.json(guest);
     else res.status(404).json({ error: "Guest not found" });
   });
 });
 
+// Update guest
+guestProfileRouter.put("/:id", (req, res) => {
+  const idx = guestStore.findIndex(g => g.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Guest not found" });
+  const updated = { ...guestStore[idx], ...req.body, id: guestStore[idx].id };
+  if (req.body.first_name || req.body.last_name) {
+    updated.name = `${updated.first_name} ${updated.last_name}`.trim();
+  }
+  guestStore[idx] = updated;
+  res.json(updated);
+});
+
+// Delete guest
+guestProfileRouter.delete("/:id", (req, res) => {
+  const idx = guestStore.findIndex(g => g.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Guest not found" });
+  guestStore.splice(idx, 1);
+  res.json({ deleted: true, id: req.params.id });
+});
+
 // Update preferences
 guestProfileRouter.put("/:id/preferences", (req, res) => {
   proxyWithFallback(req, res, `/api/v1/guests/${req.params.id}/preferences`, "PUT", () => {
-    const guest = SEED_GUESTS.find(g => g.id === req.params.id);
+    const guest = guestStore.find(g => g.id === req.params.id);
     if (!guest) return res.status(404).json({ error: "Guest not found" });
     Object.assign(guest.preferences, req.body);
     res.json(guest);

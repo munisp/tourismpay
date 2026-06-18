@@ -6,17 +6,27 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/big"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+)
+
+// Input validation patterns
+var (
+	locatorPattern = regexp.MustCompile(`^[A-Z0-9]{5,8}$`)
+	emailPattern   = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+	countryPattern = regexp.MustCompile(`^[A-Z]{2}$`)
 )
 
 // --- Domain Models ---
@@ -143,10 +153,17 @@ func generateLocator() string {
 	chars := "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, 6)
 	for i := range b {
-		b[i] = chars[time.Now().UnixNano()%int64(len(chars))]
-		time.Sleep(time.Nanosecond)
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		if err != nil {
+			n = big.NewInt(int64(i)) // fallback
+		}
+		b[i] = chars[n.Int64()]
 	}
 	return string(b)
+}
+
+func validateLocator(locator string) bool {
+	return locatorPattern.MatchString(locator)
 }
 
 // --- Kafka Event Publishing (Dapr sidecar in production) ---
@@ -209,6 +226,34 @@ func createPNR(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Input validation
+	if len(req.GuestName) > 200 || len(req.GuestName) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "guestName must be 2-200 chars"})
+		return
+	}
+	if !emailPattern.MatchString(req.GuestEmail) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid email format"})
+		return
+	}
+	if req.GuestCountry != "" && !countryPattern.MatchString(strings.ToUpper(req.GuestCountry)) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "guestCountry must be ISO 3166-1 alpha-2"})
+		return
+	}
+	if len(req.Segments) > 50 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "maximum 50 segments per PNR"})
+		return
+	}
+	for _, seg := range req.Segments {
+		if seg.Amount < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "segment amount cannot be negative"})
+			return
+		}
+		if seg.Quantity < 0 || seg.GuestCount < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "segment quantity/guestCount cannot be negative"})
+			return
+		}
 	}
 
 	tenantID := c.GetHeader("X-GDS-Tenant-ID")
