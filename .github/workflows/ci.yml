@@ -104,6 +104,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --no-frozen-lockfile
+      - run: pnpm add -D @playwright/test
       - run: npx playwright install --with-deps chromium
       - name: Run migrations
         run: pnpm drizzle-kit push 2>/dev/null || true
