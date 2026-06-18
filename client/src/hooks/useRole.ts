@@ -55,8 +55,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     "merchant_bis",
     "merchant_channels",
     "merchant_availability",
-    "gds_property",
-    "gds_agent",
+
     "tipping_tax",
     "qr_generate",
     "africa_registry",
