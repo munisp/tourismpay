@@ -97,18 +97,45 @@ app.use("/api/v1/gds/negotiated-rates", negotiatedRatesRouter);
 app.use("/api/v1/gds/settlement-saga", settlementSagaRouter);
 
 // --- Error Handler ---
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const traceId = req.headers["x-trace-id"] || `gds-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const status = (err as any).status || 500;
   const message = config.NODE_ENV === "production" ? "Internal server error" : err.message;
-  res.status(status).json({ error: message });
+  console.error(JSON.stringify({
+    level: "error",
+    traceId,
+    method: req.method,
+    path: req.path,
+    status,
+    error: err.message,
+    stack: config.NODE_ENV !== "production" ? err.stack : undefined,
+    timestamp: new Date().toISOString(),
+  }));
+  res.status(status).json({ error: message, traceId });
 });
 
 // --- Start Server ---
 const PORT = config.PORT;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[GDS Standalone] Africa-first GDS running on port ${PORT}`);
   console.log(`[GDS Standalone] Environment: ${config.NODE_ENV}`);
   console.log(`[GDS Standalone] Tenant mode: ${config.MULTI_TENANT ? "multi-tenant" : "single-tenant"}`);
 });
+
+// --- Graceful Shutdown ---
+function shutdown(signal: string) {
+  console.log(`[GDS Standalone] ${signal} received — shutting down gracefully`);
+  server.close(() => {
+    console.log("[GDS Standalone] HTTP server closed");
+    process.exit(0);
+  });
+  setTimeout(() => {
+    console.error("[GDS Standalone] Forced shutdown after 10s timeout");
+    process.exit(1);
+  }, 10000);
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
 
 export { app };

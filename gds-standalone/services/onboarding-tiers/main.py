@@ -15,12 +15,15 @@ from datetime import datetime, timedelta
 from enum import Enum
 import uuid
 import logging
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gds-onboarding-tiers")
 
 app = FastAPI(title="Africa GDS Onboarding Tier System", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:4100,http://localhost:5173,http://localhost:8090").split(",")
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
 
 
 # ─── Tier Definitions ─────────────────────────────────────────────

@@ -2,10 +2,33 @@
  * GDS Authentication Middleware
  * Supports both JWT (Keycloak/OIDC) and API Key authentication.
  * External applications can use either method.
+ *
+ * Production: Verifies JWT signature using JWKS endpoint.
+ * Development: Decodes JWT without verification (for local testing).
  */
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import jwksClient from "jwks-rsa";
 import { config } from "./config";
+
+const jwks = jwksClient({
+  jwksUri: config.AUTH_JWKS_URI,
+  cache: true,
+  cacheMaxAge: 600000,
+  rateLimit: true,
+  jwksRequestsPerMinute: 10,
+});
+
+function getSigningKey(header: jwt.JwtHeader): Promise<string> {
+  return new Promise((resolve, reject) => {
+    jwks.getSigningKey(header.kid, (err, key) => {
+      if (err) return reject(err);
+      const signingKey = key?.getPublicKey();
+      if (!signingKey) return reject(new Error("No signing key found"));
+      resolve(signingKey);
+    });
+  });
+}
 
 export interface GDSUser {
   sub: string;
@@ -28,7 +51,7 @@ declare global {
 // In-memory API key store (in production: Redis or database)
 const apiKeys = new Map<string, GDSUser>();
 
-export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
+export async function authMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   const apiKey = req.headers["x-gds-api-key"] as string;
 
@@ -76,10 +99,30 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
       }
 
       // Production: verify with JWKS
-      // const key = await getSigningKey(token);
-      // const decoded = jwt.verify(token, key);
-      res.status(401).json({ error: "Token verification not configured for production" });
-      return;
+      try {
+        const decoded = jwt.decode(token, { complete: true });
+        if (!decoded || !decoded.header) {
+          res.status(401).json({ error: "Malformed token" });
+          return;
+        }
+        const key = await getSigningKey(decoded.header);
+        const verified = jwt.verify(token, key, {
+          audience: config.AUTH_AUDIENCE,
+          issuer: config.AUTH_ISSUER,
+        }) as any;
+        req.gdsUser = {
+          sub: verified.sub || "unknown",
+          email: verified.email,
+          name: verified.name || verified.preferred_username,
+          tenantId: verified.tenant_id || config.DEFAULT_TENANT,
+          role: verified.gds_role || "agent",
+          agentId: verified.agent_id,
+        };
+        return next();
+      } catch (jwksErr) {
+        res.status(401).json({ error: "Token verification failed" });
+        return;
+      }
     } catch {
       res.status(401).json({ error: "Invalid or expired token" });
       return;

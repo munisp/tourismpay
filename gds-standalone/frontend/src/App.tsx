@@ -676,7 +676,7 @@ function CommissionView() {
             {Object.entries(rateCard.rate_card?.property_tiers || rateCard.property_tiers || {}).map(([tier, data]: [string, any]) => (
               <div key={tier} style={{ display: "flex", justifyContent: "space-between", padding: "0.375rem 0", borderBottom: "1px solid #334155" }}>
                 <span style={{ textTransform: "capitalize", fontSize: "0.8rem" }}>{tier.replace("_", " ")}</span>
-                <span style={{ color: "#f59e0b", fontWeight: 600, fontSize: "0.8rem" }}>{((data.commission_charged || data) * 100).toFixed(0)}%</span>
+                <span style={{ color: "#f59e0b", fontWeight: 600, fontSize: "0.8rem" }}>{((typeof data === "number" ? data : (data.commission_charged ?? 0)) * 100).toFixed(0)}%</span>
               </div>
             ))}
           </div>
@@ -855,8 +855,8 @@ function CancellationView() {
             <h3 style={{ fontSize: "0.9rem", fontWeight: 600, textTransform: "capitalize", marginBottom: "0.75rem" }}>{preset.replace("_", " ")}</h3>
             {(presets?.presets?.[preset] || []).map((tier: any, i: number) => (
               <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "0.25rem 0", borderBottom: "1px solid #0f172a" }}>
-                <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>{tier.description || `${tier.min_days_before}-${tier.max_days_before}d`}</span>
-                <span style={{ fontSize: "0.7rem", color: tier.refund_percent >= 75 ? "#22c55e" : tier.refund_percent >= 50 ? "#f59e0b" : "#ef4444" }}>{tier.refund_percent}% refund</span>
+                <span style={{ fontSize: "0.7rem", color: "#94a3b8" }}>{tier.desc || tier.description || `${tier.min_days ?? tier.min_days_before}-${tier.max_days ?? tier.max_days_before}d`}</span>
+                <span style={{ fontSize: "0.7rem", color: (tier.refund_pct ?? tier.refund_percent) >= 75 ? "#22c55e" : (tier.refund_pct ?? tier.refund_percent) >= 50 ? "#f59e0b" : "#ef4444" }}>{tier.refund_pct ?? tier.refund_percent}% refund</span>
               </div>
             ))}
           </div>
