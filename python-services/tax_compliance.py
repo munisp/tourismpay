@@ -6,7 +6,16 @@ and ML-based tipping recommendations.
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
+import json
 import math
+
+try:
+    from . import db as database
+except ImportError:
+    try:
+        import db as database
+    except ImportError:
+        database = None
 
 
 # ─── Jurisdiction Tax Configuration ─────────────────────────────────────────
@@ -479,16 +488,40 @@ def recommend_tip(req: TipRecommendationRequest) -> TipRecommendation:
     )
 
 
-def get_jurisdiction_config(code: str) -> Dict[str, Any]:
-    """Get full tax configuration for a jurisdiction."""
+async def get_jurisdiction_config(code: str) -> Dict[str, Any]:
+    """Get full tax configuration for a jurisdiction (DB-first, fallback to defaults)."""
+    if database is not None:
+        row = await database.fetchrow(
+            "SELECT config_json FROM jurisdiction_tax_configs WHERE code=$1", code.upper()
+        )
+        if row and row.get("config_json"):
+            return json.loads(row["config_json"])
     config = JURISDICTION_TAX_CONFIG.get(code.upper())
     if not config:
         return {"error": f"Unsupported jurisdiction: {code}", "supported": list(JURISDICTION_TAX_CONFIG.keys())}
     return config
 
 
-def get_all_jurisdictions() -> List[Dict[str, Any]]:
-    """Get summary of all supported jurisdictions."""
+async def get_all_jurisdictions() -> List[Dict[str, Any]]:
+    """Get summary of all supported jurisdictions (DB-first, fallback to defaults)."""
+    if database is not None:
+        rows = await database.fetch(
+            "SELECT code, config_json FROM jurisdiction_tax_configs ORDER BY code"
+        )
+        if rows:
+            result = []
+            for row in rows:
+                config = json.loads(row["config_json"])
+                result.append({
+                    "code": row["code"],
+                    "name": config.get("name", row["code"]),
+                    "currency": config.get("currency", "USD"),
+                    "vat_rate": config.get("vat_rate", 0),
+                    "tax_authority": config.get("tax_authority", ""),
+                    "filing_frequency": config.get("filing_frequency", "monthly"),
+                    "total_effective_rate": config.get("effective_rate", config.get("vat_rate", 0)),
+                })
+            return result
     result = []
     for code, config in JURISDICTION_TAX_CONFIG.items():
         result.append({
@@ -501,3 +534,26 @@ def get_all_jurisdictions() -> List[Dict[str, Any]]:
             "total_effective_rate": config.get("effective_rate", config["vat_rate"]),
         })
     return result
+
+
+async def seed_jurisdiction_configs_to_db():
+    """Seed default jurisdiction configs to PostgreSQL."""
+    if database is None:
+        return
+    await database.execute(
+        """CREATE TABLE IF NOT EXISTS jurisdiction_tax_configs (
+            code VARCHAR(10) PRIMARY KEY,
+            config_json TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"""
+    )
+    for code, config in JURISDICTION_TAX_CONFIG.items():
+        await database.execute(
+            "INSERT INTO jurisdiction_tax_configs (code, config_json) VALUES ($1, $2) ON CONFLICT (code) DO NOTHING",
+            code, json.dumps(config),
+        )
+    for code, profile in TIPPING_PROFILES.items():
+        await database.execute(
+            "INSERT INTO jurisdiction_tax_configs (code, config_json) VALUES ($1, $2) ON CONFLICT (code) DO UPDATE SET config_json = $2",
+            f"TIP_{code}", json.dumps(profile),
+        )

@@ -119,6 +119,32 @@ pub async fn run_migrations(pool: &PgPool) {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )"#,
         "CREATE INDEX IF NOT EXISTS idx_nfc_tokens_user ON nfc_tokens(user_id)",
+        r#"CREATE TABLE IF NOT EXISTS tax_tip_rules (
+            id VARCHAR(64) PRIMARY KEY,
+            jurisdiction VARCHAR(10) NOT NULL,
+            category VARCHAR(32) NOT NULL,
+            name VARCHAR(128) NOT NULL,
+            rate_bps INT NOT NULL DEFAULT 0,
+            flat_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+            currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+            applies_to VARCHAR(32) NOT NULL DEFAULT 'all',
+            min_threshold DOUBLE PRECISION NOT NULL DEFAULT 0,
+            max_cap DOUBLE PRECISION NOT NULL DEFAULT 0,
+            is_compound BOOLEAN NOT NULL DEFAULT false,
+            priority INT NOT NULL DEFAULT 1,
+            is_active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"#,
+        "CREATE INDEX IF NOT EXISTS idx_tax_rules_jurisdiction ON tax_tip_rules(jurisdiction)",
+        r#"CREATE TABLE IF NOT EXISTS tax_tip_configs (
+            jurisdiction VARCHAR(10) PRIMARY KEY,
+            splits_json TEXT NOT NULL DEFAULT '[]',
+            max_percentage DOUBLE PRECISION NOT NULL DEFAULT 25.0,
+            suggested_json TEXT NOT NULL DEFAULT '[]',
+            cultural_note TEXT NOT NULL DEFAULT '',
+            round_up_unit DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"#,
     ];
 
     for sql in migrations {

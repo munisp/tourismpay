@@ -1,7 +1,7 @@
 # TourismPay — Middleware Infrastructure Stack
-# Usage: docker compose -f docker-compose.infra.yml up -d
+# Usage: docker compose -f docker-compose.yml -f docker-compose.infra.yml up -d
 # Provides: Keycloak, Permify, Prometheus, Grafana, Loki, Promtail
-# Depends on: main docker-compose.yml (PostgreSQL, Redis, Kafka must be running)
+# Requires: main docker-compose.yml (PostgreSQL, Redis, Kafka services)
 
 services:
   # ─── Keycloak (OIDC Identity Provider) ──────────────────────────────────────
@@ -23,11 +23,8 @@ services:
       - "8180:8080"
     volumes:
       - ./scripts/keycloak/tourismpay-realm.json:/opt/keycloak/data/import/tourismpay-realm.json:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -48,9 +45,6 @@ services:
     ports:
       - "3476:3476"  # HTTP
       - "3478:3478"  # gRPC
-    depends_on:
-      postgres:
-        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3476/healthz || exit 1"]
       interval: 15s

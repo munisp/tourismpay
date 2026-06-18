@@ -10,7 +10,7 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets:
-          - "tourismpay-web:3000"
+          - "server:3000"
     relabel_configs:
       - source_labels: [__address__]
         target_label: instance
@@ -20,7 +20,7 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets:
-          - "go-settlement:8082"
+          - "settlement:8081"
 
   - job_name: node-exporter
     static_configs:

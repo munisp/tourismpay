@@ -66,6 +66,50 @@ UPDATE establishments SET owner_id = (SELECT id FROM users WHERE open_id = 'test
 
 **If `onboarding_completed` is false**, the app redirects to `/admin` onboarding page instead of the target route.
 
+### Creating Test Users with Specific Roles
+The dev session-token endpoint only creates sessions for the owner user. To test other roles (tourist, merchant, etc.), generate a JWT directly:
+
+```bash
+# Create user in DB
+PGPASSWORD=testpass123 psql -h localhost -p 5432 -U tourismpay_user -d tourismpay -c "
+INSERT INTO users (name, email, role, open_id, onboarding_completed)
+VALUES ('Tourist Tester', 'tourist@test.ng', 'tourist', 'test-tourist-id', true)
+ON CONFLICT (open_id) DO UPDATE SET role='tourist', onboarding_completed=true;"
+
+# Generate JWT using jose (the lib used by sdk.ts)
+TOURIST_TOKEN=$(node -e "
+const { SignJWT } = require('jose');
+const secret = new TextEncoder().encode('tourismpay-test-jwt-secret-for-dev-32chars');
+new SignJWT({ openId: 'test-tourist-id', name: 'Tourist Tester', appId: 'tourismpay' })
+  .setProtectedHeader({ alg: 'HS256' })
+  .setExpirationTime('1h')
+  .sign(secret)
+  .then(t => console.log(t));
+" 2>/dev/null | tail -1)
+
+# Use the token in curl
+curl -s -b "app_session_id=${TOURIST_TOKEN}" "http://localhost:3000/api/trpc/auth.me"
+```
+
+### CSRF Token for Mutations
+All tRPC mutations require a CSRF token. To get one:
+```bash
+# 1. Make a GET request to set the csrf-token cookie
+curl -s -c /tmp/cookies.txt -b "app_session_id=${TOKEN}" "http://localhost:3000/api/trpc/auth.me" > /dev/null
+
+# 2. Extract CSRF token
+CSRF=$(grep csrf-token /tmp/cookies.txt | awk '{print $NF}')
+
+# 3. Include in POST requests
+curl -s -b "app_session_id=${TOKEN}; csrf-token=${CSRF}" \
+  -H "X-CSRF-Token: ${CSRF}" \
+  -H "Content-Type: application/json" \
+  -X POST "http://localhost:3000/api/trpc/some.mutation" \
+  -d '{"json":{...}}'
+```
+
+Without the CSRF token, mutations return `{"error":"CSRF token mismatch"}`.
+
 ### Role-Based Sidebar Navigation
 The sidebar in `AppShell.tsx` filters nav items by `hasRole()`. Key sections:
 - "Africa GDS" section: requires role `merchant` or `admin` (AppShell.tsx:86-88)
@@ -123,8 +167,8 @@ curl -s -c /tmp/cookies.txt "http://localhost:3000/api/dev/session-token?redirec
 curl -s -b /tmp/cookies.txt "http://localhost:3000/api/trpc/auth.me"
 ```
 If auth.me returns `{"result":{"data":{"json":null}}}`, check:
-1. Server logs for `[Auth] Session payload missing required fields` → VITE_APP_ID not set
-2. Server logs for `[Auth] Session verification failed` → JWT_SECRET mismatch
+1. Server logs for `[Auth] Session payload missing required fields` -> VITE_APP_ID not set
+2. Server logs for `[Auth] Session verification failed` -> JWT_SECRET mismatch
 3. User exists in DB with matching `open_id`
 
 ### Code Quality Verification (shell-based, no recording needed)
@@ -145,10 +189,10 @@ grep -rn "console\.\(error\|warn\)" client/src/ --include="*.ts" --include="*.ts
 ### Auth Middleware Testing
 Python services use `AuthMiddleware` (JWT + API key). Test pattern:
 ```bash
-curl -s -w "%{http_code}" http://localhost:PORT/health      # → 200 (unprotected)
-curl -s http://localhost:PORT/api/v1/... -X POST             # → 401 "Authorization required"
-curl -s -H "X-API-Key: test-key-123" http://localhost:PORT/api/v1/...  # → 200
-curl -s -H "X-API-Key: wrong" http://localhost:PORT/api/v1/...         # → 401 "Invalid API key"
+curl -s -w "%{http_code}" http://localhost:PORT/health      # -> 200 (unprotected)
+curl -s http://localhost:PORT/api/v1/... -X POST             # -> 401 "Authorization required"
+curl -s -H "X-API-Key: test-key-123" http://localhost:PORT/api/v1/...  # -> 200
+curl -s -H "X-API-Key: wrong" http://localhost:PORT/api/v1/...         # -> 401 "Invalid API key"
 ```
 
 ### Database Persistence Testing
@@ -243,15 +287,15 @@ Verify fix: check `createdAt` values in wallet.balances response — should be <
 ```bash
 cd /home/ubuntu/repos/tourismpay
 TEST_BASE_URL=http://localhost:3000 npx vitest run --reporter=verbose
-# Expected: 30 tests pass (health, auth, wallet, bis, middleware)
+# Expected: 87 tests pass (health, auth, wallet, bis, middleware, backend persistence)
 ```
 
 ### Graceful Degradation
 All middleware (Redis, Kafka, Keycloak, Permify, Mojaloop) is optional. The app works without them:
-- Redis unavailable → in-memory rate limiting fallback
-- Kafka unavailable → events silently dropped (`.catch(() => {})`)
-- Keycloak unavailable → dev JWT mode
-- Mojaloop unavailable → simulation mode
+- Redis unavailable -> in-memory rate limiting fallback
+- Kafka unavailable -> events silently dropped (`.catch(() => {})`)
+- Keycloak unavailable -> dev JWT mode
+- Mojaloop unavailable -> simulation mode
 
 To verify: check `/health/deep` — disconnected/not_configured statuses should NOT cause 500s on API routes.
 
@@ -267,208 +311,224 @@ When testing wallet FX rates via curl, use `fromCurrency`/`toCurrency` (not `fro
 curl -s -b /tmp/cookies.txt "http://localhost:3000/api/trpc/wallet.getFxRate?input=%7B%22json%22%3A%7B%22fromCurrency%22%3A%22USDC%22%2C%22toCurrency%22%3A%22NGN%22%2C%22amount%22%3A100%7D%7D"
 ```
 
-## GDS Standalone Platform
+## Permify Authorization Testing
 
-The GDS has its own standalone frontend and gateway, separate from the main TourismPay app.
+Permify uses a role-based fallback matrix when `PERMIFY_URL` is not set (the common case in dev).
 
-### Architecture
-- **Gateway** (TypeScript Express, port 8090): Single entry point with 28 route files. All routes query PostgreSQL directly via `query()`/`queryOne()` from `lib/database.ts`. Kafka event publishing on writes, Redis caching on reads — both degrade gracefully when unavailable.
-- **Frontend** (Vite React, port 4100): 28 views organized in 7 collapsible sidebar sections.
-- **Auth**: "Dev Login as Admin" button on login page — no credentials needed.
-- **Database**: PostgreSQL with 46+ tables. Migrations auto-run on first start. Nigeria-focused seed data (Lagos, Abuja, Port Harcourt, Calabar; NGN currency).
-- **Keycloak**: OIDC provider at port 8180, realm `gds`. 4 test users with realm roles. JWKS verification in production, dev-mode bypass for testing.
+### Owner User Role Fix (PR #35+)
+Previously, `sdk.ts:authenticateRequest()` called `upsertUser()` on every request, which force-reset the owner's role to "admin" via `db.ts:131-133`. This is now fixed — `touchUserSignIn()` only updates `lastSignedIn` and `loginCount` without touching `role`. You can now test role enforcement with ANY user, including the owner.
 
-### Starting the GDS
+### Testing Permify Role Enforcement
+1. **Create a tourist user** (see "Creating Test Users with Specific Roles" above)
+2. **Test denial** — tourist lacks `system:edit`, `settlement:execute`:
 ```bash
-# Gateway (must start first — requires PostgreSQL)
-cd /home/ubuntu/repos/tourismpay/gds-standalone
-GDS_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/tourismpay" npx tsx src/index.ts
-# → "[DB] PostgreSQL connected"
-# → "[Migrations] All 5 migrations already applied" (or "Applied migration: ...")
-# → "[GDS Standalone] Africa-first GDS running on port 8090"
+# Get CSRF token first
+curl -s -c /tmp/tourist-cookies.txt -b "app_session_id=${TOURIST_TOKEN}" \
+  "http://localhost:3000/api/trpc/auth.me" > /dev/null
+CSRF=$(grep csrf-token /tmp/tourist-cookies.txt | awk '{print $NF}')
 
-# Frontend
-cd /home/ubuntu/repos/tourismpay/gds-standalone/frontend
-npx vite --port 4100 --host
-# → "Local: http://localhost:4100/"
+# Attempt kill switch activation — should get FORBIDDEN
+curl -s -b "app_session_id=${TOURIST_TOKEN}; csrf-token=${CSRF}" \
+  -H "X-CSRF-Token: ${CSRF}" -H "Content-Type: application/json" \
+  -X POST "http://localhost:3000/api/trpc/nocDashboard.activateKillSwitch" \
+  -d '{"json":{"switchId":"test","reason":"test"}}'
+# Expected: {"error":{"json":{"data":{"code":"FORBIDDEN"}}}}
 ```
 
-### Running Automated Test Suite
+**Note**: Some procedures (nocProcedure, bisProcedure, etc.) have their own role checks that fire BEFORE the Permify `requirePermission()` call. For example, `nocProcedure` blocks non-admin/non-noc_operator users at the tRPC middleware level. The result is still FORBIDDEN but the error message may differ.
+
+### Role Permission Matrix (from `server/_core/permify.ts`)
+- `admin`: ALL permissions (wallet, establishment, investigation, settlement, system, report, payment, identity, loyalty)
+- `merchant`: wallet:view, establishment:view/edit, settlement:view, report:view, payment:view/create, loyalty:view
+- `tourist`: wallet:view/create, establishment:view, report:view, payment:view/create, identity:view/create, loyalty:view/create
+- `bis_analyst`: investigation:*, establishment:view, report:*
+- `noc_operator`: system:*, wallet:view, settlement:view, report:view
+
+### Permify-Protected Routes (PR #35+)
+| Router | Mutation | Resource | Action |
+|--------|----------|----------|--------|
+| localPayments | pay | PAYMENT | CREATE |
+| foreignTouristLoading | wireInitiate | PAYMENT | CREATE |
+| identity | createDid | IDENTITY | CREATE |
+| nocDashboard | activateKillSwitch | SYSTEM | EDIT |
+| settlement | approve/reject | SETTLEMENT | EXECUTE |
+| bis | create/updateStatus | INVESTIGATION | CREATE/EDIT |
+| kyb | review | ESTABLISHMENT | APPROVE |
+| wallet | send/swap | WALLET | EDIT |
+| taxCollection | markRemitted | SYSTEM | EXECUTE |
+
+### Kafka Audit Middleware (PR #35+)
+The `kafkaAudit` middleware in `trpc.ts` fires on ALL mutations automatically. It's chained on all 10 procedure types (protectedProcedure, adminProcedure, settlementProcedure, bisProcedure, nocProcedure, kybProcedure, complianceProcedure, taxProcedure, merchantProcedure, touristProcedure). To verify:
 ```bash
-cd /home/ubuntu/repos/tourismpay/gds-standalone
-npx vitest run --config vitest.config.ts
-# Expected: 46 tests pass (42 gateway route + 4 persistence)
-# vitest.config.ts sets GDS_DATABASE_URL and NODE_ENV automatically
+grep -c "\.use(kafkaAudit)" server/_core/trpc.ts
+# Expected: 10
 ```
+When Kafka is not running, events are silently dropped via `.catch(() => {})`. The middleware doesn't log failures by default — check `publishAuditEvent` in kafka.ts which logs `[Kafka] Cannot publish` when the producer is unavailable.
 
-### CORS
-The gateway's CORS config is in `gds-standalone/src/config.ts` line 22. Port 4100 must be in `CORS_ORIGINS`. If browser requests fail with CORS errors, verify:
+### Redis Caching (PR #35+)
+Stats routes use `cacheGet`/`cacheSet` with TTL:
+- `settlement.stats`: 30s TTL
+- `bis.stats`: 30s TTL  
+- `kyb.stats`: 30s TTL
+- `loyalty.rewards`: 60s TTL
+
+When Redis is not running, `cacheGet()` returns null and queries fall through to PostgreSQL. This is tested via graceful degradation — verify stats routes return data without Redis.
+
+## Backend Service DB Persistence Verification
+
+To verify Go/Rust/Python services have real DB persistence (not in-memory):
+
 ```bash
-curl -s -H "Origin: http://localhost:4100" http://localhost:8090/health -v 2>&1 | grep -i "access-control"
-```
-
-### Backend Microservice Ports (All Use PostgreSQL)
-| Service | Lang | Port | Gateway Route | DB Library |
-|---------|------|------|---------------|------------|
-| PNR Engine | Go | 8082 | `/api/v1/gds/pnr/*` | database/sql + lib/pq |
-| Queue System | Rust | 8083 | `/api/v1/gds/queue/*` | tokio-postgres + deadpool |
-| Guest CRM | Go | 8084 | `/api/v1/gds/guest-profile/*` | database/sql + lib/pq |
-| Content Mgmt | Python | 8085 | `/api/v1/gds/content/*` | asyncpg |
-| Revenue Mgmt | Python | 8086 | `/api/v1/gds/revenue/*` | asyncpg |
-| Group Bookings | Go | 8087 | `/api/v1/gds/group-bookings/*` | database/sql + lib/pq |
-| Commission | Rust | 8110 | `/api/v1/gds/commission/*` | tokio-postgres + deadpool |
-| Discounts | Python | 8111 | `/api/v1/gds/discount/*` | asyncpg |
-| Cancellation | Go | 8112 | `/api/v1/gds/cancellation/*` | database/sql + lib/pq |
-| Neg. Rates | Go | 8113 | `/api/v1/gds/negotiated-rates/*` | database/sql + lib/pq |
-| Settlement | Python | 8114 | `/api/v1/gds/settlement/*` | asyncpg |
-
-All services have `/health` endpoints. The gateway now handles all business logic directly via PostgreSQL — backend services are optional proxies.
-
-### Proving Real DB Persistence (Not In-Memory)
-
-**The adversarial kill-restart test is the gold standard:**
-```bash
-# 1. Write data via API
-curl -s -X POST http://localhost:8090/api/v1/gds/pnr \
-  -H "Content-Type: application/json" \
-  -d '{"guest_name":"PERSIST-TEST","contact_email":"test@ng"}'
-# Save the record_locator from the response
-
-# 2. Verify row exists in psql
-PGPASSWORD=postgres psql -U postgres -h localhost -d tourismpay -c \
-  "SELECT record_locator FROM gds_pnr_records WHERE guest_name = 'PERSIST-TEST';"
-
-# 3. Kill and restart the server
-pkill -f "tsx src/index.ts"
-sleep 2
-cd /home/ubuntu/repos/tourismpay/gds-standalone
-GDS_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/tourismpay" npx tsx src/index.ts &
-sleep 5
-
-# 4. Verify data survived restart
-curl -s http://localhost:8090/api/v1/gds/pnr | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-matches = [p for p in d['pnrs'] if p['guest_name'] == 'PERSIST-TEST']
-print('PASSED: data survived restart' if matches else 'FAILED: data lost (in-memory!)')
-"
-```
-
-**Source code audit (verify no in-memory stubs remain):**
-```bash
-# Go: must have 0 sync.RWMutex/map patterns, >0 SQL patterns
-for svc in pnr-engine guest-profile group-bookings cancellation-policy negotiated-rates; do
-  BAD=$(grep -c "sync\.RWMutex\|var.*=.*map\[string\]" gds-standalone/services/$svc/main.go)
-  GOOD=$(grep -c "db\.QueryRow\|db\.Exec\|\\\$1" gds-standalone/services/$svc/main.go)
-  echo "$svc: in-memory=$BAD, sql=$GOOD"
+# Source audit: all Go services should have database.DB refs and internal/database import
+for f in go-settlement-service/internal/services/{agent_banking,bank_partner,bank_transfer_out,cbdc,crypto,offline_nfc,onramp_offramp,swift_wire,tax_engine,tipping_service,ussd_menu,virtual_card,bill_payment,multi_tip_service}.go; do
+  name=$(basename $f .go)
+  db_refs=$(grep -c "database.DB" $f)
+  import_ok=$(grep -c "internal/database" $f)
+  echo "$name: db_refs=$db_refs, import=$import_ok"
 done
-# All should show in-memory=0, sql>0
+# All should show db_refs>=2, import=1
 
-# Rust: must have tokio_postgres, not Vec<Mutex>
-# Python: must have asyncpg, not = [] or = {}
+# Vitest verification suite (87 tests)
+npx vitest run --reporter=verbose
 ```
 
-### Verifying Backend Service Compilation
+### Adversarial Kill-Restart Test (THE key test for DB persistence)
+
+This is the most important test for any PR claiming to replace in-memory with DB. It proves `Get*`/`List*` methods read from PostgreSQL, not empty maps.
+
 ```bash
-# Go services (all 5 must compile)
-for svc in pnr-engine guest-profile group-bookings cancellation-policy negotiated-rates; do
-  cd /home/ubuntu/repos/tourismpay/gds-standalone/services/$svc && go build -o /dev/null .
-done
+# 1. Start Go service
+cd go-settlement-service
+PORT=8081 DATABASE_URL="postgres://tourismpay_user:testpass123@localhost:5432/tourismpay_settlement" \
+JWT_SECRET=tourismpay-test-jwt-secret-for-dev-32chars SETTLEMENT_API_KEY=test-settlement-key go run . &
+sleep 4
 
-# Rust services (both must pass cargo check)
-cd /home/ubuntu/repos/tourismpay/gds-standalone/services/queue-system && cargo check
-cd /home/ubuntu/repos/tourismpay/gds-standalone/services/commission-engine && cargo check
+# 2. Insert test data directly via SQL (bypassing the service)
+PGPASSWORD=testpass123 psql -h localhost -U tourismpay_user -d tourismpay_settlement -c "
+INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status, created_at)
+VALUES ('test-wallet-kill', 'user-kill', 'wallet_created', 0, 'NGN', 'fiat', 'completed', NOW())
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status, created_at)
+VALUES ('xfer-kill', 'user-kill', 'Test', 'gtbank', '0123456789', 50000, 'NGN', 'REF-KILL', 'completed', NOW())
+ON CONFLICT (id) DO NOTHING;"
 
-# Python services (all 4 must parse without syntax errors)
-for svc in content-mgmt revenue-mgmt discount-promo settlement-saga; do
-  python3 -c "import ast; ast.parse(open('/home/ubuntu/repos/tourismpay/gds-standalone/services/$svc/main.py').read())"
-done
+# 3. Kill the service (SIGKILL = crash, no graceful shutdown)
+kill -9 $(fuser 8081/tcp 2>/dev/null | awk '{print $1}')
+sleep 1
+
+# 4. Restart with fresh process (all in-memory maps are empty)
+PORT=8081 DATABASE_URL="postgres://tourismpay_user:testpass123@localhost:5432/tourismpay_settlement" \
+JWT_SECRET=tourismpay-test-jwt-secret-for-dev-32chars SETTLEMENT_API_KEY=test-settlement-key go run . &
+sleep 4
+
+# 5. Query the API — if reads come from DB, data is returned; if from maps, it's empty/null
+curl -s -H "X-API-Key: test-settlement-key" http://localhost:8081/api/v1/crypto/wallets/test-wallet-kill
+# Expected: {"wallet_id":"test-wallet-kill","user_id":"user-kill",...}
+# If broken (still in-memory): null or 404
+
+curl -s -H "X-API-Key: test-settlement-key" http://localhost:8081/api/v1/bank-partner/xfer-kill
+# Expected: {"id":"xfer-kill","provider":"gtbank","source_amount":50000,...}
+# If broken: null or 404
 ```
 
-### Nigeria-Focused Seed Data
-Discount codes use Nigerian names (NAIJA15, LAGOS20, ABUJA10, FIRST5K, CORP25). Tax jurisdictions use NG-FED, NG-LAG, NG-FCT etc.
+**Key insight:** The `bank_transfers` table requires `account_number` (NOT NULL). Always include it in test inserts.
 
-### Key API Test Patterns (PR #30+)
+### Struct Audit for Removed Map Fields
+
+After removing in-memory maps from Go service structs, verify no map reads remain:
+
 ```bash
-# PNR creation (field names: guest_name, contact_email)
-curl -s -X POST http://localhost:8090/api/v1/gds/pnr \
-  -H "Content-Type: application/json" \
-  -d '{"guest_name":"Test Guest","contact_email":"guest@test.ng"}'
+# These should ALL return 0 matches (fields were removed from structs)
+grep -c 's\.wallets\[' go-settlement-service/internal/services/crypto.go       # 0
+grep -c 's\.ibans\[' go-settlement-service/internal/services/bank_partner.go    # 0
+grep -c 's\.vouchers\[' go-settlement-service/internal/services/offline_nfc.go  # 0
+grep -c 's\.onrampOrders\[' go-settlement-service/internal/services/onramp_offramp.go  # 0
+grep -c 's\.offrampReqs\[' go-settlement-service/internal/services/onramp_offramp.go   # 0
+grep -c 's\.pendingSwaps\[' go-settlement-service/internal/services/crypto.go   # 0
 
-# Commission calculation (field names: booking_id, amount, currency, country_code, agent_tier)
-curl -s -X POST http://localhost:8090/api/v1/gds/commission/calculate \
-  -H "Content-Type: application/json" \
-  -d '{"booking_id":"BK001","amount":100000,"currency":"NGN","country_code":"NG","agent_tier":"platinum"}'
-
-# Tax calculation (field names: jurisdiction_code, amount)
-curl -s -X POST http://localhost:8090/api/v1/gds/tax/calculate \
-  -H "Content-Type: application/json" \
-  -d '{"jurisdiction_code":"NG-FED","amount":200000}'
-
-# Discount validation (field names: code, amount)
-curl -s -X POST http://localhost:8090/api/v1/gds/discount/validate \
-  -H "Content-Type: application/json" \
-  -d '{"code":"NAIJA15","amount":50000}'
-
-# Settlement saga (field names: booking_id, amount, country)
-curl -s -X POST http://localhost:8090/api/v1/gds/settlement-saga/execute \
-  -H "Content-Type: application/json" \
-  -d '{"booking_id":"BK002","amount":50000,"country":"NG"}'
-
-# Cancellation simulate (field names: policy_type, amount, days_before)
-curl -s -X POST http://localhost:8090/api/v1/gds/cancellation/simulate \
-  -H "Content-Type: application/json" \
-  -d '{"policy_type":"moderate","amount":100000,"days_before":5}'
-
-# Onboarding establishment (field names: name, type, country, contact_name, contact_email)
-curl -s -X POST http://localhost:8090/api/v1/gds/onboarding/establishments \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Test Hotel","type":"hotel","country":"NG","contact_name":"Owner","contact_email":"owner@test.ng"}'
+# These are ACCEPTABLE (transient/reference data):
+# s.sessions[ in ussd_menu.go — transient 5-min session cache (also written to DB)
+# s.agents[ in agent_banking.go — seed reference data
+# s.transfers[ in mojaloop.go/tigerbeetle.go — separate services, out of scope
 ```
 
-### Sidebar Navigation (PR #29+)
-The sidebar uses **7 collapsible sections** with domain-specific names instead of a flat list. Each section has a toggle arrow.
+### Rust NFC Persistence Audit
 
-| Section | Items |
-|---------|-------|
-| **Operations** | Overview, Property Search, Market Analytics |
-| **Onboarding & Partners** | Establishment Setup, Property Portfolio, Field Agents, Travel Agents |
-| **Booking & Inventory** | PNR Records, Reservations, Room Availability, Service Queues, Guest Profiles, Group Bookings |
-| **Revenue & Pricing** | Yield Management, Negotiated Rates, Commission Splits, Promotions, Channel Distribution |
-| **Financial Operations** | Settlement, Tax Compliance, Staff Tipping, Tax Remittance, Cancellation Policies |
-| **Content & Loyalty** | Content Library, Loyalty Program |
-| **Developer Tools** | API Usage & Metering, Testing Sandbox |
-
-### Keycloak Auth Configuration
-- Realm: `gds` (config.ts AUTH_ISSUER points to `http://localhost:8180/realms/gds`)
-- JWKS URI: `http://localhost:8180/realms/gds/protocol/openid-connect/certs`
-- 4 test users: admin@tourismpay.ng (gds_admin), agent@safaricom.ke (gds_agent), property@ekohotels.ng (gds_property_manager), api-client@external.com (gds_api_client)
-- Dev mode: bypasses JWT verification (decodes without signature check)
-- Production mode: verifies JWT signature against JWKS endpoint
-
-### Production Infrastructure Endpoints
 ```bash
-# Cascading health check
-curl -s http://localhost:8090/health/deep | jq .
+# Verify HashMap/RwLock removed from nfc_payment.rs
+grep -c 'std::collections::HashMap' rust-kyc-service/src/nfc_payment.rs  # 0
+grep -c 'std::sync::RwLock' rust-kyc-service/src/nfc_payment.rs          # 0
+grep -c 'sqlx::PgPool' rust-kyc-service/src/nfc_payment.rs               # 1 (import)
 
-# Readiness probe
-curl -s http://localhost:8090/health/ready | jq .
+# Verify NfcTokenStore holds PgPool
+sed -n '/pub struct NfcTokenStore/,/^}/p' rust-kyc-service/src/nfc_payment.rs
+# Expected: pub pool: PgPool
 
-# Prometheus metrics
-curl -s http://localhost:8090/metrics
-
-# API versioning headers
-curl -sI http://localhost:8090/api/v1/gds/search | grep -i x-api-
-
-# Rate limit headers (default: 100 req/60s)
-curl -sI http://localhost:8090/api/v1/gds/search | grep -i x-ratelimit
-
-# 404 handler with traceId
-curl -s http://localhost:8090/api/v1/gds/nonexistent | jq .
+# Verify sqlx queries exist (INSERT, SELECT, UPDATE)
+grep -c 'sqlx::query' rust-kyc-service/src/nfc_payment.rs  # >= 3
 ```
 
-### Rate Limiting Gotcha
-The default rate limit is 100 requests per 60-second window. If you're running rapid API tests (especially in a loop), you may exhaust the limit and get 429 responses. Wait 60 seconds for the window to reset, or reduce GDS_RATE_LIMIT_MAX env var for testing.
+### SQL Injection Audit
+
+```bash
+# Check for sql.raw (injectable) — should be 0 across all routers
+grep -c 'sql\.raw' server/routers/*.ts
+
+# Fixed in PR #37: crypto.go countFromDB() now uses parameterized $1
+# Verify: grep -c "tx_type=\$1" go-settlement-service/internal/services/crypto.go  # >= 1
+# The 2 remaining tx_type='...' matches are hardcoded literals in prepared statements (safe)
+```
+
+### Kill-Restart Tests for All 4 Core Go Services (PR #37+)
+
+After PR #37, inventory, settlement, mojaloop, and tigerbeetle all read from DB. Use these targeted kill-restart patterns:
+
+```bash
+# --- Inventory ---
+PGPASSWORD=testpass123 psql -h localhost -U tourismpay_user -d tourismpay_settlement -c "
+INSERT INTO inventory_items (item_id, provider_id, item_type, name, available_quantity, reserved_quantity, price, currency, last_synced, sync_source)
+VALUES ('test-inv-kill', 'provider-kill', 'accommodation', 'Kill Test Hotel', 10, 0, 15000, 'NGN', NOW(), 'manual')
+ON CONFLICT (item_id) DO NOTHING;"
+curl -s -H "X-API-Key: test-settlement-key" http://localhost:8081/api/v1/inventory/test-inv-kill
+# Expected: 200 with {"item_id":"test-inv-kill","name":"Kill Test Hotel",...}
+
+# --- TigerBeetle Ledger ---
+# Account ID must match SHA256("TOURIST_WALLET:kill-test-user:USD") first 8 bytes as uint64
+ACCOUNT_ID=$(python3 -c "import hashlib,struct; print(struct.unpack('>Q',hashlib.sha256(b'TOURIST_WALLET:kill-test-user:USD').digest()[:8])[0])")
+PGPASSWORD=testpass123 psql -h localhost -U tourismpay_user -d tourismpay_settlement -c "
+INSERT INTO ledger_accounts (id, entity_type, entity_id, currency, credits_posted, ledger_code, account_code, flags)
+VALUES ($ACCOUNT_ID, 'TOURIST_WALLET', 'kill-test-user', 'USD', 5000000, 1, 840, 1)
+ON CONFLICT (id) DO UPDATE SET credits_posted = 5000000;"
+# GetAccountBalance handler uses c.Param() — path params match Gin route:
+curl -s -H "X-API-Key: test-settlement-key" "http://localhost:8081/api/v1/ledger/accounts/TOURIST_WALLET/kill-test-user/USD"
+# Expected: {"available":5000000,"pending":0,"total":5000000}
+
+# --- Settlement Batch ---
+# Column is 'id' not 'batch_id'
+PGPASSWORD=testpass123 psql -h localhost -U tourismpay_user -d tourismpay_settlement -c "
+INSERT INTO settlement_batches (id, provider_id, settlement_date, transaction_count, total_amount, fee_amount, net_amount, currency, status)
+VALUES ('batch-kill-test', 'provider-kill', '2026-06-18', 5, 75000, 2500, 72500, 'NGN', 'pending')
+ON CONFLICT (id) DO NOTHING;"
+curl -s -H "X-API-Key: test-settlement-key" http://localhost:8081/api/v1/settlement/batches/batch-kill-test
+# Expected: 200 with {"batch_id":"batch-kill-test","net_amount":72500,...}
+```
+
+**Gotchas:**
+- `lsof` may not be installed — use `fuser -k 8081/tcp` to kill by port
+- `GetAccountBalance` handler uses `c.Param()` for path params — use path `/api/v1/ledger/accounts/:entity_type/:entity_id/:currency`
+- `settlement_batches` primary key column is `id`, not `batch_id`
+- `mojaloop_quotes` and `mojaloop_settlement_windows` tables exist but have no GET-by-ID handler — verify via source audit instead of API
+
+### Rust biometric_pay DB Pattern (PR #37+)
+
+```bash
+# Verify tokio::spawn removed (was fire-and-forget)
+grep -c 'tokio::spawn' rust-kyc-service/src/biometric_pay.rs  # 0
+# Verify synchronous DB writes
+grep -c 'block_in_place' rust-kyc-service/src/biometric_pay.rs  # >= 3
+# Verify startup hydration from DB
+grep -c 'hydrate_from_db' rust-kyc-service/src/biometric_pay.rs  # >= 1
+```
 
 ## Troubleshooting
 
@@ -479,6 +539,6 @@ The default rate limit is 100 requests per 60-second window. If you're running r
 - **Onboarding redirect loop**: Set `onboarding_completed=true` on the test user.
 - **Redis/OpenSearch warnings in logs**: These are non-fatal — app operates without them in dev mode.
 - **`%VITE_ANALYTICS_ENDPOINT%` errors**: Harmless — analytics env vars not configured in dev.
-- **GDS vitest tests failing on persistence**: Ensure `GDS_DATABASE_URL` env var is set to `postgresql://postgres:postgres@localhost:5432/tourismpay` — the vitest.config.ts sets this automatically but CI environments may need it explicit.
 - **Availability route returns 400**: Requires `property_id` query parameter. Use `/api/v1/gds/availability/room-types` for a param-free test.
 - **Kafka/Redis connection errors in logs**: Non-fatal. Gateway degrades gracefully. Both are optional in dev mode.
+- **CSRF token mismatch on mutations**: Must make a GET request first to set `csrf-token` cookie, then include it as `X-CSRF-Token` header on POST requests.
