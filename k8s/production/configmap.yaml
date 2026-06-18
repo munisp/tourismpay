@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tourismpay-config
+  namespace: tourismpay
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  CORS_ORIGIN: "https://tourismpay.ng"
+  RATE_LIMIT_MAX: "100"
+  KEYCLOAK_REALM: "tourismpay"
+  KEYCLOAK_CLIENT_ID: "tourismpay-pwa"
+  PERMIFY_TENANT_ID: "tourismpay"
+  KAFKA_CLIENT_ID: "tourismpay-server"
+  LOG_LEVEL: "info"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tourismpay-go-config
+  namespace: tourismpay
+data:
+  PORT: "8081"
+  LOG_LEVEL: "info"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tourismpay-python-config
+  namespace: tourismpay
+data:
+  LOG_LEVEL: "info"
+  WORKERS: "4"

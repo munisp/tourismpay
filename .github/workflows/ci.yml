@@ -2,9 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [devin/1777727494-production-hardening]
+    branches: [main, "devin/**"]
   pull_request:
-    branches: [devin/1777727494-production-hardening]
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   typescript:
@@ -55,7 +59,7 @@ jobs:
       - name: Wait for server
         run: |
           for i in $(seq 1 30); do
-            if curl -s http://localhost:3000/health > /dev/null 2>&1; then
+            if curl -s http://localhost:3000/livez > /dev/null 2>&1; then
               echo "Server ready"
               exit 0
             fi
@@ -67,6 +71,141 @@ jobs:
         run: npx vitest run --reporter=verbose
         env:
           TEST_BASE_URL: http://localhost:3000
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: typescript
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tourismpay
+          POSTGRES_PASSWORD: tourismpay_dev
+          POSTGRES_DB: tourismpay
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://tourismpay:tourismpay_dev@localhost:5432/tourismpay
+      NODE_ENV: development
+      JWT_SECRET: ci-test-secret-key-for-session-signing
+      OWNER_OPEN_ID: ci-test-owner-openid
+      VITE_APP_ID: tourismpay-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - run: npx playwright install --with-deps chromium
+      - name: Run migrations
+        run: pnpm drizzle-kit push 2>/dev/null || true
+      - name: Seed test user
+        run: |
+          PGPASSWORD=tourismpay_dev psql -h localhost -U tourismpay -d tourismpay -c "
+            INSERT INTO users (open_id, name, email, role, login_method, last_signed_in, onboarding_completed)
+            VALUES ('ci-test-owner-openid', 'CI Test User', 'ci@test.com', 'admin', 'test', NOW(), true)
+            ON CONFLICT (open_id) DO UPDATE SET role='admin', onboarding_completed=true;
+          " 2>/dev/null || true
+      - name: Start server
+        run: pnpm run dev &
+        env:
+          PORT: 3000
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:3000/livez > /dev/null 2>&1; then
+              echo "Server ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server failed to start"
+          exit 1
+      - name: Run E2E tests
+        run: npx playwright test --config tests/e2e/playwright.config.ts
+        env:
+          CI: true
+          BASE_URL: http://localhost:3000
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  load-test:
+    name: k6 Load Test (smoke)
+    runs-on: ubuntu-latest
+    needs: typescript
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tourismpay
+          POSTGRES_PASSWORD: tourismpay_dev
+          POSTGRES_DB: tourismpay
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://tourismpay:tourismpay_dev@localhost:5432/tourismpay
+      NODE_ENV: development
+      JWT_SECRET: ci-test-secret-key-for-session-signing
+      OWNER_OPEN_ID: ci-test-owner-openid
+      VITE_APP_ID: tourismpay-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install -y k6
+      - run: pnpm install --no-frozen-lockfile
+      - name: Run migrations
+        run: pnpm drizzle-kit push 2>/dev/null || true
+      - name: Seed test user
+        run: |
+          PGPASSWORD=tourismpay_dev psql -h localhost -U tourismpay -d tourismpay -c "
+            INSERT INTO users (open_id, name, email, role, login_method, last_signed_in, onboarding_completed)
+            VALUES ('ci-test-owner-openid', 'CI Test User', 'ci@test.com', 'admin', 'test', NOW(), true)
+            ON CONFLICT (open_id) DO UPDATE SET role='admin', onboarding_completed=true;
+          " 2>/dev/null || true
+      - name: Start server
+        run: pnpm run dev &
+        env:
+          PORT: 3000
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:3000/livez > /dev/null 2>&1; then
+              echo "Server ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+      - name: Run k6 smoke test
+        run: k6 run --duration 30s --vus 10 k6/load-test.js
+        env:
+          K6_BASE_URL: http://localhost:3000
 
   go:
     name: Go (build + test)

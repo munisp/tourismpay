@@ -1,0 +1,152 @@
+# TourismPay — Middleware Infrastructure Stack
+# Usage: docker compose -f docker-compose.infra.yml up -d
+# Provides: Keycloak, Permify, Prometheus, Grafana, Loki, Promtail
+# Depends on: main docker-compose.yml (PostgreSQL, Redis, Kafka must be running)
+
+services:
+  # ─── Keycloak (OIDC Identity Provider) ──────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: tourismpay-keycloak
+    restart: unless-stopped
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: tourismpay_user
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-testpass123}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./scripts/keycloak/tourismpay-realm.json:/opt/keycloak/data/import/tourismpay-realm.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    networks:
+      - tourismpay
+
+  # ─── Permify (ReBAC Authorization) ─────────────────────────────────────────
+  permify:
+    image: ghcr.io/permify/permify:latest
+    container_name: tourismpay-permify
+    restart: unless-stopped
+    command: serve
+    environment:
+      PERMIFY_DATABASE_ENGINE: postgres
+      PERMIFY_DATABASE_URI: postgres://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/permify
+      PERMIFY_LOG_LEVEL: info
+    ports:
+      - "3476:3476"  # HTTP
+      - "3478:3478"  # gRPC
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3476/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tourismpay
+
+  # ─── Prometheus (Metrics Collection) ────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: tourismpay-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - tourismpay
+
+  # ─── Grafana (Dashboard & Alerting) ─────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: tourismpay-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/monitoring/grafana-provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - tourismpay
+
+  # ─── Loki (Log Aggregation) ─────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:3.1.0
+    container_name: tourismpay-loki
+    restart: unless-stopped
+    volumes:
+      - ./infra/logging/loki-config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/config.yml
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tourismpay
+
+  # ─── Promtail (Log Shipper → Loki) ─────────────────────────────────────────
+  promtail:
+    image: grafana/promtail:3.1.0
+    container_name: tourismpay-promtail
+    restart: unless-stopped
+    volumes:
+      - ./infra/logging/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    networks:
+      - tourismpay
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+
+networks:
+  tourismpay:
+    name: tourismpay_default
+    external: true

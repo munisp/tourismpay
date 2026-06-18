@@ -1,0 +1,120 @@
+{
+  "realm": "tourismpay",
+  "enabled": true,
+  "displayName": "TourismPay",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "accessTokenLifespan": 3600,
+  "refreshTokenMaxReuse": 0,
+  "ssoSessionMaxLifespan": 86400,
+  "roles": {
+    "realm": [
+      { "name": "tourist", "description": "Foreign tourist with wallet and booking access" },
+      { "name": "merchant", "description": "Nigerian tourism merchant with establishment management" },
+      { "name": "bis_analyst", "description": "Background Investigation System analyst" },
+      { "name": "noc_operator", "description": "Network Operations Center operator" },
+      { "name": "admin", "description": "Full platform administrator" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "tourismpay-pwa",
+      "name": "TourismPay PWA",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "rootUrl": "http://localhost:3000",
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "https://tourismpay.ng/*",
+        "https://*.tourismpay.ng/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "https://tourismpay.ng",
+        "https://*.tourismpay.ng"
+      ],
+      "defaultClientScopes": ["openid", "profile", "email", "roles"],
+      "protocolMappers": [
+        {
+          "name": "realm-roles-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "tourismpay-api",
+      "name": "TourismPay API (Confidential)",
+      "enabled": true,
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "secret": "tourismpay-api-secret-change-in-production"
+    }
+  ],
+  "users": [
+    {
+      "username": "admin@tourismpay.ng",
+      "email": "admin@tourismpay.ng",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Patrick",
+      "lastName": "Munis",
+      "credentials": [{ "type": "password", "value": "admin123", "temporary": false }],
+      "realmRoles": ["admin"]
+    },
+    {
+      "username": "tourist@example.com",
+      "email": "tourist@example.com",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Jane",
+      "lastName": "Smith",
+      "credentials": [{ "type": "password", "value": "tourist123", "temporary": false }],
+      "realmRoles": ["tourist"]
+    },
+    {
+      "username": "merchant@ekohotels.ng",
+      "email": "merchant@ekohotels.ng",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Adebayo",
+      "lastName": "Ogunlesi",
+      "credentials": [{ "type": "password", "value": "merchant123", "temporary": false }],
+      "realmRoles": ["merchant"]
+    },
+    {
+      "username": "analyst@tourismpay.ng",
+      "email": "analyst@tourismpay.ng",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Chioma",
+      "lastName": "Okafor",
+      "credentials": [{ "type": "password", "value": "analyst123", "temporary": false }],
+      "realmRoles": ["bis_analyst"]
+    }
+  ]
+}

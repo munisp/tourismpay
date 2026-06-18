@@ -1,0 +1,168 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tourismpay-web
+  namespace: tourismpay
+  labels:
+    app: tourismpay-web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: tourismpay-web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: tourismpay-web
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: tourismpay
+          image: ghcr.io/munisp/tourismpay:latest
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: tourismpay-config
+            - secretRef:
+                name: tourismpay-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tourismpay-settlement
+  namespace: tourismpay
+  labels:
+    app: tourismpay-settlement
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tourismpay-settlement
+  template:
+    metadata:
+      labels:
+        app: tourismpay-settlement
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8081"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: settlement
+          image: ghcr.io/munisp/tourismpay-settlement:latest
+          ports:
+            - containerPort: 8081
+              name: http
+          envFrom:
+            - configMapRef:
+                name: tourismpay-go-config
+            - secretRef:
+                name: tourismpay-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tourismpay-ml
+  namespace: tourismpay
+  labels:
+    app: tourismpay-ml
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tourismpay-ml
+  template:
+    metadata:
+      labels:
+        app: tourismpay-ml
+    spec:
+      containers:
+        - name: ml-services
+          image: ghcr.io/munisp/tourismpay-ml:latest
+          ports:
+            - containerPort: 8001
+              name: fraud
+            - containerPort: 8002
+              name: compliance
+            - containerPort: 8003
+              name: scoring
+            - containerPort: 8004
+              name: exchange
+          envFrom:
+            - configMapRef:
+                name: tourismpay-python-config
+            - secretRef:
+                name: tourismpay-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: fraud
+            initialDelaySeconds: 15
+            periodSeconds: 30
