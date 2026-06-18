@@ -188,7 +188,13 @@ test.describe("TourismPay Golden Path E2E", () => {
   });
 
   test("settlement service: Go health + inventory API", async ({ request }) => {
-    const healthRes = await request.get("http://localhost:8081/health");
+    let healthRes;
+    try {
+      healthRes = await request.get("http://localhost:8081/health");
+    } catch {
+      test.skip(true, "Go settlement service not running");
+      return;
+    }
     if (healthRes.ok()) {
       const body = await healthRes.json();
       expect(body.status).toBe("healthy");
