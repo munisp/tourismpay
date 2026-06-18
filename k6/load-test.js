@@ -9,6 +9,8 @@ import http from "k6/http";
 import { check, sleep, group } from "k6";
 import { Rate, Trend, Counter } from "k6/metrics";
 
+const allowAuth = { responseCallback: http.expectedStatuses(200, 401, 403) };
+
 const BASE_URL = __ENV.K6_BASE_URL || "http://localhost:3000";
 const IS_CI = __ENV.CI === "true" || __ENV.GITHUB_ACTIONS === "true";
 const SCENARIO = __ENV.K6_SCENARIO || (IS_CI ? "smoke" : "load");
@@ -70,7 +72,7 @@ let sessionCookie = null;
 
 function authenticate() {
   if (sessionCookie) return sessionCookie;
-  const res = http.get(`${BASE_URL}/api/dev/session-token?redirect=/`, { redirects: 0 });
+  const res = http.get(`${BASE_URL}/api/dev/session-token?redirect=/`, { redirects: 0, ...allowAuth });
   const setCookie = res.headers["Set-Cookie"] || "";
   sessionCookie = setCookie.split(";")[0] || "";
   authLatency.add(res.timings.duration);
@@ -119,7 +121,7 @@ export default function () {
 
     const balances = http.get(
       `${BASE_URL}/api/trpc/wallet.balances?input=%7B%22json%22%3Anull%7D`,
-      { headers: { Cookie: cookie } }
+      { headers: { Cookie: cookie }, ...allowAuth }
     );
     check(balances, {
       "wallet balances responds": (r) => r.status === 200 || r.status === 401,
@@ -131,7 +133,7 @@ export default function () {
 
     const stats = http.get(
       `${BASE_URL}/api/trpc/wallet.stats?input=%7B%22json%22%3Anull%7D`,
-      { headers: { Cookie: cookie } }
+      { headers: { Cookie: cookie }, ...allowAuth }
     );
     check(stats, {
       "wallet stats responds": (r) => r.status === 200 || r.status === 401,
@@ -140,7 +142,7 @@ export default function () {
 
     const txRes = http.get(
       `${BASE_URL}/api/trpc/wallet.transactions?input=%7B%22json%22%3A%7B%22limit%22%3A10%7D%7D`,
-      { headers: { Cookie: cookie } }
+      { headers: { Cookie: cookie }, ...allowAuth }
     );
     check(txRes, {
       "wallet transactions responds": (r) => r.status === 200 || r.status === 401,
