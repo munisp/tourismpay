@@ -16,9 +16,9 @@ describe("Authentication", () => {
 
   it("protected endpoints reject unauthenticated requests", async () => {
     const endpoints = [
-      "/api/trpc/wallet.getBalances?input=%7B%22json%22%3Anull%7D",
-      "/api/trpc/bis.list?input=" + encodeURIComponent(JSON.stringify({ json: { page: 1, perPage: 10 } })),
-      "/api/trpc/kyb.getStatus?input=%7B%22json%22%3Anull%7D",
+      "/api/trpc/wallet.balances?input=%7B%22json%22%3Anull%7D",
+      "/api/trpc/bis.stats?input=%7B%22json%22%3Anull%7D",
+      "/api/trpc/kyb.stats?input=%7B%22json%22%3Anull%7D",
     ];
     for (const endpoint of endpoints) {
       const res = await fetch(`${BASE_URL}${endpoint}`);
@@ -51,7 +51,7 @@ describe("Authorization (Role-Based)", () => {
     sessionCookie = (res.headers.get("set-cookie") || "").split(";")[0];
 
     // Admin should be able to access wallet
-    const walletRes = await fetch(`${BASE_URL}/api/trpc/wallet.getBalances?input=%7B%22json%22%3Anull%7D`, {
+    const walletRes = await fetch(`${BASE_URL}/api/trpc/wallet.balances?input=%7B%22json%22%3Anull%7D`, {
       headers: { cookie: sessionCookie },
     });
     expect(walletRes.status).toBe(200);

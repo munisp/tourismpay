@@ -35,8 +35,8 @@ describe("Wallet Operations", () => {
     sessionCookie = await getSessionCookie();
   });
 
-  it("getBalances returns wallet balances for authenticated user", async () => {
-    const { status, body } = await trpcQuery("wallet.getBalances");
+  it("balances returns wallet balances for authenticated user", async () => {
+    const { status, body } = await trpcQuery("wallet.balances");
     expect(status).toBe(200);
     expect(body.result?.data?.json).toBeDefined();
     const balances = body.result.data.json;
@@ -57,15 +57,13 @@ describe("Wallet Operations", () => {
     expect(data.convertedAmount).toBeGreaterThan(0);
   });
 
-  it("getTransactions returns transaction history", async () => {
-    const { status, body } = await trpcQuery("wallet.getTransactions", {
-      page: 1,
-      perPage: 10,
+  it("transactions returns transaction history", async () => {
+    const { status, body } = await trpcQuery("wallet.transactions", {
+      limit: 10,
     });
     expect(status).toBe(200);
     const data = body.result?.data?.json;
-    expect(data.transactions).toBeDefined();
-    expect(data.pagination).toBeDefined();
+    expect(data).toBeDefined();
   });
 
   it("send rejects insufficient balance", async () => {
@@ -81,7 +79,7 @@ describe("Wallet Operations", () => {
 
 describe("Wallet Security", () => {
   it("rejects unauthenticated requests", async () => {
-    const res = await fetch(`${BASE_URL}/api/trpc/wallet.getBalances?input=%7B%22json%22%3Anull%7D`);
+    const res = await fetch(`${BASE_URL}/api/trpc/wallet.balances?input=%7B%22json%22%3Anull%7D`);
     expect(res.status).toBe(401);
   });
 

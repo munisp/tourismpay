@@ -36,15 +36,14 @@ describe("BIS Operations", () => {
   });
 
   it("list returns investigations with pagination", async () => {
-    const { status, body } = await trpcQuery("bis.list", { page: 1, perPage: 10 });
+    const { status, body } = await trpcQuery("bis.list", { limit: 10, offset: 0 });
     expect(status).toBe(200);
     const data = body.result?.data?.json;
-    expect(data.investigations).toBeDefined();
-    expect(Array.isArray(data.investigations)).toBe(true);
+    expect(Array.isArray(data)).toBe(true);
   });
 
-  it("getStats returns investigation statistics", async () => {
-    const { status, body } = await trpcQuery("bis.getStats");
+  it("stats returns investigation statistics", async () => {
+    const { status, body } = await trpcQuery("bis.stats");
     expect(status).toBe(200);
     const data = body.result?.data?.json;
     expect(data.total).toBeDefined();
@@ -75,7 +74,7 @@ describe("BIS Operations", () => {
 
 describe("BIS Security", () => {
   it("rejects unauthenticated access", async () => {
-    const res = await fetch(`${BASE_URL}/api/trpc/bis.list?input=${encodeURIComponent(JSON.stringify({ json: { page: 1, perPage: 10 } }))}`);
+    const res = await fetch(`${BASE_URL}/api/trpc/bis.list?input=${encodeURIComponent(JSON.stringify({ json: { limit: 10, offset: 0 } }))}`);
     expect(res.status).toBe(401);
   });
 });
