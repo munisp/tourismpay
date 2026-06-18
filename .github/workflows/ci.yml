@@ -27,6 +27,9 @@ jobs:
     env:
       DATABASE_URL: postgresql://tourismpay:tourismpay_dev@localhost:5432/tourismpay
       NODE_ENV: development
+      JWT_SECRET: ci-test-secret-key-for-session-signing
+      OWNER_OPEN_ID: ci-test-owner-openid
+      VITE_APP_ID: tourismpay-ci
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
