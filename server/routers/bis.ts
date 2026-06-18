@@ -15,6 +15,7 @@ import { eq, desc, and, count, sql, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { logger } from "../_core/logger";
 import { publishFraudAlert, publishAuditEvent } from "../_core/kafka";
+import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
 import { recordBisInvestigation } from "../_core/metrics";
 
 // ─── Auto-timeline helper ────────────────────────────────────────────────────
@@ -266,6 +267,7 @@ export const bisRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.INVESTIGATION, ACTIONS.CREATE);
       // Create the investigation record in PostgreSQL
       const inv = await createBisInvestigation({
         ...input,
@@ -398,6 +400,7 @@ export const bisRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.INVESTIGATION, ACTIONS.APPROVE);
       const result = await updateBisInvestigationStatus(
         input.id,
         input.status,

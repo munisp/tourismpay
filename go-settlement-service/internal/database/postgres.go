@@ -169,6 +169,187 @@ func runMigrations() error {
 			completed_at TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+		// Tipping service
+		`CREATE TABLE IF NOT EXISTS tip_transactions (
+			id VARCHAR(64) PRIMARY KEY,
+			transaction_id VARCHAR(128) NOT NULL,
+			payer_id VARCHAR(128) NOT NULL,
+			recipient_id VARCHAR(128) NOT NULL,
+			establishment_id INT NOT NULL,
+			amount DECIMAL(18,2) NOT NULL,
+			currency VARCHAR(10) NOT NULL DEFAULT 'NGN',
+			tip_type VARCHAR(20) NOT NULL DEFAULT 'PERCENTAGE',
+			distribution VARCHAR(20) NOT NULL DEFAULT 'DIRECT',
+			jurisdiction_code VARCHAR(10) NOT NULL DEFAULT 'NG',
+			tax_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+			net_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+			status VARCHAR(20) NOT NULL DEFAULT 'completed',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_tips_payer ON tip_transactions(payer_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_tips_recipient ON tip_transactions(recipient_id)`,
+		// Bank transfers
+		`CREATE TABLE IF NOT EXISTS bank_transfers (
+			id VARCHAR(64) PRIMARY KEY,
+			user_id VARCHAR(128) NOT NULL,
+			beneficiary_name VARCHAR(256) NOT NULL,
+			bank_code VARCHAR(20) NOT NULL,
+			account_number VARCHAR(20) NOT NULL,
+			amount DECIMAL(18,2) NOT NULL,
+			currency VARCHAR(10) NOT NULL DEFAULT 'NGN',
+			reference VARCHAR(256),
+			status VARCHAR(20) NOT NULL DEFAULT 'pending',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			completed_at TIMESTAMPTZ
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_bank_transfers_user ON bank_transfers(user_id)`,
+		// Agent banking
+		`CREATE TABLE IF NOT EXISTS agent_transactions (
+			id VARCHAR(64) PRIMARY KEY,
+			agent_id VARCHAR(128) NOT NULL,
+			customer_id VARCHAR(128),
+			transaction_type VARCHAR(20) NOT NULL,
+			amount DECIMAL(18,2) NOT NULL,
+			currency VARCHAR(10) NOT NULL DEFAULT 'NGN',
+			commission DECIMAL(18,2) NOT NULL DEFAULT 0,
+			status VARCHAR(20) NOT NULL DEFAULT 'completed',
+			location_lat DECIMAL(10,6),
+			location_lng DECIMAL(10,6),
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_tx_agent ON agent_transactions(agent_id)`,
+		// Virtual cards
+		`CREATE TABLE IF NOT EXISTS virtual_cards (
+			id VARCHAR(64) PRIMARY KEY,
+			user_id VARCHAR(128) NOT NULL,
+			card_number VARCHAR(19) NOT NULL,
+			card_type VARCHAR(20) NOT NULL DEFAULT 'VISA',
+			currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+			balance DECIMAL(18,2) NOT NULL DEFAULT 0,
+			spending_limit DECIMAL(18,2) NOT NULL DEFAULT 5000,
+			status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+			expires_at TIMESTAMPTZ NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_vcards_user ON virtual_cards(user_id)`,
+		// SWIFT/wire transfers
+		`CREATE TABLE IF NOT EXISTS swift_transfers (
+			id VARCHAR(64) PRIMARY KEY,
+			sender_id VARCHAR(128) NOT NULL,
+			recipient_iban VARCHAR(64) NOT NULL,
+			recipient_swift VARCHAR(11) NOT NULL,
+			amount DECIMAL(18,2) NOT NULL,
+			currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+			fee DECIMAL(18,2) NOT NULL DEFAULT 0,
+			reference VARCHAR(256),
+			status VARCHAR(20) NOT NULL DEFAULT 'initiated',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		// Tax calculations
+		`CREATE TABLE IF NOT EXISTS tax_calculations (
+			id VARCHAR(64) PRIMARY KEY,
+			jurisdiction_code VARCHAR(10) NOT NULL,
+			base_amount DECIMAL(18,2) NOT NULL,
+			total_tax DECIMAL(18,2) NOT NULL,
+			total_with_tax DECIMAL(18,2) NOT NULL,
+			currency VARCHAR(10) NOT NULL DEFAULT 'NGN',
+			category VARCHAR(64) NOT NULL DEFAULT 'accommodation',
+			breakdown JSONB NOT NULL DEFAULT '[]',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		// Crypto transactions
+		`CREATE TABLE IF NOT EXISTS crypto_transactions (
+			id VARCHAR(64) PRIMARY KEY,
+			user_id VARCHAR(128) NOT NULL,
+			wallet_address VARCHAR(256),
+			tx_type VARCHAR(20) NOT NULL,
+			amount DECIMAL(18,8) NOT NULL,
+			token VARCHAR(20) NOT NULL,
+			chain VARCHAR(20) NOT NULL DEFAULT 'ethereum',
+			tx_hash VARCHAR(128),
+			status VARCHAR(20) NOT NULL DEFAULT 'pending',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		// CBDC transactions
+		`CREATE TABLE IF NOT EXISTS cbdc_transactions (
+			id VARCHAR(64) PRIMARY KEY,
+			user_id VARCHAR(128) NOT NULL,
+			cbdc_type VARCHAR(20) NOT NULL DEFAULT 'eNaira',
+			amount DECIMAL(18,2) NOT NULL,
+			currency VARCHAR(10) NOT NULL DEFAULT 'NGN',
+			direction VARCHAR(10) NOT NULL DEFAULT 'IN',
+			reference VARCHAR(256),
+			status VARCHAR(20) NOT NULL DEFAULT 'completed',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		// Offline NFC transactions
+		`CREATE TABLE IF NOT EXISTS nfc_transactions (
+			id VARCHAR(64) PRIMARY KEY,
+			payer_device_id VARCHAR(128) NOT NULL,
+			payee_device_id VARCHAR(128) NOT NULL,
+			amount DECIMAL(18,2) NOT NULL,
+			currency VARCHAR(10) NOT NULL DEFAULT 'NGN',
+			offline BOOLEAN NOT NULL DEFAULT true,
+			synced BOOLEAN NOT NULL DEFAULT false,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			synced_at TIMESTAMPTZ
+		)`,
+		// USSD sessions
+		`CREATE TABLE IF NOT EXISTS ussd_sessions (
+			id VARCHAR(64) PRIMARY KEY,
+			msisdn VARCHAR(20) NOT NULL,
+			session_code VARCHAR(10) NOT NULL,
+			current_menu VARCHAR(64) NOT NULL DEFAULT 'main',
+			input_stack TEXT[] NOT NULL DEFAULT '{}',
+			status VARCHAR(20) NOT NULL DEFAULT 'active',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		// Bill payments
+		`CREATE TABLE IF NOT EXISTS bill_payments (
+			id VARCHAR(64) PRIMARY KEY,
+			user_id VARCHAR(128) NOT NULL,
+			biller_code VARCHAR(64) NOT NULL,
+			biller_name VARCHAR(256) NOT NULL,
+			amount DECIMAL(18,2) NOT NULL,
+			currency VARCHAR(10) NOT NULL DEFAULT 'NGN',
+			reference VARCHAR(256),
+			status VARCHAR(20) NOT NULL DEFAULT 'completed',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		// Onramp/Offramp transactions
+		`CREATE TABLE IF NOT EXISTS onramp_offramp_transactions (
+			id VARCHAR(64) PRIMARY KEY,
+			user_id VARCHAR(128) NOT NULL,
+			direction VARCHAR(10) NOT NULL,
+			rail VARCHAR(20) NOT NULL,
+			fiat_amount DECIMAL(18,2) NOT NULL,
+			fiat_currency VARCHAR(10) NOT NULL DEFAULT 'NGN',
+			crypto_amount DECIMAL(18,8),
+			crypto_token VARCHAR(20),
+			fee DECIMAL(18,2) NOT NULL DEFAULT 0,
+			status VARCHAR(20) NOT NULL DEFAULT 'completed',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		// Multi-tip sessions
+		`CREATE TABLE IF NOT EXISTS multi_tip_sessions (
+			id VARCHAR(64) PRIMARY KEY,
+			payer_id VARCHAR(128) NOT NULL,
+			establishment_id INT NOT NULL,
+			total_amount DECIMAL(18,2) NOT NULL,
+			currency VARCHAR(10) NOT NULL DEFAULT 'NGN',
+			recipients_count INT NOT NULL DEFAULT 0,
+			status VARCHAR(20) NOT NULL DEFAULT 'completed',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS multi_tip_recipients (
+			id SERIAL PRIMARY KEY,
+			session_id VARCHAR(64) NOT NULL,
+			recipient_name VARCHAR(256) NOT NULL,
+			role VARCHAR(64),
+			amount DECIMAL(18,2) NOT NULL,
+			percentage DECIMAL(5,2)
+		)`,
 	}
 
 	for _, m := range migrations {

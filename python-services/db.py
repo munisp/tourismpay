@@ -150,6 +150,42 @@ async def ensure_tables():
             scored_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )""",
         "CREATE INDEX IF NOT EXISTS idx_bis_ai_inv ON bis_ai_scores(investigation_id)",
+        """CREATE TABLE IF NOT EXISTS ride_bookings (
+            id VARCHAR(64) PRIMARY KEY,
+            user_id VARCHAR(128) NOT NULL,
+            provider VARCHAR(32) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'requested',
+            pickup_address TEXT,
+            dropoff_address TEXT,
+            estimated_fare REAL,
+            final_fare REAL,
+            currency VARCHAR(10) NOT NULL DEFAULT 'NGN',
+            payment_method VARCHAR(32),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_ride_user ON ride_bookings(user_id)",
+        """CREATE TABLE IF NOT EXISTS carbon_credit_purchases (
+            id SERIAL PRIMARY KEY,
+            user_id VARCHAR(128) NOT NULL,
+            project_id VARCHAR(64) NOT NULL,
+            tonnes REAL NOT NULL,
+            price_per_tonne REAL NOT NULL,
+            total_cost REAL NOT NULL,
+            currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+            status VARCHAR(20) NOT NULL DEFAULT 'completed',
+            purchased_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )""",
+        """CREATE TABLE IF NOT EXISTS tax_compliance_reports (
+            id SERIAL PRIMARY KEY,
+            jurisdiction VARCHAR(10) NOT NULL,
+            entity_id VARCHAR(128),
+            report_type VARCHAR(32) NOT NULL,
+            period VARCHAR(20),
+            total_collected REAL NOT NULL DEFAULT 0,
+            total_remitted REAL NOT NULL DEFAULT 0,
+            status VARCHAR(20) NOT NULL DEFAULT 'generated',
+            generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )""",
     ]
     pool = await get_pool()
     if pool is None:

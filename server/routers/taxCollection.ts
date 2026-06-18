@@ -7,6 +7,8 @@ import { protectedProcedure, adminProcedure, settlementProcedure, router } from 
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
 import { sql } from "drizzle-orm";
+import { publishAuditEvent } from "../_core/kafka";
+import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
 
 // ─── Jurisdiction Tax Rules ─────────────────────────────────────────────────
 
@@ -232,6 +234,8 @@ export const taxCollectionRouter = router({
         `);
       }
 
+      publishAuditEvent("tax.collected", { taxRecordId, jurisdiction: result.jurisdictionCode, totalTax: result.totalTax, currency: result.currency });
+
       return {
         taxRecordId,
         ...result,
@@ -306,7 +310,8 @@ export const taxCollectionRouter = router({
   // Admin: mark tax as remitted
   markRemitted: adminProcedure
     .input(z.object({ jurisdictionCode: z.string().length(2), taxType: z.string(), period: z.string(), amount: z.number().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.SETTLEMENT, ACTIONS.EXECUTE);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       await db.execute(sql`

@@ -8,6 +8,8 @@ import (
 	"math"
 	"sync"
 	"time"
+
+	"github.com/tourismpay/settlement-service/internal/database"
 )
 
 type CryptoService struct {
@@ -300,6 +302,15 @@ func (s *CryptoService) CreateWallet(userID string) *CryptoWallet {
 	}
 
 	s.wallets[walletID] = wallet
+
+	// Persist to PostgreSQL
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+			walletID, userID, "wallet_created", 0.0, "MULTI", "multi", "completed",
+		)
+	}
+
 	return wallet
 }
 
@@ -397,6 +408,14 @@ func (s *CryptoService) SimulateDeposit(walletID, coin string, amount float64) D
 
 	s.transactions[txID] = tx
 
+	// Persist to PostgreSQL
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO crypto_transactions (id, user_id, wallet_address, tx_type, amount, token, chain, tx_hash, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+			txID, wallet.UserID, wallet.Addresses[coinInfo.Network], "deposit", amount, coin, coinInfo.Network, blockchainTxn, "confirmed",
+		)
+	}
+
 	// Credit the wallet
 	wallet.Balances[coin] += amount
 	wallet.LastUpdated = time.Now()
@@ -473,6 +492,14 @@ func (s *CryptoService) Withdraw(walletID, coin, toAddress string, amount float6
 	tx.ConfirmedAt = &now
 
 	s.transactions[txID] = tx
+
+	// Persist to PostgreSQL
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO crypto_transactions (id, user_id, wallet_address, tx_type, amount, token, chain, tx_hash, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+			txID, wallet.UserID, toAddress, "withdraw", amount, coin, coinInfo.Network, blockchainTxn, "confirmed",
+		)
+	}
 
 	// Debit the wallet
 	wallet.Balances[coin] -= totalRequired
@@ -586,6 +613,14 @@ func (s *CryptoService) Swap(walletID, fromCoin, toCoin string, fromAmount float
 	swap.CompletedAt = &now
 
 	s.pendingSwaps[swapID] = swap
+
+	// Persist to PostgreSQL
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+			swapID, wallet.UserID, "swap", fromAmount, fromCoin+"->"+toCoin, "internal", "completed",
+		)
+	}
 
 	// Update balances
 	wallet.Balances[fromCoin] -= fromAmount

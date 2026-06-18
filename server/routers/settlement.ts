@@ -11,6 +11,8 @@ import { createAuditLog, createUserNotification } from "../db";
 import { TRPCError } from "@trpc/server";
 import { Parser } from "json2csv";
 import { pushSettlementUpdate } from "../sse";
+import { publishSettlementEvent, publishAuditEvent } from "../_core/kafka";
+import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
 
 async function requireDb() {
   const db = await getDb();
@@ -87,6 +89,7 @@ export const settlementRouter = router({
       ids: z.array(z.string()).min(1).max(100),
     }))
     .mutation(async ({ ctx, input }) => {
+      await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.SETTLEMENT, ACTIONS.APPROVE);
       const db = await requireDb();
       const rows = await db
         .select({ id: psSettlements.id, status: psSettlements.status })
@@ -135,6 +138,8 @@ export const settlementRouter = router({
       try {
         pushSettlementUpdate({ ids: eligibleIds, newStatus: "processing", count: eligibleIds.length, actorName: ctx.user.name || String(ctx.user.id) });
       } catch { /* non-critical */ }
+      // Publish Kafka event
+      publishSettlementEvent("completed", { batchIds: eligibleIds, count: eligibleIds.length, actor: ctx.user.name || String(ctx.user.id) });
       return { approved: eligibleIds.length, ids: eligibleIds };
     }),
 
@@ -145,6 +150,7 @@ export const settlementRouter = router({
       reason: z.string().min(1).max(500),
     }))
     .mutation(async ({ ctx, input }) => {
+      await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.SETTLEMENT, ACTIONS.APPROVE);
       const db = await requireDb();
       const [row] = await db
         .select({ id: psSettlements.id, status: psSettlements.status })

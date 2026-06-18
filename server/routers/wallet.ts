@@ -13,6 +13,7 @@ import { checkAndAutoFlag } from "./bisIntegration";
 import { stripe } from "../_core/stripe";
 import { cacheGet, cacheSet } from "../_core/redis";
 import { publishEvent, TOPICS } from "../_core/kafka";
+import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
 import { recordWalletTransaction } from "../_core/metrics";
 import { getOrCreateAccount, createTransfer, LEDGER_CODES, CURRENCY_CODES, TRANSFER_CODES } from "../_core/tigerbeetle";
 
@@ -168,6 +169,7 @@ export const walletRouter = router({
       biometricToken: z.string().optional(), // Required for high-value transactions
     }))
     .mutation(async ({ ctx, input }) => {
+      await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.WALLET, ACTIONS.EDIT);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
@@ -566,6 +568,7 @@ export const walletRouter = router({
       amount: z.number().positive(),
     }))
     .mutation(async ({ ctx, input }) => {
+      await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.WALLET, ACTIONS.EDIT);
       if (input.fromCurrency === input.toCurrency) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot swap same currency" });
       }

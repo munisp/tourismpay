@@ -17,6 +17,7 @@ import {
 import { encryptPII } from "../_core/encryption";
 import { logger } from "../_core/logger";
 import { publishKybStatusChange } from "../_core/kafka";
+import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
 import { recordKybApplication } from "../_core/metrics";
 
 const KYB_SERVICE_URL = process.env.KYB_SERVICE_URL || "http://localhost:8083";
@@ -245,7 +246,8 @@ export const kybRouter = router({
         complianceScore: z.number().min(0).max(100).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.ESTABLISHMENT, ACTIONS.APPROVE);
       return updateEstablishmentKybStatus(
         input.establishmentId,
         input.decision,

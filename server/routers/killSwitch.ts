@@ -20,6 +20,8 @@ import {
   psKillSwitchHistory,
   type PsKillSwitch,
 } from "../../drizzle/schema";
+import { publishEvent, TOPICS } from "../_core/kafka";
+import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
 
 type DbInstance = NonNullable<ReturnType<typeof drizzle>>;
 
@@ -186,6 +188,7 @@ export const killSwitchRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.SYSTEM, ACTIONS.EDIT);
       const db = await requireDb();
       const now = Date.now();
 
@@ -234,6 +237,8 @@ export const killSwitchRouter = router({
         { userId: ctx.user.id, timestamp: now }
       );
 
+      publishEvent(TOPICS.KILL_SWITCH, { type: "kill_switch.activated", payload: { corridor: input.corridor, reason: input.reason, activatedBy: ctx.user.name || String(ctx.user.id) } });
+
       return {
         success: true,
         corridor: input.corridor,
@@ -255,6 +260,7 @@ export const killSwitchRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
+      await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.SYSTEM, ACTIONS.EDIT);
       const db = await requireDb();
       const now = Date.now();
 

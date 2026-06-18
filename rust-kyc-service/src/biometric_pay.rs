@@ -7,8 +7,9 @@
 //! Kafka (auth events), OpenSearch (audit logging).
 
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ pub struct BiometricPayService {
     templates: RwLock<HashMap<String, Vec<BiometricTemplate>>>, // user_id -> templates
     pos_devices: RwLock<HashMap<String, MerchantPOS>>,
     auth_sessions: RwLock<HashMap<String, BiometricAuthResult>>,
+    db_pool: Option<Arc<PgPool>>,
 }
 
 impl BiometricPayService {
@@ -83,6 +85,16 @@ impl BiometricPayService {
             templates: RwLock::new(HashMap::new()),
             pos_devices: RwLock::new(HashMap::new()),
             auth_sessions: RwLock::new(HashMap::new()),
+            db_pool: None,
+        }
+    }
+
+    pub fn with_pool(pool: Arc<PgPool>) -> Self {
+        Self {
+            templates: RwLock::new(HashMap::new()),
+            pos_devices: RwLock::new(HashMap::new()),
+            auth_sessions: RwLock::new(HashMap::new()),
+            db_pool: Some(pool),
         }
     }
 
@@ -118,6 +130,24 @@ impl BiometricPayService {
         
         if same_type_count >= 3 {
             return Err("Maximum templates reached for this biometric type".to_string());
+        }
+
+        // Persist to PostgreSQL
+        if let Some(pool) = &self.db_pool {
+            let pool = pool.clone();
+            let tmpl = template.clone();
+            tokio::spawn(async move {
+                let _ = sqlx::query(
+                    "INSERT INTO biometric_templates (user_id, template_type, template_hash, device_id, confidence_threshold) VALUES ($1, $2, $3, $4, $5)"
+                )
+                .bind(&tmpl.user_id)
+                .bind(format!("{:?}", tmpl.template_type))
+                .bind(&tmpl.template_hash)
+                .bind(&tmpl.device_id)
+                .bind(tmpl.confidence_threshold)
+                .execute(&*pool)
+                .await;
+            });
         }
 
         user_templates.push(template);
@@ -159,7 +189,7 @@ impl BiometricPayService {
             }
         }
 
-        match best_match {
+        let result = match best_match {
             Some((user_id, confidence)) => {
                 let requires_additional = matches!(auth_level, AuthLevel::BiometricMFA);
                 let token = if !requires_additional {
@@ -187,11 +217,56 @@ impl BiometricPayService {
                 transaction_token: None,
                 error: Some("No matching biometric template found".to_string()),
             },
+        };
+
+        // Persist auth session to PostgreSQL
+        if let Some(pool) = &self.db_pool {
+            let pool = pool.clone();
+            let r = result.clone();
+            let merchant = req.merchant_id.clone();
+            let amount = req.amount_cents;
+            let currency = req.currency.clone();
+            let device = req.device_id.clone();
+            tokio::spawn(async move {
+                let _ = sqlx::query(
+                    "INSERT INTO biometric_auth_sessions (user_id, merchant_id, amount_cents, currency, auth_level, authorized, confidence, transaction_token, device_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
+                )
+                .bind(r.user_id.as_deref())
+                .bind(&merchant)
+                .bind(amount as i64)
+                .bind(&currency)
+                .bind(format!("{:?}", r.auth_level))
+                .bind(r.authorized)
+                .bind(r.confidence)
+                .bind(r.transaction_token.as_deref())
+                .bind(&device)
+                .execute(&*pool)
+                .await;
+            });
         }
+
+        result
     }
 
     /// Register a merchant POS device
     pub fn register_pos(&self, pos: MerchantPOS) -> Result<(), String> {
+        // Persist to PostgreSQL
+        if let Some(pool) = &self.db_pool {
+            let pool = pool.clone();
+            let p = pos.clone();
+            tokio::spawn(async move {
+                let _ = sqlx::query(
+                    "INSERT INTO merchant_pos_devices (id, merchant_id, location, max_offline_amount) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET location = $3, max_offline_amount = $4"
+                )
+                .bind(&p.id)
+                .bind(&p.merchant_id)
+                .bind(&p.location)
+                .bind(p.max_offline_amount as i64)
+                .execute(&*pool)
+                .await;
+            });
+        }
+
         let mut devices = self.pos_devices.write().map_err(|e| e.to_string())?;
         devices.insert(pos.id.clone(), pos);
         Ok(())

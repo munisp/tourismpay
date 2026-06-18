@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tourismpay/settlement-service/internal/database"
 )
 
 // ─── CBDC Types ────────────────────────────────────────────────────────────────
@@ -113,6 +114,14 @@ func (b *CBDCBridge) CreateWallet(ctx context.Context, userID string, network CB
 	b.mu.Lock()
 	b.wallets[wallet.ID] = wallet
 	b.mu.Unlock()
+
+	// Persist to PostgreSQL
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO cbdc_transactions (id, user_id, cbdc_type, amount, currency, direction, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+			wallet.ID, userID, string(network), 0.0, currency, "WALLET", "wallet_created", "completed",
+		)
+	}
 
 	return wallet, nil
 }

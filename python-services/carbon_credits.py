@@ -10,6 +10,8 @@ Lakehouse (impact analytics), Redis (offset price cache).
 import os
 import secrets
 from datetime import datetime
+
+import db as database
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel, Field
@@ -249,6 +251,13 @@ async def purchase_offset(
         purchased_at=datetime.utcnow().isoformat(),
     )
     offset_purchases[purchase_id] = purchase
+
+    # Persist to PostgreSQL
+    await database.execute(
+        "INSERT INTO carbon_credit_purchases (user_id, project_id, tonnes, price_per_tonne, total_cost, currency, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+        user_id, project_id, tonnes, project.price_per_tonne_usd, cost, "USD", "confirmed",
+    )
+
     return purchase
 
 @app.get("/impact/{user_id}", response_model=UserImpact)

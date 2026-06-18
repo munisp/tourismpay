@@ -5,6 +5,8 @@ import (
 	"math"
 	"strings"
 	"time"
+
+	"github.com/tourismpay/settlement-service/internal/database"
 )
 
 // TaxType represents the category of tax applied
@@ -251,7 +253,7 @@ func (s *TaxEngineService) CalculateTax(jurisdictionCode, category, currency str
 		}
 	}
 
-	return TaxCalculation{
+	result := TaxCalculation{
 		SubTotal:      subTotal,
 		TotalTax:      roundTo2(totalTax),
 		GrandTotal:    roundTo2(subTotal + totalTax),
@@ -261,6 +263,16 @@ func (s *TaxEngineService) CalculateTax(jurisdictionCode, category, currency str
 		CalculatedAt:  now,
 		ReceiptNumber: generateTaxReceipt(jurisdictionCode),
 	}
+
+	// Persist to PostgreSQL
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO tax_calculations (id, jurisdiction, category, subtotal, tax_total, currency, receipt_number) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+			result.ReceiptNumber, jurisdictionCode, category, subTotal, result.TotalTax, currency, result.ReceiptNumber,
+		)
+	}
+
+	return result
 }
 
 // GetRules returns all rules for a jurisdiction
