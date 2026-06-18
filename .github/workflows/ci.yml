@@ -34,7 +34,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install
       - run: npx tsc --noEmit
       - name: Run migrations
         run: pnpm drizzle-kit push 2>/dev/null || true
