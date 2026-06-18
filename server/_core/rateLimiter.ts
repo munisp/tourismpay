@@ -1,146 +1,142 @@
 /**
- * Per-Entity Rate Limiting (3.4)
- * 
- * Granular rate limits per user, merchant, and endpoint.
- * Includes velocity checks for fraud detection.
+ * Redis-Backed Rate Limiting Middleware
  *
- * Middleware integration: Redis (sliding window counters),
- * Kafka (rate limit breach events), OpenSearch (analytics).
+ * Enforces per-route rate limits using Redis sliding window counters.
+ * When Redis is unavailable, falls back to in-memory counters (per-instance only).
+ *
+ * Rate limits:
+ *  - General API: 100 req/min per IP
+ *  - Auth endpoints: 10 req/min per IP
+ *  - Wallet transactions: 30 req/min per user
+ *  - BIS operations: 20 req/min per user
+ *  - Settlement: 5 req/min per user
+ *  - Public endpoints: 200 req/min per IP
  */
-import { Request, Response, NextFunction } from "express";
-import { incrementRateLimit, cacheGet } from "./redis";
-import { publishAuditEvent } from "./kafka";
+import type { Request, Response, NextFunction } from "express";
+import { incrementRateLimit } from "./redis";
 import { logger } from "./logger";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── In-Memory Fallback ──────────────────────────────────────────────────────
 
-interface RateLimitRule {
-  key: string;
+const memoryStore = new Map<string, { count: number; resetAt: number }>();
+
+function memoryIncrement(key: string, windowMs: number): number {
+  const now = Date.now();
+  const entry = memoryStore.get(key);
+  if (!entry || now > entry.resetAt) {
+    memoryStore.set(key, { count: 1, resetAt: now + windowMs });
+    return 1;
+  }
+  entry.count++;
+  return entry.count;
+}
+
+// Clean up expired entries every 60s
+setInterval(() => {
+  const now = Date.now();
+  memoryStore.forEach((entry, key) => {
+    if (now > entry.resetAt) memoryStore.delete(key);
+  });
+}, 60_000);
+
+// ─── Rate Limit Configs ──────────────────────────────────────────────────────
+
+export interface RateLimitConfig {
+  windowMs: number;
   maxRequests: number;
-  windowSeconds: number;
-  blockDurationSeconds?: number;
+  keyGenerator?: (req: Request) => string;
+  skipSuccessfulRequests?: boolean;
 }
 
-interface VelocityCheck {
-  metric: string;
-  threshold: number;
-  windowSeconds: number;
-  action: "warn" | "block" | "flag_fraud";
-}
-
-// ─── Rules ────────────────────────────────────────────────────────────────────
-
-const RATE_LIMIT_RULES: Record<string, RateLimitRule> = {
-  // Payment operations
-  "payment:attempt": { key: "payment:attempt", maxRequests: 10, windowSeconds: 60 },
-  "payment:create": { key: "payment:create", maxRequests: 30, windowSeconds: 3600 },
-  
-  // KYB operations
-  "kyb:submit": { key: "kyb:submit", maxRequests: 5, windowSeconds: 86400 },
-  "kyb:document_upload": { key: "kyb:document_upload", maxRequests: 20, windowSeconds: 3600 },
-  
-  // Auth operations
-  "auth:login": { key: "auth:login", maxRequests: 5, windowSeconds: 300, blockDurationSeconds: 900 },
-  "auth:password_reset": { key: "auth:password_reset", maxRequests: 3, windowSeconds: 3600 },
-  
-  // Merchant operations
-  "merchant:qr_generate": { key: "merchant:qr_generate", maxRequests: 100, windowSeconds: 3600 },
-  "merchant:payout": { key: "merchant:payout", maxRequests: 10, windowSeconds: 86400 },
-  
-  // Wallet operations
-  "wallet:transfer": { key: "wallet:transfer", maxRequests: 20, windowSeconds: 3600 },
-  "wallet:topup": { key: "wallet:topup", maxRequests: 5, windowSeconds: 3600 },
-  
-  // API general
-  "api:search": { key: "api:search", maxRequests: 60, windowSeconds: 60 },
-  "api:export": { key: "api:export", maxRequests: 5, windowSeconds: 3600 },
+const DEFAULT_CONFIG: RateLimitConfig = {
+  windowMs: 60_000,
+  maxRequests: 100,
 };
 
-const VELOCITY_CHECKS: VelocityCheck[] = [
-  { metric: "payment:total_amount", threshold: 500000, windowSeconds: 3600, action: "flag_fraud" }, // $5000/hr
-  { metric: "payment:unique_merchants", threshold: 20, windowSeconds: 3600, action: "warn" }, // 20 merchants/hr
-  { metric: "transfer:unique_recipients", threshold: 10, windowSeconds: 3600, action: "flag_fraud" }, // 10 recipients/hr
-  { metric: "login:failed_attempts", threshold: 10, windowSeconds: 600, action: "block" }, // 10 failed/10min
-];
+export const RATE_LIMITS = {
+  general: { windowMs: 60_000, maxRequests: 100 },
+  auth: { windowMs: 60_000, maxRequests: 10 },
+  wallet: { windowMs: 60_000, maxRequests: 30 },
+  bis: { windowMs: 60_000, maxRequests: 20 },
+  settlement: { windowMs: 60_000, maxRequests: 5 },
+  public: { windowMs: 60_000, maxRequests: 200 },
+} as const;
 
-// ─── Rate Limit Check ─────────────────────────────────────────────────────────
+// ─── Middleware Factory ──────────────────────────────────────────────────────
 
-export async function checkRateLimit(
-  operation: string,
-  entityId: string,
-): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
-  const rule = RATE_LIMIT_RULES[operation];
-  if (!rule) return { allowed: true, remaining: Infinity, resetAt: 0 };
-
-  const key = `rl:${rule.key}:${entityId}`;
-  
-  // Check if entity is blocked
-  const blocked = await cacheGet<string>(`rl:blocked:${key}`);
-  if (blocked) {
-    return { allowed: false, remaining: 0, resetAt: parseInt(blocked) };
-  }
-
-  const count = await incrementRateLimit(key, rule.windowSeconds);
-  const allowed = count <= rule.maxRequests;
-  const remaining = Math.max(0, rule.maxRequests - count);
-
-  if (!allowed) {
-    logger.warn(`[RateLimit] Limit exceeded: ${operation} for entity ${entityId} (${count}/${rule.maxRequests})`);
-    await publishAuditEvent("rate_limit.exceeded", { operation, entityId, count, limit: rule.maxRequests });
-  }
-
-  return { allowed, remaining, resetAt: Date.now() + rule.windowSeconds * 1000 };
+function getClientIp(req: Request): string {
+  return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
+    || req.socket.remoteAddress
+    || "unknown";
 }
 
-// ─── Velocity Check ───────────────────────────────────────────────────────────
-
-export async function checkVelocity(
-  metric: string,
-  entityId: string,
-  value: number = 1,
-): Promise<{ ok: boolean; action?: string; current: number; threshold: number }> {
-  const check = VELOCITY_CHECKS.find(v => v.metric === metric);
-  if (!check) return { ok: true, current: 0, threshold: Infinity };
-
-  const key = `velocity:${metric}:${entityId}`;
-  const count = await incrementRateLimit(key, check.windowSeconds);
-  const current = count * value;
-
-  if (current > check.threshold) {
-    logger.warn(`[Velocity] Threshold breached: ${metric} for ${entityId} — ${current}/${check.threshold}`);
-    await publishAuditEvent("velocity.breach", {
-      metric,
-      entityId,
-      current,
-      threshold: check.threshold,
-      action: check.action,
-    });
-    return { ok: false, action: check.action, current, threshold: check.threshold };
-  }
-
-  return { ok: true, current, threshold: check.threshold };
+function getUserId(req: Request): string {
+  // Try to get user from session or keycloak
+  const session = (req as any).session;
+  if (session?.userId) return `user:${session.userId}`;
+  const keycloakUser = (req as any).keycloakUser;
+  if (keycloakUser?.sub) return `user:${keycloakUser.sub}`;
+  return `ip:${getClientIp(req)}`;
 }
 
-// ─── Express Middleware ───────────────────────────────────────────────────────
+export function createRateLimit(config: Partial<RateLimitConfig> = {}) {
+  const finalConfig = { ...DEFAULT_CONFIG, ...config };
 
-export function entityRateLimitMiddleware(operation: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const userId = (req as any).user?.id || req.ip || "anonymous";
-    const result = await checkRateLimit(operation, userId);
+    const key = finalConfig.keyGenerator
+      ? finalConfig.keyGenerator(req)
+      : `rl:${getClientIp(req)}:${req.path}`;
 
-    res.setHeader("X-RateLimit-Limit", RATE_LIMIT_RULES[operation]?.maxRequests || 0);
-    res.setHeader("X-RateLimit-Remaining", result.remaining);
-    res.setHeader("X-RateLimit-Reset", result.resetAt);
+    try {
+      // Try Redis first, fall back to memory
+      let count = await incrementRateLimit(key, finalConfig.windowMs);
+      if (count === 0) {
+        count = memoryIncrement(key, finalConfig.windowMs);
+      }
 
-    if (!result.allowed) {
-      res.status(429).json({
-        error: "Rate limit exceeded",
-        retryAfter: Math.ceil((result.resetAt - Date.now()) / 1000),
-      });
-      return;
+      // Set rate limit headers
+      res.setHeader("X-RateLimit-Limit", finalConfig.maxRequests);
+      res.setHeader("X-RateLimit-Remaining", Math.max(0, finalConfig.maxRequests - count));
+      res.setHeader("X-RateLimit-Reset", Math.ceil((Date.now() + finalConfig.windowMs) / 1000));
+
+      if (count > finalConfig.maxRequests) {
+        logger.warn(`[RateLimit] Exceeded for ${key}: ${count}/${finalConfig.maxRequests}`);
+        res.status(429).json({
+          error: "Rate limit exceeded",
+          limit: finalConfig.maxRequests,
+          windowMs: finalConfig.windowMs,
+          retryAfter: Math.ceil(finalConfig.windowMs / 1000),
+        });
+        return;
+      }
+    } catch (err) {
+      // On error, allow the request through (fail open)
+      logger.warn(`[RateLimit] Error checking limit: ${(err as Error).message}`);
     }
     next();
   };
 }
 
-logger.info("[RateLimit] Per-entity rate limiter loaded");
+// ─── Pre-built Middleware ────────────────────────────────────────────────────
+
+export const generalRateLimit = createRateLimit(RATE_LIMITS.general);
+
+export const authRateLimit = createRateLimit({
+  ...RATE_LIMITS.auth,
+  keyGenerator: (req) => `rl:auth:${getClientIp(req)}`,
+});
+
+export const walletRateLimit = createRateLimit({
+  ...RATE_LIMITS.wallet,
+  keyGenerator: (req) => `rl:wallet:${getUserId(req)}`,
+});
+
+export const bisRateLimit = createRateLimit({
+  ...RATE_LIMITS.bis,
+  keyGenerator: (req) => `rl:bis:${getUserId(req)}`,
+});
+
+export const settlementRateLimit = createRateLimit({
+  ...RATE_LIMITS.settlement,
+  keyGenerator: (req) => `rl:settlement:${getUserId(req)}`,
+});

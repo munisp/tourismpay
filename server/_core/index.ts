@@ -42,6 +42,10 @@ import { closeKafka } from "./kafka";
 import { keycloakAuthMiddleware } from "./keycloak";
 import { syncRoutes as syncApisixRoutes } from "./apisix";
 import { ensureIndices as ensureOpenSearchIndices } from "./opensearch";
+import { metricsMiddleware, metricsHandler, healthHandler, readinessHandler, livenessHandler } from "./metrics";
+import { generalRateLimit } from "./rateLimiter";
+import { ensureLedgerTables } from "./tigerbeetle";
+import { getMojaloop } from "./mojaloop";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -155,23 +159,11 @@ async function startServer() {
   // ─── Health / Lifecycle Probes (before body parsers — lightweight, no auth) ──
   let serviceReady = false;
 
-  app.get("/health", (_req, res) => {
-    res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date().toISOString() });
-  });
-
-  // Liveness probe — process is alive, not deadlocked
-  app.get("/livez", (_req, res) => {
-    res.json({ status: "alive", uptime: process.uptime(), pid: process.pid });
-  });
-
-  // Readiness probe — ready to accept traffic (DB connected, etc.)
-  app.get("/readyz", (_req, res) => {
-    if (!serviceReady) {
-      res.status(503).json({ status: "not_ready", reason: "starting up or shutting down" });
-      return;
-    }
-    res.json({ status: "ready" });
-  });
+  app.get("/health", healthHandler);
+  app.get("/health/deep", healthHandler);
+  app.get("/livez", livenessHandler);
+  app.get("/readyz", readinessHandler);
+  app.get("/metrics", metricsHandler);
 
   // Graceful shutdown: mark not ready on SIGTERM, drain in-flight, then exit
   const markReady = () => { serviceReady = true; };
@@ -187,6 +179,14 @@ async function startServer() {
     // K8s preStop hook sleeps 5s; we wait 2s extra for endpoint propagation
     setTimeout(() => { process.exit(0); }, 7000);
   });
+
+  // ─── Prometheus metrics collection ────────────────────────────────────────
+  app.use(metricsMiddleware());
+
+  // ─── Redis-backed rate limiting (per-route) ────────────────────────────────
+  app.use("/api/trpc/wallet", generalRateLimit);
+  app.use("/api/trpc/bis", generalRateLimit);
+  app.use("/api/trpc/settlement", generalRateLimit);
 
   // ─── Response compression ──────────────────────────────────────────────────
   app.use(compression());
@@ -387,6 +387,8 @@ async function startServer() {
 
     // ─── Initialize middleware connections ─────────────────────────────────
     getRedis(); // Connect Redis cache (non-blocking)
+    ensureLedgerTables().catch(() => {}); // Create TigerBeetle ledger tables (non-blocking)
+    getMojaloop(); // Initialize Mojaloop client (non-blocking)
     syncApisixRoutes().catch(() => {}); // Sync APISIX routes (non-blocking)
     ensureOpenSearchIndices().catch(() => {}); // Create OpenSearch indices (non-blocking)
 

@@ -1,233 +1,181 @@
 /**
- * Permify Authorization Client
+ * Permify ReBAC (Relationship-Based Access Control)
  *
- * Relationship-based access control (ReBAC) via Permify gRPC/REST API.
- * Replaces simple role-string RBAC with fine-grained relationship checks:
- *  - User → Establishment ownership
- *  - User → Document access
- *  - Role → Permission mapping
- *  - Merchant → Settlement window access
+ * Provides fine-grained authorization beyond role-based access.
+ * Relationships: user -> role -> resource -> action
  *
- * Falls back to role-based checks when Permify is unavailable.
+ * When PERMIFY_URL is not set, falls back to role-based checks
+ * using the existing user.role field from the session.
+ *
+ * Permissions model:
+ *  - tourist: can view own wallet, transactions, bookings
+ *  - merchant: can manage own establishment, view transactions, run KYB
+ *  - bis_analyst: can view/manage investigations, run risk scoring
+ *  - noc_operator: can view system health, manage kill switches
+ *  - admin: full access to all resources
  */
 import { logger } from "./logger";
+import { TRPCError } from "@trpc/server";
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
 interface PermifyConfig {
-  endpoint: string;
+  url: string;
   tenantId: string;
-  apiKey?: string;
 }
 
-function getPermifyConfig(): PermifyConfig | null {
-  const endpoint = process.env.PERMIFY_ENDPOINT;
-  if (!endpoint) return null;
+function getConfig(): PermifyConfig | null {
+  const url = process.env.PERMIFY_URL;
+  if (!url) return null;
   return {
-    endpoint: endpoint.replace(/\/+$/, ""),
+    url: url.replace(/\/+$/, ""),
     tenantId: process.env.PERMIFY_TENANT_ID || "tourismpay",
-    apiKey: process.env.PERMIFY_API_KEY,
   };
 }
 
-// ─── HTTP Client ─────────────────────────────────────────────────────────────
+// ─── Permission Definitions ──────────────────────────────────────────────────
 
-async function permifyRequest(path: string, body: unknown): Promise<Record<string, unknown> | null> {
-  const config = getPermifyConfig();
-  if (!config) return null;
-  try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
-    const res = await fetch(`${config.endpoint}${path}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(Object.assign({ tenant_id: config.tenantId }, body as Record<string, unknown>)),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) {
-      logger.warn(`[Permify] Request to ${path} failed: ${res.status}`);
-      return null;
-    }
-    return (await res.json()) as Record<string, unknown>;
-  } catch (err) {
-    logger.warn(`[Permify] Request to ${path} error: ${(err as Error).message}`);
-    return null;
-  }
-}
+export const RESOURCES = {
+  WALLET: "wallet",
+  ESTABLISHMENT: "establishment",
+  INVESTIGATION: "investigation",
+  SETTLEMENT: "settlement",
+  SYSTEM: "system",
+  REPORT: "report",
+} as const;
+
+export const ACTIONS = {
+  VIEW: "view",
+  CREATE: "create",
+  EDIT: "edit",
+  DELETE: "delete",
+  APPROVE: "approve",
+  EXECUTE: "execute",
+} as const;
+
+// Role-based permission matrix (fallback when Permify is not configured)
+const ROLE_PERMISSIONS: Record<string, Set<string>> = {
+  admin: new Set([
+    "wallet:view", "wallet:create", "wallet:edit", "wallet:delete",
+    "establishment:view", "establishment:create", "establishment:edit", "establishment:delete", "establishment:approve",
+    "investigation:view", "investigation:create", "investigation:edit", "investigation:approve",
+    "settlement:view", "settlement:execute",
+    "system:view", "system:edit",
+    "report:view", "report:create",
+  ]),
+  merchant: new Set([
+    "wallet:view",
+    "establishment:view", "establishment:edit",
+    "settlement:view",
+    "report:view",
+  ]),
+  tourist: new Set([
+    "wallet:view", "wallet:create",
+    "establishment:view",
+    "report:view",
+  ]),
+  bis_analyst: new Set([
+    "investigation:view", "investigation:create", "investigation:edit", "investigation:approve",
+    "establishment:view",
+    "report:view", "report:create",
+  ]),
+  noc_operator: new Set([
+    "system:view", "system:edit",
+    "wallet:view",
+    "settlement:view",
+    "report:view",
+  ]),
+};
 
 // ─── Permission Check ────────────────────────────────────────────────────────
 
-export interface PermissionCheckInput {
-  entity: { type: string; id: string };
-  permission: string;
-  subject: { type: string; id: string; relation?: string };
+export async function checkPermission(
+  userId: string,
+  userRole: string,
+  resource: string,
+  action: string,
+  resourceId?: string,
+): Promise<boolean> {
+  const config = getConfig();
+
+  // If Permify is configured, use it
+  if (config) {
+    try {
+      const res = await fetch(`${config.url}/v1/tenants/${config.tenantId}/permissions/check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          metadata: { depth: 5 },
+          entity: { type: resource, id: resourceId || "*" },
+          permission: action,
+          subject: { type: "user", id: userId },
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const body = await res.json() as { can: string };
+        return body.can === "CHECK_RESULT_ALLOWED";
+      }
+    } catch (err) {
+      logger.warn(`[Permify] Check failed, falling back to role-based: ${(err as Error).message}`);
+    }
+  }
+
+  // Fallback: role-based permission check
+  const permissions = ROLE_PERMISSIONS[userRole] || ROLE_PERMISSIONS.tourist;
+  return permissions.has(`${resource}:${action}`);
 }
 
-export async function checkPermission(input: PermissionCheckInput): Promise<boolean> {
-  const result = await permifyRequest("/v1/tenants/{tenant_id}/permissions/check".replace("{tenant_id}", getPermifyConfig()?.tenantId || "tourismpay"), {
-    metadata: { depth: 5 },
-    entity: input.entity,
-    permission: input.permission,
-    subject: input.subject,
-  });
-  if (!result) return true; // Fallback: allow (use role-based check upstream)
-  return (result as any).can === "CHECK_RESULT_ALLOWED";
+/**
+ * Require a specific permission — throws TRPCError if denied.
+ */
+export async function requirePermission(
+  userId: string,
+  userRole: string,
+  resource: string,
+  action: string,
+  resourceId?: string,
+): Promise<void> {
+  const allowed = await checkPermission(userId, userRole, resource, action, resourceId);
+  if (!allowed) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: `Access denied: ${action} on ${resource} requires ${userRole === "tourist" ? "merchant or admin" : "admin"} role`,
+    });
+  }
 }
 
-// ─── Relationship Management ─────────────────────────────────────────────────
+// ─── Write Relationships (for Permify) ───────────────────────────────────────
 
-export interface Relationship {
-  entity: { type: string; id: string };
-  relation: string;
-  subject: { type: string; id: string; relation?: string };
-}
-
-export async function writeRelationship(relationship: Relationship): Promise<boolean> {
-  const config = getPermifyConfig();
-  if (!config) return false;
-  const result = await permifyRequest(`/v1/tenants/${config.tenantId}/relationships/write`, {
-    metadata: {},
-    tuples: [{
-      entity: relationship.entity,
-      relation: relationship.relation,
-      subject: relationship.subject,
-    }],
-  });
-  return result !== null;
-}
-
-export async function deleteRelationship(relationship: Relationship): Promise<boolean> {
-  const config = getPermifyConfig();
-  if (!config) return false;
-  const result = await permifyRequest(`/v1/tenants/${config.tenantId}/relationships/delete`, {
-    tuples: [{
-      entity: relationship.entity,
-      relation: relationship.relation,
-      subject: relationship.subject,
-    }],
-  });
-  return result !== null;
-}
-
-// ─── Lookup ──────────────────────────────────────────────────────────────────
-
-export async function lookupEntities(
-  entityType: string,
-  permission: string,
+export async function writeRelationship(
   subject: { type: string; id: string },
-): Promise<string[]> {
-  const config = getPermifyConfig();
-  if (!config) return [];
-  const result = await permifyRequest(`/v1/tenants/${config.tenantId}/permissions/lookup-entity`, {
-    metadata: { depth: 5 },
-    entity_type: entityType,
-    permission,
-    subject,
-  });
-  if (!result) return [];
-  return ((result as any).entity_ids || []) as string[];
-}
+  relation: string,
+  resource: { type: string; id: string },
+): Promise<boolean> {
+  const config = getConfig();
+  if (!config) return true; // No-op without Permify
 
-export async function lookupSubjects(
-  entity: { type: string; id: string },
-  permission: string,
-  subjectType: string,
-): Promise<string[]> {
-  const config = getPermifyConfig();
-  if (!config) return [];
-  const result = await permifyRequest(`/v1/tenants/${config.tenantId}/permissions/lookup-subject`, {
-    metadata: { depth: 5 },
-    entity,
-    permission,
-    subject_reference: { type: subjectType },
-  });
-  if (!result) return [];
-  return ((result as any).subject_ids || []) as string[];
-}
-
-// ─── Schema (TourismPay Entity Model) ────────────────────────────────────────
-
-export const TOURISMPAY_SCHEMA = `
-entity user {}
-
-entity establishment {
-  relation owner @user
-  relation staff @user
-  relation viewer @user
-
-  permission edit = owner
-  permission view = owner or staff or viewer
-  permission manage_products = owner or staff
-  permission view_analytics = owner
-  permission manage_kyb = owner
-}
-
-entity document {
-  relation owner @user
-  relation establishment @establishment
-
-  permission view = owner or establishment.owner or establishment.staff
-  permission delete = owner or establishment.owner
-}
-
-entity settlement_window {
-  relation corridor_admin @user
-
-  permission view = corridor_admin
-  permission close = corridor_admin
-}
-
-entity wallet {
-  relation owner @user
-
-  permission view = owner
-  permission transact = owner
-}
-
-entity fraud_alert {
-  relation investigator @user
-  relation escalated_to @user
-
-  permission investigate = investigator or escalated_to
-  permission resolve = investigator
-}
-`;
-
-export async function writeSchema(): Promise<boolean> {
-  const config = getPermifyConfig();
-  if (!config) return false;
-  const result = await permifyRequest(`/v1/tenants/${config.tenantId}/schemas/write`, {
-    schema: TOURISMPAY_SCHEMA,
-  });
-  return result !== null;
-}
-
-// ─── Convenience Helpers ─────────────────────────────────────────────────────
-
-export async function grantEstablishmentOwnership(userId: string, establishmentId: string): Promise<boolean> {
-  return writeRelationship({
-    entity: { type: "establishment", id: establishmentId },
-    relation: "owner",
-    subject: { type: "user", id: userId },
-  });
-}
-
-export async function canEditEstablishment(userId: string, establishmentId: string): Promise<boolean> {
-  return checkPermission({
-    entity: { type: "establishment", id: establishmentId },
-    permission: "edit",
-    subject: { type: "user", id: userId },
-  });
-}
-
-export async function canViewEstablishment(userId: string, establishmentId: string): Promise<boolean> {
-  return checkPermission({
-    entity: { type: "establishment", id: establishmentId },
-    permission: "view",
-    subject: { type: "user", id: userId },
-  });
+  try {
+    const res = await fetch(`${config.url}/v1/tenants/${config.tenantId}/relationships/write`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        metadata: {},
+        tuples: [{
+          entity: resource,
+          relation,
+          subject,
+        }],
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok;
+  } catch (err) {
+    logger.warn(`[Permify] Write relationship failed: ${(err as Error).message}`);
+    return false;
+  }
 }
 
 export function isPermifyEnabled(): boolean {
-  return !!process.env.PERMIFY_ENDPOINT;
+  return !!process.env.PERMIFY_URL;
 }

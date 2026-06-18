@@ -14,6 +14,8 @@ import { bisTimeline, bisInvestigations, bisDirectors, users, bisInvestigationNo
 import { eq, desc, and, count, sql, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { logger } from "../_core/logger";
+import { publishFraudAlert, publishAuditEvent } from "../_core/kafka";
+import { recordBisInvestigation } from "../_core/metrics";
 
 // ─── Auto-timeline helper ────────────────────────────────────────────────────
 // Fire-and-forget: records a system timeline event for an investigation.
@@ -299,6 +301,15 @@ export const bisRouter = router({
           metadata: { tier: input.tier, consentObtained: input.consentObtained },
         }).catch(() => {});
       }
+
+      // ── Kafka event + metrics (fire-and-forget) ─────────────────────────────
+      recordBisInvestigation();
+      publishAuditEvent("bis.investigation.created", {
+        investigationId: inv?.id,
+        subjectName: input.subjectFullName,
+        tier: input.tier,
+        requestedBy: ctx.user.id,
+      }, inv?.referenceId).catch(() => {});
 
       // Fire-and-forget: trigger the Go BIS Core service asynchronously
       callBisService("/api/v1/investigations", {

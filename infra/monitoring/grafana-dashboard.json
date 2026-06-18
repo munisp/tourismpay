@@ -1,0 +1,77 @@
+{
+  "dashboard": {
+    "title": "TourismPay Production Dashboard",
+    "uid": "tourismpay-prod",
+    "timezone": "Africa/Lagos",
+    "panels": [
+      {
+        "title": "Request Rate",
+        "type": "timeseries",
+        "gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 },
+        "targets": [{ "expr": "rate(tourismpay_http_requests_total[5m])", "legendFormat": "{{status}}" }]
+      },
+      {
+        "title": "P95 Latency",
+        "type": "timeseries",
+        "gridPos": { "x": 8, "y": 0, "w": 8, "h": 6 },
+        "targets": [{ "expr": "histogram_quantile(0.95, rate(tourismpay_http_request_duration_seconds_bucket[5m]))", "legendFormat": "P95" }]
+      },
+      {
+        "title": "Error Rate",
+        "type": "stat",
+        "gridPos": { "x": 16, "y": 0, "w": 8, "h": 6 },
+        "targets": [{ "expr": "rate(tourismpay_http_errors_total[5m]) / rate(tourismpay_http_requests_total[5m]) * 100", "legendFormat": "Error %" }],
+        "fieldConfig": { "defaults": { "thresholds": { "steps": [{ "value": 0, "color": "green" }, { "value": 1, "color": "yellow" }, { "value": 5, "color": "red" }] } } }
+      },
+      {
+        "title": "Wallet Transactions",
+        "type": "timeseries",
+        "gridPos": { "x": 0, "y": 6, "w": 12, "h": 6 },
+        "targets": [{ "expr": "rate(tourismpay_wallet_transactions_total[5m])", "legendFormat": "{{type}}" }]
+      },
+      {
+        "title": "Wallet Volume (NGN)",
+        "type": "stat",
+        "gridPos": { "x": 12, "y": 6, "w": 12, "h": 6 },
+        "targets": [{ "expr": "tourismpay_wallet_volume_ngn", "legendFormat": "Total Volume" }],
+        "fieldConfig": { "defaults": { "unit": "currencyNGN" } }
+      },
+      {
+        "title": "BIS Investigations",
+        "type": "stat",
+        "gridPos": { "x": 0, "y": 12, "w": 6, "h": 4 },
+        "targets": [{ "expr": "tourismpay_bis_investigations_total", "legendFormat": "Total" }]
+      },
+      {
+        "title": "KYB Applications",
+        "type": "stat",
+        "gridPos": { "x": 6, "y": 12, "w": 6, "h": 4 },
+        "targets": [{ "expr": "tourismpay_kyb_applications_total", "legendFormat": "Total" }]
+      },
+      {
+        "title": "Settlement Volume (NGN)",
+        "type": "stat",
+        "gridPos": { "x": 12, "y": 12, "w": 6, "h": 4 },
+        "targets": [{ "expr": "tourismpay_settlement_volume_ngn", "legendFormat": "Total" }],
+        "fieldConfig": { "defaults": { "unit": "currencyNGN" } }
+      },
+      {
+        "title": "Active Connections",
+        "type": "gauge",
+        "gridPos": { "x": 18, "y": 12, "w": 6, "h": 4 },
+        "targets": [{ "expr": "tourismpay_active_connections", "legendFormat": "Connections" }],
+        "fieldConfig": { "defaults": { "max": 1000, "thresholds": { "steps": [{ "value": 0, "color": "green" }, { "value": 500, "color": "yellow" }, { "value": 800, "color": "red" }] } } }
+      },
+      {
+        "title": "Health Check Status",
+        "type": "table",
+        "gridPos": { "x": 0, "y": 16, "w": 24, "h": 4 },
+        "targets": [{ "expr": "up{job=\"tourismpay\"}", "legendFormat": "{{instance}}" }]
+      }
+    ],
+    "templating": {
+      "list": [{ "name": "datasource", "type": "datasource", "query": "prometheus" }]
+    },
+    "annotations": { "list": [{ "name": "Deployments", "datasource": "prometheus", "expr": "changes(tourismpay_build_info[5m]) > 0" }] }
+  }
+}

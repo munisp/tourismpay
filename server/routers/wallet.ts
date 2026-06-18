@@ -12,6 +12,9 @@ import { HIGH_VALUE_TX_THRESHOLD_USD } from "../../shared/const";
 import { checkAndAutoFlag } from "./bisIntegration";
 import { stripe } from "../_core/stripe";
 import { cacheGet, cacheSet } from "../_core/redis";
+import { publishEvent, TOPICS } from "../_core/kafka";
+import { recordWalletTransaction } from "../_core/metrics";
+import { getOrCreateAccount, createTransfer, LEDGER_CODES, CURRENCY_CODES, TRANSFER_CODES } from "../_core/tigerbeetle";
 
 // USD exchange rates for high-value threshold check (approximate)
 const APPROX_USD_RATES: Record<string, number> = {
@@ -319,6 +322,40 @@ export const walletRouter = router({
           });
         }
       }
+      // ── Kafka event publishing (fire-and-forget) ──────────────────────────────
+      publishEvent(TOPICS.WALLET_TRANSACTIONS, {
+        type: "wallet.send.completed",
+        payload: {
+          txId, userId: String(ctx.user.id), currency: input.currency,
+          amount: input.amount, fee, counterparty: input.counterparty,
+          newBalance: result.newBalance,
+        },
+        correlationId: txId,
+      }).catch(() => {});
+
+      // ── Prometheus metrics ─────────────────────────────────────────────────────
+      recordWalletTransaction("send", Math.round(input.amount * 100));
+
+      // ── TigerBeetle double-entry ledger (fire-and-forget) ──────────────────────
+      (async () => {
+        try {
+          const currCode = CURRENCY_CODES[input.currency as keyof typeof CURRENCY_CODES] || 566;
+          const senderAcct = await getOrCreateAccount(ctx.user.id, null, LEDGER_CODES.TOURIST_WALLET, currCode);
+          const platformAcct = await getOrCreateAccount(null, null, LEDGER_CODES.PLATFORM_FEE, currCode);
+          // Record the send in the ledger (debit sender, credit platform fee)
+          if (feeCents > 0) {
+            await createTransfer({
+              debitAccountId: senderAcct,
+              creditAccountId: platformAcct,
+              amount: BigInt(feeCents),
+              ledgerCode: LEDGER_CODES.PLATFORM_FEE,
+              transferCode: TRANSFER_CODES.PLATFORM_FEE,
+              idempotencyKey: `fee:${txId}`,
+            });
+          }
+        } catch { /* ledger is non-blocking */ }
+      })();
+
       // ── Gap 1: Auto-flag high-value / high-velocity transactions to BIS ──────
       // Fire-and-forget: never block the send on BIS errors
       checkAndAutoFlag({
