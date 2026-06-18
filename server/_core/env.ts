@@ -25,8 +25,8 @@ export const ENV = {
   bisOsintUrl: process.env.BIS_OSINT_URL ?? "",
   kybServiceUrl: process.env.KYB_SERVICE_URL ?? "",
   registryServiceUrl: process.env.REGISTRY_SERVICE_URL ?? "",
-  // PaymentSwitch standalone service URL (optional)
-  // When set, the PWA proxies payment-switch procedures to the standalone Go service
+  // PaymentSwitch external API URL (required for PS integration)
+  // PaymentSwitch is an external service, not embedded in TourismPay.
   // e.g. http://payment-switch:8080 or https://ps.yourdomain.com
   paymentSwitchUrl: process.env.PAYMENT_SWITCH_URL ?? "",
   // Settlement / TigerBeetle / Mojaloop service URL (optional)

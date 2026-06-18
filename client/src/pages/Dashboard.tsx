@@ -8,24 +8,7 @@ import PageHeader from "@/components/shared/PageHeader";
 import RiskRing from "@/components/shared/RiskRing";
 import { trpc } from "@/lib/trpc";
 
-const txData = [
-  { time: "00:00", volume: 12400, fraud: 2 },
-  { time: "04:00", volume: 8200, fraud: 1 },
-  { time: "08:00", volume: 34500, fraud: 5 },
-  { time: "12:00", volume: 67800, fraud: 8 },
-  { time: "16:00", volume: 89200, fraud: 12 },
-  { time: "20:00", volume: 54300, fraud: 6 },
-  { time: "23:59", volume: 41200, fraud: 4 },
-];
 
-const countryData = [
-  { country: "NG", name: "Nigeria", txns: 4821, establishments: 312, color: "oklch(0.78 0.22 152)" },
-  { country: "KE", name: "Kenya", txns: 3204, establishments: 218, color: "oklch(0.65 0.18 230)" },
-  { country: "GH", name: "Ghana", txns: 2187, establishments: 156, color: "oklch(0.82 0.18 75)" },
-  { country: "ZA", name: "South Africa", txns: 1923, establishments: 134, color: "oklch(0.62 0.22 25)" },
-  { country: "EG", name: "Egypt", txns: 1654, establishments: 98, color: "oklch(0.7 0.18 300)" },
-  { country: "TZ", name: "Tanzania", txns: 987, establishments: 67, color: "oklch(0.75 0.15 200)" },
-];
 
 const statusConfig = {
   completed: { icon: CheckCircle, color: "text-[oklch(0.78_0.22_152)]" },
@@ -45,8 +28,11 @@ export default function Dashboard() {
   const { data: socStats } = trpc.soc.stats.useQuery(undefined, { refetchInterval: 60_000 });
   const { data: recentBis } = trpc.bis.list.useQuery({ limit: 5 }, { refetchInterval: 30_000 });
   const { data: recentFraud } = trpc.fraud.list.useQuery({ limit: 2 }, { refetchInterval: 30_000 });
+  const { data: txData = [] } = trpc.africa.txVolume.useQuery(undefined, { refetchInterval: 60_000 });
+  const { data: countryData = [] } = trpc.africa.countryBreakdown.useQuery(undefined, { refetchInterval: 60_000 });
 
   const isLoading = dashLoading || bisLoading;
+  const maxTxns = Math.max(...countryData.map(c => c.txns), 1);
 
   const activityFeed = [
     ...(recentBis?.slice(0, 4).map((inv: any) => ({
@@ -186,7 +172,7 @@ export default function Dashboard() {
                   <div className="h-1 rounded-full bg-white/5 overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${(c.txns / 4821) * 100}%`, background: c.color }}
+                      style={{ width: `${(c.txns / maxTxns) * 100}%`, background: c.color }}
                     />
                   </div>
                 </div>

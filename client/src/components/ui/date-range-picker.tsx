@@ -1,8 +1,7 @@
 /**
- * DateRangePicker — minimal stub compatible with the PaymentSwitch pages.
+ * DateRangePicker — minimal date range selector.
  * Replace with a full calendar-based picker for production.
  */
-import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 

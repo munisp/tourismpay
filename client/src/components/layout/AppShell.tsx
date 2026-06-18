@@ -145,22 +145,6 @@ const navItems: NavItem[] = [
   { label: "Biometric Security", icon: Fingerprint, href: "/settings/biometric", section: "settings", roles: ["tourist", "merchant", "admin", "compliance_officer", "noc_operator", "settlement_officer", "bis_analyst", "user"] },
   { label: "Privacy Settings", icon: Eye, href: "/settings/privacy", section: "settings", roles: ["tourist", "merchant", "admin", "compliance_officer", "noc_operator", "settlement_officer", "bis_analyst", "user"] },
 
-  // ─── PaymentSwitch (role-restricted) ─────────────────────────────────────────
-  { label: "PS Dashboard", icon: ArrowLeftRight, href: "/paymentswitch", section: "paymentswitch", roles: ["admin", "noc_operator", "settlement_officer"] },
-  { label: "NOC Dashboard", icon: MonitorDot, href: "/paymentswitch/noc", badge: "Live", badgeVariant: "green", section: "paymentswitch", roles: ["admin", "noc_operator"] },
-  { label: "PS Admin", icon: Crown, href: "/paymentswitch/admin", section: "paymentswitch", roles: ["admin"] },
-  { label: "Analytics", icon: BarChart3, href: "/paymentswitch/analytics", section: "paymentswitch", roles: ["admin", "noc_operator", "settlement_officer"] },
-  { label: "Payment Gateway", icon: Landmark, href: "/paymentswitch/gateway", section: "paymentswitch", roles: ["admin", "noc_operator"] },
-  { label: "Remittance", icon: Repeat, href: "/paymentswitch/remittance", section: "paymentswitch", roles: ["admin", "settlement_officer"] },
-  { label: "Rate Alerts", icon: Radio, href: "/paymentswitch/rate-alerts", section: "paymentswitch", roles: ["admin", "noc_operator", "settlement_officer"] },
-  { label: "Developer Portal", icon: Code2, href: "/paymentswitch/developer", section: "paymentswitch", roles: ["admin"] },
-  { label: "Onboarding Portal", icon: FileCheck, href: "/paymentswitch/onboarding", section: "paymentswitch", roles: ["admin"] },
-  { label: "Settlement Console", icon: BarChart3, href: "/settlement", section: "paymentswitch", roles: ["admin", "settlement_officer"] },
-  { label: "Service Status", icon: Server, href: "/paymentswitch/service-status", section: "paymentswitch", roles: ["admin", "noc_operator"] },
-  { label: "Kill Switch", icon: Shield, href: "/paymentswitch/kill-switch", badge: "Admin", badgeVariant: "crimson", section: "paymentswitch", roles: ["admin", "noc_operator"] },
-  { label: "Rate Limits", icon: Gauge, href: "/paymentswitch/rate-limits", badge: "Admin", badgeVariant: "blue", section: "paymentswitch", roles: ["admin"] },
-  { label: "Webhooks", icon: Code2, href: "/paymentswitch/webhooks", section: "paymentswitch", roles: ["admin", "noc_operator"] },
-  { label: "PS Admin Portal", icon: Monitor, href: "/paymentswitch/portal", badge: "Live", badgeVariant: "green", section: "paymentswitch", roles: ["admin", "noc_operator"] },
 ];
 
 const sectionLabels: Record<string, string> = {
@@ -175,8 +159,6 @@ const sectionLabels: Record<string, string> = {
   visionary: "Visionary Features",
   admin: "Administration",
   settings: "Settings",
-  paymentswitch: "Payment Switch",
-
 };
 
 interface AppShellProps {

@@ -30,7 +30,6 @@ import { identityRouter } from "./routers/identity";
 import { sustainabilityRouter } from "./routers/sustainability";
 import { meshPaymentsRouter } from "./routers/meshPayments";
 import { serviceProxyRouter } from "./routers/serviceProxy";
-import { paymentSwitchRouter } from "./routers/paymentSwitch";
 import { bisIntegrationRouter } from "./routers/bisIntegration";
 import { qrPaymentRouter } from "./routers/qrPayment";
 import { touristOnboardingRouter } from "./routers/touristOnboarding";
@@ -48,9 +47,6 @@ import { staffInvitesRouter } from "./routers/staffInvites";
 import { exchangeRatesRouter } from "./routers/exchangeRates";
 import { exchangeRateOverridesRouter } from "./routers/exchangeRateOverrides";
 import { haConfigRouter } from "./routers/haConfig";
-import { killSwitchRouter } from "./routers/killSwitch";
-import { webhooksRouter } from "./routers/webhooks";
-import { corridorRateLimitRouter } from "./routers/corridorRateLimit";
 import { stripeConnectRouter } from "./routers/stripeConnect";
 import { pythonServicesRouter } from "./routers/pythonServices";
 import { analyticsRouter as crossPlatformAnalyticsRouter } from "./routers/analytics";
@@ -69,28 +65,7 @@ import { tippingRouter } from "./routers/tipping";
 import { multiTippingRouter } from "./routers/multiTipping";
 import { taxCollectionRouter } from "./routers/taxCollection";
 import { gdsIntegrationRouter } from "./routers/gdsIntegration";
-import {
-  rateAlertsRouter,
-  twoFactorRouter,
-  trustedDeviceRouter,
-  accountActivityRouter,
-  apiKeysRouter,
-  notificationChannelsRouter,
-  reminderEmailsRouter,
-  ocrCorrectionRouter,
-  integrationRouter,
-  testingCertificationRouter,
-  technicalOnboardingRouter,
-  apiKeyEnhancementsRouter,
-  productionGoLiveRouter,
-  remittanceRouter,
-  analyticsRouter,
-  merchantRouter,
-  psNotificationPreferencesRouter,
-  psNotificationRouter,
-  accountRecoveryRouter,
-  psAdminRouter,
-} from "./routers/psRouters";
+
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -144,32 +119,9 @@ export const appRouter = router({
   sustainability: sustainabilityRouter,
   mesh: meshPaymentsRouter,
   serviceProxy: serviceProxyRouter,
-  paymentSwitch: paymentSwitchRouter,
   haConfig: haConfigRouter,
-  killSwitch: killSwitchRouter,
-  webhooks: webhooksRouter,
-  corridorRateLimit: corridorRateLimitRouter,
   nocDashboard: nocDashboardRouter,
-  rateAlerts: rateAlertsRouter,
-  twoFactor: twoFactorRouter,
-  trustedDevice: trustedDeviceRouter,
-  accountActivity: accountActivityRouter,
-  apiKeys: apiKeysRouter,
-  notificationChannels: notificationChannelsRouter,
-  reminderEmails: reminderEmailsRouter,
-  ocrCorrection: ocrCorrectionRouter,
-  integration: integrationRouter,
-  testingCertification: testingCertificationRouter,
-  technicalOnboarding: technicalOnboardingRouter,
-  apiKeyEnhancements: apiKeyEnhancementsRouter,
-  productionGoLive: productionGoLiveRouter,
-  remittance: remittanceRouter,
   analytics: crossPlatformAnalyticsRouter,
-  merchant: merchantRouter,
-  notificationPreferences: psNotificationPreferencesRouter,
-  notification: psNotificationRouter,
-  accountRecovery: accountRecoveryRouter,
-  psAdmin: psAdminRouter,
   bisIntegration: bisIntegrationRouter,
   qrPayment: qrPaymentRouter,
   touristOnboarding: touristOnboardingRouter,

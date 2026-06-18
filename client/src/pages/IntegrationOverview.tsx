@@ -364,12 +364,8 @@ function DrillDownPanel({
           </div>
         )}
         {module === "paymentswitch" && (
-          <div className="mt-6">
-            <Link href="/paymentswitch/kill-switch">
-              <Button variant="outline" size="sm" className="w-full text-xs gap-1.5">
-                <ChevronRight className="w-3.5 h-3.5" /> Open Kill Switch Admin
-              </Button>
-            </Link>
+          <div className="mt-6 text-xs text-muted-foreground text-center">
+            PaymentSwitch is integrated via external API.
           </div>
         )}
       </SheetContent>
@@ -592,8 +588,8 @@ export default function IntegrationOverview() {
               <ModuleBox
                 icon={<Zap className="w-5 h-5" />}
                 title="PaymentSwitch"
-                subtitle="Clearing · Settlement · NOC"
-                href="/paymentswitch"
+                subtitle="Clearing · Settlement · NOC (External API)"
+                href="/integration-overview"
                 color="blue"
                 status={psOnline ? "online" : "degraded"}
                 stats={[
@@ -641,8 +637,8 @@ export default function IntegrationOverview() {
             <ModuleBox
               icon={<Zap className="w-5 h-5" />}
               title="PaymentSwitch"
-              subtitle="Clearing · Settlement · NOC"
-              href="/paymentswitch"
+              subtitle="Clearing · Settlement · NOC (External API)"
+              href="/integration-overview"
               color="blue"
               status={psOnline ? "online" : "degraded"}
               stats={[
@@ -736,13 +732,9 @@ export default function IntegrationOverview() {
               { label: "BIS Dashboard", href: "/bis", icon: <FileSearch className="w-4 h-4" />, color: "amber" },
               { label: "Auto-Flag History", href: "/bis/auto-flag-history", icon: <AlertTriangle className="w-4 h-4" />, color: "amber" },
               { label: "Auto-Flag Settings", href: "/admin/bis-auto-flag-settings", icon: <Shield className="w-4 h-4" />, color: "amber" },
-              { label: "NOC Dashboard", href: "/paymentswitch/noc", icon: <Activity className="w-4 h-4" />, color: "blue" },
-              { label: "Kill Switch Admin", href: "/paymentswitch/kill-switch", icon: <Lock className="w-4 h-4" />, color: "crimson" },
-              { label: "Webhook Engine", href: "/paymentswitch/webhooks", icon: <Webhook className="w-4 h-4" />, color: "blue" },
-              { label: "Remittance Admin", href: "/paymentswitch/remittance", icon: <CreditCard className="w-4 h-4" />, color: "green" },
-              { label: "PS Analytics", href: "/paymentswitch/analytics", icon: <BarChart3 className="w-4 h-4" />, color: "green" },
+              { label: "Settlement Console", href: "/settlement", icon: <Activity className="w-4 h-4" />, color: "blue" },
               { label: "Digital Wallet", href: "/wallet", icon: <Zap className="w-4 h-4" />, color: "green" },
-              { label: "PS Admin", href: "/paymentswitch/admin", icon: <Users className="w-4 h-4" />, color: "blue" },
+              { label: "Cross-Platform Analytics", href: "/analytics", icon: <BarChart3 className="w-4 h-4" />, color: "green" },
             ].map((link) => (
               <Link key={link.href} href={link.href}>
                 <div className={`flex items-center gap-2 p-3 rounded-lg border border-border bg-card hover:bg-secondary transition-colors cursor-pointer group ${
