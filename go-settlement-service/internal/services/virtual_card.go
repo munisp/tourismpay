@@ -102,16 +102,11 @@ type FundCardRequest struct {
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 type VirtualCardService struct {
-	mu    sync.RWMutex
-	cards map[string]*VirtualCard // id -> card
-	txns  map[string][]CardTransaction // cardID -> transactions
+	mu sync.RWMutex
 }
 
 func NewVirtualCardService() *VirtualCardService {
-	return &VirtualCardService{
-		cards: make(map[string]*VirtualCard),
-		txns:  make(map[string][]CardTransaction),
-	}
+	return &VirtualCardService{}
 }
 
 func (s *VirtualCardService) IssueCard(req IssueCardRequest) (*VirtualCard, error) {
@@ -119,11 +114,9 @@ func (s *VirtualCardService) IssueCard(req IssueCardRequest) (*VirtualCard, erro
 	defer s.mu.Unlock()
 
 	// Count existing active cards for user (max 5)
-	activeCount := 0
-	for _, c := range s.cards {
-		if c.UserID == req.UserID && c.Status == "active" {
-			activeCount++
-		}
+	var activeCount int
+	if database.DB != nil {
+		database.DB.QueryRow("SELECT COUNT(*) FROM virtual_cards WHERE user_id=$1 AND status='ACTIVE'", req.UserID).Scan(&activeCount)
 	}
 	if activeCount >= 5 {
 		return nil, fmt.Errorf("maximum 5 active virtual cards per user")
@@ -166,15 +159,10 @@ func (s *VirtualCardService) IssueCard(req IssueCardRequest) (*VirtualCard, erro
 		CreatedAt:      now,
 	}
 
-	s.cards[cardID] = card
-
-	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO virtual_cards (id, user_id, card_number, card_type, currency, balance, spending_limit, status, expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-			cardID, req.UserID, pan, string(req.CardType), req.Currency, req.FundAmount, spendLimit, "ACTIVE", expiry,
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO virtual_cards (id, user_id, card_number, card_type, currency, balance, spending_limit, status, expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+		cardID, req.UserID, pan, string(req.CardType), req.Currency, req.FundAmount, spendLimit, "ACTIVE", expiry,
+	)
 
 	virtualCardsIssued.WithLabelValues(string(req.CardType), req.Currency).Inc()
 	virtualCardActiveGauge.Inc()
@@ -187,9 +175,23 @@ func (s *VirtualCardService) ListCards(userID string) []*VirtualCard {
 	defer s.mu.RUnlock()
 
 	var result []*VirtualCard
-	for _, c := range s.cards {
-		if c.UserID == userID {
-			result = append(result, c)
+	if database.DB != nil {
+		rows, err := database.DB.Query(
+			"SELECT id, user_id, card_number, card_type, currency, balance, spending_limit, status, expires_at, created_at FROM virtual_cards WHERE user_id=$1 ORDER BY created_at DESC",
+			userID,
+		)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				c := &VirtualCard{}
+				var cardType string
+				var expiry time.Time
+				rows.Scan(&c.ID, &c.UserID, &c.MaskedPAN, &cardType, &c.Currency, &c.Balance, &c.SpendLimit, &c.Status, &expiry, &c.CreatedAt)
+				c.CardType = CardType(cardType)
+				c.ExpiryMonth = int(expiry.Month())
+				c.ExpiryYear = expiry.Year()
+				result = append(result, c)
+			}
 		}
 	}
 	return result
@@ -199,26 +201,45 @@ func (s *VirtualCardService) GetCard(cardID string) (*VirtualCard, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	card, ok := s.cards[cardID]
-	if !ok {
-		return nil, fmt.Errorf("card %s not found", cardID)
+	if database.DB != nil {
+		c := &VirtualCard{}
+		var cardType string
+		var expiry time.Time
+		err := database.DB.QueryRow(
+			"SELECT id, user_id, card_number, card_type, currency, balance, spending_limit, status, expires_at, created_at FROM virtual_cards WHERE id=$1",
+			cardID,
+		).Scan(&c.ID, &c.UserID, &c.MaskedPAN, &cardType, &c.Currency, &c.Balance, &c.SpendLimit, &c.Status, &expiry, &c.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("card %s not found", cardID)
+		}
+		c.CardType = CardType(cardType)
+		c.ExpiryMonth = int(expiry.Month())
+		c.ExpiryYear = expiry.Year()
+		return c, nil
 	}
-	return card, nil
+	return nil, fmt.Errorf("database not available")
 }
 
 func (s *VirtualCardService) FundCard(req FundCardRequest) (*VirtualCard, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	card, ok := s.cards[req.CardID]
-	if !ok {
-		return nil, fmt.Errorf("card %s not found", req.CardID)
-	}
-	if card.Status != "active" {
-		return nil, fmt.Errorf("card is %s, cannot fund", card.Status)
+	if database.DB != nil {
+		var status string
+		err := database.DB.QueryRow("SELECT status FROM virtual_cards WHERE id=$1", req.CardID).Scan(&status)
+		if err != nil {
+			return nil, fmt.Errorf("card %s not found", req.CardID)
+		}
+		if status != "ACTIVE" {
+			return nil, fmt.Errorf("card is %s, cannot fund", status)
+		}
+		database.DB.Exec("UPDATE virtual_cards SET balance = balance + $1 WHERE id=$2", req.Amount, req.CardID)
 	}
 
-	card.Balance += req.Amount
+	card, err := s.GetCard(req.CardID)
+	if err != nil {
+		return nil, err
+	}
 	return card, nil
 }
 
@@ -226,12 +247,21 @@ func (s *VirtualCardService) FreezeCard(cardID string) (*VirtualCard, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	card, ok := s.cards[cardID]
-	if !ok {
-		return nil, fmt.Errorf("card %s not found", cardID)
+	if database.DB != nil {
+		result, err := database.DB.Exec("UPDATE virtual_cards SET status='FROZEN' WHERE id=$1 AND status='ACTIVE'", cardID)
+		if err != nil {
+			return nil, fmt.Errorf("card %s not found", cardID)
+		}
+		if rows, _ := result.RowsAffected(); rows == 0 {
+			return nil, fmt.Errorf("card %s not found or not active", cardID)
+		}
 	}
-	card.Status = "frozen"
 	virtualCardActiveGauge.Dec()
+
+	card, err := s.GetCard(cardID)
+	if err != nil {
+		return nil, err
+	}
 	return card, nil
 }
 
@@ -239,31 +269,44 @@ func (s *VirtualCardService) UnfreezeCard(cardID string) (*VirtualCard, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	card, ok := s.cards[cardID]
-	if !ok {
-		return nil, fmt.Errorf("card %s not found", cardID)
+	if database.DB != nil {
+		result, err := database.DB.Exec("UPDATE virtual_cards SET status='ACTIVE' WHERE id=$1 AND status='FROZEN'", cardID)
+		if err != nil {
+			return nil, fmt.Errorf("card %s not found", cardID)
+		}
+		if rows, _ := result.RowsAffected(); rows == 0 {
+			return nil, fmt.Errorf("card %s not found or not frozen", cardID)
+		}
 	}
-	if card.Status != "frozen" {
-		return nil, fmt.Errorf("card is %s, not frozen", card.Status)
-	}
-	card.Status = "active"
 	virtualCardActiveGauge.Inc()
+
+	card, err := s.GetCard(cardID)
+	if err != nil {
+		return nil, err
+	}
 	return card, nil
 }
 
 func (s *VirtualCardService) GetTransactions(cardID string) []CardTransaction {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.txns[cardID]
+	// Card transactions table not yet created; return empty for now
+	return nil
 }
 
 func (s *VirtualCardService) UpdateControls(cardID string, allowATM, allowOnline, allowPOS, allowIntl bool, dailyLimit float64) (*VirtualCard, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	card, ok := s.cards[cardID]
-	if !ok {
-		return nil, fmt.Errorf("card %s not found", cardID)
+	if database.DB != nil {
+		if dailyLimit > 0 {
+			database.DB.Exec("UPDATE virtual_cards SET spending_limit=$1 WHERE id=$2", dailyLimit, cardID)
+		}
+	}
+
+	card, err := s.GetCard(cardID)
+	if err != nil {
+		return nil, err
 	}
 	card.AllowATM = allowATM
 	card.AllowOnline = allowOnline

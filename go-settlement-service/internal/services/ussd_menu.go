@@ -54,7 +54,7 @@ type USSDResponse struct {
 
 type USSDService struct {
 	mu       sync.RWMutex
-	sessions map[string]*USSDSession
+	sessions map[string]*USSDSession // In-memory cache for active sessions
 }
 
 func NewUSSDService() *USSDService {
@@ -82,12 +82,10 @@ func (s *USSDService) ProcessRequest(req *USSDRequest) *USSDResponse {
 		s.sessions[req.SessionID] = session
 
 		// Persist session to PostgreSQL
-		if database.DB != nil {
-			database.DB.Exec(
-				"INSERT INTO ussd_sessions (id, phone_number, menu_state, session_data, status) VALUES ($1,$2,$3,$4,$5)",
-				req.SessionID, req.PhoneNumber, "main_menu", "{}", "active",
-			)
-		}
+		database.DB.Exec(
+			"INSERT INTO ussd_sessions (id, phone_number, menu_state, session_data, status) VALUES ($1,$2,$3,$4,$5)",
+			req.SessionID, req.PhoneNumber, "main_menu", "{}", "active",
+		)
 
 		ussdSessionsTotal.WithLabelValues("started").Inc()
 		return s.mainMenu(session)
@@ -211,6 +209,9 @@ func (s *USSDService) handleMainMenu(session *USSDSession, input string) *USSDRe
 	case "0":
 		ussdSessionsTotal.WithLabelValues("completed").Inc()
 		delete(s.sessions, session.SessionID)
+		if database.DB != nil {
+			database.DB.Exec("UPDATE ussd_sessions SET status='completed', menu_state='exit' WHERE id=$1", session.SessionID)
+		}
 		return &USSDResponse{
 			SessionID: session.SessionID,
 			Message:   "Thank you for using TourismPay. Enjoy your trip!",

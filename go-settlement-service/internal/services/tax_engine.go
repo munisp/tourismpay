@@ -81,7 +81,7 @@ type TaxRemittance struct {
 
 // TaxEngineService handles multi-jurisdiction tax calculation
 type TaxEngineService struct {
-	rules map[string][]TaxRule // jurisdiction_code -> rules
+	rules map[string][]TaxRule // jurisdiction_code -> rules (seed data, also persisted to DB)
 }
 
 // NewTaxEngineService creates the tax engine with default jurisdiction rules
@@ -90,6 +90,7 @@ func NewTaxEngineService() *TaxEngineService {
 		rules: make(map[string][]TaxRule),
 	}
 	svc.loadDefaultRules()
+	svc.persistRulesToDB()
 	return svc
 }
 
@@ -329,6 +330,26 @@ func (s *TaxEngineService) GetSupportedJurisdictions() []JurisdictionInfo {
 func (s *TaxEngineService) AddRule(rule TaxRule) {
 	code := strings.ToUpper(rule.JurisdictionCode)
 	s.rules[code] = append(s.rules[code], rule)
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO tax_rules (id, jurisdiction_code, tax_type, name, rate, flat_amount, currency, applies_to_category, min_amount, max_amount, priority, is_compound, is_active, effective_from) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (id) DO NOTHING",
+			rule.ID, code, string(rule.TaxType), rule.Name, rule.Rate, rule.FlatAmount, rule.Currency, rule.AppliesToCategory, rule.MinAmount, rule.MaxAmount, rule.Priority, rule.IsCompound, rule.IsActive, rule.EffectiveFrom,
+		)
+	}
+}
+
+func (s *TaxEngineService) persistRulesToDB() {
+	if database.DB == nil {
+		return
+	}
+	for _, rules := range s.rules {
+		for _, rule := range rules {
+			database.DB.Exec(
+				"INSERT INTO tax_rules (id, jurisdiction_code, tax_type, name, rate, flat_amount, currency, applies_to_category, min_amount, max_amount, priority, is_compound, is_active, effective_from) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT (id) DO NOTHING",
+				rule.ID, rule.JurisdictionCode, string(rule.TaxType), rule.Name, rule.Rate, rule.FlatAmount, rule.Currency, rule.AppliesToCategory, rule.MinAmount, rule.MaxAmount, rule.Priority, rule.IsCompound, rule.IsActive, rule.EffectiveFrom,
+			)
+		}
+	}
 }
 
 // GetRemittanceSummary computes what's owed per jurisdiction/period

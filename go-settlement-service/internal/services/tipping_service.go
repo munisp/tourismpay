@@ -126,7 +126,20 @@ func NewTippingService() *TippingService {
 		configs: make(map[string]TipConfig),
 	}
 	svc.loadJurisdictionDefaults()
+	svc.persistConfigsToDB()
 	return svc
+}
+
+func (s *TippingService) persistConfigsToDB() {
+	if database.DB == nil {
+		return
+	}
+	for code, config := range s.configs {
+		database.DB.Exec(
+			"INSERT INTO tip_configs (jurisdiction_code, currency, max_percentage, max_flat_amount, distribution, tax_on_tip, cultural_note, is_enabled) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (jurisdiction_code) DO NOTHING",
+			code, config.Currency, config.MaxPercentage, config.MaxFlatAmount, string(config.Distribution), config.TaxOnTip, config.CulturalNote, config.IsEnabled,
+		)
+	}
 }
 
 func (s *TippingService) loadJurisdictionDefaults() {

@@ -73,7 +73,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/verify/nin", web::post().to(agent_kyc::verify_nin))
                     .route("/verify/bvn", web::post().to(agent_kyc::verify_bvn))
             )
-            .configure(nfc_payment::configure_nfc_routes)
+            .configure(|cfg| nfc_payment::configure_nfc_routes(cfg, pool.clone()))
             .configure(travel_readiness::configure_travel_readiness_routes)
             .configure(pricing_engine::configure_pricing_routes)
     })

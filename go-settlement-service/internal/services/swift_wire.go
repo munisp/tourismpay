@@ -189,14 +189,12 @@ var wireEstimatedTimes = map[WireRail]string{
 
 type SWIFTWireService struct {
 	mu     sync.RWMutex
-	orders map[string]*WireTransferOrder
 	crypto *CryptoService
 	cbdc   *CBDCBridge
 }
 
 func NewSWIFTWireService(crypto *CryptoService, cbdc *CBDCBridge) *SWIFTWireService {
 	return &SWIFTWireService{
-		orders: make(map[string]*WireTransferOrder),
 		crypto: crypto,
 		cbdc:   cbdc,
 	}
@@ -285,15 +283,11 @@ func (s *SWIFTWireService) InitiateTransfer(userID string, quote *WireQuote, sen
 		ExpiresAt:         now.Add(72 * time.Hour),
 	}
 
-	s.orders[orderID] = order
-
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO swift_transfers (id, sender_id, recipient_iban, recipient_swift, amount, currency, fee, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-			orderID, userID, quote.CollectionInstructions.Reference, string(quote.Rail), quote.SourceAmount, quote.SourceCurrency, quote.Fee, order.CollectionRef, "initiated",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO swift_transfers (id, sender_id, recipient_iban, recipient_swift, amount, currency, fee, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+		orderID, userID, quote.CollectionInstructions.Reference, string(quote.Rail), quote.SourceAmount, quote.SourceCurrency, quote.Fee, order.CollectionRef, "initiated",
+	)
 
 	swiftTransfersTotal.WithLabelValues("pending_collection", string(quote.Rail)).Inc()
 	swiftVolumeUSD.WithLabelValues(string(quote.Rail)).Add(quote.SourceAmount)
@@ -306,18 +300,16 @@ func (s *SWIFTWireService) ConfirmSettlement(orderID, swiftRef string) (*WireTra
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	order, ok := s.orders[orderID]
-	if !ok {
-		return nil, fmt.Errorf("wire order not found: %s", orderID)
+	if database.DB != nil {
+		database.DB.Exec("UPDATE swift_transfers SET status='settled', reference=$1 WHERE id=$2", swiftRef, orderID)
 	}
 
-	now := time.Now().UTC()
-	order.Status = "settled"
-	order.SWIFTRef = swiftRef
-	order.SettledAt = &now
+	order, err := s.GetOrder(orderID)
+	if err != nil {
+		return nil, err
+	}
 
 	swiftTransfersTotal.WithLabelValues("settled", string(order.WireRail)).Inc()
-	swiftLatency.WithLabelValues(string(order.WireRail)).Observe(now.Sub(order.CreatedAt).Seconds())
 
 	return order, nil
 }
@@ -327,17 +319,19 @@ func (s *SWIFTWireService) CreditWallet(orderID string) (*WireTransferOrder, err
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	order, ok := s.orders[orderID]
-	if !ok {
-		return nil, fmt.Errorf("wire order not found: %s", orderID)
-	}
-	if order.Status != "settled" {
-		return nil, fmt.Errorf("order not settled yet (current: %s)", order.Status)
+	if database.DB != nil {
+		var status string
+		database.DB.QueryRow("SELECT status FROM swift_transfers WHERE id=$1", orderID).Scan(&status)
+		if status != "settled" {
+			return nil, fmt.Errorf("order not settled yet (current: %s)", status)
+		}
+		database.DB.Exec("UPDATE swift_transfers SET status='credited' WHERE id=$1", orderID)
 	}
 
-	now := time.Now().UTC()
-	order.Status = "credited"
-	order.CreditedAt = &now
+	order, err := s.GetOrder(orderID)
+	if err != nil {
+		return nil, err
+	}
 
 	swiftTransfersTotal.WithLabelValues("credited", string(order.WireRail)).Inc()
 	swiftFeesCollected.WithLabelValues(string(order.WireRail)).Add(order.Fee)
@@ -350,11 +344,17 @@ func (s *SWIFTWireService) GetOrder(orderID string) (*WireTransferOrder, error) 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	order, ok := s.orders[orderID]
-	if !ok {
-		return nil, fmt.Errorf("wire order not found: %s", orderID)
+	if database.DB != nil {
+		o := &WireTransferOrder{}
+		err := database.DB.QueryRow(
+			"SELECT id, sender_id, amount, currency, fee, reference, status, created_at FROM swift_transfers WHERE id=$1",
+			orderID,
+		).Scan(&o.ID, &o.UserID, &o.SourceAmount, &o.SourceCurrency, &o.Fee, &o.CollectionRef, &o.Status, &o.CreatedAt)
+		if err == nil {
+			return o, nil
+		}
 	}
-	return order, nil
+	return nil, fmt.Errorf("wire order not found: %s", orderID)
 }
 
 // ListOrders returns all wire transfer orders for a user
@@ -363,9 +363,18 @@ func (s *SWIFTWireService) ListOrders(userID string) []*WireTransferOrder {
 	defer s.mu.RUnlock()
 
 	var result []*WireTransferOrder
-	for _, order := range s.orders {
-		if order.UserID == userID {
-			result = append(result, order)
+	if database.DB != nil {
+		rows, err := database.DB.Query(
+			"SELECT id, sender_id, amount, currency, fee, reference, status, created_at FROM swift_transfers WHERE sender_id=$1 ORDER BY created_at DESC",
+			userID,
+		)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				o := &WireTransferOrder{}
+				rows.Scan(&o.ID, &o.UserID, &o.SourceAmount, &o.SourceCurrency, &o.Fee, &o.CollectionRef, &o.Status, &o.CreatedAt)
+				result = append(result, o)
+			}
 		}
 	}
 	return result

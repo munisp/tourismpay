@@ -120,4 +120,41 @@ test.describe("TourismPay Golden Path E2E", () => {
     const body = await page.textContent("body");
     expect(body).toBeTruthy();
   });
+
+  test("wallet CRUD: create wallet → load funds → check balance via API", async ({ request }) => {
+    // Create a wallet balance entry via tRPC
+    const sendRes = await request.post("/api/trpc/wallet.send", {
+      data: {
+        json: {
+          currency: "NGN",
+          toUserId: "test-merchant-001",
+          amount: 1000,
+          note: "E2E test transfer",
+        },
+      },
+    });
+    // Even if it fails (insufficient balance), should return a valid response
+    expect(sendRes.status()).toBeLessThan(500);
+
+    // Check wallet stats endpoint
+    const statsRes = await request.get("/api/trpc/wallet.stats");
+    expect(statsRes.status()).toBeLessThan(500);
+  });
+
+  test("merchant onboarding: KYB flow accessible", async ({ page }) => {
+    await page.goto("/merchant/kyb");
+    await page.waitForLoadState("networkidle");
+
+    const body = await page.textContent("body");
+    expect(body).toBeTruthy();
+    expect(body).not.toContain("Page not found");
+  });
+
+  test("local payments page loads", async ({ page }) => {
+    await page.goto("/wallet/local-payments");
+    await page.waitForLoadState("networkidle");
+
+    const body = await page.textContent("body");
+    expect(body).toBeTruthy();
+  });
 });

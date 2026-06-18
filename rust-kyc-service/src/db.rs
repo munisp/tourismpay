@@ -107,6 +107,18 @@ pub async fn run_migrations(pool: &PgPool) {
             last_sync TIMESTAMPTZ,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )"#,
+        r#"CREATE TABLE IF NOT EXISTS nfc_tokens (
+            token_id VARCHAR(128) PRIMARY KEY,
+            user_id VARCHAR(128) NOT NULL,
+            amount DOUBLE PRECISION NOT NULL,
+            currency VARCHAR(10) NOT NULL DEFAULT 'NGN',
+            merchant_id VARCHAR(128),
+            nfc_payload_hex TEXT,
+            status VARCHAR(20) NOT NULL DEFAULT 'active',
+            expires_at VARCHAR(64) NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"#,
+        "CREATE INDEX IF NOT EXISTS idx_nfc_tokens_user ON nfc_tokens(user_id)",
     ];
 
     for sql in migrations {

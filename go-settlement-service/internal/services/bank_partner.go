@@ -191,19 +191,15 @@ var bankPartnerConfigs = map[BankPartnerProvider]*BankPartnerConfig{
 // ─── Service ────────────────────────────────────────────────────────────────
 
 type BankPartnerService struct {
-	mu         sync.RWMutex
-	ibans      map[string]*VirtualIBAN
-	transfers  map[string]*BankPartnerTransfer
-	crypto     *CryptoService
-	cbdc       *CBDCBridge
+	mu     sync.RWMutex
+	crypto *CryptoService
+	cbdc   *CBDCBridge
 }
 
 func NewBankPartnerService(crypto *CryptoService, cbdc *CBDCBridge) *BankPartnerService {
 	return &BankPartnerService{
-		ibans:     make(map[string]*VirtualIBAN),
-		transfers: make(map[string]*BankPartnerTransfer),
-		crypto:    crypto,
-		cbdc:      cbdc,
+		crypto: crypto,
+		cbdc:   cbdc,
 	}
 }
 
@@ -257,27 +253,23 @@ func (s *BankPartnerService) CreateVirtualIBAN(userID string, provider BankPartn
 	// Generate provider-specific account details
 	switch provider {
 	case ProviderGTBank:
-		iban.AccountNumber = fmt.Sprintf("07%08d%04d", time.Now().UnixNano()%100000000, len(s.ibans))
+		iban.AccountNumber = fmt.Sprintf("07%08d%04d", time.Now().UnixNano()%100000000, time.Now().Nanosecond()%1000)
 		iban.IBAN = "NG" + iban.AccountNumber
 	case ProviderAccessBank:
-		iban.AccountNumber = fmt.Sprintf("04%08d%04d", time.Now().UnixNano()%100000000, len(s.ibans))
+		iban.AccountNumber = fmt.Sprintf("04%08d%04d", time.Now().UnixNano()%100000000, time.Now().Nanosecond()%1000)
 		iban.IBAN = "NG" + iban.AccountNumber
 	case ProviderCurrencyCloud:
-		iban.IBAN = fmt.Sprintf("GB%02d%s%08d", 29+len(s.ibans)%70, "CABA", time.Now().UnixNano()%100000000)
+		iban.IBAN = fmt.Sprintf("GB%02d%s%08d", 29+time.Now().Nanosecond()%1000%70, "CABA", time.Now().UnixNano()%100000000)
 		iban.SortCode = "23-14-70"
 	case ProviderBankingCircle:
-		iban.IBAN = fmt.Sprintf("DK%02d%s%010d", 50+len(s.ibans)%50, "0040", time.Now().UnixNano()%10000000000)
+		iban.IBAN = fmt.Sprintf("DK%02d%s%010d", 50+time.Now().Nanosecond()%1000%50, "0040", time.Now().UnixNano()%10000000000)
 	}
-
-	s.ibans[ref] = iban
 
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-			ref, userID, userID, string(provider), iban.AccountNumber, 0.0, currency, iban.IBAN, "active",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+		ref, userID, userID, string(provider), iban.AccountNumber, 0.0, currency, iban.IBAN, "active",
+	)
 
 	return iban, nil
 }
@@ -305,10 +297,14 @@ func (s *BankPartnerService) GetQuote(provider BankPartnerProvider, sourceCurren
 	// Auto-create virtual IBAN for this user
 	s.mu.RLock()
 	var existingIBAN *VirtualIBAN
-	for _, iban := range s.ibans {
-		if iban.UserID == userID && iban.Provider == provider && iban.Active {
-			existingIBAN = iban
-			break
+	if database.DB != nil {
+		var ibanID, accNum, ibanStr, ref string
+		err := database.DB.QueryRow(
+			"SELECT id, account_number, reference FROM bank_transfers WHERE user_id=$1 AND bank_code=$2 AND status='active' LIMIT 1",
+			userID, string(provider),
+		).Scan(&ibanID, &accNum, &ibanStr)
+		if err == nil {
+			existingIBAN = &VirtualIBAN{ID: ibanID, Provider: provider, UserID: userID, AccountNumber: accNum, IBAN: ibanStr, Reference: ref, Active: true}
 		}
 	}
 	s.mu.RUnlock()
@@ -382,15 +378,11 @@ func (s *BankPartnerService) InitiateTransfer(userID string, quote *BankPartnerQ
 		CreatedAt:       now,
 	}
 
-	s.transfers[id] = transfer
-
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-			id, userID, senderName, string(quote.Provider), "", quote.SourceAmount, quote.SourceCurrency, id, "awaiting_funds",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+		id, userID, senderName, string(quote.Provider), "", quote.SourceAmount, quote.SourceCurrency, id, "awaiting_funds",
+	)
 
 	bankPartnerTransfersTotal.WithLabelValues(string(quote.Provider), "awaiting_funds").Inc()
 	bankPartnerVolumeUSD.WithLabelValues(string(quote.Provider)).Add(quote.SourceAmount)
@@ -403,9 +395,13 @@ func (s *BankPartnerService) WebhookFundsReceived(transferID, swiftRef string, a
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	transfer, ok := s.transfers[transferID]
-	if !ok {
-		return nil, fmt.Errorf("transfer not found: %s", transferID)
+	if database.DB != nil {
+		database.DB.Exec("UPDATE bank_transfers SET status='funds_received', reference=$1 WHERE id=$2", swiftRef, transferID)
+	}
+
+	transfer, err := s.GetTransfer(transferID)
+	if err != nil {
+		return nil, err
 	}
 
 	now := time.Now().UTC()
@@ -424,12 +420,18 @@ func (s *BankPartnerService) CreditWallet(transferID string) (*BankPartnerTransf
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	transfer, ok := s.transfers[transferID]
-	if !ok {
-		return nil, fmt.Errorf("transfer not found: %s", transferID)
+	if database.DB != nil {
+		var status string
+		database.DB.QueryRow("SELECT status FROM bank_transfers WHERE id=$1", transferID).Scan(&status)
+		if status != "funds_received" {
+			return nil, fmt.Errorf("transfer not in funds_received state: %s", status)
+		}
+		database.DB.Exec("UPDATE bank_transfers SET status='credited' WHERE id=$1", transferID)
 	}
-	if transfer.Status != "funds_received" {
-		return nil, fmt.Errorf("transfer not in funds_received state: %s", transfer.Status)
+
+	transfer, err := s.GetTransfer(transferID)
+	if err != nil {
+		return nil, err
 	}
 
 	now := time.Now().UTC()
@@ -448,9 +450,20 @@ func (s *BankPartnerService) ListTransfers(userID string) []*BankPartnerTransfer
 	defer s.mu.RUnlock()
 
 	var result []*BankPartnerTransfer
-	for _, t := range s.transfers {
-		if t.UserID == userID {
-			result = append(result, t)
+	if database.DB != nil {
+		rows, err := database.DB.Query(
+			"SELECT id, user_id, beneficiary_name, bank_code, amount, currency, reference, status, created_at FROM bank_transfers WHERE user_id=$1 AND status!='active' AND status!='beneficiary' ORDER BY created_at DESC",
+			userID,
+		)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				t := &BankPartnerTransfer{}
+				var providerStr string
+				rows.Scan(&t.ID, &t.UserID, &t.SenderName, &providerStr, &t.SourceAmount, &t.SourceCurrency, &t.SWIFTRef, &t.Status, &t.CreatedAt)
+				t.Provider = BankPartnerProvider(providerStr)
+				result = append(result, t)
+			}
 		}
 	}
 	return result
@@ -461,9 +474,17 @@ func (s *BankPartnerService) GetTransfer(id string) (*BankPartnerTransfer, error
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	t, ok := s.transfers[id]
-	if !ok {
-		return nil, fmt.Errorf("transfer not found: %s", id)
+	if database.DB != nil {
+		t := &BankPartnerTransfer{}
+		var providerStr string
+		err := database.DB.QueryRow(
+			"SELECT id, user_id, beneficiary_name, bank_code, amount, currency, reference, status, created_at FROM bank_transfers WHERE id=$1",
+			id,
+		).Scan(&t.ID, &t.UserID, &t.SenderName, &providerStr, &t.SourceAmount, &t.SourceCurrency, &t.SWIFTRef, &t.Status, &t.CreatedAt)
+		if err == nil {
+			t.Provider = BankPartnerProvider(providerStr)
+			return t, nil
+		}
 	}
-	return t, nil
+	return nil, fmt.Errorf("transfer not found: %s", id)
 }

@@ -74,21 +74,17 @@ type CBDCSwapQuote struct {
 // ─── CBDC Bridge Service ───────────────────────────────────────────────────────
 
 type CBDCBridge struct {
-	mu           sync.RWMutex
-	wallets      map[string]*CBDCWallet
-	transactions []*CBDCTransaction
-	httpClient   *http.Client
-	enairaURL    string
-	ecediURL     string
+	mu         sync.RWMutex
+	httpClient *http.Client
+	enairaURL  string
+	ecediURL   string
 }
 
 func NewCBDCBridge() *CBDCBridge {
 	return &CBDCBridge{
-		wallets:      make(map[string]*CBDCWallet),
-		transactions: make([]*CBDCTransaction, 0),
-		httpClient:   &http.Client{Timeout: 15 * time.Second},
-		enairaURL:    getEnv("ENAIRA_API_URL", "https://api.enaira.gov.ng/v1"),
-		ecediURL:     getEnv("ECEDI_API_URL", "https://api.ecedi.gov.gh/v1"),
+		httpClient: &http.Client{Timeout: 15 * time.Second},
+		enairaURL:  getEnv("ENAIRA_API_URL", "https://api.enaira.gov.ng/v1"),
+		ecediURL:   getEnv("ECEDI_API_URL", "https://api.ecedi.gov.gh/v1"),
 	}
 }
 
@@ -111,17 +107,11 @@ func (b *CBDCBridge) CreateWallet(ctx context.Context, userID string, network CB
 		CreatedAt: time.Now(),
 	}
 
-	b.mu.Lock()
-	b.wallets[wallet.ID] = wallet
-	b.mu.Unlock()
-
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO cbdc_transactions (id, user_id, cbdc_type, amount, currency, direction, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-			wallet.ID, userID, string(network), 0.0, currency, "WALLET", "wallet_created", "completed",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO cbdc_transactions (id, user_id, cbdc_type, amount, currency, direction, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+		wallet.ID, userID, string(network), 0.0, currency, "WALLET", "wallet_created", "completed",
+	)
 
 	return wallet, nil
 }
@@ -148,11 +138,8 @@ func (b *CBDCBridge) GetSwapQuote(req CBDCSwapRequest) (*CBDCSwapQuote, error) {
 
 // ExecuteSwap performs cross-border CBDC-to-CBDC atomic swap
 func (b *CBDCBridge) ExecuteSwap(ctx context.Context, req CBDCSwapRequest, senderWalletID string) (*CBDCTransaction, error) {
-	b.mu.RLock()
-	wallet, exists := b.wallets[senderWalletID]
-	b.mu.RUnlock()
-
-	if !exists {
+	wallet := b.GetWallet(senderWalletID)
+	if wallet == nil {
 		return nil, fmt.Errorf("wallet not found: %s", senderWalletID)
 	}
 	if wallet.Balance < req.Amount {
@@ -178,11 +165,13 @@ func (b *CBDCBridge) ExecuteSwap(ctx context.Context, req CBDCSwapRequest, sende
 		CreatedAt:       time.Now(),
 	}
 
-	// Debit sender
-	b.mu.Lock()
-	wallet.Balance -= req.Amount
-	b.transactions = append(b.transactions, tx)
-	b.mu.Unlock()
+	// Persist transaction to PostgreSQL
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO cbdc_transactions (id, user_id, cbdc_type, amount, currency, direction, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+			txID, wallet.UserID, string(req.FromNetwork), float64(req.Amount)/100, req.FromCurrency, "OUT", tx.TxHash, "confirmed",
+		)
+	}
 
 	_ = quote // Used for the recipient credit in the paired network
 
@@ -193,7 +182,23 @@ func (b *CBDCBridge) ExecuteSwap(ctx context.Context, req CBDCSwapRequest, sende
 func (b *CBDCBridge) GetWallet(walletID string) *CBDCWallet {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return b.wallets[walletID]
+
+	if database.DB != nil {
+		var userID, cbdcType, currency string
+		err := database.DB.QueryRow(
+			"SELECT user_id, cbdc_type, currency FROM cbdc_transactions WHERE id=$1 AND reference='wallet_created'",
+			walletID,
+		).Scan(&userID, &cbdcType, &currency)
+		if err == nil {
+			return &CBDCWallet{
+				ID:       walletID,
+				Network:  CBDCNetwork(cbdcType),
+				Currency: currency,
+				UserID:   userID,
+			}
+		}
+	}
+	return nil
 }
 
 // GetTransactions returns transaction history for a wallet
@@ -202,13 +207,25 @@ func (b *CBDCBridge) GetTransactions(walletID string, limit int) []*CBDCTransact
 	defer b.mu.RUnlock()
 
 	var result []*CBDCTransaction
-	for _, tx := range b.transactions {
-		if tx.SenderWallet == walletID || tx.RecipientWallet == walletID {
-			result = append(result, tx)
+	if database.DB != nil {
+		query := "SELECT id, cbdc_type, user_id, amount, currency, direction, status, created_at FROM cbdc_transactions WHERE user_id=(SELECT user_id FROM cbdc_transactions WHERE id=$1 AND reference='wallet_created' LIMIT 1) ORDER BY created_at DESC"
+		if limit > 0 {
+			query += fmt.Sprintf(" LIMIT %d", limit)
 		}
-	}
-	if limit > 0 && len(result) > limit {
-		result = result[len(result)-limit:]
+		rows, err := database.DB.Query(query, walletID)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				tx := &CBDCTransaction{}
+				var network, userID, direction string
+				var amount float64
+				rows.Scan(&tx.ID, &network, &userID, &amount, &tx.Currency, &direction, &tx.Status, &tx.CreatedAt)
+				tx.Network = CBDCNetwork(network)
+				tx.Amount = uint64(amount * 100)
+				tx.SenderWallet = walletID
+				result = append(result, tx)
+			}
+		}
 	}
 	return result
 }

@@ -350,6 +350,32 @@ func runMigrations() error {
 			amount DECIMAL(18,2) NOT NULL,
 			percentage DECIMAL(5,2)
 		)`,
+		`CREATE TABLE IF NOT EXISTS tax_rules (
+			id VARCHAR(64) PRIMARY KEY,
+			jurisdiction_code VARCHAR(10) NOT NULL,
+			tax_type VARCHAR(32) NOT NULL,
+			name VARCHAR(256) NOT NULL,
+			rate DECIMAL(8,4) NOT NULL DEFAULT 0,
+			flat_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+			currency VARCHAR(10) NOT NULL,
+			applies_to_category VARCHAR(64) NOT NULL DEFAULT 'all',
+			min_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+			max_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+			priority INT NOT NULL DEFAULT 0,
+			is_compound BOOLEAN NOT NULL DEFAULT false,
+			is_active BOOLEAN NOT NULL DEFAULT true,
+			effective_from BIGINT NOT NULL DEFAULT 0
+		)`,
+		`CREATE TABLE IF NOT EXISTS tip_configs (
+			jurisdiction_code VARCHAR(10) PRIMARY KEY,
+			currency VARCHAR(10) NOT NULL,
+			max_percentage DECIMAL(8,2) NOT NULL DEFAULT 25,
+			max_flat_amount DECIMAL(18,2) NOT NULL DEFAULT 100,
+			distribution VARCHAR(32) NOT NULL DEFAULT 'direct',
+			tax_on_tip BOOLEAN NOT NULL DEFAULT false,
+			cultural_note TEXT,
+			is_enabled BOOLEAN NOT NULL DEFAULT true
+		)`,
 	}
 
 	for _, m := range migrations {
