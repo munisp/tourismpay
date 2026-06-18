@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use sqlx::PgPool;
 
 // ─── Tax Types ──────────────────────────────────────────────────────────────
 
@@ -108,6 +109,7 @@ pub struct PoolSplit {
 pub struct TaxTipEngine {
     tax_rules: HashMap<String, Vec<JurisdictionTaxRule>>,
     tip_configs: HashMap<String, TipPoolConfig>,
+    db_pool: Option<PgPool>,
 }
 
 impl TaxTipEngine {
@@ -115,9 +117,116 @@ impl TaxTipEngine {
         let mut engine = Self {
             tax_rules: HashMap::new(),
             tip_configs: HashMap::new(),
+            db_pool: None,
         };
         engine.load_defaults();
         engine
+    }
+
+    pub fn with_pool(pool: PgPool) -> Self {
+        let mut engine = Self {
+            tax_rules: HashMap::new(),
+            tip_configs: HashMap::new(),
+            db_pool: Some(pool),
+        };
+        engine.load_defaults();
+        engine
+    }
+
+    pub async fn hydrate_from_db(&mut self) {
+        let pool = match &self.db_pool {
+            Some(p) => p,
+            None => return,
+        };
+
+        // Load tax rules from DB
+        let rows = sqlx::query_as::<_, (String, String, String, String, i32, f64, String, String, f64, f64, bool, i32, bool)>(
+            "SELECT id, jurisdiction, category, name, rate_bps, flat_amount, currency, applies_to, min_threshold, max_cap, is_compound, priority, is_active FROM tax_tip_rules ORDER BY jurisdiction, priority"
+        )
+        .fetch_all(pool)
+        .await;
+
+        if let Ok(rows) = rows {
+            if !rows.is_empty() {
+                self.tax_rules.clear();
+                for (id, jurisdiction, category, name, rate_bps, flat_amount, currency, applies_to, min_threshold, max_cap, is_compound, priority, is_active) in rows {
+                    let cat = match category.as_str() {
+                        "VAT" => TaxCategory::VAT,
+                        "TourismLevy" => TaxCategory::TourismLevy,
+                        "WithholdingTax" => TaxCategory::WithholdingTax,
+                        "ServiceCharge" => TaxCategory::ServiceCharge,
+                        "DigitalServiceTax" => TaxCategory::DigitalServiceTax,
+                        "EnvironmentalLevy" => TaxCategory::EnvironmentalLevy,
+                        "CityTax" => TaxCategory::CityTax,
+                        "ExciseDuty" => TaxCategory::ExciseDuty,
+                        _ => TaxCategory::VAT,
+                    };
+                    let rule = JurisdictionTaxRule {
+                        id, jurisdiction: jurisdiction.clone(), category: cat, name,
+                        rate_bps: rate_bps as u32, flat_amount, currency, applies_to,
+                        min_threshold, max_cap, is_compound, priority: priority as u8, is_active,
+                    };
+                    self.tax_rules.entry(jurisdiction).or_insert_with(Vec::new).push(rule);
+                }
+            }
+        }
+
+        // Load tip configs from DB
+        let tip_rows = sqlx::query_as::<_, (String, String, f64, String, String, f64)>(
+            "SELECT jurisdiction, splits_json, max_percentage, suggested_json, cultural_note, round_up_unit FROM tax_tip_configs ORDER BY jurisdiction"
+        )
+        .fetch_all(pool)
+        .await;
+
+        if let Ok(tip_rows) = tip_rows {
+            if !tip_rows.is_empty() {
+                self.tip_configs.clear();
+                for (jurisdiction, splits_json, max_percentage, suggested_json, cultural_note, round_up_unit) in tip_rows {
+                    let splits: Vec<PoolSplit> = serde_json::from_str(&splits_json).unwrap_or_default();
+                    let suggested: Vec<f64> = serde_json::from_str(&suggested_json).unwrap_or_default();
+                    let currency_code = self.tax_rules.get(&jurisdiction)
+                        .and_then(|r| r.first())
+                        .map(|r| r.currency.clone())
+                        .unwrap_or_else(|| "USD".into());
+                    self.tip_configs.insert(jurisdiction, TipPoolConfig {
+                        splits, max_percentage, suggested_percentages: suggested,
+                        cultural_note, currency: currency_code, round_up_unit,
+                    });
+                }
+            }
+        }
+    }
+
+    pub async fn seed_defaults_to_db(&self) {
+        let pool = match &self.db_pool {
+            Some(p) => p,
+            None => return,
+        };
+
+        for (jurisdiction, rules) in &self.tax_rules {
+            for rule in rules {
+                let cat_str = format!("{:?}", rule.category);
+                let _ = sqlx::query(
+                    "INSERT INTO tax_tip_rules (id, jurisdiction, category, name, rate_bps, flat_amount, currency, applies_to, min_threshold, max_cap, is_compound, priority, is_active) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (id) DO NOTHING"
+                )
+                .bind(&rule.id).bind(jurisdiction).bind(&cat_str).bind(&rule.name)
+                .bind(rule.rate_bps as i32).bind(rule.flat_amount).bind(&rule.currency)
+                .bind(&rule.applies_to).bind(rule.min_threshold).bind(rule.max_cap)
+                .bind(rule.is_compound).bind(rule.priority as i32).bind(rule.is_active)
+                .execute(pool).await;
+            }
+        }
+
+        for (jurisdiction, config) in &self.tip_configs {
+            let splits_json = serde_json::to_string(&config.splits).unwrap_or_default();
+            let suggested_json = serde_json::to_string(&config.suggested_percentages).unwrap_or_default();
+            let _ = sqlx::query(
+                "INSERT INTO tax_tip_configs (jurisdiction, splits_json, max_percentage, suggested_json, cultural_note, round_up_unit) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (jurisdiction) DO NOTHING"
+            )
+            .bind(jurisdiction).bind(&splits_json).bind(config.max_percentage)
+            .bind(&suggested_json).bind(&config.cultural_note).bind(config.round_up_unit)
+            .execute(pool).await;
+        }
     }
 
     fn load_defaults(&mut self) {

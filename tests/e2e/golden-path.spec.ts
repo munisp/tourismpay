@@ -157,4 +157,86 @@ test.describe("TourismPay Golden Path E2E", () => {
     const body = await page.textContent("body");
     expect(body).toBeTruthy();
   });
+
+  test("wallet flow: balances → transactions → FX rate via API", async ({ page, request }) => {
+    await page.goto("/api/dev/session-token?redirect=/");
+    const cookies = await page.context().cookies();
+    const sessionCookie = cookies.find((c) => c.name === "app_session_id");
+    expect(sessionCookie).toBeTruthy();
+
+    const headers = { Cookie: `app_session_id=${sessionCookie!.value}` };
+
+    const balancesRes = await request.get(
+      "/api/trpc/wallet.balances?input=%7B%22json%22%3Anull%7D",
+      { headers }
+    );
+    expect(balancesRes.ok()).toBeTruthy();
+    const balancesBody = await balancesRes.json();
+    expect(balancesBody.result).toBeDefined();
+
+    const txRes = await request.get(
+      "/api/trpc/wallet.transactions?input=%7B%22json%22%3A%7B%22limit%22%3A10%7D%7D",
+      { headers }
+    );
+    expect(txRes.ok()).toBeTruthy();
+
+    const fxRes = await request.get(
+      '/api/trpc/wallet.getFxRate?input=%7B%22json%22%3A%7B%22from%22%3A%22NGN%22%2C%22to%22%3A%22USD%22%7D%7D',
+      { headers }
+    );
+    expect(fxRes.status()).toBeLessThan(500);
+  });
+
+  test("settlement service: Go health + inventory API", async ({ request }) => {
+    const healthRes = await request.get("http://localhost:8081/health");
+    if (healthRes.ok()) {
+      const body = await healthRes.json();
+      expect(body.status).toBe("healthy");
+      expect(body.database).toBe("connected");
+
+      const invRes = await request.get("http://localhost:8081/api/v1/inventory", {
+        headers: { "X-API-Key": "test-settlement-key" },
+      });
+      expect(invRes.ok()).toBeTruthy();
+      const invBody = await invRes.json();
+      expect(invBody.items).toBeDefined();
+    }
+  });
+
+  test("BIS investigation workflow accessible", async ({ page }) => {
+    await page.goto("/admin/bis");
+    await page.waitForLoadState("networkidle");
+
+    const body = await page.textContent("body");
+    expect(body).toBeTruthy();
+    expect(body).not.toContain("Page not found");
+
+    await page.goto("/admin/bis/investigations");
+    await page.waitForLoadState("networkidle");
+    const invBody = await page.textContent("body");
+    expect(invBody).toBeTruthy();
+  });
+
+  test("tax collection page accessible for admin", async ({ page }) => {
+    await page.goto("/admin/tax-collection");
+    await page.waitForLoadState("networkidle");
+
+    const body = await page.textContent("body");
+    expect(body).toBeTruthy();
+  });
+
+  test("tRPC batch: multiple queries in single request", async ({ page, request }) => {
+    await page.goto("/api/dev/session-token?redirect=/");
+    const cookies = await page.context().cookies();
+    const sessionCookie = cookies.find((c) => c.name === "app_session_id");
+    expect(sessionCookie).toBeTruthy();
+
+    const headers = { Cookie: `app_session_id=${sessionCookie!.value}` };
+
+    const batchRes = await request.get(
+      "/api/trpc/wallet.balances,wallet.stats?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%7D%2C%221%22%3A%7B%22json%22%3Anull%7D%7D",
+      { headers }
+    );
+    expect(batchRes.status()).toBeLessThan(500);
+  });
 });

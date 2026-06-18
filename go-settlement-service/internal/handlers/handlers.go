@@ -52,9 +52,9 @@ func (h *Handlers) CreateAccount(c *gin.Context) {
 }
 
 func (h *Handlers) GetAccount(c *gin.Context) {
-	entityType := c.Query("entity_type")
-	entityID := c.Query("entity_id")
-	currency := c.Query("currency")
+	entityType := c.Param("entity_type")
+	entityID := c.Param("entity_id")
+	currency := c.Param("currency")
 
 	if entityType == "" || entityID == "" || currency == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "entity_type, entity_id, and currency are required"})
@@ -71,9 +71,9 @@ func (h *Handlers) GetAccount(c *gin.Context) {
 }
 
 func (h *Handlers) GetAccountBalance(c *gin.Context) {
-	entityType := c.Query("entity_type")
-	entityID := c.Query("entity_id")
-	currency := c.Query("currency")
+	entityType := c.Param("entity_type")
+	entityID := c.Param("entity_id")
+	currency := c.Param("currency")
 
 	if entityType == "" || entityID == "" || currency == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "entity_type, entity_id, and currency are required"})
