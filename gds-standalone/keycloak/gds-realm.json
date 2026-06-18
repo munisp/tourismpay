@@ -1,0 +1,336 @@
+{
+  "realm": "gds",
+  "enabled": true,
+  "displayName": "Africa GDS",
+  "displayNameHtml": "<h2>Africa GDS</h2>",
+  "sslRequired": "external",
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "accessTokenLifespan": 3600,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 86400,
+  "ssoSessionMaxLifespan": 604800,
+  "offlineSessionIdleTimeout": 2592000,
+  "roles": {
+    "realm": [
+      {
+        "name": "gds_agent",
+        "description": "Travel agent \u2014 can search, book, and earn commissions"
+      },
+      {
+        "name": "gds_property_manager",
+        "description": "Property owner \u2014 can register properties, manage rates/availability"
+      },
+      {
+        "name": "gds_admin",
+        "description": "GDS administrator \u2014 full access to all operations"
+      },
+      {
+        "name": "gds_api_client",
+        "description": "External API client \u2014 server-to-server integration"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "gds-agent-portal",
+      "name": "GDS Agent Portal",
+      "description": "Web application for travel agents",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:5173/*",
+        "https://gds.tourismpay.com/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://gds.tourismpay.com"
+      ],
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "gds-scope"
+      ],
+      "protocolMappers": [
+        {
+          "name": "tenant-id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "tenant_id",
+            "claim.name": "tenant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "agent-id-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "agent_id",
+            "claim.name": "agent_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "gds-role-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "gds_role",
+            "claim.name": "gds_role",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "gds-property-manager",
+      "name": "GDS Property Manager",
+      "description": "Web application for property owners",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "protocol": "openid-connect",
+      "redirectUris": [
+        "http://localhost:3001/*",
+        "https://pm.gds.tourismpay.com/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3001",
+        "https://pm.gds.tourismpay.com"
+      ],
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "gds-scope"
+      ]
+    },
+    {
+      "clientId": "gds-api-gateway",
+      "name": "GDS APISIX Gateway",
+      "description": "Confidential client for APISIX JWT validation",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocol": "openid-connect",
+      "secret": "${KEYCLOAK_GDS_CLIENT_SECRET}",
+      "defaultClientScopes": [
+        "openid",
+        "gds-scope"
+      ]
+    },
+    {
+      "clientId": "gds-external-api",
+      "name": "GDS External API Client",
+      "description": "For external applications integrating via service account",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "openid",
+        "gds-scope"
+      ],
+      "protocolMappers": [
+        {
+          "name": "external-tenant-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "gds_role",
+            "claim.value": "api_client",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "gds-scope",
+      "description": "GDS-specific claims (tenant_id, agent_id, gds_role)",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "name": "agents",
+      "attributes": {
+        "gds_role": [
+          "agent"
+        ]
+      }
+    },
+    {
+      "name": "property-managers",
+      "attributes": {
+        "gds_role": [
+          "property_manager"
+        ]
+      }
+    },
+    {
+      "name": "admins",
+      "attributes": {
+        "gds_role": [
+          "admin"
+        ]
+      }
+    }
+  ],
+  "requiredActions": [
+    {
+      "alias": "VERIFY_EMAIL",
+      "name": "Verify Email",
+      "providerId": "VERIFY_EMAIL",
+      "enabled": true,
+      "defaultAction": true
+    }
+  ],
+  "passwordPolicy": "length(8) and digits(1) and upperCase(1) and specialChars(1)",
+  "smtpServer": {
+    "host": "${SMTP_HOST}",
+    "port": "${SMTP_PORT}",
+    "from": "noreply@gds.tourismpay.com",
+    "fromDisplayName": "Africa GDS",
+    "auth": true,
+    "user": "${SMTP_USER}",
+    "password": "${SMTP_PASSWORD}"
+  },
+  "users": [
+    {
+      "username": "admin@tourismpay.ng",
+      "email": "admin@tourismpay.ng",
+      "firstName": "Adewale",
+      "lastName": "Okonkwo",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "gds_admin"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "00000000-0000-0000-0000-000000000001"
+        ]
+      }
+    },
+    {
+      "username": "agent@safaricom.ke",
+      "email": "agent@safaricom.ke",
+      "firstName": "Amina",
+      "lastName": "Wanjiku",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "agent123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "gds_agent"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
+        "agent_id": [
+          "AGT-001"
+        ]
+      }
+    },
+    {
+      "username": "property@ekohotels.ng",
+      "email": "property@ekohotels.ng",
+      "firstName": "Chukwudi",
+      "lastName": "Eze",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "prop123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "gds_property_manager"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
+        "property_ids": [
+          "prop-001,prop-002"
+        ]
+      }
+    },
+    {
+      "username": "api-client@external.com",
+      "email": "api-client@external.com",
+      "firstName": "API",
+      "lastName": "Client",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "api123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "gds_api_client"
+      ],
+      "attributes": {
+        "tenant_id": [
+          "00000000-0000-0000-0000-000000000001"
+        ]
+      }
+    }
+  ]
+}

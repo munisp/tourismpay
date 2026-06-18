@@ -116,9 +116,18 @@ rust-kyc-service/target/
 __pycache__/
 *.pyc
 
-# ML Platform — generated data and model weights
-python-services/ml-platform/data/synthetic/generated/
-python-services/ml-platform/training/checkpoints/
-python-services/ml-platform/lakehouse/store/
-*.pt
-*.parquet
+# Build artifacts
+**/target/
+gds-standalone-production.tar.gz
+gds-standalone/services/*/cancellation-policy
+gds-standalone/services/*/group-bookings
+gds-standalone/services/*/guest-profile
+gds-standalone/services/*/negotiated-rates
+gds-standalone/services/*/pnr-engine
+gds-standalone/services/*/sms-handler
+gds-standalone/services/*/ussd-gateway
+
+# Test artifacts
+test-plan*.md
+test-report*.md
+test-screenshots/
