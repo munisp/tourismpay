@@ -72,7 +72,7 @@ func TestCreateAccount_MissingFields(t *testing.T) {
 func TestGetAccountBalance(t *testing.T) {
 	r, h := setupTestRouter()
 	r.POST("/accounts", h.CreateAccount)
-	r.GET("/balance", h.GetAccountBalance)
+	r.GET("/balance/:entity_type/:entity_id/:currency", h.GetAccountBalance)
 
 	// Create account first
 	body := CreateAccountRequest{EntityType: "tourist", EntityID: "t-001", Currency: "USD"}
@@ -86,9 +86,9 @@ func TestGetAccountBalance(t *testing.T) {
 		t.Fatalf("setup: expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 
-	// Get balance via query params
+	// Get balance via path params
 	w2 := httptest.NewRecorder()
-	req2, _ := http.NewRequest("GET", "/balance?entity_type=tourist&entity_id=t-001&currency=USD", nil)
+	req2, _ := http.NewRequest("GET", "/balance/tourist/t-001/USD", nil)
 	r.ServeHTTP(w2, req2)
 
 	if w2.Code != http.StatusOK {
