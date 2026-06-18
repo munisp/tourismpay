@@ -176,6 +176,12 @@ func (s *MojaloopDFSPService) CreateQuote(payerFSP, payeeFSP string, amount floa
 	}
 
 	s.quotes[quoteID] = quote
+	if s.hasDB() {
+		s.db().Exec(
+			"INSERT INTO mojaloop_transfers (transfer_id, quote_id, payer_fsp, payee_fsp, amount, currency, state) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING",
+			quoteID, quoteID, payerFSP, payeeFSP, amount, currency, "QUOTED",
+		)
+	}
 	return quote, nil
 }
 

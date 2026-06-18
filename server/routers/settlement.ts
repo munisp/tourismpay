@@ -13,6 +13,7 @@ import { Parser } from "json2csv";
 import { pushSettlementUpdate } from "../sse";
 import { publishSettlementEvent, publishAuditEvent } from "../_core/kafka";
 import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
+import { cacheGet, cacheSet } from "../_core/redis";
 
 async function requireDb() {
   const db = await getDb();
@@ -23,6 +24,8 @@ async function requireDb() {
 export const settlementRouter = router({
   // ── Summary stats ─────────────────────────────────────────────────────────
   stats: settlementProcedure.query(async () => {
+    const cached = await cacheGet<Record<string, number>>("settlement:stats");
+    if (cached) return cached;
     const db = await requireDb();
     const thirtyDaysAgo = Date.now() - 30 * 86_400_000;
     const [stats] = await db
@@ -38,7 +41,7 @@ export const settlementRouter = router({
       })
       .from(psSettlements)
       .where(sql`created_at >= ${thirtyDaysAgo}`);
-    return {
+    const result = {
       total: Number(stats?.total ?? 0),
       pending: Number(stats?.pending ?? 0),
       processing: Number(stats?.processing ?? 0),
@@ -48,6 +51,8 @@ export const settlementRouter = router({
       totalAmountPending: Number(stats?.totalAmountPending ?? 0),
       totalAmountCompleted: Number(stats?.totalAmountCompleted ?? 0),
     };
+    await cacheSet("settlement:stats", result, 30);
+    return result;
   }),
 
   // ── List settlements with optional status filter ───────────────────────────

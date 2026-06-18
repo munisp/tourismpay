@@ -22,6 +22,13 @@ export const TOPICS = {
   WALLET_TRANSACTIONS: "tourismpay.wallet.transactions",
   AUDIT_LOG: "tourismpay.audit.log",
   DEAD_LETTER: "tourismpay.dlq",
+  PAYMENTS: "tourismpay.payments",
+  LOYALTY: "tourismpay.loyalty",
+  IDENTITY: "tourismpay.identity",
+  SECURITY: "tourismpay.security",
+  BIOMETRIC: "tourismpay.biometric",
+  STRIPE: "tourismpay.stripe",
+  CORRIDOR: "tourismpay.corridor",
 } as const;
 
 export type TopicName = (typeof TOPICS)[keyof typeof TOPICS];

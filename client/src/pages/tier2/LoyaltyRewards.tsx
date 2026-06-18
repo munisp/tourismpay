@@ -327,11 +327,12 @@ export default function LoyaltyRewards() {
         <div className="glass-card p-5 animate-fade-in-up opacity-0" style={{ animationDelay: "200ms", animationFillMode: "forwards" }}>
           <h3 className="text-sm font-semibold text-foreground mb-4" style={{ fontFamily: "Space Grotesk, sans-serif" }}>Redeem Points</h3>
           <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-            {(rewards ?? []).map((r) => {
+            {(rewards ?? []).map((_r) => {
+              const r = _r as { id: string; name: string; pointsCost: number; partner: string; category: string; expiringSoon?: boolean; expiresAt?: number | null };
               const canAfford = balance >= r.pointsCost;
               const isRedeeming = redeemingId === r.id;
-              const expiringSoon = (r as any).expiringSoon as boolean | undefined;
-              const expiresAt = (r as any).expiresAt as number | null | undefined;
+              const expiringSoon = r.expiringSoon;
+              const expiresAt = r.expiresAt;
               const daysLeft = expiresAt ? Math.ceil((expiresAt - Date.now()) / (24 * 60 * 60 * 1000)) : null;
               return (
                 <div key={r.id} className={`flex items-center justify-between p-3 rounded-md transition-colors ${

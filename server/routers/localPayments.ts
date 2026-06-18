@@ -25,6 +25,7 @@ import { z } from "zod";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
+import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
 import { createAuditLog, createUserNotification } from "../db";
 import { walletBalances, walletTransactions } from "../../drizzle/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -147,6 +148,7 @@ export const localPaymentsRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = String(ctx.user.id);
+        await requirePermission(userId, ctx.user.role, RESOURCES.PAYMENT, ACTIONS.CREATE);
 
         // Process through Go service
         const result = await callGoService("/api/v1/bill/pay", "POST", {

@@ -17,6 +17,7 @@ import { logger } from "../_core/logger";
 import { publishFraudAlert, publishAuditEvent } from "../_core/kafka";
 import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
 import { recordBisInvestigation } from "../_core/metrics";
+import { cacheGet, cacheSet } from "../_core/redis";
 
 // ─── Auto-timeline helper ────────────────────────────────────────────────────
 // Fire-and-forget: records a system timeline event for an investigation.
@@ -519,6 +520,8 @@ export const bisRouter = router({
 
   // Get dashboard stats for BIS
   stats: protectedProcedure.query(async () => {
+    const cached = await cacheGet<Record<string, number>>("bis:stats");
+    if (cached) return cached;
     const [all, pending, processing, completed, flagged] = await Promise.all([
       getBisInvestigations({ limit: 1000 }),
       getBisInvestigations({ status: "pending", limit: 1000 }),
@@ -530,7 +533,7 @@ export const bisRouter = router({
     const highRisk = (await getBisInvestigations({ riskLevel: "high", limit: 1000 })).length +
       (await getBisInvestigations({ riskLevel: "critical", limit: 1000 })).length;
 
-    return {
+    const result = {
       total: all.length,
       pending: pending.length,
       processing: processing.length,
@@ -538,6 +541,8 @@ export const bisRouter = router({
       flagged: flagged.length,
       highRisk,
     };
+    await cacheSet("bis:stats", result, 30);
+    return result;
   }),
 
   // Get tier pricing

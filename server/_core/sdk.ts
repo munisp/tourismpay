@@ -293,10 +293,10 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
+    // Update lastSignedIn and loginCount without resetting role.
+    // Using upsertUser here would force the owner's role back to "admin"
+    // on every request (db.ts line 131-133), breaking Permify enforcement.
+    await db.touchUserSignIn(user.openId, signedInAt);
 
     return user;
   }

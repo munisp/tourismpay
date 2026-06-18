@@ -7,12 +7,14 @@ and real-time business intelligence for TourismPay platform.
 Middleware integration: Lakehouse (data warehouse), OpenSearch (queries),
 Redis (dashboard cache), Kafka (event stream).
 """
+import json
 import os
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel, Field
+import db as database
 
 app = FastAPI(title="Analytics Engine", version="1.0.0")
 
@@ -107,7 +109,7 @@ async def get_revenue_heatmap(merchant_id: str, period: str = "7d", _auth=Depend
                 peak_hour = hour
                 peak_day = day
     
-    return RevenueHeatmap(
+    result = RevenueHeatmap(
         period=period,
         data=data,
         total_revenue=round(total, 2),
@@ -115,6 +117,11 @@ async def get_revenue_heatmap(merchant_id: str, period: str = "7d", _auth=Depend
         peak_day=peak_day,
         currency="USD",
     )
+    await database.execute(
+        "INSERT INTO analytics_snapshots (snapshot_type, entity_id, data, period) VALUES ($1, $2, $3, $4)",
+        "revenue_heatmap", merchant_id, json.dumps(result.model_dump()), period,
+    )
+    return result
 
 @app.get("/forecast/{region}", response_model=DemandForecast)
 async def get_demand_forecast(region: str, days_ahead: int = 30, _auth=Depends(verify_auth)):
@@ -142,7 +149,7 @@ async def get_demand_forecast(region: str, days_ahead: int = 30, _auth=Depends(v
             "confidence_high": round(predicted + confidence_range, 0),
         })
     
-    return DemandForecast(
+    result = DemandForecast(
         region=region,
         currency="USD",
         forecasts=forecasts,
@@ -150,6 +157,11 @@ async def get_demand_forecast(region: str, days_ahead: int = 30, _auth=Depends(v
         seasonality_factor=round(month_factor, 2),
         model_confidence=0.82,
     )
+    await database.execute(
+        "INSERT INTO analytics_snapshots (snapshot_type, entity_id, data, period) VALUES ($1, $2, $3, $4)",
+        "demand_forecast", region, json.dumps(result.model_dump()), f"{days_ahead}d",
+    )
+    return result
 
 @app.get("/cohorts", response_model=CohortAnalysis)
 async def get_cohort_analysis(period: str = "monthly", months: int = 6, _auth=Depends(verify_auth)):

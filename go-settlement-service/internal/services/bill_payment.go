@@ -9,6 +9,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/tourismpay/settlement-service/internal/database"
 )
 
 // ─── Prometheus Metrics ──────────────────────────────────────────────────────
@@ -226,6 +227,14 @@ func (s *BillPaymentService) ProcessPayment(req BillPaymentRequest) (*BillPaymen
 		result.Units = fmt.Sprintf("%.1f kWh", req.Amount/66.0) // ~₦66/kWh avg
 	}
 
+	// Persist to PostgreSQL
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO bill_payments (transaction_id, provider_id, category, account_number, amount, fee, total_charged, currency, status, reference, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+			txID, req.ProviderID, string(provider.Category), req.AccountNumber, req.Amount, fee, req.Amount+fee, provider.Currency, "completed", ref, time.Now(),
+		)
+	}
+
 	billPaymentsTotal.WithLabelValues(string(provider.Category), "completed").Inc()
 	billPaymentVolumeNGN.Add(req.Amount)
 
@@ -233,8 +242,25 @@ func (s *BillPaymentService) ProcessPayment(req BillPaymentRequest) (*BillPaymen
 }
 
 func (s *BillPaymentService) GetHistory(userID string) []BillPaymentResult {
-	// In production: query from DB
-	return []BillPaymentResult{}
+	if database.DB == nil {
+		return []BillPaymentResult{}
+	}
+	rows, err := database.DB.Query(
+		"SELECT transaction_id, provider_id, category, account_number, amount, fee, total_charged, currency, status, reference, created_at FROM bill_payments WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50",
+		userID,
+	)
+	if err != nil {
+		return []BillPaymentResult{}
+	}
+	defer rows.Close()
+	var results []BillPaymentResult
+	for rows.Next() {
+		var r BillPaymentResult
+		if err := rows.Scan(&r.TransactionID, &r.ProviderID, &r.Category, &r.AccountNumber, &r.Amount, &r.Fee, &r.TotalCharged, &r.Currency, &r.Status, &r.Reference, &r.CreatedAt); err == nil {
+			results = append(results, r)
+		}
+	}
+	return results
 }
 
 func bytesToInt(b []byte) int {

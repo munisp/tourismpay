@@ -50,9 +50,7 @@ class ConversionAnalysis(BaseModel):
     volatility_30d: float
     trend: str  # "appreciating", "depreciating", "stable"
 
-# ─── In-memory store (production uses Redis + PostgreSQL) ──────────────────────
-
-smart_convert_orders: dict[str, SmartConvertOrder] = {}
+import db as database
 
 # ─── Rate History (simulated - production pulls from Lakehouse) ────────────────
 
@@ -191,21 +189,31 @@ async def create_smart_convert(
 ):
     """Create a limit-order style smart conversion that triggers when rate is favorable."""
     order_id = f"sc_{secrets.token_hex(8)}"
+    expires = datetime.utcnow() + timedelta(days=7)
     order = SmartConvertOrder(
         user_id=user_id,
         from_currency=from_currency.upper(),
         to_currency=to_currency.upper(),
         amount=amount,
         target_rate=target_rate,
-        expires_at=(datetime.utcnow() + timedelta(days=7)).isoformat(),
+        expires_at=expires.isoformat(),
         status="pending",
     )
-    smart_convert_orders[order_id] = order
+    await database.execute(
+        "INSERT INTO smart_convert_orders (id, user_id, from_currency, to_currency, amount, target_rate, status, expires_at) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+        order_id, user_id, from_currency.upper(), to_currency.upper(), amount, target_rate, "pending", expires,
+    )
     return order
 
 @app.get("/smart-convert/{user_id}")
 async def list_smart_converts(user_id: str, _auth=Depends(verify_auth)):
-    return [o for o in smart_convert_orders.values() if o.user_id == user_id]
+    rows = await database.fetch(
+        "SELECT id, user_id, from_currency, to_currency, amount, target_rate, status, "
+        "expires_at::text AS expires_at FROM smart_convert_orders WHERE user_id = $1 ORDER BY created_at DESC",
+        user_id,
+    )
+    return rows
 
 if __name__ == "__main__":
     import uvicorn

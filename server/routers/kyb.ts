@@ -19,6 +19,7 @@ import { logger } from "../_core/logger";
 import { publishKybStatusChange } from "../_core/kafka";
 import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
 import { recordKybApplication } from "../_core/metrics";
+import { cacheGet, cacheSet } from "../_core/redis";
 
 const KYB_SERVICE_URL = process.env.KYB_SERVICE_URL || "http://localhost:8083";
 
@@ -419,6 +420,8 @@ export const kybRouter = router({
 
   // Get KYB stats for dashboard
   stats: protectedProcedure.query(async () => {
+    const cached = await cacheGet<Record<string, number>>("kyb:stats");
+    if (cached) return cached;
     const [all, draft, submitted, underReview, approved, rejected] = await Promise.all([
       getEstablishments({ limit: 1000 }),
       getEstablishments({ kybStatus: "draft", limit: 1000 }),
@@ -428,7 +431,7 @@ export const kybRouter = router({
       getEstablishments({ kybStatus: "rejected", limit: 1000 }),
     ]);
 
-    return {
+    const result = {
       total: all.length,
       draft: draft.length,
       submitted: submitted.length,
@@ -436,6 +439,8 @@ export const kybRouter = router({
       approved: approved.length,
       rejected: rejected.length,
     };
+    await cacheSet("kyb:stats", result, 30);
+    return result;
   }),
 
   // ─── Update establishment location ──────────────────────────────────────────
