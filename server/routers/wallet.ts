@@ -73,8 +73,8 @@ async function ensureDefaultBalances(userId: string) {
       lockedBalance: "0",
       walletAddress: `tp_${currency.toLowerCase().replace("-", "_")}_${String(userId).slice(0, 8)}`,
       network: CURRENCY_NETWORKS[currency],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: Math.floor(Date.now() / 1000),
+      updatedAt: Math.floor(Date.now() / 1000),
     });
   }
 }
@@ -288,12 +288,12 @@ export const walletRouter = router({
         }
         const newBalance = parseFloat(bal.balance) - total;
         await tx`
-          UPDATE wallet_balances SET balance = ${String(newBalance)}, updated_at = ${Date.now()}
+          UPDATE wallet_balances SET balance = ${String(newBalance)}, updated_at = ${Math.floor(Date.now() / 1000)}
           WHERE id = ${bal.id}
         `;
         await tx`
           INSERT INTO wallet_transactions (id, user_id, type, status, from_currency, amount, fee, counterparty, counterparty_address, note, tx_hash, completed_at, created_at)
-          VALUES (${txId}, ${String(ctx.user.id)}, 'send', 'completed', ${input.currency}, ${String(input.amount)}, ${String(fee)}, ${input.counterparty}, ${input.counterpartyAddress ?? null}, ${input.note ?? null}, ${'0x' + crypto.randomUUID().replace(/-/g, '')}, ${Date.now()}, ${Date.now()})
+          VALUES (${txId}, ${String(ctx.user.id)}, 'send', 'completed', ${input.currency}, ${String(input.amount)}, ${String(fee)}, ${input.counterparty}, ${input.counterpartyAddress ?? null}, ${input.note ?? null}, ${'0x' + crypto.randomUUID().replace(/-/g, '')}, ${Math.floor(Date.now() / 1000)}, ${Math.floor(Date.now() / 1000)})
         `;
         return { newBalance };
       });
@@ -454,7 +454,7 @@ export const walletRouter = router({
       }
       // Deduct from sender
       await db.update(walletBalances)
-        .set({ balance: String(currentBal - totalDeduct), updatedAt: Date.now() })
+        .set({ balance: String(currentBal - totalDeduct), updatedAt: Math.floor(Date.now() / 1000) })
         .where(eq(walletBalances.id, bal.id));
       // Record the outbound transaction
       const txId = crypto.randomUUID();
@@ -542,17 +542,17 @@ export const walletRouter = router({
             INSERT INTO wallet_balances (id, user_id, currency, balance, locked_balance, wallet_address, network, created_at, updated_at)
             VALUES (${crypto.randomUUID()}, ${String(ctx.user.id)}, ${input.currency}, ${String(input.amount)}, '0',
               ${'tp_' + input.currency.toLowerCase().replace('-', '_') + '_' + String(ctx.user.id).slice(0, 8)},
-              ${CURRENCY_NETWORKS[input.currency]}, ${Date.now()}, ${Date.now()})
+              ${CURRENCY_NETWORKS[input.currency]}, ${Math.floor(Date.now() / 1000)}, ${Math.floor(Date.now() / 1000)})
           `;
         } else {
           await tx`
-            UPDATE wallet_balances SET balance = ${String(parseFloat(bal.balance) + input.amount)}, updated_at = ${Date.now()}
+            UPDATE wallet_balances SET balance = ${String(parseFloat(bal.balance) + input.amount)}, updated_at = ${Math.floor(Date.now() / 1000)}
             WHERE id = ${bal.id}
           `;
         }
         await tx`
           INSERT INTO wallet_transactions (id, user_id, type, status, from_currency, amount, fee, counterparty, completed_at, created_at)
-          VALUES (${txId}, ${String(ctx.user.id)}, 'deposit', 'completed', ${input.currency}, ${String(input.amount)}, '0', ${input.source}, ${Date.now()}, ${Date.now()})
+          VALUES (${txId}, ${String(ctx.user.id)}, 'deposit', 'completed', ${input.currency}, ${String(input.amount)}, '0', ${input.source}, ${Math.floor(Date.now() / 1000)}, ${Math.floor(Date.now() / 1000)})
         `;
       });
       return { success: true, txId };
@@ -595,7 +595,7 @@ export const walletRouter = router({
         }
         // Deduct source
         await tx`
-          UPDATE wallet_balances SET balance = ${String(parseFloat(fromBal.balance) - input.amount - fee)}, updated_at = ${Date.now()}
+          UPDATE wallet_balances SET balance = ${String(parseFloat(fromBal.balance) - input.amount - fee)}, updated_at = ${Math.floor(Date.now() / 1000)}
           WHERE id = ${fromBal.id}
         `;
         // Lock or create destination balance
@@ -609,11 +609,11 @@ export const walletRouter = router({
             INSERT INTO wallet_balances (id, user_id, currency, balance, locked_balance, wallet_address, network, created_at, updated_at)
             VALUES (${crypto.randomUUID()}, ${String(ctx.user.id)}, ${input.toCurrency}, ${String(toAmount)}, '0',
               ${'tp_' + input.toCurrency.toLowerCase().replace('-', '_') + '_' + String(ctx.user.id).slice(0, 8)},
-              ${CURRENCY_NETWORKS[input.toCurrency]}, ${Date.now()}, ${Date.now()})
+              ${CURRENCY_NETWORKS[input.toCurrency]}, ${Math.floor(Date.now() / 1000)}, ${Math.floor(Date.now() / 1000)})
           `;
         } else {
           await tx`
-            UPDATE wallet_balances SET balance = ${String(parseFloat(toBal.balance) + toAmount)}, updated_at = ${Date.now()}
+            UPDATE wallet_balances SET balance = ${String(parseFloat(toBal.balance) + toAmount)}, updated_at = ${Math.floor(Date.now() / 1000)}
             WHERE id = ${toBal.id}
           `;
         }
@@ -621,7 +621,7 @@ export const walletRouter = router({
         await tx`
           INSERT INTO wallet_transactions (id, user_id, type, status, from_currency, to_currency, amount, to_amount, fee, completed_at, created_at)
           VALUES (${txId}, ${String(ctx.user.id)}, 'swap', 'completed', ${input.fromCurrency}, ${input.toCurrency},
-            ${String(input.amount)}, ${String(toAmount)}, ${String(fee)}, ${Date.now()}, ${Date.now()})
+            ${String(input.amount)}, ${String(toAmount)}, ${String(fee)}, ${Math.floor(Date.now() / 1000)}, ${Math.floor(Date.now() / 1000)})
         `;
       });
       return { success: true, txId, toAmount, rate, fee };
@@ -654,7 +654,7 @@ export const walletRouter = router({
         sql`INSERT INTO finance_requests (id, user_id, type, amount, currency, status, description, metadata, created_at, updated_at)
             VALUES (gen_random_uuid()::text, ${ctx.user.id}, 'payout', ${input.amount}, ${input.currency}, 'pending',
               ${`Wallet top-up: ${input.currency} ${input.amount} to ${walletAddress}`},
-              ${metadata}::jsonb, ${Date.now()}, ${Date.now()})
+              ${metadata}::jsonb, ${Math.floor(Date.now() / 1000)}, ${Math.floor(Date.now() / 1000)})
             RETURNING *`
       );
       const row = (result as any[])[0];
@@ -1401,7 +1401,7 @@ export const walletRouter = router({
       if (existing.status === "completed") throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot cancel a completed payment" });
       await db
         .update(scheduledPayments)
-        .set({ status: "cancelled", updatedAt: Date.now() })
+        .set({ status: "cancelled", updatedAt: Math.floor(Date.now() / 1000) })
         .where(eq(scheduledPayments.id, input.id));
       return { success: true };
     }),
@@ -1421,7 +1421,7 @@ export const walletRouter = router({
       if (existing.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot pause a payment with status '${existing.status}'` });
       await db
         .update(scheduledPayments)
-        .set({ status: "paused", updatedAt: Date.now() })
+        .set({ status: "paused", updatedAt: Math.floor(Date.now() / 1000) })
         .where(eq(scheduledPayments.id, input.id));
       return { success: true, id: input.id };
     }),
@@ -1440,7 +1440,7 @@ export const walletRouter = router({
       if (existing.status !== "paused") throw new TRPCError({ code: "BAD_REQUEST", message: `Cannot resume a payment with status '${existing.status}'` });
       await db
         .update(scheduledPayments)
-        .set({ status: "active", updatedAt: Date.now() })
+        .set({ status: "active", updatedAt: Math.floor(Date.now() / 1000) })
         .where(eq(scheduledPayments.id, input.id));
       return { success: true, id: input.id };
     }),
@@ -1738,8 +1738,8 @@ export const walletRouter = router({
         status: "active",
         nextRunAt,
         runCount: 0,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        createdAt: Math.floor(Date.now() / 1000),
+        updatedAt: Math.floor(Date.now() / 1000),
       });
       await createAuditLog({
         actorId: ctx.user.id,
@@ -1781,7 +1781,7 @@ export const walletRouter = router({
         .where(and(eq(walletRecurringPayments.id, input.id), eq(walletRecurringPayments.userId, String(ctx.user.id))));
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Recurring payment not found" });
       if (existing.status === "cancelled") throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot modify a cancelled recurring payment" });
-      const updates: Record<string, unknown> = { updatedAt: Date.now() };
+      const updates: Record<string, unknown> = { updatedAt: Math.floor(Date.now() / 1000) };
       if (input.status) updates.status = input.status;
       if (input.amount !== undefined) updates.amount = String(input.amount);
       if (input.note !== undefined) updates.note = input.note;
