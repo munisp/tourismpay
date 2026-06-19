@@ -130,11 +130,24 @@ HIGH_RISK_INDUSTRIES = {
     "offshore_services", "cash_intensive_retail",
 }
 
+# Static FATF blacklist (call-for-action jurisdictions) — updated 2024-06
+FATF_BLACKLIST = {
+    "IR", "KP", "MM",
+}
+
+# FATF greylist (jurisdictions under increased monitoring) — updated 2024-06
+FATF_GREYLIST = {
+    "BF", "CM", "CD", "HR", "HT", "KE", "ML", "MZ", "NG", "PH",
+    "SN", "SS", "SY", "TZ", "VN", "YE",
+}
+
 HIGH_RISK_COUNTRIES = {
     "AF", "BY", "CF", "CG", "CD", "CU", "ER", "GN", "GW", "HT", "IR", "IQ",
     "KP", "LB", "LY", "ML", "MM", "NI", "PK", "RU", "SO", "SS", "SD", "SY",
     "VE", "YE", "ZW",
 }
+
+FATF_LAST_UPDATED = "2024-06-28"
 
 # Simulated PEP name fragments (in production: use Refinitiv/LexisNexis)
 KNOWN_PEP_FRAGMENTS = [
@@ -151,7 +164,13 @@ SANCTIONS_FRAGMENTS = [
 
 def country_risk(country: str) -> float:
     code = country.upper()[:2]
-    return 0.85 if code in HIGH_RISK_COUNTRIES else 0.25
+    if code in FATF_BLACKLIST:
+        return 0.95
+    if code in HIGH_RISK_COUNTRIES:
+        return 0.85
+    if code in FATF_GREYLIST:
+        return 0.55
+    return 0.25
 
 
 def industry_risk(industry: Optional[str]) -> float:
@@ -285,7 +304,9 @@ async def aml_risk_score(req: AMLRiskRequest):
     score = min(max(score, 0.0), 1.0)
     risk_rating = ml_tier if ml_tier else ("critical" if score >= 0.75 else "high" if score >= 0.55 else "medium" if score >= 0.30 else "low")
 
-    due_diligence = "enhanced_due_diligence" if score >= 0.55 else "standard_due_diligence"
+    cc = req.country_of_residence.upper()[:2]
+    is_fatf_listed = cc in FATF_BLACKLIST or cc in FATF_GREYLIST
+    due_diligence = "enhanced_due_diligence" if (score >= 0.55 or is_fatf_listed) else "standard_due_diligence"
 
     await database.execute(
         "INSERT INTO compliance_screenings (entity_id, entity_type, risk_score, risk_level, pep_match, sanctions_match, factors) "
@@ -434,15 +455,99 @@ async def generate_sar(req: RegulatoryReportRequest):
 
 @app.get("/api/v1/compliance/risk-dashboard")
 async def risk_dashboard():
-    """Return compliance dashboard metrics."""
+    """Return compliance dashboard metrics from DB if available."""
+    pool = await database.get_pool()
+    if pool:
+        try:
+            row = await pool.fetchrow(
+                "SELECT count(*) as total, "
+                "count(*) FILTER (WHERE pep_match = true) as pep_hits, "
+                "count(*) FILTER (WHERE sanctions_match = true) as sanctions_hits, "
+                "count(*) FILTER (WHERE risk_level IN ('high','critical')) as high_risk "
+                "FROM compliance_screenings WHERE created_at > NOW() - INTERVAL '24 hours'"
+            )
+            if row:
+                return {
+                    "total_entities_screened_today": row["total"],
+                    "pep_hits": row["pep_hits"],
+                    "sanctions_hits": row["sanctions_hits"],
+                    "high_risk_entities": row["high_risk"],
+                    "fatf_blacklist_countries": len(FATF_BLACKLIST),
+                    "fatf_greylist_countries": len(FATF_GREYLIST),
+                    "fatf_last_updated": FATF_LAST_UPDATED,
+                    "generated_at": datetime.utcnow().isoformat(),
+                }
+        except Exception:
+            pass
     return {
-        "total_entities_screened_today": 342,
-        "pep_hits": 7,
-        "sanctions_hits": 2,
-        "high_risk_entities": 28,
-        "kyb_pending_review": 14,
-        "sars_filed_this_month": 3,
-        "aml_alerts_open": 19,
-        "average_kyb_completeness": 73.4,
+        "total_entities_screened_today": 0,
+        "pep_hits": 0,
+        "sanctions_hits": 0,
+        "high_risk_entities": 0,
+        "fatf_blacklist_countries": len(FATF_BLACKLIST),
+        "fatf_greylist_countries": len(FATF_GREYLIST),
+        "fatf_last_updated": FATF_LAST_UPDATED,
         "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
+@app.get("/api/v1/compliance/fatf-lists")
+async def fatf_lists():
+    """Return current FATF blacklist and greylist with update timestamp."""
+    return {
+        "blacklist": sorted(FATF_BLACKLIST),
+        "greylist": sorted(FATF_GREYLIST),
+        "high_risk_countries": sorted(HIGH_RISK_COUNTRIES),
+        "last_updated": FATF_LAST_UPDATED,
+        "source": "FATF Public Statement, June 2024",
+    }
+
+
+class EDDRequest(BaseModel):
+    entity_id: str
+    entity_type: str
+    full_name: str
+    country: str
+    reason: str
+    risk_score: float
+    assigned_officer: Optional[str] = None
+
+
+@app.post("/api/v1/compliance/edd-initiate")
+async def edd_initiate(req: EDDRequest):
+    """Initiate Enhanced Due Diligence workflow for high-risk entities."""
+    import secrets
+    edd_ref = f"EDD-{datetime.utcnow().strftime('%Y%m%d')}-{secrets.token_hex(4).upper()}"
+
+    cc = req.country.upper()[:2]
+    required_docs = ["source_of_funds", "source_of_wealth", "enhanced_id_verification"]
+    if cc in FATF_BLACKLIST:
+        required_docs.extend(["regulatory_approval", "senior_management_approval", "ongoing_monitoring_plan"])
+    elif cc in FATF_GREYLIST:
+        required_docs.extend(["enhanced_transaction_monitoring", "periodic_review_schedule"])
+
+    review_frequency_days = 7 if cc in FATF_BLACKLIST else 14 if cc in FATF_GREYLIST else 30
+
+    pool = await database.get_pool()
+    if pool:
+        try:
+            await pool.execute(
+                "INSERT INTO edd_cases (reference, entity_id, entity_type, full_name, country, reason, risk_score, assigned_officer, status, required_documents, review_frequency_days) "
+                "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'open',$9,$10)",
+                edd_ref, req.entity_id, req.entity_type, req.full_name, req.country,
+                req.reason, req.risk_score, req.assigned_officer or "unassigned",
+                ",".join(required_docs), review_frequency_days,
+            )
+        except Exception:
+            pass
+
+    return {
+        "edd_reference": edd_ref,
+        "entity_id": req.entity_id,
+        "status": "open",
+        "required_documents": required_docs,
+        "review_frequency_days": review_frequency_days,
+        "fatf_status": "blacklisted" if cc in FATF_BLACKLIST else "greylisted" if cc in FATF_GREYLIST else "monitored",
+        "assigned_officer": req.assigned_officer or "unassigned",
+        "initiated_at": datetime.utcnow().isoformat(),
     }

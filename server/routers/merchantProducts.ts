@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
-import { getDb } from "../db";
+import { getDb, createUserNotification } from "../db";
 import { merchantProducts, establishments, serviceAvailability } from "../../drizzle/schema";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { storagePut } from "../storage";
+
+const LOW_STOCK_THRESHOLD = 5;
 
 // Helper: verify the merchant owns the establishment
 async function assertOwnership(userId: number, establishmentId: number) {
@@ -50,6 +52,8 @@ export const merchantProductsRouter = router({
         available: z.boolean().default(true),
         featured: z.boolean().default(false),
         sortOrder: z.number().int().default(0),
+        quantity: z.number().int().min(0).nullable().optional(),
+        lowStockThreshold: z.number().int().min(0).nullable().optional(),
         metadata: z.record(z.string(), z.unknown()).optional(),
       })
     )
@@ -71,7 +75,11 @@ export const merchantProductsRouter = router({
           available: input.available,
           featured: input.featured,
           sortOrder: input.sortOrder,
-          metadata: input.metadata ?? null,
+          metadata: {
+            ...(input.metadata ?? {}),
+            quantity: input.quantity ?? null,
+            lowStockThreshold: input.lowStockThreshold ?? LOW_STOCK_THRESHOLD,
+          },
         })
         .returning();
       return product;
@@ -93,6 +101,8 @@ export const merchantProductsRouter = router({
         available: z.boolean().optional(),
         featured: z.boolean().optional(),
         sortOrder: z.number().int().optional(),
+        quantity: z.number().int().min(0).nullable().optional(),
+        lowStockThreshold: z.number().int().min(0).nullable().optional(),
         metadata: z.record(z.string(), z.unknown()).optional().nullable(),
       })
     )
@@ -100,7 +110,17 @@ export const merchantProductsRouter = router({
       await assertOwnership(ctx.user.id, input.establishmentId);
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      const { id, establishmentId, ...updates } = input;
+      const { id, establishmentId, quantity, lowStockThreshold, ...updates } = input;
+      // Merge quantity into metadata
+      if (quantity !== undefined || lowStockThreshold !== undefined) {
+        const [current] = await db.select({ metadata: merchantProducts.metadata }).from(merchantProducts).where(eq(merchantProducts.id, id)).limit(1);
+        const existingMeta = (current?.metadata as Record<string, unknown>) ?? {};
+        (updates as any).metadata = {
+          ...existingMeta,
+          ...(quantity !== undefined ? { quantity } : {}),
+          ...(lowStockThreshold !== undefined ? { lowStockThreshold } : {}),
+        };
+      }
       const [updated] = await db
         .update(merchantProducts)
         .set({ ...updates, updatedAt: new Date() })
@@ -112,6 +132,20 @@ export const merchantProductsRouter = router({
         )
         .returning();
       if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+      // Low stock alert
+      const meta = (updated.metadata as Record<string, unknown>) ?? {};
+      const qty = typeof meta.quantity === "number" ? meta.quantity : null;
+      const threshold = typeof meta.lowStockThreshold === "number" ? meta.lowStockThreshold : LOW_STOCK_THRESHOLD;
+      if (qty !== null && qty <= threshold && qty > 0) {
+        createUserNotification({
+          userId: ctx.user.id,
+          category: "system",
+          title: `Low Stock Alert: ${updated.name}`,
+          content: `Product "${updated.name}" has only ${qty} units remaining (threshold: ${threshold}).`,
+          actionUrl: `/merchant/products`,
+          actionLabel: "Manage Products",
+        }).catch(() => {});
+      }
       return updated;
     }),
 
