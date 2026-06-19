@@ -81,7 +81,7 @@ fn get_exchange_rate(country: &str) -> (f64, &'static str) {
     }
 }
 
-fn get_seasonal_multiplier(country: &str) -> (f64, &'static str) {
+fn get_seasonal_multiplier_hardcoded(country: &str) -> (f64, &'static str) {
     let month = chrono::Utc::now().month();
     match country.to_uppercase().as_str() {
         "NG" => {
@@ -115,9 +115,41 @@ fn get_seasonal_multiplier(country: &str) -> (f64, &'static str) {
     }
 }
 
+async fn get_seasonal_multiplier_from_db(country: &str) -> Option<(f64, String)> {
+    let db_url = std::env::var("DATABASE_URL").ok()?;
+    let month = chrono::Utc::now().month() as i32;
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&db_url)
+        .await
+        .ok()?;
+    let row: Option<(f64, String)> = sqlx::query_as(
+        "SELECT multiplier, note FROM seasonality_config WHERE country = $1 AND month_start <= $2 AND month_end >= $2 ORDER BY multiplier DESC LIMIT 1"
+    )
+    .bind(country.to_uppercase())
+    .bind(month)
+    .fetch_optional(&pool)
+    .await
+    .ok()?;
+    row
+}
+
+async fn get_seasonal_multiplier_async(country: &str) -> (f64, String) {
+    if let Some((mult, note)) = get_seasonal_multiplier_from_db(country).await {
+        return (mult, note);
+    }
+    let (mult, note) = get_seasonal_multiplier_hardcoded(country);
+    (mult, note.to_string())
+}
+
+fn get_seasonal_multiplier(country: &str) -> (f64, String) {
+    let (mult, note) = get_seasonal_multiplier_hardcoded(country);
+    (mult, note.to_string())
+}
+
 pub async fn calculate_pricing(body: web::Json<PricingRequest>) -> HttpResponse {
     let (rate, currency) = get_exchange_rate(&body.country);
-    let (seasonal, seasonal_note) = get_seasonal_multiplier(&body.country);
+    let (seasonal, seasonal_note) = get_seasonal_multiplier_async(&body.country).await;
     let travelers = body.travelers.unwrap_or(1).max(1);
 
     let tourismpay_discount_pct = 0.05; // 5% TourismPay partner discount

@@ -6,9 +6,10 @@
  */
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
-import { getDb, createUserNotification } from "../db";
+import { getDb, createUserNotification, createAuditLog } from "../db";
 import { TRPCError } from "@trpc/server";
 import { sql } from "drizzle-orm";
+import { publishAuditEvent } from "../_core/kafka";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,20 @@ const SERVICE_ROLE_TEMPLATES: Record<string, { role: string; label: string; sugg
     { role: "dj", label: "DJ/Entertainment", suggestedPct: 15 },
     { role: "security", label: "Security/Doorman", suggestedPct: 15 },
   ],
+};
+
+// Jurisdiction-level tax-on-tip rules (mirrors tipping.ts config)
+const JURISDICTION_TIP_TAX: Record<string, { taxOnTip: boolean; tipTaxRate: number; minTipLocal: number }> = {
+  NG: { taxOnTip: false, tipTaxRate: 0, minTipLocal: 50 },
+  KE: { taxOnTip: false, tipTaxRate: 0, minTipLocal: 10 },
+  ZA: { taxOnTip: true, tipTaxRate: 15, minTipLocal: 5 },
+  GH: { taxOnTip: false, tipTaxRate: 0, minTipLocal: 5 },
+  TZ: { taxOnTip: false, tipTaxRate: 0, minTipLocal: 500 },
+  EG: { taxOnTip: true, tipTaxRate: 14, minTipLocal: 20 },
+  MA: { taxOnTip: true, tipTaxRate: 20, minTipLocal: 10 },
+  RW: { taxOnTip: false, tipTaxRate: 0, minTipLocal: 200 },
+  UG: { taxOnTip: false, tipTaxRate: 0, minTipLocal: 1000 },
+  ET: { taxOnTip: false, tipTaxRate: 0, minTipLocal: 20 },
 };
 
 // Jurisdiction-specific cultural tip amounts (per-person/day for tourism services)
@@ -204,15 +219,29 @@ export const multiTippingRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       const totalTip = input.totalTipAmount;
+      const jCode = input.jurisdictionCode.toUpperCase();
+      const taxConfig = JURISDICTION_TIP_TAX[jCode] ?? { taxOnTip: false, tipTaxRate: 0, minTipLocal: 0 };
+
+      // Validate minimum tip per recipient
+      const minPerRecipient = taxConfig.minTipLocal * 0.1; // 10% of smallest suggested flat
       const distributions = calculateDistributions(input.splitMode, totalTip, input.recipients);
+      for (const dist of distributions) {
+        if (dist.amount < minPerRecipient && dist.amount > 0) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: `Each recipient must receive at least ${minPerRecipient} ${input.currency} (recipient "${dist.recipientName}" would get ${dist.amount})` });
+        }
+      }
+
+      // Tax-on-tip calculation
+      const taxOnTipAmount = taxConfig.taxOnTip ? Math.round(totalTip * taxConfig.tipTaxRate) / 100 : 0;
+      const totalCharge = Math.round((totalTip + taxOnTipAmount) * 100) / 100;
 
       // Check sender balance
       const walletRows = await db.execute(
         sql`SELECT balance FROM wallet_balances WHERE user_id = ${ctx.user.id} AND currency = ${input.currency} LIMIT 1`
       );
       const balance = parseFloat((walletRows as any[])[0]?.balance ?? "0");
-      if (balance < totalTip) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `Insufficient ${input.currency} balance. Available: ${balance}, Required: ${totalTip}` });
+      if (balance < totalCharge) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Insufficient ${input.currency} balance. Available: ${balance}, Required: ${totalCharge} (tip: ${totalTip} + tax: ${taxOnTipAmount})` });
       }
 
       // Create group record
@@ -257,11 +286,31 @@ export const multiTippingRouter = router({
         receipts.push({ recipientName: dist.recipientName, amount: dist.amount, receipt });
       }
 
-      // Debit sender wallet
+      // Debit sender wallet (tip + tax)
       await db.execute(sql`
-        UPDATE wallet_balances SET balance = balance - ${totalTip}, updated_at = ${now}
+        UPDATE wallet_balances SET balance = balance - ${totalCharge}, updated_at = ${now}
         WHERE user_id = ${ctx.user.id} AND currency = ${input.currency}
       `);
+
+      // Audit trail
+      await createAuditLog({
+        actorId: ctx.user.id,
+        actorName: ctx.user.name || String(ctx.user.id),
+        action: "multi_tip.send",
+        entityType: "multi_tip_group",
+        entityId: groupId,
+        after: {
+          totalTip,
+          taxOnTip: taxOnTipAmount,
+          totalCharge,
+          currency: input.currency,
+          jurisdiction: jCode,
+          recipientCount: distributions.length,
+          splitMode: input.splitMode,
+          recipients: distributions.map(d => ({ name: d.recipientName, amount: d.amount })),
+        },
+      });
+      publishAuditEvent("multi_tip.send", { groupId, totalTip, taxOnTip: taxOnTipAmount, recipientCount: distributions.length, jurisdiction: jCode }).catch(() => {});
 
       // Award loyalty points (3 pts per recipient tipped)
       const loyaltyPoints = Math.max(1, distributions.length * 3);
@@ -273,12 +322,16 @@ export const multiTippingRouter = router({
       return {
         groupId,
         totalTip,
+        taxOnTip: taxOnTipAmount,
+        totalCharge,
         currency: input.currency,
         recipientCount: distributions.length,
         distributions,
         receipts,
         loyaltyPointsEarned: loyaltyPoints,
-        message: `Multi-tip of ${totalTip} ${input.currency} distributed to ${distributions.length} recipients!`,
+        message: taxOnTipAmount > 0
+          ? `Multi-tip of ${totalTip} ${input.currency} (+ ${taxOnTipAmount} tax) distributed to ${distributions.length} recipients!`
+          : `Multi-tip of ${totalTip} ${input.currency} distributed to ${distributions.length} recipients!`,
       };
     }),
 

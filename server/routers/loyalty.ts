@@ -242,6 +242,25 @@ export const loyaltyRouter = router({
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      // Auto-expire stale points before checking balance
+      const nowSec = Math.floor(Date.now() / 1000);
+      const stalePoints = await db.execute(
+        sql`SELECT SUM(points) as total FROM loyalty_transactions
+            WHERE user_id = ${String(ctx.user.id)} AND type = 'earn' AND is_expired = false
+            AND expires_at IS NOT NULL AND expires_at <= ${nowSec}`
+      ) as any[];
+      const expiredTotal = Number(stalePoints[0]?.total ?? 0);
+      if (expiredTotal > 0) {
+        await db.execute(
+          sql`UPDATE loyalty_transactions SET is_expired = true
+              WHERE user_id = ${String(ctx.user.id)} AND type = 'earn' AND is_expired = false
+              AND expires_at IS NOT NULL AND expires_at <= ${nowSec}`
+        );
+        await db.execute(
+          sql`UPDATE loyalty_accounts SET points_balance = GREATEST(points_balance - ${expiredTotal}, 0), updated_at = ${Date.now()}
+              WHERE user_id = ${String(ctx.user.id)}`
+        );
+      }
       const account = await ensureAccount(ctx.user.id);
       if (account.pointsBalance < input.pointsCost) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `Insufficient points. You have ${account.pointsBalance} but need ${input.pointsCost}.` });
@@ -1377,4 +1396,89 @@ export const loyaltyRouter = router({
     }
     return { success: true, usersAffected: totalUsersAffected, totalPointsExpired };
   }),
+
+  // ── Promotional Multiplier Campaigns ──────────────────────────────────────
+
+  createPromotion: adminProcedure
+    .input(z.object({
+      name: z.string().min(1).max(200),
+      multiplier: z.number().min(1.1).max(10),
+      startsAt: z.number().positive(),
+      endsAt: z.number().positive(),
+      categories: z.array(z.string()).optional(),
+      description: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      if (input.endsAt <= input.startsAt) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "End date must be after start date" });
+      }
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const id = crypto.randomUUID();
+      await db.execute(
+        sql`INSERT INTO loyalty_promotions (id, name, multiplier, starts_at, ends_at, categories, description, created_by, created_at)
+            VALUES (${id}, ${input.name}, ${input.multiplier}, ${input.startsAt}, ${input.endsAt},
+                    ${JSON.stringify(input.categories ?? [])}, ${input.description ?? null},
+                    ${String(ctx.user.id)}, ${Date.now()})`
+      );
+      return { id, name: input.name, multiplier: input.multiplier };
+    }),
+
+  activePromotions: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    const now = Date.now();
+    try {
+      const rows = await db.execute(
+        sql`SELECT id, name, multiplier, starts_at, ends_at, categories, description
+            FROM loyalty_promotions
+            WHERE starts_at <= ${now} AND ends_at > ${now}
+            ORDER BY multiplier DESC`
+      );
+      return (rows as any[]).map(r => ({
+        id: r.id,
+        name: r.name,
+        multiplier: Number(r.multiplier),
+        startsAt: Number(r.starts_at),
+        endsAt: Number(r.ends_at),
+        categories: r.categories ? JSON.parse(r.categories) : [],
+        description: r.description,
+      }));
+    } catch {
+      return [];
+    }
+  }),
+
+  getMultiplier: protectedProcedure
+    .input(z.object({ category: z.string().optional() }))
+    .query(async ({ ctx }) => {
+      const account = await ensureAccount(ctx.user.id);
+      const tierMultiplier = account.tier === "PLATINUM" ? 3 : account.tier === "GOLD" ? 2 : account.tier === "SILVER" ? 1.5 : 1;
+
+      const db = await getDb();
+      let promoMultiplier = 1;
+      let promoName: string | null = null;
+      if (db) {
+        try {
+          const now = Date.now();
+          const rows = await db.execute(
+            sql`SELECT name, multiplier FROM loyalty_promotions
+                WHERE starts_at <= ${now} AND ends_at > ${now}
+                ORDER BY multiplier DESC LIMIT 1`
+          ) as any[];
+          if (rows.length > 0) {
+            promoMultiplier = Number(rows[0].multiplier);
+            promoName = rows[0].name;
+          }
+        } catch {}
+      }
+
+      return {
+        tierMultiplier,
+        promoMultiplier,
+        effectiveMultiplier: Math.round(tierMultiplier * promoMultiplier * 10) / 10,
+        tier: account.tier,
+        promoName,
+      };
+    }),
 });

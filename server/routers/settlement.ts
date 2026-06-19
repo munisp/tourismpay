@@ -345,6 +345,97 @@ export const settlementRouter = router({
       return { retriedCount: retried.length, retriedIds: retried, skippedIds: skipped };
     }),
 
+  // ── Reconciliation report ──────────────────────────────────────────────────
+  reconcile: settlementProcedure
+    .input(z.object({
+      dateFrom: z.number().optional(),
+      dateTo: z.number().optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const dateFrom = input?.dateFrom ?? Date.now() - 30 * 86_400_000;
+      const dateTo = input?.dateTo ?? Date.now();
+
+      // Settlement batch totals
+      const [batchTotals] = await db.select({
+        batchCount: count(),
+        batchTotal: sql<number>`coalesce(sum(total_amount::numeric), 0)`,
+        batchCompleted: sql<number>`coalesce(sum(total_amount::numeric) filter (where status = 'completed'), 0)`,
+        batchPending: sql<number>`coalesce(sum(total_amount::numeric) filter (where status = 'pending'), 0)`,
+        batchFailed: sql<number>`coalesce(sum(total_amount::numeric) filter (where status = 'failed'), 0)`,
+        txnCount: sql<number>`coalesce(sum(transaction_count::int), 0)`,
+      }).from(psSettlements)
+        .where(and(gte(psSettlements.createdAt, dateFrom), lte(psSettlements.createdAt, dateTo)));
+
+      // Individual wallet transaction totals (debits from merchants)
+      const [txnTotals] = await db.select({
+        txnTotal: sql<number>`coalesce(sum(ABS(amount::numeric)), 0)`,
+        txnCount: count(),
+      }).from(sql`wallet_transactions`)
+        .where(sql`created_at >= ${dateFrom} AND created_at <= ${dateTo} AND type = 'send'`);
+
+      const batchAmount = Number(batchTotals?.batchCompleted ?? 0);
+      const txnAmount = Number(txnTotals?.txnTotal ?? 0);
+      const variance = Math.round((batchAmount - txnAmount) * 100) / 100;
+      const variancePct = txnAmount > 0 ? Math.round((variance / txnAmount) * 10000) / 100 : 0;
+
+      return {
+        period: { from: dateFrom, to: dateTo },
+        settlements: {
+          batchCount: Number(batchTotals?.batchCount ?? 0),
+          totalAmount: Number(batchTotals?.batchTotal ?? 0),
+          completedAmount: batchAmount,
+          pendingAmount: Number(batchTotals?.batchPending ?? 0),
+          failedAmount: Number(batchTotals?.batchFailed ?? 0),
+          txnCountInBatches: Number(batchTotals?.txnCount ?? 0),
+        },
+        transactions: {
+          totalAmount: txnAmount,
+          count: Number(txnTotals?.txnCount ?? 0),
+        },
+        reconciliation: {
+          variance,
+          variancePct,
+          status: Math.abs(variancePct) < 1 ? "matched" : Math.abs(variancePct) < 5 ? "minor_variance" : "needs_investigation",
+        },
+      };
+    }),
+
+  // ── Dispute a settlement ──────────────────────────────────────────────────
+  dispute: settlementProcedure
+    .input(z.object({
+      id: z.string(),
+      reason: z.string().min(1).max(1000),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const [row] = await db
+        .select({ id: psSettlements.id, status: psSettlements.status })
+        .from(psSettlements)
+        .where(eq(psSettlements.id, input.id));
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "Settlement not found" });
+      if (row.status === "disputed") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Settlement is already disputed" });
+      }
+      await db.execute(
+        sql`UPDATE ps_settlements
+            SET status = 'disputed', notes = ${input.reason}, updated_at = ${Date.now()}
+            WHERE id = ${input.id}`
+      );
+      await createAuditLog({
+        actorId: ctx.user.id,
+        actorName: ctx.user.name || String(ctx.user.id),
+        action: "settlement.dispute",
+        entityType: "ps_settlement",
+        entityId: input.id,
+        after: { newStatus: "disputed", reason: input.reason },
+      });
+      try {
+        pushSettlementUpdate({ ids: [input.id], newStatus: "disputed", count: 1, actorName: ctx.user.name || String(ctx.user.id) });
+      } catch { /* non-critical */ }
+      return { success: true };
+    }),
+
   // ── Daily settlement volume chart (last 30 days) ──────────────────────────
   dailyVolume: settlementProcedure.query(async () => {
     const db = await requireDb();

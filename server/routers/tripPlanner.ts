@@ -296,6 +296,43 @@ OUTPUT: valid JSON with this structure:
         itineraryData = buildFallbackItinerary(intent, merchantContext);
       }
 
+      // Availability check: verify merchants exist in DB and are active
+      const unavailableItems: { day: number; title: string; merchantId: number; reason: string }[] = [];
+      try {
+        const db = await (await import("../db")).getDb();
+        if (db) {
+          const merchantIds = new Set<number>();
+          for (const day of itineraryData.days ?? []) {
+            for (const item of day.items ?? []) {
+              if (item.merchant_id && item.merchant_id > 0) merchantIds.add(item.merchant_id);
+            }
+          }
+          if (merchantIds.size > 0) {
+            const idArr = Array.from(merchantIds);
+            const { establishments } = await import("../../drizzle/schema");
+            const { sql: drizzleSql, inArray } = await import("drizzle-orm");
+            const activeEstablishments = await db
+              .select({ id: establishments.id })
+              .from(establishments)
+              .where(drizzleSql`${establishments.id} IN (${drizzleSql.join(idArr.map(id => drizzleSql`${id}`), drizzleSql`, `)})`);
+            const activeIds = new Set(activeEstablishments.map(e => e.id));
+            for (const day of itineraryData.days ?? []) {
+              for (const item of day.items ?? []) {
+                if (item.merchant_id && item.merchant_id > 0 && !activeIds.has(item.merchant_id)) {
+                  unavailableItems.push({
+                    day: day.day_number,
+                    title: item.title,
+                    merchantId: item.merchant_id,
+                    reason: "Merchant not found or inactive",
+                  });
+                  item.bookable = false;
+                }
+              }
+            }
+          }
+        }
+      } catch { /* availability check is best-effort */ }
+
       // Calculate totals
       let totalCost = 0;
       let merchantItemCount = 0;
@@ -323,6 +360,7 @@ OUTPUT: valid JSON with this structure:
           days: itineraryData.days ?? [],
           tips: itineraryData.tips ?? [],
           merchantCoverage,
+          unavailableItems: unavailableItems.length > 0 ? unavailableItems : undefined,
           generatedAt: new Date().toISOString(),
         },
         intent,

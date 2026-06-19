@@ -487,11 +487,14 @@ const partnerRemittanceRouter = router({
         lemfi: process.env.LEMFI_WEBHOOK_SECRET,
       };
       const secret = WEBHOOK_SECRETS[input.partner];
-      if (secret && input.signature) {
+      if (secret) {
+        if (!input.signature) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: `Webhook signature required for partner '${input.partner}' — HMAC-SHA256 of eventType:transferId:partnerRef:status` });
+        }
         const crypto = await import("crypto");
         const payload = `${input.eventType}:${input.transferId}:${input.partnerRef}:${input.status}`;
         const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
-        if (input.signature !== expected) {
+        if (!crypto.timingSafeEqual(Buffer.from(input.signature, "hex"), Buffer.from(expected, "hex"))) {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid webhook signature" });
         }
       }

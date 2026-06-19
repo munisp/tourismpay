@@ -496,4 +496,137 @@ export const nocDashboardRouter = router({
     }
     return { success: true };
   }),
+
+  // ── SLA Breach Detection & Auto-Escalation ─────────────────────────────────
+
+  checkSlaBreaches: adminProcedure.mutation(async ({ ctx }) => {
+    const db = await requireDb();
+    const now = Date.now();
+    const breaches: { metric: string; level: "warning" | "critical"; value: number; threshold: number }[] = [];
+
+    // Load thresholds
+    const thresholds = await db.select().from(nocAlertThresholds);
+    const thresholdMap = new Map(thresholds.map(t => [t.metric, t]));
+
+    // Check success rate (last 1 hour)
+    const hourAgo = now - 3600000;
+    const [rateStats] = await db.select({
+      total: count(),
+      completed: sql<number>`count(*) filter (where status = 'completed')`,
+      failed: sql<number>`count(*) filter (where status = 'failed')`,
+    }).from(remittances).where(gte(remittances.createdAt, hourAgo));
+
+    const totalFinished = Number(rateStats?.completed ?? 0) + Number(rateStats?.failed ?? 0);
+    const successRate = totalFinished > 0 ? (Number(rateStats?.completed ?? 0) / totalFinished) * 100 : 100;
+
+    const srThreshold = thresholdMap.get("successRate");
+    if (srThreshold) {
+      const critMin = srThreshold.critMin ? parseFloat(srThreshold.critMin) : null;
+      const warnMin = srThreshold.warnMin ? parseFloat(srThreshold.warnMin) : null;
+      if (critMin !== null && successRate < critMin) {
+        breaches.push({ metric: "successRate", level: "critical", value: Math.round(successRate * 10) / 10, threshold: critMin });
+      } else if (warnMin !== null && successRate < warnMin) {
+        breaches.push({ metric: "successRate", level: "warning", value: Math.round(successRate * 10) / 10, threshold: warnMin });
+      }
+    }
+
+    // Check failed settlements (last 24h)
+    const dayAgo = now - 86400000;
+    const [failedSettlements] = await db.select({
+      cnt: sql<number>`count(*) filter (where status = 'failed' and created_at > ${dayAgo})`,
+    }).from(psSettlements);
+    const failedCount = Number(failedSettlements?.cnt ?? 0);
+    if (failedCount >= 5) {
+      breaches.push({ metric: "failedSettlements24h", level: failedCount >= 10 ? "critical" : "warning", value: failedCount, threshold: failedCount >= 10 ? 10 : 5 });
+    }
+
+    // Check unhealthy participants
+    const [unhealthy] = await db.select({
+      cnt: sql<number>`count(*) filter (where health_score < 50)`,
+    }).from(psParticipants);
+    const unhealthyCount = Number(unhealthy?.cnt ?? 0);
+    if (unhealthyCount >= 3) {
+      breaches.push({ metric: "unhealthyParticipants", level: unhealthyCount >= 5 ? "critical" : "warning", value: unhealthyCount, threshold: unhealthyCount >= 5 ? 5 : 3 });
+    }
+
+    // Log breaches as NOC events and auto-escalate critical ones
+    for (const breach of breaches) {
+      await db.insert(nocEvents).values({
+        type: "system_alert" as any,
+        severity: breach.level as any,
+        title: `SLA Breach: ${breach.metric} = ${breach.value} (threshold: ${breach.threshold})`,
+        description: `${breach.level.toUpperCase()} — ${breach.metric} breached SLA threshold. Current: ${breach.value}, Threshold: ${breach.threshold}`,
+        actorId: ctx.user.id,
+        actorName: "SLA Monitor",
+        targetType: "metric",
+        targetId: breach.metric,
+        metadata: { value: breach.value, threshold: breach.threshold, level: breach.level },
+        createdAt: now,
+      });
+
+      // Auto-escalate critical breaches: activate kill switch if success rate < critical threshold
+      if (breach.level === "critical" && breach.metric === "successRate") {
+        const existing = await db.select().from(psKillSwitchState).limit(1);
+        const isAlreadyActive = existing[0]?.isActive;
+        if (!isAlreadyActive) {
+          if (existing.length > 0) {
+            await db.update(psKillSwitchState).set({
+              isActive: true,
+              activatedBy: 0,
+              activatedByName: "SLA Auto-Escalation",
+              reason: `Auto-activated: success rate ${breach.value}% below critical threshold ${breach.threshold}%`,
+              activatedAt: now,
+              deactivatedAt: null,
+              updatedAt: now,
+            }).where(eq(psKillSwitchState.id, existing[0].id));
+          }
+          await db.insert(nocEvents).values({
+            type: "kill_switch_activated" as any,
+            severity: "critical" as any,
+            title: "Kill switch AUTO-ACTIVATED by SLA monitor",
+            description: `Success rate dropped to ${breach.value}% (threshold: ${breach.threshold}%). Payments halted automatically.`,
+            actorId: 0,
+            actorName: "SLA Auto-Escalation",
+            targetType: "system",
+            createdAt: now,
+          });
+        }
+      }
+    }
+
+    return { breaches, checkedAt: now };
+  }),
+
+  slaStatus: nocProcedure.query(async () => {
+    const db = await requireDb();
+    const now = Date.now();
+    const hourAgo = now - 3600000;
+    const dayAgo = now - 86400000;
+
+    const [hourlyStats] = await db.select({
+      total: count(),
+      completed: sql<number>`count(*) filter (where status = 'completed')`,
+      failed: sql<number>`count(*) filter (where status = 'failed')`,
+    }).from(remittances).where(gte(remittances.createdAt, hourAgo));
+
+    const totalFinished = Number(hourlyStats?.completed ?? 0) + Number(hourlyStats?.failed ?? 0);
+    const successRate = totalFinished > 0 ? Math.round((Number(hourlyStats?.completed ?? 0) / totalFinished) * 1000) / 10 : 100;
+
+    const recentBreaches = await db.select().from(nocEvents)
+      .where(and(
+        eq(nocEvents.type, "system_alert" as any),
+        gte(nocEvents.createdAt, dayAgo),
+      ))
+      .orderBy(desc(nocEvents.createdAt))
+      .limit(10);
+
+    return {
+      successRate,
+      totalTransactions1h: Number(hourlyStats?.total ?? 0),
+      failed1h: Number(hourlyStats?.failed ?? 0),
+      recentBreaches: recentBreaches.length,
+      status: successRate >= 95 ? "healthy" : successRate >= 90 ? "degraded" : "critical",
+      checkedAt: now,
+    };
+  }),
 });
