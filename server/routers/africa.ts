@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
-import { getEstablishments, getTourismEvents, getDashboardStats } from "../db";
+import { getEstablishments, getTourismEvents, getDashboardStats, getDb } from "../db";
+import { walletTransactions, establishments as establishmentsTable } from "../../drizzle/schema";
+import { sql, count } from "drizzle-orm";
 
 const REGISTRY_URL = process.env.REGISTRY_URL || "http://localhost:8082";
 
@@ -180,7 +182,7 @@ export const africaRouter = router({
       z.object({
         country: z.string().length(2).optional(),
         kybStatus: z.string().optional(),
-        type: z.string().optional(), // filter by establishment type e.g. hotel, safari_lodge
+        type: z.string().optional(),
         limit: z.number().default(20),
         offset: z.number().default(0),
       }).optional()
@@ -188,4 +190,49 @@ export const africaRouter = router({
     .query(async ({ input }) => {
       return getEstablishments(input);
     }),
+
+  // Transaction volume by 4-hour buckets (last 24h) — real data from DB
+  txVolume: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
+    const rows = await db
+      .select({
+        bucket: sql<string>`to_char(to_timestamp(${walletTransactions.createdAt}), 'HH24":00"')`,
+        volume: count(),
+        fraudCount: sql<number>`count(*) filter (where ${walletTransactions.status} = 'failed')`,
+      })
+      .from(walletTransactions)
+      .where(sql`${walletTransactions.createdAt} >= ${oneDayAgo}`)
+      .groupBy(sql`to_char(to_timestamp(${walletTransactions.createdAt}), 'HH24":00"')`)
+      .orderBy(sql`to_char(to_timestamp(${walletTransactions.createdAt}), 'HH24":00"')`);
+    return rows.map(r => ({ time: r.bucket, volume: r.volume, fraud: r.fraudCount }));
+  }),
+
+  // Country breakdown — real establishment + transaction counts from DB
+  countryBreakdown: protectedProcedure.query(async () => {
+    const db = await getDb();
+    if (!db) return [];
+    const colors: Record<string, string> = {
+      NG: "oklch(0.78 0.22 152)", KE: "oklch(0.65 0.18 230)",
+      GH: "oklch(0.82 0.18 75)",  ZA: "oklch(0.62 0.22 25)",
+      EG: "oklch(0.7 0.18 300)",  TZ: "oklch(0.75 0.15 200)",
+    };
+    const rows = await db
+      .select({
+        country: establishmentsTable.country,
+        establishments: count(),
+      })
+      .from(establishmentsTable)
+      .groupBy(establishmentsTable.country)
+      .orderBy(sql`count(*) desc`)
+      .limit(6);
+    return rows.map(r => ({
+      country: r.country,
+      name: AFRICA_COUNTRIES.find(c => c.code === r.country)?.name ?? r.country,
+      txns: r.establishments,
+      establishments: r.establishments,
+      color: colors[r.country] ?? "oklch(0.7 0.15 200)",
+    }));
+  }),
 });

@@ -146,7 +146,7 @@ export default function CrossPlatformAnalytics() {
     <div className="space-y-6">
       <PageHeader
         title="Cross-Platform Analytics"
-        subtitle="Unified metrics across TourismPay, BIS, and PaymentSwitch — last 30 days"
+        subtitle="Unified metrics across TourismPay, BIS, and PaymentSwitch (via API) — last 30 days"
         actions={
           <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
             <RefreshCw className="w-4 h-4" />
@@ -185,7 +185,7 @@ export default function CrossPlatformAnalytics() {
               name="PaymentSwitch"
               status={(health?.paymentSwitch.status as HealthStatus) ?? "healthy"}
               icon={Globe}
-              href="/paymentswitch/noc"
+              href="/integration-overview"
               metrics={[
                 { label: "Remittances (30d)", value: formatNumber(summary?.paymentSwitch.remittances.total ?? 0) },
                 { label: "Settlements (30d)", value: formatNumber(summary?.paymentSwitch.settlements.total ?? 0) },

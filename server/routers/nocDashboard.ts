@@ -1,11 +1,12 @@
 /**
- * NOC Dashboard Router
+ * NOC Dashboard Router — PaymentSwitch API Proxy
  *
- * Network Operations Centre procedures for the PaymentSwitch:
- * - Kill switch (activate / deactivate all payment processing)
- * - NOC event log (audit trail of all operational events)
- * - Transaction volume charts (hourly/daily aggregates)
- * - System health summary
+ * Thin proxy that exposes PaymentSwitch operational data to TourismPay.
+ * In production, these queries should be replaced with HTTP calls to the
+ * external PaymentSwitch API. Currently reads from the shared DB as a
+ * transitional measure.
+ *
+ * Used by: IntegrationOverview (systemHealth, hourlyVolume)
  */
 import { z } from "zod";
 import { adminProcedure, nocProcedure, router } from "../_core/trpc";

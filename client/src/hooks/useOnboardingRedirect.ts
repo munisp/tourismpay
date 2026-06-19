@@ -8,8 +8,8 @@
  *   tourist              → /tourist/onboarding
  *   merchant             → /restaurant-onboarding
  *   compliance_officer   → /compliance
- *   noc_operator         → /paymentswitch/noc
- *   settlement_officer   → /paymentswitch/settlement
+ *   noc_operator         → /integration-overview
+ *   settlement_officer   → /settlement
  *   bis_analyst          → /bis
  *   admin                → /admin
  *   user (default)       → /tourist/onboarding (generic welcome)
@@ -39,8 +39,8 @@ const ONBOARDING_ROUTES: Record<UserRole, string> = {
   tourist: "/tourist/onboarding",
   merchant: "/restaurant-onboarding",
   compliance_officer: "/compliance",
-  noc_operator: "/paymentswitch/noc",
-  settlement_officer: "/paymentswitch/settlement",
+  noc_operator: "/integration-overview",
+  settlement_officer: "/settlement",
   bis_analyst: "/bis",
   admin: "/admin",
   user: "/tourist/onboarding",
