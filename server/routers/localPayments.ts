@@ -618,6 +618,24 @@ export const localPaymentsRouter = router({
         const creatorId = String(ctx.user.id);
         const participantCount = input.participants.length;
 
+        // Validate custom split amounts sum to total
+        if (input.splitType === "custom") {
+          const customTotal = input.participants.reduce((sum, p) => sum + (p.amount ?? 0), 0);
+          if (Math.abs(customTotal - input.totalAmount) > 0.01) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Custom split amounts must sum to the total (${input.totalAmount}). Got ${customTotal.toFixed(2)}.`,
+            });
+          }
+          const missingAmounts = input.participants.filter(p => p.amount === undefined || p.amount <= 0);
+          if (missingAmounts.length > 0) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "All participants must have a positive amount in custom split mode.",
+            });
+          }
+        }
+
         const splits = input.participants.map((p, i) => {
           const amount = input.splitType === "equal"
             ? Math.round((input.totalAmount / participantCount) * 100) / 100

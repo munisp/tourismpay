@@ -141,10 +141,10 @@ def compute_metrics(
 
 
 def train(
-    n_epochs: int = 100,
-    lr: float = 1e-3,
-    weight_decay: float = 1e-4,
-    patience: int = 10,
+    n_epochs: int = 150,
+    lr: float = 5e-4,
+    weight_decay: float = 1e-5,
+    patience: int = 20,
     device: str = "cpu",
 ) -> dict:
     """

@@ -312,6 +312,39 @@ export const settlementRouter = router({
       return { csv, filename: `settlements-${date}.csv`, rowCount: rows.length };
     }),
 
+  // ── Retry failed settlements (max 3 retries) ──────────────────────────────
+  retryFailed: settlementProcedure
+    .input(z.object({
+      ids: z.array(z.string()).min(1).max(50),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      // Only retry settlements that are failed and haven't exceeded max retries
+      const result = await db.execute(
+        sql`UPDATE ps_settlements
+            SET status = 'pending',
+                retry_count = COALESCE(retry_count, 0) + 1,
+                updated_at = ${Date.now()}
+            WHERE id = ANY(${input.ids})
+              AND status = 'failed'
+              AND COALESCE(retry_count, 0) < 3
+            RETURNING id`
+      );
+      const retried = (result as any[]).map((r: any) => r.id);
+      if (retried.length > 0) {
+        await createAuditLog({
+          actorId: ctx.user.id,
+          actorName: ctx.user.name || String(ctx.user.id),
+          action: "settlement.retry",
+          entityType: "ps_settlement",
+          entityId: retried.join(","),
+          after: { retriedIds: retried, count: retried.length },
+        });
+      }
+      const skipped = input.ids.filter(id => !retried.includes(id));
+      return { retriedCount: retried.length, retriedIds: retried, skippedIds: skipped };
+    }),
+
   // ── Daily settlement volume chart (last 30 days) ──────────────────────────
   dailyVolume: settlementProcedure.query(async () => {
     const db = await requireDb();

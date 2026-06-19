@@ -51,11 +51,25 @@ export const merchantRevenueRouter = router({
           )
         );
 
-      const totalRevenue = allPaid.reduce(
+      let totalRevenue = allPaid.reduce(
         (sum, r) => sum + parseFloat(r.amountUsd ?? "0"),
         0
       );
-      const totalTransactions = allPaid.length;
+      let totalTransactions = allPaid.length;
+
+      // Also aggregate wallet transactions where this establishment is the counterparty
+      const walletPayments = await db.execute(
+        sql`SELECT COALESCE(SUM(CAST(amount AS NUMERIC)), 0) as total, COUNT(*) as cnt
+            FROM wallet_transactions
+            WHERE counterparty LIKE ${'%est:' + input.establishmentId + '%'}
+              AND type IN ('send', 'payment')
+              AND status = 'completed'`
+      );
+      const walletRows = walletPayments as any[];
+      if (walletRows.length > 0) {
+        totalRevenue += Number(walletRows[0].total ?? 0);
+        totalTransactions += Number(walletRows[0].cnt ?? 0);
+      }
 
       // Today's revenue
       const todayStart = new Date();

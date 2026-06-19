@@ -3,6 +3,7 @@
  * Integrates with the Rust KYC verification service for tourist identity
  * verification, liveness detection, document verification, and sanctions screening.
  */
+import crypto from "crypto";
 import { z } from "zod";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
@@ -183,4 +184,58 @@ export const kycRouter = router({
         rejection_reason: input.rejectionReason ?? null,
       });
     }),
+
+  /** Nigeria-specific BVN/NIN verification */
+  verifyBvnNin: protectedProcedure
+    .input(z.object({
+      verificationType: z.enum(["BVN", "NIN"]),
+      number: z.string().regex(/^\d{11}$/, "Must be exactly 11 digits"),
+      fullName: z.string().min(2).max(128),
+      dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      phoneNumber: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Call BVN/NIN verification via Rust KYC service
+      const result = await callKycService("/api/v1/kyc/verify/ng-identity", "POST", {
+        verification_type: input.verificationType,
+        number: input.number,
+        full_name: input.fullName,
+        date_of_birth: input.dateOfBirth,
+        phone_number: input.phoneNumber ?? null,
+        user_id: String(ctx.user.id),
+      });
+
+      // Record in main DB
+      const db = await getDb();
+      if (db) {
+        const { kycVerificationRecords } = await import("../../drizzle/schema");
+        await db.insert(kycVerificationRecords).values({
+          userId: String(ctx.user.id),
+          status: "in_progress",
+          documentType: input.verificationType.toLowerCase() as any,
+          documentCountry: "NG",
+          documentNumberHash: hashPII(input.number),
+          fullNameEncrypted: encryptPII(input.fullName),
+          dateOfBirth: input.dateOfBirth,
+          nationality: "NG",
+        }).onConflictDoNothing();
+      }
+
+      return result;
+    }),
+
+  /** Liveness detection with anti-spoofing challenge */
+  livenessChallenge: protectedProcedure.query(async () => {
+    const challenges = [
+      { type: "blink", instruction: "Please blink twice", timeoutMs: 5000 },
+      { type: "head_turn", instruction: "Please turn your head slowly to the left", timeoutMs: 8000 },
+      { type: "smile", instruction: "Please smile for the camera", timeoutMs: 5000 },
+    ];
+    const selected = challenges[Math.floor(Math.random() * challenges.length)];
+    return {
+      challengeId: crypto.randomUUID(),
+      ...selected,
+      createdAt: Date.now(),
+    };
+  }),
 });

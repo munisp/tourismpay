@@ -476,8 +476,25 @@ const partnerRemittanceRouter = router({
       status: z.string(),
       amount: z.number().optional(),
       currency: z.string().optional(),
+      signature: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
+      // Webhook signature validation
+      const WEBHOOK_SECRETS: Record<string, string | undefined> = {
+        wise: process.env.WISE_WEBHOOK_SECRET,
+        revolut: process.env.REVOLUT_WEBHOOK_SECRET,
+        remitly: process.env.REMITLY_WEBHOOK_SECRET,
+        lemfi: process.env.LEMFI_WEBHOOK_SECRET,
+      };
+      const secret = WEBHOOK_SECRETS[input.partner];
+      if (secret && input.signature) {
+        const crypto = await import("crypto");
+        const payload = `${input.eventType}:${input.transferId}:${input.partnerRef}:${input.status}`;
+        const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+        if (input.signature !== expected) {
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid webhook signature" });
+        }
+      }
       const result = await callPartnerService(`/api/v1/partners/webhook/${input.partner}`, "POST", {
         partner: input.partner,
         event_type: input.eventType,

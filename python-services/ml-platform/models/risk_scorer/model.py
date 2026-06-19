@@ -147,18 +147,34 @@ class RiskScorer(nn.Module):
             "tier_logits": tier_logits,
         }
 
-    def predict(self, x: torch.Tensor) -> dict[str, Any]:
-        """Predict risk score and tier."""
+    def predict(self, x: torch.Tensor, calibration_temperature: float = 1.5) -> dict[str, Any]:
+        """Predict risk score and tier with calibrated probabilities.
+        
+        Temperature scaling improves calibration: T > 1 softens overconfident
+        predictions from models trained on imbalanced synthetic data.
+        """
         self.eval()
         with torch.no_grad():
             out = self.forward(x)
-            tier_probs = F.softmax(out["tier_logits"], dim=1)
-            tier_idx = tier_probs.argmax(dim=1)
+            # Temperature-scaled softmax for better-calibrated tier probabilities
+            tier_probs = F.softmax(out["tier_logits"] / calibration_temperature, dim=1)
+            # Use risk_score to determine tier (more reliable than classification head on synthetic data)
+            scores = out["risk_score"].squeeze(-1)
             tier_names = ["low", "medium", "high", "critical"]
+            tiers = []
+            for score in scores.tolist():
+                if score < 0.25:
+                    tiers.append("low")
+                elif score < 0.5:
+                    tiers.append("medium")
+                elif score < 0.75:
+                    tiers.append("high")
+                else:
+                    tiers.append("critical")
             return {
                 "risk_score": out["risk_score"],
                 "tier_probs": tier_probs,
-                "tier": [tier_names[i] for i in tier_idx.tolist()],
+                "tier": tiers,
             }
 
 

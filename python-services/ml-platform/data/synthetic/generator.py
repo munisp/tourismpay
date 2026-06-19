@@ -231,7 +231,7 @@ def generate_transactions(
 
 def generate_transaction_graph(
     transactions: pd.DataFrame,
-    n_edges: int = 50000,
+    n_edges: int = 100000,
 ) -> pd.DataFrame:
     """
     Generate transaction graph edges for GNN training.

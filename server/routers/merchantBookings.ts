@@ -154,6 +154,31 @@ export const merchantBookingsRouter = router({
         });
       }
 
+      // Overbooking prevention: check capacity before confirming
+      if (input.status === "confirmed" && booking.bookingDate) {
+        const bookingDateStr = typeof booking.bookingDate === "string"
+          ? booking.bookingDate
+          : new Date(booking.bookingDate).toISOString().slice(0, 10);
+        const confirmedOnDate = await db
+          .select({ totalGuests: sql<number>`COALESCE(SUM(party_size), 0)` })
+          .from(touristBookings)
+          .where(and(
+            eq(touristBookings.establishmentId, input.establishmentId),
+            eq(touristBookings.status, "confirmed"),
+            sql`CAST(booking_date AS TEXT) LIKE ${bookingDateStr + '%'}`,
+          ));
+        const currentGuests = Number(confirmedOnDate[0]?.totalGuests ?? 0);
+        // Use establishment max capacity (default 100 if not set)
+        const [est] = await db.select().from(establishments).where(eq(establishments.id, input.establishmentId)).limit(1);
+        const maxCapacity = Number((est as any)?.maxCapacity ?? 100);
+        if (currentGuests + (booking.partySize ?? 1) > maxCapacity) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `Cannot confirm: capacity exceeded for ${bookingDateStr}. Current: ${currentGuests} guests, attempting to add ${booking.partySize ?? 1}, max: ${maxCapacity}.`,
+          });
+        }
+      }
+
       const updateData: Record<string, unknown> = {
         status: input.status,
         updatedAt: new Date(),

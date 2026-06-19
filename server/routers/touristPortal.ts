@@ -1800,7 +1800,19 @@ Current date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
       try {
         parsed = JSON.parse(raw);
       } catch {
-        parsed = { positivePercent: 0, themes: [], summary: "Could not analyse reviews at this time." };
+        // Rule-based fallback when LLM is unavailable
+        const avgRating = reviews.reduce((s, r) => s + (r.rating ?? 3), 0) / reviews.length;
+        const positiveCount = reviews.filter(r => (r.rating ?? 3) >= 4).length;
+        const positivePercent = Math.round((positiveCount / reviews.length) * 100);
+        const themeKeywords = ["service", "food", "location", "clean", "value", "staff", "atmosphere", "view"];
+        const allText = reviews.map(r => `${r.title ?? ""} ${r.body ?? ""}`).join(" ").toLowerCase();
+        const detectedThemes = themeKeywords.filter(k => allText.includes(k)).slice(0, 5);
+        const ratingLabel = avgRating >= 4 ? "positive" : avgRating >= 3 ? "mixed" : "negative";
+        parsed = {
+          positivePercent,
+          themes: detectedThemes.length > 0 ? detectedThemes : ["general"],
+          summary: `Based on ${reviews.length} reviews with an average rating of ${avgRating.toFixed(1)}/5, overall sentiment is ${ratingLabel}.`,
+        };
       }
       const result = {
         establishmentId: input.establishmentId,
