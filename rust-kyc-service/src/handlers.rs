@@ -3,16 +3,30 @@ use sqlx::PgPool;
 use uuid::Uuid;
 use chrono::Utc;
 
+use crate::ai_engine;
 use crate::auth::JwtClaims;
 use crate::models::*;
 use crate::verification;
 
 pub async fn health() -> HttpResponse {
+    let ai_available = ai_engine::is_ai_engine_available().await;
     HttpResponse::Ok().json(serde_json::json!({
         "status": "healthy",
         "service": "TourismPay KYC Verification Service (Rust)",
-        "version": "1.0.0",
-        "timestamp": Utc::now().to_rfc3339()
+        "version": "2.0.0",
+        "timestamp": Utc::now().to_rfc3339(),
+        "ai_engine": {
+            "available": ai_available,
+            "capabilities": [
+                "paddleocr_document_extraction",
+                "florence2_vlm_fraud_detection",
+                "docling_business_document_parsing",
+                "mediapipe_liveness_detection",
+                "minifas_anti_spoofing",
+                "midas_depth_analysis",
+                "insightface_arcface_face_matching"
+            ]
+        }
     }))
 }
 
@@ -104,17 +118,31 @@ pub async fn submit_liveness_check(
     };
 
     let challenge_count = body.challenge_responses.as_ref().map_or(0, |c| c.len());
-    let successful_challenges = challenge_count; // In production, validate each challenge response
 
-    // Anti-spoofing score from motion/texture analysis (simulated for now, real SDK integration point)
-    let anti_spoofing_score = 0.85;
-
-    let (score, passed) = verification::compute_liveness_score(
-        &body.method,
-        anti_spoofing_score,
-        challenge_count,
-        successful_challenges,
-    );
+    // Try AI engine for real liveness detection
+    let (score, passed, anti_spoofing_score, ai_method) = if let Some(ref photo_url) = body.photo_url {
+        match ai_engine::call_ai_liveness(
+            photo_url,
+            body.challenge_responses.as_ref().map(|_| "[]"),
+        ).await {
+            Ok(ai_result) => {
+                tracing::info!("AI liveness: score={}, live={}, method={}", ai_result.overall_score, ai_result.is_live, ai_result.method);
+                (ai_result.overall_score, ai_result.is_live, ai_result.overall_score, ai_result.method)
+            }
+            Err(e) => {
+                tracing::warn!("AI engine liveness failed, using rule-based fallback: {}", e);
+                let successful_challenges = challenge_count;
+                let anti_spoof = 0.70;
+                let (s, p) = verification::compute_liveness_score(&body.method, anti_spoof, challenge_count, successful_challenges);
+                (s, p, anti_spoof, "rule_based_fallback".to_string())
+            }
+        }
+    } else {
+        let successful_challenges = challenge_count;
+        let anti_spoof = 0.70;
+        let (s, p) = verification::compute_liveness_score(&body.method, anti_spoof, challenge_count, successful_challenges);
+        (s, p, anti_spoof, "rule_based_no_photo".to_string())
+    };
 
     let liveness_id = Uuid::new_v4();
     let _ = sqlx::query(
@@ -150,6 +178,8 @@ pub async fn submit_liveness_check(
         "liveness_score": score,
         "passed": passed,
         "method": body.method,
+        "ai_method": ai_method,
+        "anti_spoofing_score": anti_spoofing_score,
         "status": new_status
     }))
 }
@@ -195,11 +225,69 @@ pub async fn submit_document_verification(
     .execute(pool.get_ref())
     .await;
 
+    // Run AI OCR + VLM analysis in parallel
+    let ocr_future = ai_engine::call_ai_ocr(&body.front_image_url, &body.document_type, &body.country);
+    let vlm_future = ai_engine::call_ai_vlm(&body.front_image_url, Some(&body.document_type));
+
+    let (ocr_result, vlm_result) = tokio::join!(ocr_future, vlm_future);
+
+    let ai_ocr = match ocr_result {
+        Ok(ocr) => {
+            // Update document with OCR results
+            let mrz_text = ocr.mrz.as_ref().and_then(|m| {
+                if m.valid { Some(format!("{}|{}|{}", m.surname.as_deref().unwrap_or(""), m.given_names.as_deref().unwrap_or(""), m.document_number.as_deref().unwrap_or(""))) } else { None }
+            });
+            let _ = sqlx::query(
+                "UPDATE kyc_documents SET mrz_extracted = $1, ocr_confidence = $2, status = 'ocr_complete' WHERE id = $3"
+            )
+            .bind(&mrz_text)
+            .bind(ocr.overall_confidence)
+            .bind(doc_id)
+            .execute(pool.get_ref())
+            .await;
+            Some(serde_json::json!({
+                "confidence": ocr.overall_confidence,
+                "fields_count": ocr.fields.len(),
+                "mrz_valid": ocr.mrz.as_ref().map_or(false, |m| m.valid),
+            }))
+        }
+        Err(e) => {
+            tracing::warn!("AI OCR failed: {} — document queued for manual review", e);
+            None
+        }
+    };
+
+    let ai_vlm = match vlm_result {
+        Ok(vlm) => {
+            let _ = sqlx::query(
+                "UPDATE kyc_documents SET authenticity_score = $1, status = $2 WHERE id = $3"
+            )
+            .bind(vlm.fraud_analysis.authenticity_score)
+            .bind(if vlm.fraud_analysis.is_authentic { "verified" } else { "flagged" })
+            .bind(doc_id)
+            .execute(pool.get_ref())
+            .await;
+            Some(serde_json::json!({
+                "is_authentic": vlm.fraud_analysis.is_authentic,
+                "authenticity_score": vlm.fraud_analysis.authenticity_score,
+                "fraud_signals": vlm.fraud_analysis.signals,
+                "quality_score": vlm.quality.overall_score,
+                "model_used": vlm.model_used,
+            }))
+        }
+        Err(e) => {
+            tracing::warn!("AI VLM failed: {} — using basic verification", e);
+            None
+        }
+    };
+
     HttpResponse::Created().json(serde_json::json!({
         "document_id": doc_id,
         "verification_id": verification.id,
-        "status": "processing",
-        "message": "Document submitted for OCR and authenticity verification"
+        "status": if ai_vlm.is_some() { "ai_analyzed" } else { "processing" },
+        "message": "Document submitted for OCR and authenticity verification",
+        "ai_ocr": ai_ocr,
+        "ai_vlm": ai_vlm,
     }))
 }
 

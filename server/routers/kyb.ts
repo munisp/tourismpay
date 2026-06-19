@@ -22,6 +22,7 @@ import { recordKybApplication } from "../_core/metrics";
 import { cacheGet, cacheSet } from "../_core/redis";
 
 const KYB_SERVICE_URL = process.env.KYB_SERVICE_URL || "http://localhost:8083";
+const KYC_AI_ENGINE_URL = process.env.KYC_AI_ENGINE_URL || "http://localhost:8100";
 
 async function callKybService(path: string, body?: unknown): Promise<unknown> {
   try {
@@ -538,6 +539,68 @@ export const kybRouter = router({
       }
       await createKybApplication({ establishmentId, submittedBy: ctx.user.id, status: "submitted", currentStep: 1, totalSteps: 5 });
       return { success: true, status: "pending", establishmentId };
+    }),
+
+  /** AI-powered KYB document verification (Docling + VLM + cross-validation) */
+  verifyDocument: protectedProcedure
+    .input(z.object({
+      establishmentId: z.number(),
+      documentUrl: z.string().url(),
+      documentType: z.enum([
+        "cac_certificate", "tax_clearance", "business_permit",
+        "annual_return", "board_resolution", "shareholder_agreement",
+        "bank_reference", "utility_bill", "memorandum",
+      ]),
+      companyName: z.string().optional(),
+      rcNumber: z.string().optional(),
+      tinNumber: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const docResp = await fetch(input.documentUrl);
+        if (!docResp.ok) throw new Error("Failed to fetch document");
+        const docBlob = await docResp.blob();
+
+        const formData = new FormData();
+        formData.append("file", docBlob, "document.pdf");
+        formData.append("expected_type", input.documentType);
+        if (input.companyName) formData.append("company_name", input.companyName);
+        if (input.rcNumber) formData.append("rc_number", input.rcNumber);
+        if (input.tinNumber) formData.append("tin_number", input.tinNumber);
+
+        const aiResp = await fetch(`${KYC_AI_ENGINE_URL}/api/v1/kyb/verify-document`, {
+          method: "POST",
+          body: formData,
+          signal: AbortSignal.timeout(60_000),
+        });
+
+        if (aiResp.ok) {
+          const result = await aiResp.json();
+          // Record AI verification result in KYB application log
+          const db = await getDb();
+          if (db) {
+            const { kybApplications: kybAppsTable } = await import("../../drizzle/schema");
+            const { eq: eqOp } = await import("drizzle-orm");
+            const apps = await db.select().from(kybAppsTable).where(eqOp(kybAppsTable.establishmentId, input.establishmentId)).limit(1);
+            if (apps.length > 0) {
+              const aiDecision = (result as Record<string, string>).decision ?? "pending_review";
+              const newStep = aiDecision === "approved" ? Math.min(apps[0].currentStep + 1, apps[0].totalSteps) : apps[0].currentStep;
+              await db.update(kybAppsTable)
+                .set({ currentStep: newStep, status: aiDecision === "approved" ? "under_review" : "submitted" })
+                .where(eqOp(kybAppsTable.id, apps[0].id));
+            }
+          }
+          return result;
+        }
+        throw new Error(`AI engine returned ${aiResp.status}`);
+      } catch {
+        // Fallback to basic document recording
+        return callKybService("/api/v1/kyb/verify-document", {
+          establishment_id: input.establishmentId,
+          document_url: input.documentUrl,
+          document_type: input.documentType,
+        });
+      }
     }),
 
   // Get supported countries and establishment types

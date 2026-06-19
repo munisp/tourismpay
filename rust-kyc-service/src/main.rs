@@ -1,6 +1,8 @@
 #[allow(dead_code)]
 mod agent_kyc;
 #[allow(dead_code)]
+mod ai_engine;
+#[allow(dead_code)]
 mod auth;
 #[allow(dead_code)]
 mod biometric_pay;

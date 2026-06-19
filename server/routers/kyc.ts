@@ -11,6 +11,7 @@ import { getDb } from "../db";
 import { encryptPII, hashPII } from "../_core/encryption";
 
 const KYC_SERVICE_URL = process.env.KYC_SERVICE_URL || "http://localhost:8082";
+const KYC_AI_ENGINE_URL = process.env.KYC_AI_ENGINE_URL || "http://localhost:8100";
 const KYC_API_KEY = process.env.KYC_API_KEY || "";
 
 async function callKycService(path: string, method: string = "GET", body?: unknown): Promise<unknown> {
@@ -225,17 +226,141 @@ export const kycRouter = router({
     }),
 
   /** Liveness detection with anti-spoofing challenge */
-  livenessChallenge: protectedProcedure.query(async () => {
-    const challenges = [
-      { type: "blink", instruction: "Please blink twice", timeoutMs: 5000 },
-      { type: "head_turn", instruction: "Please turn your head slowly to the left", timeoutMs: 8000 },
-      { type: "smile", instruction: "Please smile for the camera", timeoutMs: 5000 },
-    ];
-    const selected = challenges[Math.floor(Math.random() * challenges.length)];
+  livenessChallenge: protectedProcedure
+    .input(z.object({
+      difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
+    }).optional())
+    .query(async ({ input }) => {
+      // Try AI engine for dynamic challenge generation
+      try {
+        const res = await fetch(`${KYC_AI_ENGINE_URL}/api/v1/liveness/challenge`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ difficulty: input?.difficulty ?? "medium" }),
+          signal: AbortSignal.timeout(5000),
+        });
+        if (res.ok) {
+          const data = await res.json() as { challenges: Array<{ type: string; instruction: string; timeout_ms: number; order: number }> };
+          return {
+            challengeId: crypto.randomUUID(),
+            challenges: data.challenges,
+            createdAt: Date.now(),
+            source: "ai_engine",
+          };
+        }
+      } catch { /* AI engine unavailable — use static challenges */ }
+
+      // Fallback: static challenge selection
+      const challenges = [
+        { type: "blink", instruction: "Please blink both eyes slowly", timeout_ms: 6000, order: 1 },
+        { type: "head_turn_left", instruction: "Please turn your head slowly to the left", timeout_ms: 6000, order: 2 },
+        { type: "smile", instruction: "Please smile naturally", timeout_ms: 6000, order: 3 },
+      ];
+      return {
+        challengeId: crypto.randomUUID(),
+        challenges,
+        createdAt: Date.now(),
+        source: "static_fallback",
+      };
+    }),
+
+  /** AI-powered full KYC pipeline: OCR + VLM + face matching + liveness */
+  verifyFull: protectedProcedure
+    .input(z.object({
+      documentType: z.enum(["passport", "national_id", "drivers_license", "residence_permit"]),
+      documentCountry: z.string().length(2),
+      documentNumber: z.string().min(3).max(30),
+      fullName: z.string().min(2).max(128),
+      dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      nationality: z.string().length(2),
+      documentFrontUrl: z.string().url(),
+      documentBackUrl: z.string().url().optional(),
+      selfieUrl: z.string().url(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Record verification attempt
+      const db = await getDb();
+      if (db) {
+        const { kycVerificationRecords } = await import("../../drizzle/schema");
+        await db.insert(kycVerificationRecords).values({
+          userId: String(ctx.user.id),
+          status: "ai_processing",
+          documentType: input.documentType,
+          documentCountry: input.documentCountry,
+          documentNumberHash: hashPII(input.documentNumber),
+          fullNameEncrypted: encryptPII(input.fullName),
+          dateOfBirth: input.dateOfBirth,
+          nationality: input.nationality,
+        }).onConflictDoNothing();
+      }
+
+      // Call AI engine full pipeline
+      try {
+        const formData = new FormData();
+        // Fetch images and create blobs
+        const [frontResp, selfieResp] = await Promise.all([
+          fetch(input.documentFrontUrl),
+          fetch(input.selfieUrl),
+        ]);
+        formData.append("document_front", await frontResp.blob(), "document_front.jpg");
+        formData.append("selfie", await selfieResp.blob(), "selfie.jpg");
+        if (input.documentBackUrl) {
+          const backResp = await fetch(input.documentBackUrl);
+          formData.append("document_back", await backResp.blob(), "document_back.jpg");
+        }
+        formData.append("document_type", input.documentType);
+        formData.append("country", input.documentCountry);
+        formData.append("full_name", input.fullName);
+        formData.append("date_of_birth", input.dateOfBirth);
+        formData.append("document_number", input.documentNumber);
+
+        const aiResp = await fetch(`${KYC_AI_ENGINE_URL}/api/v1/kyc/verify-full`, {
+          method: "POST",
+          body: formData,
+          signal: AbortSignal.timeout(60_000),
+        });
+
+        if (aiResp.ok) {
+          const result = await aiResp.json();
+          // Update verification status based on AI decision
+          if (db) {
+            const { kycVerificationRecords } = await import("../../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            await db.update(kycVerificationRecords)
+              .set({ status: (result as Record<string, string>).decision ?? "manual_review" })
+              .where(eq(kycVerificationRecords.userId, String(ctx.user.id)));
+          }
+          return result;
+        }
+      } catch (e) {
+        // AI engine unavailable — fall through to basic verification
+      }
+
+      // Fallback to basic Rust KYC service
+      return callKycService("/api/v1/kyc/verify/identity", "POST", {
+        document_type: input.documentType,
+        document_country: input.documentCountry,
+        document_number: input.documentNumber,
+        full_name: input.fullName,
+        date_of_birth: input.dateOfBirth,
+        nationality: input.nationality,
+        document_front_url: input.documentFrontUrl,
+        document_back_url: input.documentBackUrl ?? null,
+        selfie_url: input.selfieUrl,
+      });
+    }),
+
+  /** AI engine health check — shows available models */
+  aiHealth: protectedProcedure.query(async () => {
+    try {
+      const res = await fetch(`${KYC_AI_ENGINE_URL}/health`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) return res.json();
+    } catch { /* unavailable */ }
     return {
-      challengeId: crypto.randomUUID(),
-      ...selected,
-      createdAt: Date.now(),
+      status: "unavailable",
+      message: "KYC AI Engine is not running. Service degrades to rule-based verification.",
     };
   }),
 });
