@@ -378,6 +378,63 @@ async def liveness_challenge(req: ChallengeRequest):
     return {"success": True, "challenges": challenges}
 
 
+@app.post("/api/v1/liveness/video")
+async def liveness_video(
+    frames: list[UploadFile] = File(...),
+    challenges: Optional[str] = Form(None),
+):
+    """
+    Video-based liveness detection with temporal consistency analysis.
+
+    Accepts multiple video frames (5-30) and analyzes:
+    - Per-frame liveness (MediaPipe + MiniFAS + MiDaS + LBP)
+    - Landmark trajectory (micro-movements vs static)
+    - Blink detection across frames (EAR temporal signal)
+    - Head pose variation (involuntary sway)
+    - Optical flow (screen replay detection)
+    """
+    from liveness.detector import detect_video_liveness
+    import json
+
+    frame_paths: list[str] = []
+    for f in frames:
+        fp = await _save_upload(f)
+        frame_paths.append(fp)
+
+    parsed_challenges = None
+    if challenges:
+        try:
+            parsed_challenges = json.loads(challenges)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    result = await detect_video_liveness(frame_paths, parsed_challenges)
+
+    return _serialize_numpy({
+        "success": True,
+        "is_live": result.is_live,
+        "overall_score": result.overall_score,
+        "per_frame_scores": result.per_frame_scores,
+        "temporal": {
+            "is_consistent": result.temporal.is_consistent,
+            "motion_score": result.temporal.motion_score,
+            "landmark_stability": result.temporal.landmark_stability,
+            "blink_detected": result.temporal.blink_detected,
+            "micro_movements": result.temporal.micro_movements,
+            "frame_count": result.temporal.frame_count,
+            "fps_estimated": result.temporal.fps_estimated,
+            "spoof_indicators": result.temporal.spoof_indicators,
+        },
+        "single_frame": {
+            "is_live": result.single_frame.is_live,
+            "overall_score": result.single_frame.overall_score,
+            "method": result.single_frame.method,
+        },
+        "method": result.method,
+        "warnings": result.warnings,
+    })
+
+
 # ── Face Matching Endpoints ──────────────────────────────────────────────────
 
 

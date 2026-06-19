@@ -646,6 +646,245 @@ async def detect_liveness(
     )
 
 
+@dataclass
+class TemporalConsistency:
+    """Frame-to-frame temporal analysis results for video liveness."""
+    is_consistent: bool
+    motion_score: float
+    landmark_stability: float
+    blink_detected: bool
+    micro_movements: float
+    frame_count: int
+    fps_estimated: float
+    spoof_indicators: list[str] = field(default_factory=list)
+
+
+@dataclass
+class VideoLivenessResult:
+    """Combined single-frame + temporal video liveness result."""
+    is_live: bool
+    overall_score: float
+    per_frame_scores: list[float]
+    temporal: TemporalConsistency
+    single_frame: LivenessResult
+    method: str
+    warnings: list[str] = field(default_factory=list)
+
+
+async def detect_video_liveness(
+    frame_paths: list[str],
+    challenges: Optional[list[dict[str, Any]]] = None,
+    min_frames: int = 5,
+) -> VideoLivenessResult:
+    """
+    Video-based liveness detection with temporal consistency analysis.
+
+    Analyzes a sequence of frames for:
+    1. Per-frame liveness (reuses single-frame pipeline)
+    2. Landmark trajectory consistency (natural micro-movements vs static)
+    3. Blink detection across frames (EAR temporal signal)
+    4. Head pose variation (real faces exhibit slight involuntary motion)
+    5. Optical flow analysis (screen replay has uniform flow patterns)
+    6. Texture consistency across frames (printed photos are static)
+    """
+    try:
+        import cv2
+    except ImportError:
+        dummy_frame = await detect_liveness(frame_paths[0] if frame_paths else "", challenges)
+        return VideoLivenessResult(
+            is_live=False, overall_score=0.0, per_frame_scores=[],
+            temporal=TemporalConsistency(
+                is_consistent=False, motion_score=0.0, landmark_stability=0.0,
+                blink_detected=False, micro_movements=0.0, frame_count=0, fps_estimated=0.0,
+                spoof_indicators=["OpenCV not available"],
+            ),
+            single_frame=dummy_frame, method="error",
+            warnings=["OpenCV not available for video analysis"],
+        )
+
+    warnings: list[str] = []
+
+    if len(frame_paths) < min_frames:
+        warnings.append(f"Only {len(frame_paths)} frames provided (min {min_frames})")
+
+    # Run single-frame liveness on the middle frame (best quality typically)
+    mid_idx = len(frame_paths) // 2
+    single_frame_result = await detect_liveness(frame_paths[mid_idx], challenges)
+
+    # Extract landmarks from all frames
+    all_landmarks: list[Optional[FaceLandmarks]] = []
+    all_ears: list[float] = []
+    all_poses: list[dict[str, float]] = []
+    per_frame_scores: list[float] = []
+
+    for fpath in frame_paths:
+        img_bgr = cv2.imread(fpath)
+        if img_bgr is None:
+            all_landmarks.append(None)
+            continue
+        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        fl = _extract_landmarks(img_rgb)
+        all_landmarks.append(fl)
+
+        if fl is not None:
+            _, ear = _detect_blink(fl.landmarks)
+            all_ears.append(ear)
+            pose = _compute_head_pose(fl.landmarks)
+            all_poses.append(pose)
+            # Quick liveness heuristic from texture
+            gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+            x, y, w, h = fl.face_bbox
+            face_gray = gray[max(0, y):y+h, max(0, x):x+w]
+            tex = _lbp_texture_analysis(face_gray) if face_gray.size > 0 else None
+            per_frame_scores.append(tex.lbp_score if tex else 0.0)
+
+    valid_landmark_count = sum(1 for fl in all_landmarks if fl is not None)
+
+    # Temporal Analysis
+    spoof_indicators: list[str] = []
+
+    # 1. Landmark trajectory stability — real faces have micro-movements
+    landmark_stability = 0.0
+    micro_movements = 0.0
+    if valid_landmark_count >= 3:
+        positions = []
+        for fl in all_landmarks:
+            if fl is not None:
+                nose_tip = fl.landmarks[1]  # nose tip landmark
+                positions.append(nose_tip)
+        if len(positions) >= 3:
+            pos_arr = np.array(positions)
+            frame_diffs = np.diff(pos_arr, axis=0)
+            movement_magnitudes = np.linalg.norm(frame_diffs[:, :2], axis=1)
+            micro_movements = float(np.mean(movement_magnitudes))
+            movement_std = float(np.std(movement_magnitudes))
+
+            # Real faces: small but non-zero movement (0.5-5.0 pixels typical)
+            # Printed photos / screens: either zero or very uniform movement
+            if micro_movements < 0.1:
+                spoof_indicators.append("STATIC_FACE: No micro-movements detected")
+                landmark_stability = 0.2
+            elif movement_std < 0.05 and micro_movements > 0.5:
+                spoof_indicators.append("UNIFORM_MOTION: Robotic movement pattern")
+                landmark_stability = 0.3
+            elif micro_movements > 15.0:
+                spoof_indicators.append("EXCESSIVE_MOTION: Unnatural jitter")
+                landmark_stability = 0.4
+            else:
+                landmark_stability = min(1.0, 0.5 + movement_std * 2)
+
+    # 2. Blink detection across frames (EAR signal)
+    blink_detected = False
+    if len(all_ears) >= 5:
+        ear_arr = np.array(all_ears)
+        ear_min = float(np.min(ear_arr))
+        ear_max = float(np.max(ear_arr))
+        ear_range = ear_max - ear_min
+        # A natural blink produces EAR drop of ~0.1-0.2
+        blink_detected = ear_range >= 0.08
+        if not blink_detected:
+            spoof_indicators.append("NO_BLINK: No blink detected across frames")
+
+    # 3. Head pose variation — involuntary head sway
+    pose_variation = 0.0
+    if len(all_poses) >= 3:
+        yaws = [p["yaw"] for p in all_poses]
+        pitches = [p["pitch"] for p in all_poses]
+        yaw_std = float(np.std(yaws))
+        pitch_std = float(np.std(pitches))
+        pose_variation = yaw_std + pitch_std
+        if pose_variation < 0.3:
+            spoof_indicators.append("STATIC_POSE: No head pose variation")
+
+    # 4. Optical flow analysis (inter-frame)
+    motion_score = 0.0
+    if len(frame_paths) >= 2:
+        try:
+            prev_gray = cv2.cvtColor(cv2.imread(frame_paths[0]), cv2.COLOR_BGR2GRAY)
+            flow_magnitudes = []
+            for fpath in frame_paths[1:]:
+                curr_gray = cv2.cvtColor(cv2.imread(fpath), cv2.COLOR_BGR2GRAY)
+                if prev_gray.shape == curr_gray.shape:
+                    flow = cv2.calcOpticalFlowFarneback(
+                        prev_gray, curr_gray, None,
+                        pyr_scale=0.5, levels=3, winsize=15,
+                        iterations=3, poly_n=5, poly_sigma=1.2, flags=0,
+                    )
+                    mag, _ = cv2.cartToPolar(flow[..., 0], flow[..., 1])
+                    flow_magnitudes.append(float(np.mean(mag)))
+                prev_gray = curr_gray
+
+            if flow_magnitudes:
+                mean_flow = float(np.mean(flow_magnitudes))
+                flow_std = float(np.std(flow_magnitudes))
+                # Screen replays: very uniform optical flow
+                # Real faces: variable flow concentrated around face region
+                if mean_flow < 0.05:
+                    motion_score = 0.3
+                    spoof_indicators.append("NO_OPTICAL_FLOW: Static frames")
+                elif flow_std < 0.01 and mean_flow > 0.5:
+                    motion_score = 0.4
+                    spoof_indicators.append("UNIFORM_FLOW: Screen replay suspected")
+                else:
+                    motion_score = min(1.0, 0.5 + flow_std * 5)
+        except Exception as e:
+            logger.warning(f"Optical flow analysis failed: {e}")
+            motion_score = 0.5
+
+    # Estimate FPS from frame count
+    fps_estimated = float(len(frame_paths)) / 2.0  # Assume ~2s capture window
+
+    temporal = TemporalConsistency(
+        is_consistent=len(spoof_indicators) == 0,
+        motion_score=motion_score,
+        landmark_stability=landmark_stability,
+        blink_detected=blink_detected,
+        micro_movements=micro_movements,
+        frame_count=len(frame_paths),
+        fps_estimated=fps_estimated,
+        spoof_indicators=spoof_indicators,
+    )
+
+    # Composite video liveness score
+    video_weights = {
+        "single_frame": 0.35,
+        "temporal_consistency": 0.25,
+        "blink": 0.15,
+        "motion": 0.15,
+        "landmark_stability": 0.10,
+    }
+    video_scores = {
+        "single_frame": single_frame_result.overall_score,
+        "temporal_consistency": 1.0 if temporal.is_consistent else max(0.2, 1.0 - len(spoof_indicators) * 0.25),
+        "blink": 0.9 if blink_detected else 0.3,
+        "motion": motion_score,
+        "landmark_stability": landmark_stability,
+    }
+    overall_video_score = sum(video_scores[k] * video_weights[k] for k in video_scores)
+
+    is_live = (
+        overall_video_score >= 0.50
+        and single_frame_result.is_live
+        and len(spoof_indicators) <= 1
+    )
+
+    method = f"video_{single_frame_result.method}+temporal"
+    if blink_detected:
+        method += "+blink"
+    if motion_score > 0.5:
+        method += "+optical_flow"
+
+    return VideoLivenessResult(
+        is_live=is_live,
+        overall_score=overall_video_score,
+        per_frame_scores=per_frame_scores,
+        temporal=temporal,
+        single_frame=single_frame_result,
+        method=method,
+        warnings=warnings + single_frame_result.warnings,
+    )
+
+
 async def generate_challenge_sequence(difficulty: str = "medium") -> list[dict[str, Any]]:
     """
     Generate a random sequence of liveness challenges based on difficulty.

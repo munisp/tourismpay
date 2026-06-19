@@ -350,6 +350,79 @@ export const kycRouter = router({
       });
     }),
 
+  /** Video-based liveness detection with temporal consistency analysis */
+  verifyVideoLiveness: protectedProcedure
+    .input(z.object({
+      frameUrls: z.array(z.string().url()).min(5).max(30),
+      challenges: z.array(z.object({
+        type: z.string(),
+        response_time_ms: z.number().optional(),
+      })).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Build multipart form body for Python AI engine
+      const boundary = `----TPBoundary${Date.now()}`;
+      const parts: Buffer[] = [];
+
+      // Download each frame and attach to multipart form
+      for (const url of input.frameUrls) {
+        try {
+          const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+          if (res.ok) {
+            const buffer = Buffer.from(await res.arrayBuffer());
+            parts.push(Buffer.from(
+              `--${boundary}\r\nContent-Disposition: form-data; name="frames"; filename="frame.jpg"\r\nContent-Type: image/jpeg\r\n\r\n`,
+            ));
+            parts.push(buffer);
+            parts.push(Buffer.from("\r\n"));
+          }
+        } catch { /* skip failed frame downloads */ }
+      }
+
+      if (input.challenges) {
+        parts.push(Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="challenges"\r\n\r\n${JSON.stringify(input.challenges)}\r\n`,
+        ));
+      }
+
+      parts.push(Buffer.from(`--${boundary}--\r\n`));
+      const bodyBuf = Buffer.concat(parts);
+
+      try {
+        const res = await fetch(`${KYC_AI_ENGINE_URL}/api/v1/liveness/video`, {
+          method: "POST",
+          body: bodyBuf,
+          headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
+          signal: AbortSignal.timeout(60000),
+        });
+
+        if (res.ok) {
+          const result = await res.json() as Record<string, unknown>;
+          // Record result in DB
+          const db = await getDb();
+          if (db) {
+            const { kycVerificationRecords } = await import("../../drizzle/schema");
+            await db.insert(kycVerificationRecords).values({
+              userId: String(ctx.user.id),
+              status: (result as any).is_live ? "approved" : "rejected",
+              documentType: "video_selfie" as any,
+              documentCountry: "XX",
+              nationality: "XX",
+            }).onConflictDoNothing();
+          }
+          return result;
+        }
+        return { success: false, error: "AI engine returned error", fallback: true };
+      } catch {
+        return {
+          success: false,
+          error: "Video liveness AI engine unavailable",
+          fallback: true,
+          message: "Service degraded — try single-image liveness instead",
+        };
+      }
+    }),
+
   /** AI engine health check — shows available models */
   aiHealth: protectedProcedure.query(async () => {
     try {
