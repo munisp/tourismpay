@@ -262,12 +262,15 @@ export const loyaltyRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "This reward is out of stock." });
         }
         if (dbReward.stock !== null) {
-          // Decrement stock atomically
-          await db.execute(
-            sql`UPDATE loyalty_rewards SET stock = stock - 1, updated_at = ${Date.now()} WHERE id = ${input.rewardId} AND stock > 0`
+          // Atomic stock decrement with race condition protection via RETURNING
+          const updated = await db.execute(
+            sql`UPDATE loyalty_rewards SET stock = stock - 1, updated_at = ${Date.now()} WHERE id = ${input.rewardId} AND stock > 0 RETURNING stock`
           );
-          // Check if stock just hit zero and notify admin
-          const newStock = dbReward.stock - 1;
+          const updatedRows = updated as any[];
+          if (!updatedRows.length) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "This reward just went out of stock." });
+          }
+          const newStock = Number(updatedRows[0].stock);
           if (newStock === 0) {
             // Mark reward as out-of-stock (deactivate)
             await db.execute(
@@ -1317,4 +1320,61 @@ export const loyaltyRouter = router({
         });
       }
     }),
+
+  // ─── Points Expiry ──────────────────────────────────────────────────────
+  // Expires earned points older than 12 months. Run periodically via cron or admin trigger.
+  expirePoints: adminProcedure.mutation(async () => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    // Find all unexpired earn transactions that have passed their expiry date
+    const expiredTxns = await db.execute(
+      sql`SELECT user_id, SUM(points) as total_points
+          FROM loyalty_transactions
+          WHERE type = 'earn' AND is_expired = false AND expires_at IS NOT NULL AND expires_at <= ${nowSec}
+          GROUP BY user_id`
+    );
+    const rows = expiredTxns as any[];
+    let totalUsersAffected = 0;
+    let totalPointsExpired = 0;
+
+    for (const row of rows) {
+      const userId = row.user_id;
+      const expiredPoints = Number(row.total_points);
+      if (expiredPoints <= 0) continue;
+
+      // Mark transactions as expired
+      await db.execute(
+        sql`UPDATE loyalty_transactions SET is_expired = true
+            WHERE user_id = ${userId} AND type = 'earn' AND is_expired = false AND expires_at IS NOT NULL AND expires_at <= ${nowSec}`
+      );
+
+      // Deduct expired points from balance (floor at 0)
+      await db.execute(
+        sql`UPDATE loyalty_accounts SET points_balance = GREATEST(points_balance - ${expiredPoints}, 0), updated_at = ${Date.now()}
+            WHERE user_id = ${userId}`
+      );
+
+      // Record expiry transaction
+      await db.execute(
+        sql`INSERT INTO loyalty_transactions (id, user_id, type, points, description, is_expired, created_at)
+            VALUES (gen_random_uuid()::text, ${userId}, 'expire', ${-expiredPoints}, ${'Points expired after 12-month validity period'}, false, ${nowSec})`
+      );
+
+      // Notify the user
+      await createUserNotification({
+        userId: Number(userId),
+        category: "system",
+        title: "Loyalty Points Expired",
+        content: `${expiredPoints.toLocaleString()} loyalty points have expired after their 12-month validity period. Earn and redeem points regularly to keep them active.`,
+        actionUrl: "/loyalty",
+        actionLabel: "View Points",
+      }).catch(() => {});
+
+      totalUsersAffected++;
+      totalPointsExpired += expiredPoints;
+    }
+    return { success: true, usersAffected: totalUsersAffected, totalPointsExpired };
+  }),
 });

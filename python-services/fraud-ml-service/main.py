@@ -1,7 +1,8 @@
 """
 Fraud ML Service — FastAPI microservice
-Real-time fraud scoring using statistical anomaly detection,
-velocity analysis, device fingerprinting, and behavioral biometrics.
+Real-time fraud scoring using trained PyTorch GraphSAGE GNN +
+VAE anomaly detector. Falls back to rule-based scoring if
+trained weights are not available.
 """
 
 from __future__ import annotations
@@ -16,18 +17,71 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
+import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from auth import AuthMiddleware
 import db as database
 
-app = FastAPI(title="Fraud ML Service", version="1.0.0")
+app = FastAPI(title="Fraud ML Service", version="2.0.0")
+
+# --- Trained model loading ---
+ML_PLATFORM_DIR = Path(__file__).resolve().parent.parent / "ml-platform"
+CHECKPOINT_DIR = ML_PLATFORM_DIR / "training" / "checkpoints"
+
+_fraud_gnn = None
+_anomaly_vae = None
+_anomaly_scaler = None
+_anomaly_threshold = 10.0
+
+
+def _load_trained_models():
+    """Load trained PyTorch models from checkpoints."""
+    global _fraud_gnn, _anomaly_vae, _anomaly_scaler, _anomaly_threshold
+
+    # Load Fraud GNN
+    gnn_path = CHECKPOINT_DIR / "fraud_gnn" / "best_model.pt"
+    if gnn_path.exists():
+        try:
+            sys.path.insert(0, str(ML_PLATFORM_DIR))
+            from models.fraud_gnn.model import build_model as build_gnn
+            checkpoint = torch.load(gnn_path, weights_only=False, map_location="cpu")
+            _fraud_gnn = build_gnn(checkpoint.get("config"))
+            _fraud_gnn.load_state_dict(checkpoint["model_state_dict"])
+            _fraud_gnn.eval()
+        except Exception as e:
+            print(f"Failed to load FraudGNN: {e}")
+
+    # Load Anomaly VAE
+    vae_path = CHECKPOINT_DIR / "anomaly_detector" / "best_model.pt"
+    if vae_path.exists():
+        try:
+            from models.anomaly_detector.model import build_model as build_vae
+            checkpoint = torch.load(vae_path, weights_only=False, map_location="cpu")
+            _anomaly_vae = build_vae(checkpoint.get("config"))
+            _anomaly_vae.load_state_dict(checkpoint["model_state_dict"])
+            _anomaly_vae.eval()
+            _anomaly_threshold = checkpoint.get("threshold", 10.0)
+            if "scaler_mean" in checkpoint:
+                _anomaly_scaler = {
+                    "mean": np.array(checkpoint["scaler_mean"]),
+                    "scale": np.array(checkpoint["scaler_scale"]),
+                }
+        except Exception as e:
+            print(f"Failed to load AnomalyVAE: {e}")
 
 
 @app.on_event("startup")
 async def _startup():
     await database.ensure_tables()
+    _load_trained_models()
+    model_status = []
+    if _fraud_gnn:
+        model_status.append(f"FraudGNN ({sum(p.numel() for p in _fraud_gnn.parameters()):,} params)")
+    if _anomaly_vae:
+        model_status.append(f"AnomalyVAE ({sum(p.numel() for p in _anomaly_vae.parameters()):,} params)")
+    print(f"Loaded trained models: {model_status or ['none — using rule-based fallback']}")
 
 
 @app.on_event("shutdown")
@@ -157,6 +211,79 @@ def geo_risk(lat: Optional[float], lon: Optional[float]) -> float:
     return 0.15
 
 
+def _gnn_fraud_score(req: FraudScoreRequest) -> Optional[float]:
+    """Score using trained GNN model (if available)."""
+    if _fraud_gnn is None:
+        return None
+
+    HIGH_RISK = {"IR", "KP", "SY", "AF", "SO", "SS", "YE", "MM"}
+    MED_RISK = {"NG", "KE", "GH", "TZ", "ZA", "ET"}
+    HIGH_RISK_CATS = {"gambling", "crypto", "wire_transfer", "money_order"}
+
+    user_features = torch.FloatTensor([[
+        min((req.days_since_last_transaction or 1) / 1095, 1.0),
+        min((req.transactions_last_day or 0) / 100, 1.0),
+        min(req.amount / 10000, 1.0),
+        1.0 if req.is_new_device else 0.0,
+        0.0,
+        0.5,
+        0.5,
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    ]])
+    merchant_features = torch.FloatTensor([[
+        0.5, 0.3, 0.5, 0.01, 0.0, 1.0,
+        0.5,
+        0.8,
+        1.0 if (req.merchant_category or "") in HIGH_RISK_CATS else 0.0,
+        0.0, 0.0, 0.0, 0.0, 0.0,
+    ]])
+
+    node_features = torch.cat([user_features, merchant_features], dim=0)
+    edge_index = torch.LongTensor([[0], [1]])
+    edge_features = torch.FloatTensor([[
+        min(req.amount / 50000, 1.0),
+        0.0, 1.0,
+        min((req.transactions_last_hour or 0) / 20, 1.0),
+        1.0 if req.is_vpn else 0.0,
+        min((req.failed_auth_attempts or 0) / 5, 1.0),
+    ]])
+
+    with torch.no_grad():
+        prob = float(_fraud_gnn.predict_proba(node_features, edge_index, edge_features)[0])
+    return prob
+
+
+def _vae_anomaly_score(req: FraudScoreRequest) -> Optional[float]:
+    """Score using trained VAE anomaly detector (if available)."""
+    if _anomaly_vae is None:
+        return None
+
+    features = np.array([[
+        req.amount,
+        req.transactions_last_hour or 0,
+        req.transactions_last_day or 0,
+        req.days_since_last_transaction or 1,
+        req.failed_auth_attempts or 0,
+        1.0 if req.is_new_device else 0.0,
+        1.0 if req.is_vpn else 0.0,
+    ]], dtype=np.float32)
+
+    # Pad to input_dim
+    input_dim = _anomaly_vae.input_dim
+    padded = np.zeros((1, input_dim), dtype=np.float32)
+    padded[0, :features.shape[1]] = features[0]
+
+    if _anomaly_scaler:
+        padded = (padded - _anomaly_scaler["mean"][:input_dim]) / (_anomaly_scaler["scale"][:input_dim] + 1e-8)
+
+    with torch.no_grad():
+        score = float(_anomaly_vae.anomaly_score(torch.FloatTensor(padded))[0])
+
+    # Normalize to 0-1 range using threshold
+    normalized = min(score / (_anomaly_threshold * 2), 1.0)
+    return normalized
+
+
 def compute_fraud_score(req: FraudScoreRequest) -> Dict[str, Any]:
     factors: Dict[str, float] = {}
 
@@ -199,24 +326,44 @@ def compute_fraud_score(req: FraudScoreRequest) -> Dict[str, Any]:
     if days_gap > 30:
         factors["inactivity_spike"] = min(days_gap / 90.0, 0.6)
 
-    # Weighted composite
-    weights = {
-        "amount_anomaly": 0.30,
-        "velocity": 0.25,
-        "device_risk": 0.20,
-        "ip_risk": 0.10,
-        "merchant_risk": 0.08,
-        "geo_risk": 0.05,
-        "inactivity_spike": 0.02,
-    }
+    # --- Trained model scores ---
+    gnn_score = _gnn_fraud_score(req)
+    vae_score = _vae_anomaly_score(req)
+
+    if gnn_score is not None:
+        factors["gnn_fraud_score"] = gnn_score
+    if vae_score is not None:
+        factors["vae_anomaly_score"] = vae_score
+
+    # Weighted composite — trained models get higher weight when available
+    if gnn_score is not None or vae_score is not None:
+        weights = {
+            "gnn_fraud_score": 0.35,
+            "vae_anomaly_score": 0.25,
+            "amount_anomaly": 0.10,
+            "velocity": 0.10,
+            "device_risk": 0.08,
+            "ip_risk": 0.05,
+            "merchant_risk": 0.03,
+            "geo_risk": 0.02,
+            "inactivity_spike": 0.02,
+        }
+        model_version = "fraud-gnn-v2.0+vae"
+    else:
+        weights = {
+            "amount_anomaly": 0.30,
+            "velocity": 0.25,
+            "device_risk": 0.20,
+            "ip_risk": 0.10,
+            "merchant_risk": 0.08,
+            "geo_risk": 0.05,
+            "inactivity_spike": 0.02,
+        }
+        model_version = "fraud-rules-v1.0"
 
     total_w = sum(weights.get(k, 0.05) for k in factors)
     score = sum(v * weights.get(k, 0.05) for k, v in factors.items()) / max(total_w, 1e-9)
-
-    # Deterministic noise for reproducibility
-    h = int(hashlib.md5(req.transaction_id.encode()).hexdigest(), 16)
-    noise = ((h % 100) / 100.0 - 0.5) * 0.04
-    score = min(max(score + noise, 0.0), 1.0)
+    score = min(max(score, 0.0), 1.0)
 
     if score >= 0.80:
         decision = "block"
@@ -237,7 +384,9 @@ def compute_fraud_score(req: FraudScoreRequest) -> Dict[str, Any]:
         "risk_level": risk_level,
         "decision": decision,
         "contributing_factors": {k: round(v, 4) for k, v in factors.items()},
-        "model_version": "fraud-ml-v1.0",
+        "model_version": model_version,
+        "gnn_loaded": _fraud_gnn is not None,
+        "vae_loaded": _anomaly_vae is not None,
         "scored_at": datetime.utcnow().isoformat(),
     }
 

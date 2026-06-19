@@ -106,8 +106,48 @@ const JURISDICTION_INFO: Record<string, { name: string; currency: string; taxAut
   ET: { name: "Ethiopia", currency: "ETB", taxAuthority: "Ethiopian Revenues and Customs Authority", filingFrequency: "monthly" },
 };
 
-function calculateTaxForTransaction(jurisdictionCode: string, category: string, subTotal: number) {
-  const rules = JURISDICTION_TAX_RULES[jurisdictionCode.toUpperCase()] ?? [];
+// DB-backed tax rule lookup: checks tax_rules then tax_rules_custom, falls back to hardcoded
+async function getTaxRulesForJurisdiction(jurisdictionCode: string): Promise<TaxRule[]> {
+  const code = jurisdictionCode.toUpperCase();
+  const db = await getDb();
+  if (db) {
+    // Check primary tax_rules table first
+    const rows = await db.execute(
+      sql`SELECT * FROM tax_rules WHERE jurisdiction_code = ${code} AND is_active = true ORDER BY priority ASC`
+    );
+    const dbRules = rows as any[];
+    // Also check custom rules
+    let customRows: any[] = [];
+    try {
+      const cr = await db.execute(
+        sql`SELECT * FROM tax_rules_custom WHERE jurisdiction_code = ${code} AND is_active = true ORDER BY priority ASC`
+      );
+      customRows = cr as any[];
+    } catch { /* table may not exist */ }
+
+    const allDbRules = [...dbRules, ...customRows];
+    if (allDbRules.length > 0) {
+      return allDbRules.map(r => ({
+        id: r.id,
+        jurisdictionCode: r.jurisdiction_code,
+        taxType: r.tax_type,
+        name: r.name,
+        rate: Number(r.rate),
+        flatAmount: Number(r.flat_amount ?? 0),
+        currency: r.currency ?? JURISDICTION_INFO[code]?.currency ?? "USD",
+        appliesToCategory: r.applies_to_category ?? "all",
+        minAmount: Number(r.min_amount ?? 0),
+        maxCap: Number(r.max_cap ?? 0),
+        isCompound: Boolean(r.is_compound),
+        priority: Number(r.priority),
+      }));
+    }
+  }
+  return JURISDICTION_TAX_RULES[code] ?? [];
+}
+
+async function calculateTaxForTransaction(jurisdictionCode: string, category: string, subTotal: number) {
+  const rules = await getTaxRulesForJurisdiction(jurisdictionCode);
   const applicableRules = rules
     .filter(r => r.appliesToCategory === "all" || r.appliesToCategory === category.toLowerCase())
     .filter(r => subTotal >= r.minAmount)
@@ -194,8 +234,8 @@ export const taxCollectionRouter = router({
       category: z.string(),
       subTotal: z.number().positive(),
     }))
-    .query(({ input }) => {
-      return calculateTaxForTransaction(input.jurisdictionCode, input.category, input.subTotal);
+    .query(async ({ input }) => {
+      return await calculateTaxForTransaction(input.jurisdictionCode, input.category, input.subTotal);
     }),
 
   // Record a tax collection event (persisted to DB)
@@ -211,7 +251,7 @@ export const taxCollectionRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
-      const result = calculateTaxForTransaction(input.jurisdictionCode, input.category, input.subTotal);
+      const result = await calculateTaxForTransaction(input.jurisdictionCode, input.category, input.subTotal);
       const now = Date.now();
       const taxRecordId = crypto.randomUUID();
 

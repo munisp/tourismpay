@@ -9,6 +9,7 @@
  *            "USD-ZAR", "USD-TZS", "USD-UGX", "USD-XOF", "GLOBAL"
  */
 
+import crypto from "crypto";
 import { z } from "zod";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
@@ -71,7 +72,7 @@ export async function seedKillSwitchCorridors() {
 
 async function recordHistory(
   corridor: string,
-  action: "activated" | "deactivated",
+  action: "activated" | "deactivated" | "scheduled_activate" | "scheduled_deactivate",
   actorId: number | undefined,
   actorName: string | undefined,
   reason: string | undefined,
@@ -379,4 +380,52 @@ export const killSwitchRouter = router({
     .query(async ({ input }) => {
       return isCorridorBlocked(input.senderCurrency, input.recipientCurrency);
     }),
+
+  // Schedule a kill switch activation or deactivation
+  schedule: protectedProcedure
+    .input(z.object({
+      corridor: z.enum(SUPPORTED_CORRIDORS),
+      action: z.enum(["activate", "deactivate"]),
+      scheduledAt: z.number().positive(),
+      reason: z.string().min(5).max(500),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.SYSTEM, ACTIONS.EDIT);
+      const db = await requireDb();
+      const scheduleId = crypto.randomUUID();
+
+      await db.execute(sql`
+        INSERT INTO kill_switch_schedules (id, corridor, action, scheduled_at, reason, created_by, created_by_name, status, created_at)
+        VALUES (${scheduleId}, ${input.corridor}, ${input.action}, ${input.scheduledAt}, ${input.reason}, ${ctx.user.id}, ${ctx.user.name ?? String(ctx.user.id)}, 'pending', ${Date.now()})
+      `);
+
+      await recordHistory(
+        input.corridor,
+        `scheduled_${input.action}`,
+        ctx.user.id,
+        ctx.user.name ?? undefined,
+        `Scheduled ${input.action} at ${new Date(input.scheduledAt).toISOString()}: ${input.reason}`,
+        { scheduleId, scheduledAt: input.scheduledAt }
+      );
+
+      publishEvent(TOPICS.KILL_SWITCH, {
+        type: `kill_switch.scheduled`,
+        payload: { corridor: input.corridor, action: input.action, scheduledAt: input.scheduledAt, reason: input.reason },
+      });
+
+      return { scheduleId, corridor: input.corridor, action: input.action, scheduledAt: input.scheduledAt };
+    }),
+
+  // List pending scheduled kill switch actions
+  listScheduled: protectedProcedure.query(async () => {
+    const db = await requireDb();
+    try {
+      const rows = await db.execute(
+        sql`SELECT * FROM kill_switch_schedules WHERE status = 'pending' ORDER BY scheduled_at ASC`
+      );
+      return rows as any[];
+    } catch {
+      return [];
+    }
+  }),
 });

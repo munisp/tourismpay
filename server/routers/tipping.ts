@@ -120,6 +120,39 @@ const JURISDICTION_TIP_CONFIG: Record<string, TipJurisdictionConfig> = {
   },
 };
 
+// DB-backed tip config lookup with hardcoded fallback
+async function getTipConfigForJurisdiction(jurisdictionCode: string): Promise<TipJurisdictionConfig | null> {
+  const code = jurisdictionCode.toUpperCase();
+  const db = await getDb();
+  if (db) {
+    try {
+      const rows = await db.execute(
+        sql`SELECT * FROM tip_configs WHERE jurisdiction_code = ${code} LIMIT 1`
+      );
+      const dbRows = rows as any[];
+      if (dbRows.length > 0) {
+        const r = dbRows[0];
+        return {
+          code: r.jurisdiction_code,
+          name: r.name,
+          currency: r.currency,
+          defaultPercentages: JSON.parse(r.default_percentages || "[]"),
+          maxPercentage: Number(r.max_percentage),
+          suggestedFlat: JSON.parse(r.suggested_flat || "[]"),
+          culturalNote: r.cultural_note ?? "",
+          taxOnTip: Boolean(r.tax_on_tip),
+          tipTaxRate: Number(r.tip_tax_rate ?? 0),
+          poolSplitRules: JSON.parse(r.pool_split_rules || "[]"),
+          distribution: r.distribution ?? "direct",
+          roundUpUnit: Number(r.round_up_unit ?? 1),
+          serviceChargeIncluded: Boolean(r.service_charge_included),
+        };
+      }
+    } catch { /* table may not exist */ }
+  }
+  return JURISDICTION_TIP_CONFIG[code] ?? null;
+}
+
 function calculateTip(billAmount: number, tipType: "percentage" | "flat" | "round_up", tipValue: number, config: TipJurisdictionConfig) {
   let tipAmount = 0;
   switch (tipType) {
@@ -155,8 +188,8 @@ export const tippingRouter = router({
   // Get tipping config for a jurisdiction
   getConfig: protectedProcedure
     .input(z.object({ jurisdictionCode: z.string().length(2) }))
-    .query(({ input }) => {
-      const config = JURISDICTION_TIP_CONFIG[input.jurisdictionCode.toUpperCase()];
+    .query(async ({ input }) => {
+      const config = await getTipConfigForJurisdiction(input.jurisdictionCode);
       if (!config) {
         return {
           code: input.jurisdictionCode.toUpperCase(),
@@ -202,8 +235,8 @@ export const tippingRouter = router({
       tipType: z.enum(["percentage", "flat", "round_up"]),
       tipValue: z.number().min(0),
     }))
-    .query(({ input }) => {
-      const config = JURISDICTION_TIP_CONFIG[input.jurisdictionCode.toUpperCase()] ?? JURISDICTION_TIP_CONFIG.NG;
+    .query(async ({ input }) => {
+      const config = (await getTipConfigForJurisdiction(input.jurisdictionCode)) ?? JURISDICTION_TIP_CONFIG.NG;
       const result = calculateTip(input.billAmount, input.tipType, input.tipValue, config);
       return {
         billAmount: input.billAmount,
@@ -233,7 +266,7 @@ export const tippingRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
-      const config = JURISDICTION_TIP_CONFIG[input.jurisdictionCode.toUpperCase()] ?? JURISDICTION_TIP_CONFIG.NG;
+      const config = (await getTipConfigForJurisdiction(input.jurisdictionCode)) ?? JURISDICTION_TIP_CONFIG.NG;
       const { tipAmount, taxOnTip, netTip, splits } = calculateTip(input.billAmount, input.tipType, input.tipValue, config);
 
       if (tipAmount <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Tip amount must be positive" });

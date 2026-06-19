@@ -450,6 +450,34 @@ Apply the modification. Return the COMPLETE modified itinerary in the same JSON 
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
+      // Validate establishment availability before booking
+      const [est] = await db.select().from(establishments).where(eq(establishments.id, input.establishmentId)).limit(1);
+      if (!est) throw new TRPCError({ code: "NOT_FOUND", message: "Establishment not found" });
+      if (est.kybStatus === "rejected") throw new TRPCError({ code: "BAD_REQUEST", message: "This establishment is not currently accepting bookings." });
+
+      // Check if product is available (if specified)
+      if (input.productId) {
+        const [product] = await db.select().from(merchantProducts).where(eq(merchantProducts.id, input.productId)).limit(1);
+        if (!product) throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+        if (!product.available) throw new TRPCError({ code: "BAD_REQUEST", message: "This product is not currently available." });
+      }
+
+      // Check capacity for the booking date
+      if (input.date) {
+        const existingBookings = await db
+          .select({ total: sql<number>`COUNT(*)` })
+          .from(touristBookings)
+          .where(and(
+            eq(touristBookings.establishmentId, input.establishmentId),
+            eq(touristBookings.status, "confirmed"),
+            sql`CAST(booking_date AS TEXT) LIKE ${input.date + '%'}`,
+          ));
+        const maxCapacity = Number((est as any)?.maxCapacity ?? 100);
+        if (Number(existingBookings[0]?.total ?? 0) >= maxCapacity) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: `Establishment is fully booked for ${input.date}.` });
+        }
+      }
+
       // Create booking
       const [booking] = await db.insert(touristBookings).values({
         userId: ctx.user.id,

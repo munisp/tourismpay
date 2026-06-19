@@ -974,10 +974,16 @@ export const stablecoinSwapRouter = router({
       fromStablecoin: z.enum(SUPPORTED_STABLECOINS),
       toStablecoin: z.enum(SUPPORTED_STABLECOINS),
       amount: z.number().positive().max(100000),
+      idempotencyKey: z.string().uuid().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       if (input.fromStablecoin === input.toStablecoin) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot swap to same stablecoin" });
+      }
+      // Idempotency check
+      if (input.idempotencyKey) {
+        const existing = await cacheGet<string>(`idem:stableswap:${input.idempotencyKey}`);
+        if (existing) return JSON.parse(existing);
       }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
@@ -1019,7 +1025,11 @@ export const stablecoinSwapRouter = router({
             ${txHash}, ${Date.now()}, ${Date.now()})`;
       });
 
-      return { success: true, outputAmount, swapRate, fee: feeAmount, txHash };
+      const swapResult = { success: true, outputAmount, swapRate, fee: feeAmount, txHash };
+      if (input.idempotencyKey) {
+        await cacheSet(`idem:stableswap:${input.idempotencyKey}`, JSON.stringify(swapResult), 3600);
+      }
+      return swapResult;
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════

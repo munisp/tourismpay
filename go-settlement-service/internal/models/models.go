@@ -113,6 +113,7 @@ type MojaloopTransfer struct {
 	Currency           string                   `json:"currency"`
 	State              MojaloopTransactionState `json:"state"`
 	Fulfilment         string                   `json:"fulfilment,omitempty"`
+	ILPConditionValid  bool                     `json:"ilp_condition_valid"`
 	CompletedTimestamp *time.Time               `json:"completed_timestamp,omitempty"`
 }
 

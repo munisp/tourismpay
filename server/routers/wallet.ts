@@ -166,10 +166,16 @@ export const walletRouter = router({
       counterparty: z.string().min(1).max(200),
       counterpartyAddress: z.string().optional(),
       note: z.string().max(500).optional(),
-      biometricToken: z.string().optional(), // Required for high-value transactions
+      biometricToken: z.string().optional(),
+      idempotencyKey: z.string().uuid().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.WALLET, ACTIONS.EDIT);
+      // Idempotency check
+      if (input.idempotencyKey) {
+        const existing = await cacheGet<string>(`idem:send:${input.idempotencyKey}`);
+        if (existing) return JSON.parse(existing);
+      }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
@@ -367,7 +373,11 @@ export const walletRouter = router({
         amount: input.amount,
         counterparty: input.counterparty,
       }).catch(() => {});
-      return { success: true, txId, fee };
+      const sendResult = { success: true, txId, fee };
+      if (input.idempotencyKey) {
+        await cacheSet(`idem:send:${input.idempotencyKey}`, JSON.stringify(sendResult), 3600);
+      }
+      return sendResult;
     }),
 
   // Get live FX rate between two currencies (uses APPROX_USD_RATES as base)
@@ -560,17 +570,23 @@ export const walletRouter = router({
       return { success: true, txId };
     }),
 
-  // Swap currencies (simulate with fixed rate)
+  // Swap currencies using APPROX_USD_RATES cross-rate with spread
   swap: protectedProcedure
     .input(z.object({
       fromCurrency: z.enum(WALLET_CURRENCIES),
       toCurrency: z.enum(WALLET_CURRENCIES),
       amount: z.number().positive(),
+      idempotencyKey: z.string().uuid().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES.WALLET, ACTIONS.EDIT);
       if (input.fromCurrency === input.toCurrency) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot swap same currency" });
+      }
+      // Idempotency check
+      if (input.idempotencyKey) {
+        const existing = await cacheGet<string>(`idem:swap:${input.idempotencyKey}`);
+        if (existing) return JSON.parse(existing);
       }
       // Per-user rate limit: max 5 swaps per minute
       const swapRateKey = `rl:wallet:swap:${ctx.user.id}`;
@@ -580,7 +596,13 @@ export const walletRouter = router({
       }
       await cacheSet(swapRateKey, (swapCount ?? 0) + 1, 60);
 
-      const rate = 1.0;
+      // Cross-rate via USD with spread
+      const fromUsd = APPROX_USD_RATES[input.fromCurrency] ?? 1;
+      const toUsd = APPROX_USD_RATES[input.toCurrency] ?? 1;
+      const midRate = fromUsd / toUsd;
+      const sameFamilyPairs = new Set(["USDC", "USD"]);
+      const spread = sameFamilyPairs.has(input.fromCurrency) && sameFamilyPairs.has(input.toCurrency) ? 0.003 : 0.005;
+      const rate = midRate * (1 - spread);
       const toAmount = input.amount * rate;
       const feeCents = Math.round(input.amount * 1_000_000 * 2 / 1000); // 0.2% fee in micros
       const fee = feeCents / 1_000_000;
@@ -627,7 +649,11 @@ export const walletRouter = router({
             ${String(input.amount)}, ${String(toAmount)}, ${String(fee)}, ${Math.floor(Date.now() / 1000)}, ${Math.floor(Date.now() / 1000)})
         `;
       });
-      return { success: true, txId, toAmount, rate, fee };
+      const result = { success: true, txId, toAmount, rate, fee, spread };
+      if (input.idempotencyKey) {
+        await cacheSet(`idem:swap:${input.idempotencyKey}`, JSON.stringify(result), 3600);
+      }
+      return result;
     }),
 
   // Top Up wallet via a payout finance request (links wallet to embedded finance)

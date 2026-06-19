@@ -1,7 +1,7 @@
 """
 Compliance Risk Engine — FastAPI microservice
-AML/CFT risk scoring, PEP screening, sanctions screening,
-KYB document verification scoring, and regulatory reporting.
+AML/CFT risk scoring using trained MLP model + rule-based PEP/sanctions.
+Falls back to pure rule-based scoring if trained weights unavailable.
 """
 
 from __future__ import annotations
@@ -15,18 +15,48 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import numpy as np
+import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from auth import AuthMiddleware
 import db as database
 
-app = FastAPI(title="Compliance Risk Engine", version="1.0.0")
+app = FastAPI(title="Compliance Risk Engine", version="2.0.0")
+
+# --- Trained model loading ---
+ML_PLATFORM_DIR = Path(__file__).resolve().parent.parent / "ml-platform"
+CHECKPOINT_DIR = ML_PLATFORM_DIR / "training" / "checkpoints"
+_risk_model = None
+_risk_scaler = None
+
+
+def _load_risk_model():
+    global _risk_model, _risk_scaler
+    model_path = CHECKPOINT_DIR / "risk_scorer" / "best_model.pt"
+    if model_path.exists():
+        try:
+            sys.path.insert(0, str(ML_PLATFORM_DIR))
+            from models.risk_scorer.model import build_model
+            checkpoint = torch.load(model_path, weights_only=False, map_location="cpu")
+            _risk_model = build_model(checkpoint.get("config"))
+            _risk_model.load_state_dict(checkpoint["model_state_dict"])
+            _risk_model.eval()
+            if "scaler_mean" in checkpoint:
+                _risk_scaler = {
+                    "mean": np.array(checkpoint["scaler_mean"]),
+                    "scale": np.array(checkpoint["scaler_scale"]),
+                }
+            print(f"Loaded RiskScorer ({sum(p.numel() for p in _risk_model.parameters()):,} params)")
+        except Exception as e:
+            print(f"Failed to load RiskScorer: {e}")
 
 
 @app.on_event("startup")
 async def _startup():
     await database.ensure_tables()
+    _load_risk_model()
 
 
 @app.on_event("shutdown")
@@ -204,7 +234,34 @@ async def aml_risk_score(req: AMLRiskRequest):
         elif req.transaction_volume_monthly > monthly_revenue * 1.5:
             factors["volume_anomaly_risk"] = 0.3
 
-    # Weighted composite
+    # --- Trained model scoring ---
+    ml_score = None
+    ml_tier = None
+    if _risk_model is not None:
+        HIGH_RISK_C = {"IR", "KP", "SY", "AF", "SO", "SS", "YE", "MM"}
+        MED_RISK_C = {"NG", "KE", "GH", "TZ", "ZA", "ET", "CM", "CI", "SN", "UG"}
+        cc = req.country_of_residence.upper()[:2]
+        feat = np.array([[
+            1.0 if cc in HIGH_RISK_C else 0.5 if cc in MED_RISK_C else 0.0,
+            (req.transaction_volume_monthly or 0) / 1e6,
+            0,  # txn_count placeholder
+            0,  # chargeback_rate placeholder
+            0.5,  # kyb_status
+            1.0 if factors.get("sanctions_risk", 0) > 0.5 else 0.0,
+            1.0 if req.politically_exposed else 0.0,
+            (req.adverse_media_hits or 0) / 3.0,
+            365 / 1095,  # account_age
+            1.0 if req.entity_type == "business" else 0.0,
+            0.0, 0.0,
+        ]], dtype=np.float32)
+        if _risk_scaler:
+            feat = (feat - _risk_scaler["mean"]) / (_risk_scaler["scale"] + 1e-8)
+        with torch.no_grad():
+            result = _risk_model.predict(torch.FloatTensor(feat))
+            ml_score = float(result["risk_score"][0])
+            ml_tier = result["tier"][0]
+
+    # Weighted composite (blend rule-based + ML if available)
     weights = {
         "country_risk": 0.25,
         "incorporation_country_risk": 0.10,
@@ -216,10 +273,17 @@ async def aml_risk_score(req: AMLRiskRequest):
     }
 
     total_w = sum(weights.get(k, 0.05) for k in factors)
-    score = sum(v * weights.get(k, 0.05) for k, v in factors.items()) / max(total_w, 1e-9)
-    score = min(max(score + deterministic_noise(req.entity_id), 0.0), 1.0)
+    rule_score = sum(v * weights.get(k, 0.05) for k, v in factors.items()) / max(total_w, 1e-9)
 
-    risk_rating = "critical" if score >= 0.75 else "high" if score >= 0.55 else "medium" if score >= 0.30 else "low"
+    if ml_score is not None:
+        score = 0.6 * ml_score + 0.4 * rule_score  # blend
+        model_version = "risk-mlp-v2.0+rules"
+    else:
+        score = rule_score + deterministic_noise(req.entity_id)
+        model_version = "compliance-rules-v1.0"
+
+    score = min(max(score, 0.0), 1.0)
+    risk_rating = ml_tier if ml_tier else ("critical" if score >= 0.75 else "high" if score >= 0.55 else "medium" if score >= 0.30 else "low")
 
     due_diligence = "enhanced_due_diligence" if score >= 0.55 else "standard_due_diligence"
 
@@ -239,7 +303,8 @@ async def aml_risk_score(req: AMLRiskRequest):
         "risk_matrix": {k: round(v, 4) for k, v in factors.items()},
         "review_frequency_days": 90 if risk_rating == "low" else 30 if risk_rating == "medium" else 14,
         "scored_at": datetime.utcnow().isoformat(),
-        "model_version": "compliance-v1.0",
+        "model_version": model_version,
+        "ml_model_loaded": _risk_model is not None,
     }
 
 

@@ -1,7 +1,7 @@
 """
 Exchange Rate ML Service — FastAPI microservice
-ML-powered exchange rate forecasting, spread optimization,
-corridor pricing, and rate anomaly detection.
+FX rate forecasting using trained LSTM+Attention model.
+Falls back to EMA-based rules if trained weights unavailable.
 """
 
 from __future__ import annotations
@@ -16,18 +16,45 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
+import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from auth import AuthMiddleware
 import db as database
 
-app = FastAPI(title="Exchange Rate ML Service", version="1.0.0")
+app = FastAPI(title="Exchange Rate ML Service", version="2.0.0")
+
+# --- Trained model loading ---
+ML_PLATFORM_DIR = Path(__file__).resolve().parent.parent / "ml-platform"
+CHECKPOINT_DIR = ML_PLATFORM_DIR / "training" / "checkpoints"
+_fx_model = None
+
+CORRIDOR_MAP = {c: i for i, c in enumerate(
+    ["NGN/USD", "KES/USD", "GHS/USD", "TZS/USD", "ZAR/USD", "ETB/USD"]
+)}
+
+
+def _load_fx_model():
+    global _fx_model
+    model_path = CHECKPOINT_DIR / "fx_forecaster" / "best_model.pt"
+    if model_path.exists():
+        try:
+            sys.path.insert(0, str(ML_PLATFORM_DIR))
+            from models.fx_forecaster.model import build_model
+            checkpoint = torch.load(model_path, weights_only=False, map_location="cpu")
+            _fx_model = build_model(checkpoint.get("config"))
+            _fx_model.load_state_dict(checkpoint["model_state_dict"])
+            _fx_model.eval()
+            print(f"Loaded FXForecaster ({sum(p.numel() for p in _fx_model.parameters()):,} params)")
+        except Exception as e:
+            print(f"Failed to load FXForecaster: {e}")
 
 
 @app.on_event("startup")
 async def _startup():
     await database.ensure_tables()
+    _load_fx_model()
 
 
 @app.on_event("shutdown")
@@ -164,41 +191,82 @@ async def health():
 @app.post("/api/v1/rates/forecast")
 async def forecast_rate(req: RateForecastRequest):
     """
-    Forecast exchange rate using EMA trend + volatility-adjusted random walk.
-    Returns point forecast, confidence interval, and trend direction.
+    Forecast exchange rate using trained LSTM+Attention model.
+    Falls back to EMA-based forecast if model not loaded.
     """
     pair = f"{req.base_currency}/{req.quote_currency}"
     volatility = get_volatility(pair)
-
-    # Use historical rates if provided, otherwise use base rate
-    if req.historical_rates and len(req.historical_rates) >= 3:
-        ema = exponential_moving_average(req.historical_rates)
-        trend = (ema[-1] - ema[0]) / max(len(ema) - 1, 1)
-        current = req.current_rate
-    else:
-        current = req.current_rate
-        trend = 0.0
-
-    # Project forward
     horizon = req.horizon_hours or 24
-    noise = deterministic_noise(f"{pair}-{horizon}")
-    forecast = current + trend * horizon + noise * current
+    current = req.current_rate
+    model_used = "ema_random_walk"
 
-    # Confidence interval (widens with horizon)
-    ci_half = volatility * current * math.sqrt(horizon / 24.0) * 1.96
-    ci_lower = forecast - ci_half
-    ci_upper = forecast + ci_half
+    if _fx_model is not None and req.historical_rates and len(req.historical_rates) >= 10:
+        # --- LSTM model inference ---
+        rates = req.historical_rates
+        seq_len = _fx_model.seq_len
+        if len(rates) < seq_len:
+            rates = [rates[0]] * (seq_len - len(rates)) + rates
+        rates = rates[-seq_len:]
 
-    trend_direction = "up" if trend > 0 else "down" if trend < 0 else "stable"
+        rate_arr = np.array(rates, dtype=np.float32)
+        mean_r, std_r = float(rate_arr.mean()), float(rate_arr.std()) + 1e-8
+        normalized = (rate_arr - mean_r) / std_r
 
-    # Generate hourly forecast points
-    hourly_points = []
-    for h in range(1, min(horizon + 1, 25)):
-        point_noise = deterministic_noise(f"{pair}-{h}", scale=volatility * 0.5)
-        hourly_points.append({
-            "hour": h,
-            "forecast_rate": round(current + trend * h + point_noise * current, 6),
-        })
+        features = np.zeros((seq_len, _fx_model.n_features), dtype=np.float32)
+        features[:, 0] = normalized
+        features[:, 1] = np.gradient(normalized)
+        features[:, 2] = np.abs(np.gradient(normalized)) * 100
+        vol_series = []
+        for i in range(len(normalized)):
+            window = normalized[max(0, i-4):i+1]
+            vol_series.append(float(np.std(window)) if len(window) > 1 else 0.0)
+        features[:, 3] = vol_series
+        features[:, 4] = normalized - 0.001
+        features[:, 5] = normalized + 0.001
+
+        x = torch.FloatTensor(features).unsqueeze(0)
+        corridor_id = torch.LongTensor([CORRIDOR_MAP.get(pair, 0)])
+
+        with torch.no_grad():
+            out = _fx_model(x, corridor_id)
+            n_h = min(horizon, out["point"].shape[1])
+            point_vals = (out["point"][0, :n_h].numpy() * std_r + mean_r).tolist()
+            lower_vals = (out["lower"][0, :n_h].numpy() * std_r + mean_r).tolist()
+            upper_vals = (out["upper"][0, :n_h].numpy() * std_r + mean_r).tolist()
+
+        forecast = point_vals[-1] if point_vals else current
+        ci_lower = lower_vals[-1] if lower_vals else forecast * 0.98
+        ci_upper = upper_vals[-1] if upper_vals else forecast * 1.02
+
+        hourly_points = [
+            {"hour": h + 1, "forecast_rate": round(point_vals[h], 6),
+             "lower_95": round(lower_vals[h], 6), "upper_95": round(upper_vals[h], 6)}
+            for h in range(len(point_vals))
+        ]
+        model_used = "lstm-attention-v2.0"
+    else:
+        # --- Fallback: EMA-based ---
+        if req.historical_rates and len(req.historical_rates) >= 3:
+            ema = exponential_moving_average(req.historical_rates)
+            trend = (ema[-1] - ema[0]) / max(len(ema) - 1, 1)
+        else:
+            trend = 0.0
+
+        noise = deterministic_noise(f"{pair}-{horizon}")
+        forecast = current + trend * horizon + noise * current
+        ci_half = volatility * current * math.sqrt(horizon / 24.0) * 1.96
+        ci_lower = forecast - ci_half
+        ci_upper = forecast + ci_half
+
+        hourly_points = []
+        for h in range(1, min(horizon + 1, 25)):
+            point_noise = deterministic_noise(f"{pair}-{h}", scale=volatility * 0.5)
+            hourly_points.append({
+                "hour": h,
+                "forecast_rate": round(current + trend * h + point_noise * current, 6),
+            })
+
+    trend_direction = "up" if forecast > current else "down" if forecast < current else "stable"
 
     await database.execute(
         "INSERT INTO fx_rate_predictions (base_currency, quote_currency, predicted_rate, confidence, horizon_hours) VALUES ($1,$2,$3,$4,$5)",
@@ -217,7 +285,8 @@ async def forecast_rate(req: RateForecastRequest):
         "trend_direction": trend_direction,
         "volatility_annualized": round(volatility * math.sqrt(252), 4),
         "hourly_forecast": hourly_points,
-        "model": "ema_random_walk",
+        "model": model_used,
+        "lstm_loaded": _fx_model is not None,
         "generated_at": datetime.utcnow().isoformat(),
     }
 
