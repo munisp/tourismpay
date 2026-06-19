@@ -1,8 +1,11 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+import crypto from "node:crypto";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+
+const BUILD_HASH = crypto.randomBytes(8).toString("hex");
 
 
 const pwaPlugin = VitePWA({
@@ -81,6 +84,9 @@ const pwaPlugin = VitePWA({
 const plugins = [react(), tailwindcss(), pwaPlugin];
 
 export default defineConfig({
+  define: {
+    "import.meta.env.VITE_BUILD_HASH": JSON.stringify(BUILD_HASH),
+  },
   optimizeDeps: {
     include: ["react-colorful"],
   },
