@@ -16,12 +16,23 @@ import { publishEvent, TOPICS } from "../_core/kafka";
 import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
 import { recordWalletTransaction } from "../_core/metrics";
 import { getOrCreateAccount, createTransfer, LEDGER_CODES, CURRENCY_CODES, TRANSFER_CODES } from "../_core/tigerbeetle";
+import { getFxRate, getLiveRates } from "../_core/fxRates";
 
-// USD exchange rates for high-value threshold check (approximate)
+// Fallback USD rates (used only when live FX service is unreachable)
 const APPROX_USD_RATES: Record<string, number> = {
   USDC: 1, USD: 1, "CBDC-NG": 0.00065, "CBDC-KE": 0.0077, "CBDC-GH": 0.067,
   "CBDC-ZA": 0.054, XLM: 0.11, NGN: 0.00065, KES: 0.0077, GHS: 0.067, ZAR: 0.054,
 };
+
+/** Get USD equivalent of an amount using live rates, falling back to APPROX_USD_RATES */
+async function getUsdEquivalent(amount: number, currency: string): Promise<number> {
+  try {
+    const { rate } = await getFxRate(currency, "USD");
+    return amount * rate;
+  } catch {
+    return amount * (APPROX_USD_RATES[currency] ?? 1);
+  }
+}
 
 // Module-level set for daily critical breach dedup (resets on server restart)
 const _criticalBreachNotifiedToday = new Set<string>();
@@ -180,7 +191,7 @@ export const walletRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       // Biometric re-auth gate for high-value transactions
-      const usdEquivalent = input.amount * (APPROX_USD_RATES[input.currency] ?? 1);
+      const usdEquivalent = await getUsdEquivalent(input.amount, input.currency);
       if (usdEquivalent >= HIGH_VALUE_TX_THRESHOLD_USD) {
         if (!input.biometricToken) {
           throw new TRPCError({
@@ -380,7 +391,7 @@ export const walletRouter = router({
       return sendResult;
     }),
 
-  // Get live FX rate between two currencies (uses APPROX_USD_RATES as base)
+  // Get live FX rate between two currencies (live API with fallback chain)
   getFxRate: protectedProcedure
     .input(z.object({
       fromCurrency: z.enum(WALLET_CURRENCIES),
@@ -388,26 +399,23 @@ export const walletRouter = router({
       amount: z.number().positive().optional(),
     }))
     .query(async ({ input }) => {
-      const fromUsd = APPROX_USD_RATES[input.fromCurrency] ?? 1;
-      const toUsd = APPROX_USD_RATES[input.toCurrency] ?? 1;
-      // rate = how many toCurrency per 1 fromCurrency
-      const rate = fromUsd / toUsd;
+      const { rate: midRate, source } = await getFxRate(input.fromCurrency, input.toCurrency);
       // Spread: 0.3% for same-family (USD/USDC), 0.5% for cross-family
       const sameFamilyPairs = new Set(["USDC", "USD"]);
       const spread = sameFamilyPairs.has(input.fromCurrency) && sameFamilyPairs.has(input.toCurrency) ? 0.003 : 0.005;
-      const effectiveRate = rate * (1 - spread);
-      const convertedAmount = input.amount !== undefined ? input.amount * rate : undefined;
+      const effectiveRate = midRate * (1 - spread);
+      const convertedAmount = input.amount !== undefined ? input.amount * midRate : undefined;
       const effectiveAmount = input.amount !== undefined ? input.amount * effectiveRate : undefined;
       return {
         fromCurrency: input.fromCurrency,
         toCurrency: input.toCurrency,
-        rate,
+        rate: midRate,
         effectiveRate,
         spread,
         spreadPct: spread * 100,
         convertedAmount,
         effectiveAmount,
-        rateSource: "internal",
+        rateSource: source,
         timestamp: Date.now(),
       };
     }),
@@ -429,15 +437,13 @@ export const walletRouter = router({
       }
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-      // Compute FX
-      const fromUsd = APPROX_USD_RATES[input.fromCurrency] ?? 1;
-      const toUsd = APPROX_USD_RATES[input.toCurrency] ?? 1;
-      const rate = fromUsd / toUsd;
+      // Compute FX using live rates
+      const { rate: fxMidRate, source: fxSource } = await getFxRate(input.fromCurrency, input.toCurrency);
       const spread = 0.005;
-      const effectiveRate = rate * (1 - spread);
+      const effectiveRate = fxMidRate * (1 - spread);
       const convertedAmount = input.amount * effectiveRate;
       // Biometric gate for high-value
-      const usdEquivalent = input.amount * fromUsd;
+      const usdEquivalent = await getUsdEquivalent(input.amount, input.fromCurrency);
       if (usdEquivalent >= HIGH_VALUE_TX_THRESHOLD_USD) {
         if (!input.biometricToken) {
           throw new TRPCError({
@@ -570,7 +576,7 @@ export const walletRouter = router({
       return { success: true, txId };
     }),
 
-  // Swap currencies using APPROX_USD_RATES cross-rate with spread
+  // Swap currencies using live FX cross-rate with spread
   swap: protectedProcedure
     .input(z.object({
       fromCurrency: z.enum(WALLET_CURRENCIES),
@@ -596,13 +602,11 @@ export const walletRouter = router({
       }
       await cacheSet(swapRateKey, (swapCount ?? 0) + 1, 60);
 
-      // Cross-rate via USD with spread
-      const fromUsd = APPROX_USD_RATES[input.fromCurrency] ?? 1;
-      const toUsd = APPROX_USD_RATES[input.toCurrency] ?? 1;
-      const midRate = fromUsd / toUsd;
+      // Cross-rate via live FX service with spread
+      const { rate: fxMid, source: fxSrc } = await getFxRate(input.fromCurrency, input.toCurrency);
       const sameFamilyPairs = new Set(["USDC", "USD"]);
       const spread = sameFamilyPairs.has(input.fromCurrency) && sameFamilyPairs.has(input.toCurrency) ? 0.003 : 0.005;
-      const rate = midRate * (1 - spread);
+      const rate = fxMid * (1 - spread);
       const toAmount = input.amount * rate;
       const feeCents = Math.round(input.amount * 1_000_000 * 2 / 1000); // 0.2% fee in micros
       const fee = feeCents / 1_000_000;
@@ -1573,14 +1577,25 @@ export const walletRouter = router({
       } catch {
         // fall through to static
       }
-      // Static fallback: derive cross rates through USD
-      const baseUsd = APPROX_USD_RATES[base] ?? 1;
-      const rates: Record<string, number> = {};
-      for (const currency of WALLET_CURRENCIES) {
-        const targetUsd = APPROX_USD_RATES[currency] ?? 1;
-        rates[currency] = parseFloat((baseUsd / targetUsd).toFixed(8));
+      // Static fallback: derive cross rates via live FX service
+      try {
+        const { rates: liveRates, source: liveSource } = await getLiveRates();
+        const baseRate = liveRates[base] ?? 1;
+        const rates: Record<string, number> = {};
+        for (const currency of WALLET_CURRENCIES) {
+          const targetRate = liveRates[currency] ?? 1;
+          rates[currency] = parseFloat((targetRate / baseRate).toFixed(8));
+        }
+        return { base, rates, source: liveSource as "live" | "static" };
+      } catch {
+        const baseUsd = APPROX_USD_RATES[base] ?? 1;
+        const rates: Record<string, number> = {};
+        for (const currency of WALLET_CURRENCIES) {
+          const targetUsd = APPROX_USD_RATES[currency] ?? 1;
+          rates[currency] = parseFloat((baseUsd / targetUsd).toFixed(8));
+        }
+        return { base, rates, source: "static" as const };
       }
-      return { base, rates, source: "static" as const };
     }),
 
   // ── Convert Currency ────────────────────────────────────────────────────────
@@ -1597,10 +1612,9 @@ export const walletRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const userId = String(ctx.user.id);
-      // Derive exchange rate via USD
-      const fromUsd = APPROX_USD_RATES[input.fromCurrency] ?? 1;
-      const toUsd = APPROX_USD_RATES[input.toCurrency] ?? 1;
-      const rate = parseFloat((fromUsd / toUsd).toFixed(8));
+      // Derive exchange rate via live FX service
+      const { rate: fxRate } = await getFxRate(input.fromCurrency, input.toCurrency);
+      const rate = parseFloat(fxRate.toFixed(8));
       const toAmount = parseFloat((input.fromAmount * rate).toFixed(8));
       // Check source balance
       const [srcRow] = await db
