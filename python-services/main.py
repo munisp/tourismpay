@@ -1342,10 +1342,32 @@ async def gds_revenue_optimize(req: GDSRevenueOptimizeRequest):
     }
 
 
+async def _get_seasonality(country_code: str) -> dict:
+    """DB-first seasonality lookup with hardcoded fallback."""
+    code = country_code.upper()
+    if db_pool:
+        try:
+            row = await db_pool.fetchrow(
+                "SELECT peak_months, low_months, peak_multiplier, low_multiplier FROM seasonality_config WHERE country_code = $1 AND is_active = true",
+                code,
+            )
+            if row:
+                import json as _json
+                return {
+                    "peak": _json.loads(row["peak_months"]) if isinstance(row["peak_months"], str) else row["peak_months"],
+                    "low": _json.loads(row["low_months"]) if isinstance(row["low_months"], str) else row["low_months"],
+                    "mult_peak": float(row["peak_multiplier"]),
+                    "mult_low": float(row["low_multiplier"]),
+                }
+        except Exception:
+            pass
+    return GDS_SEASONALITY.get(code)
+
+
 @app.get("/api/gds/seasonality/{country_code}")
 async def gds_seasonality(country_code: str):
-    """Return seasonality data for a country (peak/low months, multipliers)."""
-    data = GDS_SEASONALITY.get(country_code.upper())
+    """Return seasonality data for a country (peak/low months, multipliers). DB-first with hardcoded fallback."""
+    data = await _get_seasonality(country_code)
     if not data:
         raise HTTPException(status_code=404, detail=f"No seasonality data for {country_code}")
     return {

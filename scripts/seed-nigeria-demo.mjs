@@ -344,16 +344,21 @@ async function seedWallets() {
     balCount += 2;
   }
 
+  function estCounterparty(name) {
+    const id = estDbIds[name];
+    return id ? `${name} (est:${id})` : name;
+  }
+
   async function seedTxsForUser(uId) {
     const estNames = Object.keys(estDbIds);
     const txs = [
       { type: "load", from: "NGN", amt: randomFloat(50000, 200000, 0), cpty: randomItem(NIGERIAN_BANKS), note: "Bank transfer load" },
       { type: "load", from: "USD", amt: randomFloat(100, 2000, 2), cpty: "Paystack", note: "Card load" },
       { type: "swap", from: "USD", to: "NGN", amt: randomFloat(100, 1000, 2), toAmt: randomFloat(155000, 1550000, 0), cpty: "FX Engine", note: "USD to NGN conversion" },
-      { type: "send", from: "NGN", amt: randomFloat(2000, 25000, 0), cpty: randomItem(estNames), note: "QR payment" },
-      { type: "send", from: "NGN", amt: randomFloat(1500, 50000, 0), cpty: randomItem(estNames), note: "Payment at merchant" },
-      { type: "send", from: "NGN", amt: randomFloat(500, 5000, 0), cpty: randomItem(estNames), note: "Tip" },
-      { type: "send", from: "NGN", amt: randomFloat(3000, 95000, 0), cpty: randomItem(estNames), note: "Booking payment" },
+      { type: "send", from: "NGN", amt: randomFloat(2000, 25000, 0), cpty: estCounterparty(randomItem(estNames)), note: "QR payment" },
+      { type: "send", from: "NGN", amt: randomFloat(1500, 50000, 0), cpty: estCounterparty(randomItem(estNames)), note: "Payment at merchant" },
+      { type: "send", from: "NGN", amt: randomFloat(500, 5000, 0), cpty: estCounterparty(randomItem(estNames)), note: "Tip" },
+      { type: "send", from: "NGN", amt: randomFloat(3000, 95000, 0), cpty: estCounterparty(randomItem(estNames)), note: "Booking payment" },
       { type: "load", from: "NGN", amt: randomFloat(30000, 150000, 0), cpty: "Flutterwave", note: "Mobile money load" },
     ];
     for (const tx of txs) {
@@ -378,7 +383,7 @@ async function seedWallets() {
     await sql`
       INSERT INTO wallet_transactions (id, user_id, type, status, from_currency, to_currency, amount, fee, counterparty, note, created_at, completed_at)
       VALUES (${uuid()}, ${ownerUId}, ${randomItem(["send", "receive", "load"])}, ${"completed"}, ${"NGN"}, ${"NGN"}, ${randomFloat(5000, 200000, 0)},
-              ${randomFloat(0, 100, 2)}, ${estName}, ${randomItem(["Platform settlement", "Merchant payment", "Tourist refund", "Revenue collection", "FX conversion"])},
+              ${randomFloat(0, 100, 2)}, ${estCounterparty(estName)}, ${randomItem(["Platform settlement", "Merchant payment", "Tourist refund", "Revenue collection", "FX conversion"])},
               ${pastEpochSec(randomInt(1, 30))}, ${pastEpochSec(randomInt(0, 1))})
       ON CONFLICT DO NOTHING
     `;
@@ -923,7 +928,8 @@ async function seedQRTokens() {
   for (const e of ESTABLISHMENTS.slice(0, 10)) {
     const estId = estDbIds[e.name];
     if (!estId) continue;
-    for (let i = 1; i <= randomInt(2, 4); i++) {
+    // Pending tokens (available for scanning)
+    for (let i = 1; i <= randomInt(1, 2); i++) {
       await sql`
         INSERT INTO qr_payment_tokens (token, establishment_id, amount_usd, currency, description, status, expires_at)
         VALUES (${uuid()}, ${estId}, ${null}, ${"NGN"}, ${`${e.name} - Table ${i}`}, ${"pending"}, ${futureDate(30)})
@@ -931,8 +937,18 @@ async function seedQRTokens() {
       `;
       count++;
     }
+    // Paid tokens (these populate merchant revenue)
+    for (let i = 1; i <= randomInt(3, 8); i++) {
+      const amount = randomFloat(2000, 75000, 2);
+      await sql`
+        INSERT INTO qr_payment_tokens (token, establishment_id, amount_usd, currency, description, status, paid_at, expires_at)
+        VALUES (${uuid()}, ${estId}, ${amount}, ${"NGN"}, ${`${e.name} - Order #${randomInt(100,999)}`}, ${"paid"}, ${new Date(Date.now() - randomInt(1, 45) * 86400000)}, ${futureDate(30)})
+        ON CONFLICT DO NOTHING
+      `;
+      count++;
+    }
   }
-  console.log(`    OK ${count} QR tokens seeded`);
+  console.log(`    OK ${count} QR tokens seeded (including paid tokens for merchant revenue)`);
 }
 
 async function seedOwnerEstablishments() {
@@ -957,14 +973,24 @@ async function seedOwnerEstablishments() {
     ON CONFLICT DO NOTHING
   `;
 
-  // Seed owner's QR tokens
+  // Seed owner's QR tokens — mix of pending and paid for revenue display
   for (const e of ownerEstablishments) {
     const estId = estDbIds[e.name];
     if (!estId) continue;
-    for (let i = 1; i <= 3; i++) {
+    // Pending tokens
+    for (let i = 1; i <= 2; i++) {
       await sql`
         INSERT INTO qr_payment_tokens (token, establishment_id, amount_usd, currency, description, status, expires_at)
         VALUES (${uuid()}, ${estId}, ${null}, ${"NGN"}, ${`${e.name} - Table ${i} (Owner)`}, ${"pending"}, ${futureDate(30)})
+        ON CONFLICT DO NOTHING
+      `;
+    }
+    // Paid tokens — these show as merchant revenue
+    for (let i = 1; i <= randomInt(5, 12); i++) {
+      const amount = randomFloat(3000, 95000, 2);
+      await sql`
+        INSERT INTO qr_payment_tokens (token, establishment_id, amount_usd, currency, description, status, paid_at, expires_at)
+        VALUES (${uuid()}, ${estId}, ${amount}, ${"NGN"}, ${`${e.name} - Order #${randomInt(100,999)}`}, ${"paid"}, ${new Date(Date.now() - randomInt(0, 30) * 86400000)}, ${futureDate(30)})
         ON CONFLICT DO NOTHING
       `;
     }

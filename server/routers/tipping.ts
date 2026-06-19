@@ -271,6 +271,12 @@ export const tippingRouter = router({
 
       if (tipAmount <= 0) throw new TRPCError({ code: "BAD_REQUEST", message: "Tip amount must be positive" });
 
+      // Minimum tip per jurisdiction (prevents micro-tip spam)
+      const minTip = config.suggestedFlat[0] ?? 1;
+      if (tipAmount < minTip * 0.1) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Minimum tip in ${config.name} is ${(minTip * 0.1).toFixed(2)} ${input.currency}` });
+      }
+
       // Check sender wallet balance
       const walletRows = await db.execute(
         sql`SELECT balance FROM wallet_balances WHERE user_id = ${ctx.user.id} AND currency = ${input.currency} LIMIT 1`

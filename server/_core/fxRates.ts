@@ -16,7 +16,14 @@ interface RateCache {
 }
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes — log warning if cache older than this
 let rateCache: RateCache | null = null;
+
+// Circuit breaker: stop hammering APIs after repeated failures
+let consecutiveFailures = 0;
+const CIRCUIT_BREAKER_THRESHOLD = 5;
+const CIRCUIT_BREAKER_COOLDOWN_MS = 60 * 1000; // 1 minute
+let circuitOpenUntil = 0;
 
 /** Hardcoded fallback rates (USD base) — updated periodically */
 const HARDCODED_RATES: Record<string, number> = {
@@ -88,29 +95,52 @@ async function fetchFromFrankfurter(): Promise<Record<string, number> | null> {
 
 /** Get all rates with USD as base, using cache and fallback chain */
 export async function getLiveRates(): Promise<{ rates: Record<string, number>; source: string }> {
+  const now = Date.now();
+
   // Return cached rates if still fresh
-  if (rateCache && Date.now() - rateCache.fetchedAt < CACHE_TTL_MS) {
+  if (rateCache && now - rateCache.fetchedAt < CACHE_TTL_MS) {
     return { rates: rateCache.rates, source: rateCache.source };
+  }
+
+  // Staleness warning — rates older than 30 minutes
+  if (rateCache && now - rateCache.fetchedAt > STALE_THRESHOLD_MS) {
+    logger.warn(`[FX] Rate cache stale — age: ${Math.round((now - rateCache.fetchedAt) / 60000)}min, source: ${rateCache.source}`);
+  }
+
+  // Circuit breaker — skip live API calls if too many recent failures
+  if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD && now < circuitOpenUntil) {
+    logger.warn(`[FX] Circuit breaker open — ${consecutiveFailures} consecutive failures, cooling down`);
+    if (rateCache) return { rates: rateCache.rates, source: `${rateCache.source} (circuit-breaker)` };
+    return { rates: HARDCODED_RATES, source: "hardcoded-fallback (circuit-breaker)" };
   }
 
   // Tier 1: exchangerate-api.com
   const tier1 = await fetchFromExchangeRateApi();
   if (tier1) {
-    rateCache = { rates: tier1, fetchedAt: Date.now(), source: "exchangerate-api.com" };
+    consecutiveFailures = 0;
+    rateCache = { rates: tier1, fetchedAt: now, source: "exchangerate-api.com" };
     return { rates: tier1, source: "exchangerate-api.com" };
   }
 
   // Tier 2: frankfurter.app
   const tier2 = await fetchFromFrankfurter();
   if (tier2) {
+    consecutiveFailures = 0;
     // Frankfurter doesn't have crypto or African currencies — merge with hardcoded for those
     const merged = { ...HARDCODED_RATES, ...tier2 };
-    rateCache = { rates: merged, fetchedAt: Date.now(), source: "frankfurter.app" };
+    rateCache = { rates: merged, fetchedAt: now, source: "frankfurter.app" };
     return { rates: merged, source: "frankfurter.app" };
   }
 
+  // Both APIs failed — increment circuit breaker
+  consecutiveFailures++;
+  if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+    circuitOpenUntil = now + CIRCUIT_BREAKER_COOLDOWN_MS;
+    logger.error(`[FX] Circuit breaker opened after ${consecutiveFailures} failures — cooldown ${CIRCUIT_BREAKER_COOLDOWN_MS / 1000}s`);
+  }
+
   // Tier 3: Hardcoded fallback
-  rateCache = { rates: HARDCODED_RATES, fetchedAt: Date.now(), source: "hardcoded-fallback" };
+  rateCache = { rates: HARDCODED_RATES, fetchedAt: now, source: "hardcoded-fallback" };
   return { rates: HARDCODED_RATES, source: "hardcoded-fallback" };
 }
 

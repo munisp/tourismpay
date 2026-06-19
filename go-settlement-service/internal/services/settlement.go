@@ -21,24 +21,75 @@ type SettlementService struct {
 	mu               sync.RWMutex
 }
 
+// Default fee structure (used when DB config not available)
+var defaultFeeStructure = models.FeeStructure{
+	PlatformFeePercent:       3.0,
+	PaymentProcessingPercent: 1.5,
+	SettlementFeeFixed:       5.0,
+	MinimumSettlement:        100.0,
+}
+
+// Default provider accounts (used when DB config not available)
+var defaultProviderAccounts = map[string]models.ProviderAccount{
+	"safari_lodge":     {Bank: "crdb", Account: "1234567890"},
+	"serengeti_tours":  {Bank: "nmb", Account: "0987654321"},
+	"zanzibar_resorts": {Bank: "crdb", Account: "1122334455"},
+	"tanapa":           {Bank: "nmb", Account: "5566778899"},
+	"coastal_aviation": {Bank: "crdb", Account: "9988776655"},
+}
+
 func NewSettlementService(ledger *TigerBeetleLedgerService, mojaloop *MojaloopDFSPService) *SettlementService {
-	return &SettlementService{
-		ledger:   ledger,
-		mojaloop: mojaloop,
-		feeStructure: models.FeeStructure{
-			PlatformFeePercent:       3.0,
-			PaymentProcessingPercent: 1.5,
-			SettlementFeeFixed:       5.0,
-			MinimumSettlement:        100.0,
-		},
-		providerAccounts: map[string]models.ProviderAccount{
-			"safari_lodge":     {Bank: "crdb", Account: "1234567890"},
-			"serengeti_tours":  {Bank: "nmb", Account: "0987654321"},
-			"zanzibar_resorts": {Bank: "crdb", Account: "1122334455"},
-			"tanapa":           {Bank: "nmb", Account: "5566778899"},
-			"coastal_aviation": {Bank: "crdb", Account: "9988776655"},
-		},
+	svc := &SettlementService{
+		ledger:           ledger,
+		mojaloop:         mojaloop,
+		feeStructure:     defaultFeeStructure,
+		providerAccounts: defaultProviderAccounts,
 	}
+	// Try to load configuration from DB; fall back to defaults
+	svc.loadConfigFromDB()
+	return svc
+}
+
+// loadConfigFromDB attempts to read fee_structure and provider_accounts from PostgreSQL.
+func (s *SettlementService) loadConfigFromDB() {
+	if !s.hasDB() {
+		return
+	}
+	// Fee structure from settlement_config table
+	var pf, pp, sf, ms float64
+	err := s.db().QueryRow(
+		"SELECT platform_fee_percent, processing_fee_percent, settlement_fee_fixed, minimum_settlement FROM settlement_config WHERE is_active = true ORDER BY updated_at DESC LIMIT 1",
+	).Scan(&pf, &pp, &sf, &ms)
+	if err == nil {
+		s.feeStructure = models.FeeStructure{
+			PlatformFeePercent:       pf,
+			PaymentProcessingPercent: pp,
+			SettlementFeeFixed:       sf,
+			MinimumSettlement:        ms,
+		}
+	}
+	// Provider accounts from settlement_provider_accounts table
+	rows, err := s.db().Query("SELECT provider_id, bank_code, account_number FROM settlement_provider_accounts WHERE is_active = true")
+	if err == nil {
+		defer rows.Close()
+		loaded := make(map[string]models.ProviderAccount)
+		for rows.Next() {
+			var pid, bank, account string
+			if rows.Scan(&pid, &bank, &account) == nil {
+				loaded[pid] = models.ProviderAccount{Bank: bank, Account: account}
+			}
+		}
+		if len(loaded) > 0 {
+			s.providerAccounts = loaded
+		}
+	}
+}
+
+// ReloadConfig re-reads fee structure and provider accounts from DB (for admin hot-reload).
+func (s *SettlementService) ReloadConfig() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.loadConfigFromDB()
 }
 
 func (s *SettlementService) db() *sql.DB {

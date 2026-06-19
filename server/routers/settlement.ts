@@ -366,4 +366,41 @@ export const settlementRouter = router({
       volume: Number(r.volume),
     }));
   }),
+
+  // ── T+n settlement scheduling ──────────────────────────────────────────────
+  scheduleSettlement: settlementProcedure
+    .input(z.object({
+      settlementId: z.string(),
+      tPlusDays: z.number().int().min(0).max(30).default(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await requireDb();
+      const scheduledDate = new Date(Date.now() + input.tPlusDays * 86_400_000);
+      const result = await db.execute(
+        sql`UPDATE ps_settlements
+            SET scheduled_at = ${scheduledDate.getTime()},
+                status = CASE WHEN status = 'pending' THEN 'scheduled' ELSE status END,
+                updated_at = ${Date.now()}
+            WHERE id = ${input.settlementId}
+              AND status IN ('pending', 'scheduled')
+            RETURNING id, status`
+      );
+      const updated = (result as any[])[0];
+      if (!updated) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Settlement not found or not in pending/scheduled status" });
+      }
+      await createAuditLog({
+        actorId: ctx.user.id,
+        actorName: ctx.user.name || String(ctx.user.id),
+        action: "settlement.schedule",
+        entityType: "ps_settlement",
+        entityId: input.settlementId,
+        after: { tPlusDays: input.tPlusDays, scheduledAt: scheduledDate.toISOString() },
+      });
+      return {
+        settlementId: input.settlementId,
+        scheduledAt: scheduledDate.toISOString(),
+        tPlusDays: input.tPlusDays,
+      };
+    }),
 });
