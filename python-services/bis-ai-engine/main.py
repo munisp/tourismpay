@@ -1,7 +1,8 @@
 """
 BIS AI Engine — FastAPI microservice
-Provides AI-powered investigation scoring, entity risk profiling,
-network graph analysis, and auto-flagging for the BIS module.
+AI-powered investigation scoring using trained RiskScorer MLP +
+graph-based analysis via Neo4j/NetworkX.
+Falls back to rule-based scoring if models unavailable.
 """
 
 from __future__ import annotations
@@ -18,18 +19,56 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
+import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from auth import AuthMiddleware
 import db as database
 
-app = FastAPI(title="BIS AI Engine", version="1.0.0")
+app = FastAPI(title="BIS AI Engine", version="2.0.0")
+
+# --- Trained model + graph loading ---
+ML_PLATFORM_DIR = Path(__file__).resolve().parent.parent / "ml-platform"
+CHECKPOINT_DIR = ML_PLATFORM_DIR / "training" / "checkpoints"
+_risk_model = None
+_risk_scaler = None
+_graph_analyzer = None
+
+
+def _load_models():
+    global _risk_model, _risk_scaler, _graph_analyzer
+    model_path = CHECKPOINT_DIR / "risk_scorer" / "best_model.pt"
+    if model_path.exists():
+        try:
+            sys.path.insert(0, str(ML_PLATFORM_DIR))
+            from models.risk_scorer.model import build_model
+            checkpoint = torch.load(model_path, weights_only=False, map_location="cpu")
+            _risk_model = build_model(checkpoint.get("config"))
+            _risk_model.load_state_dict(checkpoint["model_state_dict"])
+            _risk_model.eval()
+            if "scaler_mean" in checkpoint:
+                _risk_scaler = {
+                    "mean": np.array(checkpoint["scaler_mean"]),
+                    "scale": np.array(checkpoint["scaler_scale"]),
+                }
+            print(f"BIS: Loaded RiskScorer ({sum(p.numel() for p in _risk_model.parameters()):,} params)")
+        except Exception as e:
+            print(f"BIS: Failed to load RiskScorer: {e}")
+
+    try:
+        from graph.neo4j_integration import GraphAnalyzer
+        _graph_analyzer = GraphAnalyzer()
+        stats = _graph_analyzer.get_graph_stats()
+        print(f"BIS: Graph analyzer ready ({stats['backend']})")
+    except Exception as e:
+        print(f"BIS: Graph analyzer unavailable: {e}")
 
 
 @app.on_event("startup")
 async def _startup():
     await database.ensure_tables()
+    _load_models()
 
 
 @app.on_event("shutdown")

@@ -115,3 +115,10 @@ rust-kyc-service/target/
 # Python
 __pycache__/
 *.pyc
+
+# ML Platform — generated data and model weights
+python-services/ml-platform/data/synthetic/generated/
+python-services/ml-platform/training/checkpoints/
+python-services/ml-platform/lakehouse/store/
+*.pt
+*.parquet
