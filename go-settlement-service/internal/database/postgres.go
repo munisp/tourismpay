@@ -366,6 +366,39 @@ func runMigrations() error {
 			is_active BOOLEAN NOT NULL DEFAULT true,
 			effective_from BIGINT NOT NULL DEFAULT 0
 		)`,
+		`CREATE TABLE IF NOT EXISTS reconciliation_reports (
+			report_id VARCHAR(64) PRIMARY KEY,
+			period_start TIMESTAMPTZ NOT NULL,
+			period_end TIMESTAMPTZ NOT NULL,
+			total_bookings INT NOT NULL DEFAULT 0,
+			total_revenue DECIMAL(18,2) NOT NULL DEFAULT 0,
+			total_settlements DECIMAL(18,2) NOT NULL DEFAULT 0,
+			discrepancies JSONB NOT NULL DEFAULT '[]',
+			status VARCHAR(20) NOT NULL DEFAULT 'CLEAN',
+			generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS mojaloop_quotes (
+			quote_id VARCHAR(64) PRIMARY KEY,
+			transaction_id VARCHAR(64) NOT NULL,
+			payer_fsp VARCHAR(64) NOT NULL,
+			payee_fsp VARCHAR(64) NOT NULL,
+			amount DECIMAL(18,2) NOT NULL,
+			currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+			fees DECIMAL(18,2) NOT NULL DEFAULT 0,
+			commission DECIMAL(18,2) NOT NULL DEFAULT 0,
+			expiration TIMESTAMPTZ NOT NULL,
+			condition VARCHAR(256),
+			ilp_packet VARCHAR(256),
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS mojaloop_settlement_windows (
+			window_id VARCHAR(64) PRIMARY KEY,
+			state VARCHAR(20) NOT NULL DEFAULT 'OPEN',
+			total_transfers INT NOT NULL DEFAULT 0,
+			total_amount DECIMAL(18,2) NOT NULL DEFAULT 0,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			closed_at TIMESTAMPTZ
+		)`,
 		`CREATE TABLE IF NOT EXISTS tip_configs (
 			jurisdiction_code VARCHAR(10) PRIMARY KEY,
 			currency VARCHAR(10) NOT NULL,

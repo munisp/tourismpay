@@ -121,8 +121,7 @@ CARBON_PROJECTS: list[CarbonProject] = [
     ),
 ]
 
-# In-memory stores
-offset_purchases: dict[str, OffsetPurchase] = {}
+# All offset purchases are persisted to PostgreSQL — no in-memory store
 
 # ─── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -250,8 +249,6 @@ async def purchase_offset(
         status="confirmed",
         purchased_at=datetime.utcnow().isoformat(),
     )
-    offset_purchases[purchase_id] = purchase
-
     # Persist to PostgreSQL
     await database.execute(
         "INSERT INTO carbon_credit_purchases (user_id, project_id, tonnes, price_per_tonne, total_cost, currency, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
@@ -262,13 +259,16 @@ async def purchase_offset(
 
 @app.get("/impact/{user_id}", response_model=UserImpact)
 async def get_user_impact(user_id: str, _auth=Depends(verify_auth)):
-    user_offsets = [o for o in offset_purchases.values() if o.user_id == user_id]
-    
-    total_tonnes = sum(o.tonnes_offset for o in user_offsets)
-    total_spent = sum(o.cost_usd for o in user_offsets)
-    trips = len(set(o.trip_id for o in user_offsets if o.trip_id))
-    projects = len(set(o.project_id for o in user_offsets))
-    
+    # Read from PostgreSQL
+    rows = await database.fetch(
+        "SELECT project_id, tonnes, total_cost FROM carbon_credit_purchases WHERE user_id=$1",
+        user_id,
+    )
+    total_tonnes = sum(float(r["tonnes"]) for r in rows)
+    total_spent = sum(float(r["total_cost"]) for r in rows)
+    projects = len(set(r["project_id"] for r in rows))
+    trips = 0  # trip_id tracking can be added to DB schema if needed
+
     # Badge calculation
     if total_tonnes >= 100:
         badge = "platinum"
@@ -280,14 +280,14 @@ async def get_user_impact(user_id: str, _auth=Depends(verify_auth)):
         badge = "bronze"
     else:
         badge = "none"
-    
+
     return UserImpact(
         user_id=user_id,
         total_tonnes_offset=round(total_tonnes, 4),
         total_spent_usd=round(total_spent, 2),
         trips_offset=trips,
         projects_supported=projects,
-        equivalent_trees=int(total_tonnes * 45),  # ~45 trees per tonne
+        equivalent_trees=int(total_tonnes * 45),
         equivalent_car_km_avoided=round(total_tonnes * 1000 / 0.171, 0),
         badge=badge,
     )

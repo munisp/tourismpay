@@ -13,22 +13,15 @@ import (
 )
 
 type TigerBeetleLedgerService struct {
-	clusterID uint32
-	// In-memory fallback
-	accounts         map[uint64]*models.TigerBeetleAccount
-	transfers        map[uint64]*models.TigerBeetleTransfer
-	pendingTransfers map[uint64]*models.TigerBeetleTransfer
-	ledgerCodes      map[string]uint32
-	accountCodes     map[string]uint16
-	mu               sync.RWMutex
+	clusterID    uint32
+	ledgerCodes  map[string]uint32
+	accountCodes map[string]uint16
+	mu           sync.RWMutex
 }
 
 func NewTigerBeetleLedgerService(clusterID uint32) *TigerBeetleLedgerService {
 	s := &TigerBeetleLedgerService{
-		clusterID:        clusterID,
-		accounts:         make(map[uint64]*models.TigerBeetleAccount),
-		transfers:        make(map[uint64]*models.TigerBeetleTransfer),
-		pendingTransfers: make(map[uint64]*models.TigerBeetleTransfer),
+		clusterID: clusterID,
 		ledgerCodes: map[string]uint32{
 			"TOURIST_WALLET":     1,
 			"MERCHANT_WALLET":    2,
@@ -72,6 +65,9 @@ func (s *TigerBeetleLedgerService) generateTransferID() uint64 {
 }
 
 func (s *TigerBeetleLedgerService) initializeSystemAccounts() {
+	if !s.hasDB() {
+		return
+	}
 	systemAccounts := []struct {
 		entityType string
 		entityID   string
@@ -98,23 +94,12 @@ func (s *TigerBeetleLedgerService) initializeSystemAccounts() {
 			accountCode = 840
 		}
 
-		if s.hasDB() {
-			s.db().Exec(
-				`INSERT INTO ledger_accounts (id, entity_type, entity_id, currency, credits_posted, ledger_code, account_code, flags)
-				 VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING`,
-				int64(accountID), sa.entityType, sa.entityID, sa.currency,
-				int64(10000000000), int(ledgerCode), int(accountCode), int(models.AccountFlagHistory),
-			)
-		}
-		// Always maintain in-memory for fallback
-		s.accounts[accountID] = &models.TigerBeetleAccount{
-			ID:            accountID,
-			Ledger:        ledgerCode,
-			Code:          accountCode,
-			Flags:         models.AccountFlagHistory,
-			CreditsPosted: 10000000000,
-			Timestamp:     uint64(time.Now().UnixMilli()),
-		}
+		s.db().Exec(
+			`INSERT INTO ledger_accounts (id, entity_type, entity_id, currency, credits_posted, ledger_code, account_code, flags)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING`,
+			int64(accountID), sa.entityType, sa.entityID, sa.currency,
+			int64(10000000000), int(ledgerCode), int(accountCode), int(models.AccountFlagHistory),
+		)
 	}
 }
 
@@ -134,10 +119,8 @@ func (s *TigerBeetleLedgerService) CreateAccount(entityType, entityID, currency 
 	}
 
 	if s.hasDB() {
-		var existingID int64
-		err := s.db().QueryRow("SELECT id FROM ledger_accounts WHERE id=$1", int64(accountID)).Scan(&existingID)
-		if err == nil {
-			return s.loadAccountFromDB(accountID)
+		if acc := s.loadAccountFromDB(accountID); acc != nil {
+			return acc
 		}
 		s.db().Exec(
 			`INSERT INTO ledger_accounts (id, entity_type, entity_id, currency, ledger_code, account_code, flags)
@@ -145,24 +128,24 @@ func (s *TigerBeetleLedgerService) CreateAccount(entityType, entityID, currency 
 			int64(accountID), entityType, entityID, currency,
 			int(ledgerCode), int(accountCode), int(flags|models.AccountFlagHistory),
 		)
+		if acc := s.loadAccountFromDB(accountID); acc != nil {
+			return acc
+		}
 	}
 
-	if existing, ok := s.accounts[accountID]; ok {
-		return existing
-	}
-
-	account := &models.TigerBeetleAccount{
+	return &models.TigerBeetleAccount{
 		ID:        accountID,
 		Ledger:    ledgerCode,
 		Code:      accountCode,
 		Flags:     flags | models.AccountFlagHistory,
 		Timestamp: uint64(time.Now().UnixMilli()),
 	}
-	s.accounts[accountID] = account
-	return account
 }
 
 func (s *TigerBeetleLedgerService) loadAccountFromDB(accountID uint64) *models.TigerBeetleAccount {
+	if !s.hasDB() {
+		return nil
+	}
 	account := &models.TigerBeetleAccount{ID: accountID}
 	var dp, dpo, cp, cpo int64
 	var lc int
@@ -191,13 +174,7 @@ func (s *TigerBeetleLedgerService) GetAccount(entityType, entityID, currency str
 	defer s.mu.RUnlock()
 
 	accountID := s.generateAccountID(entityType, entityID, currency)
-
-	if s.hasDB() {
-		if acc := s.loadAccountFromDB(accountID); acc != nil {
-			return acc
-		}
-	}
-	return s.accounts[accountID]
+	return s.loadAccountFromDB(accountID)
 }
 
 type AccountBalance struct {
@@ -248,7 +225,7 @@ func (s *TigerBeetleLedgerService) CreateTransfer(
 	toAccountID := s.generateAccountID(toEntityType, toEntityID, currency)
 
 	fromAccount := s.getOrCreateAccountInternal(fromEntityType, fromEntityID, currency)
-	toAccount := s.getOrCreateAccountInternal(toEntityType, toEntityID, currency)
+	_ = s.getOrCreateAccountInternal(toEntityType, toEntityID, currency)
 
 	if fromAccount.Balance() < int64(amount) && fromEntityType != "PLATFORM" {
 		return TransferResult{
@@ -271,28 +248,9 @@ func (s *TigerBeetleLedgerService) CreateTransfer(
 		copy(userData128[:], hash[:16])
 	}
 
-	transfer := &models.TigerBeetleTransfer{
-		ID:              transferID,
-		DebitAccountID:  fromAccountID,
-		CreditAccountID: toAccountID,
-		Amount:          amount,
-		Ledger:          fromAccount.Ledger,
-		Code:            fromAccount.Code,
-		Flags:           flags,
-		UserData128:     userData128,
-		Timestamp:       uint64(time.Now().UnixMilli()),
-	}
-
 	status := "posted"
 	if pending {
 		status = "pending"
-		fromAccount.DebitsPending += amount
-		toAccount.CreditsPending += amount
-		s.pendingTransfers[transferID] = transfer
-	} else {
-		fromAccount.DebitsPosted += amount
-		toAccount.CreditsPosted += amount
-		s.transfers[transferID] = transfer
 	}
 
 	if s.hasDB() {
@@ -302,49 +260,48 @@ func (s *TigerBeetleLedgerService) CreateTransfer(
 			int64(transferID), int64(fromAccountID), int64(toAccountID), int64(amount),
 			int(fromAccount.Ledger), int(fromAccount.Code), int(flags), reference, status,
 		)
-		s.updateAccountBalancesInDB(fromAccountID, fromAccount)
-		s.updateAccountBalancesInDB(toAccountID, toAccount)
+		if pending {
+			s.db().Exec("UPDATE ledger_accounts SET debits_pending = debits_pending + $1, updated_at=NOW() WHERE id=$2", int64(amount), int64(fromAccountID))
+			s.db().Exec("UPDATE ledger_accounts SET credits_pending = credits_pending + $1, updated_at=NOW() WHERE id=$2", int64(amount), int64(toAccountID))
+		} else {
+			s.db().Exec("UPDATE ledger_accounts SET debits_posted = debits_posted + $1, updated_at=NOW() WHERE id=$2", int64(amount), int64(fromAccountID))
+			s.db().Exec("UPDATE ledger_accounts SET credits_posted = credits_posted + $1, updated_at=NOW() WHERE id=$2", int64(amount), int64(toAccountID))
+		}
+	}
+
+	// Reload updated balances from DB
+	updatedFrom := s.loadAccountFromDB(fromAccountID)
+	updatedTo := s.loadAccountFromDB(toAccountID)
+	var fromBal, toBal int64
+	if updatedFrom != nil {
+		fromBal = updatedFrom.Balance()
+	}
+	if updatedTo != nil {
+		toBal = updatedTo.Balance()
 	}
 
 	return TransferResult{
 		Success:     true,
 		TransferID:  transferID,
-		FromBalance: fromAccount.Balance(),
-		ToBalance:   toAccount.Balance(),
+		FromBalance: fromBal,
+		ToBalance:   toBal,
 		Amount:      amount,
 		Currency:    currency,
 		Pending:     pending,
-		Timestamp:   transfer.Timestamp,
+		Timestamp:   uint64(time.Now().UnixMilli()),
 	}
 }
 
 func (s *TigerBeetleLedgerService) getOrCreateAccountInternal(entityType, entityID, currency string) *models.TigerBeetleAccount {
 	accountID := s.generateAccountID(entityType, entityID, currency)
 
-	if acc, ok := s.accounts[accountID]; ok {
-		return acc
-	}
-
 	if s.hasDB() {
 		if acc := s.loadAccountFromDB(accountID); acc != nil {
-			s.accounts[accountID] = acc
 			return acc
 		}
 	}
 
 	return s.createAccountInternal(entityType, entityID, currency)
-}
-
-func (s *TigerBeetleLedgerService) updateAccountBalancesInDB(accountID uint64, account *models.TigerBeetleAccount) {
-	if !s.hasDB() {
-		return
-	}
-	s.db().Exec(
-		`UPDATE ledger_accounts SET debits_pending=$1, debits_posted=$2, credits_pending=$3, credits_posted=$4, updated_at=NOW() WHERE id=$5`,
-		int64(account.DebitsPending), int64(account.DebitsPosted),
-		int64(account.CreditsPending), int64(account.CreditsPosted),
-		int64(accountID),
-	)
 }
 
 func (s *TigerBeetleLedgerService) createAccountInternal(entityType, entityID, currency string) *models.TigerBeetleAccount {
@@ -367,8 +324,6 @@ func (s *TigerBeetleLedgerService) createAccountInternal(entityType, entityID, c
 		Timestamp: uint64(time.Now().UnixMilli()),
 	}
 
-	s.accounts[accountID] = account
-
 	if s.hasDB() {
 		s.db().Exec(
 			`INSERT INTO ledger_accounts (id, entity_type, entity_id, currency, ledger_code, account_code, flags)
@@ -385,45 +340,24 @@ func (s *TigerBeetleLedgerService) PostPendingTransfer(transferID uint64) Transf
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	transfer, ok := s.pendingTransfers[transferID]
-	if !ok {
-		if s.hasDB() {
-			var status string
-			err := s.db().QueryRow("SELECT status FROM ledger_transfers WHERE id=$1", int64(transferID)).Scan(&status)
-			if err != nil || status != "pending" {
-				return TransferResult{Success: false, Error: "TRANSFER_NOT_FOUND"}
-			}
-			s.db().Exec("UPDATE ledger_transfers SET status='posted', flags=$1 WHERE id=$2",
-				int(models.TransferFlagPostPendingTransfer), int64(transferID))
-			return TransferResult{Success: true, TransferID: transferID}
-		}
+	if !s.hasDB() {
+		return TransferResult{Success: false, Error: "DATABASE_NOT_AVAILABLE"}
+	}
+
+	var status string
+	var debitAccountID, creditAccountID, amount int64
+	err := s.db().QueryRow(
+		"SELECT status, debit_account_id, credit_account_id, amount FROM ledger_transfers WHERE id=$1",
+		int64(transferID),
+	).Scan(&status, &debitAccountID, &creditAccountID, &amount)
+	if err != nil || status != "pending" {
 		return TransferResult{Success: false, Error: "TRANSFER_NOT_FOUND"}
 	}
 
-	delete(s.pendingTransfers, transferID)
-
-	fromAccount := s.accounts[transfer.DebitAccountID]
-	toAccount := s.accounts[transfer.CreditAccountID]
-
-	if fromAccount != nil && toAccount != nil {
-		fromAccount.DebitsPending -= transfer.Amount
-		fromAccount.DebitsPosted += transfer.Amount
-		toAccount.CreditsPending -= transfer.Amount
-		toAccount.CreditsPosted += transfer.Amount
-
-		if s.hasDB() {
-			s.updateAccountBalancesInDB(transfer.DebitAccountID, fromAccount)
-			s.updateAccountBalancesInDB(transfer.CreditAccountID, toAccount)
-		}
-	}
-
-	transfer.Flags = models.TransferFlagPostPendingTransfer
-	s.transfers[transferID] = transfer
-
-	if s.hasDB() {
-		s.db().Exec("UPDATE ledger_transfers SET status='posted', flags=$1 WHERE id=$2",
-			int(models.TransferFlagPostPendingTransfer), int64(transferID))
-	}
+	s.db().Exec("UPDATE ledger_transfers SET status='posted', flags=$1 WHERE id=$2",
+		int(models.TransferFlagPostPendingTransfer), int64(transferID))
+	s.db().Exec("UPDATE ledger_accounts SET debits_pending = GREATEST(0, debits_pending - $1), debits_posted = debits_posted + $1, updated_at=NOW() WHERE id=$2", amount, debitAccountID)
+	s.db().Exec("UPDATE ledger_accounts SET credits_pending = GREATEST(0, credits_pending - $1), credits_posted = credits_posted + $1, updated_at=NOW() WHERE id=$2", amount, creditAccountID)
 
 	return TransferResult{
 		Success:    true,
@@ -435,38 +369,28 @@ func (s *TigerBeetleLedgerService) VoidPendingTransfer(transferID uint64) Transf
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	transfer, ok := s.pendingTransfers[transferID]
-	if !ok {
-		if s.hasDB() {
-			s.db().Exec("UPDATE ledger_transfers SET status='voided' WHERE id=$1 AND status='pending'", int64(transferID))
-			return TransferResult{Success: true, TransferID: transferID}
-		}
+	if !s.hasDB() {
+		return TransferResult{Success: false, Error: "DATABASE_NOT_AVAILABLE"}
+	}
+
+	var status string
+	var debitAccountID, creditAccountID, amount int64
+	err := s.db().QueryRow(
+		"SELECT status, debit_account_id, credit_account_id, amount FROM ledger_transfers WHERE id=$1",
+		int64(transferID),
+	).Scan(&status, &debitAccountID, &creditAccountID, &amount)
+	if err != nil || status != "pending" {
 		return TransferResult{Success: false, Error: "TRANSFER_NOT_FOUND"}
 	}
 
-	delete(s.pendingTransfers, transferID)
-
-	fromAccount := s.accounts[transfer.DebitAccountID]
-	toAccount := s.accounts[transfer.CreditAccountID]
-
-	if fromAccount != nil && toAccount != nil {
-		fromAccount.DebitsPending -= transfer.Amount
-		toAccount.CreditsPending -= transfer.Amount
-
-		if s.hasDB() {
-			s.updateAccountBalancesInDB(transfer.DebitAccountID, fromAccount)
-			s.updateAccountBalancesInDB(transfer.CreditAccountID, toAccount)
-		}
-	}
-
-	if s.hasDB() {
-		s.db().Exec("UPDATE ledger_transfers SET status='voided' WHERE id=$1", int64(transferID))
-	}
+	s.db().Exec("UPDATE ledger_transfers SET status='voided' WHERE id=$1", int64(transferID))
+	s.db().Exec("UPDATE ledger_accounts SET debits_pending = GREATEST(0, debits_pending - $1), updated_at=NOW() WHERE id=$2", amount, debitAccountID)
+	s.db().Exec("UPDATE ledger_accounts SET credits_pending = GREATEST(0, credits_pending - $1), updated_at=NOW() WHERE id=$2", amount, creditAccountID)
 
 	return TransferResult{
 		Success:    true,
 		TransferID: transferID,
-		Amount:     transfer.Amount,
+		Amount:     uint64(amount),
 	}
 }
 
@@ -560,12 +484,12 @@ func (s *TigerBeetleLedgerService) GetStatus() LedgerStatus {
 	}
 
 	return LedgerStatus{
-		Service:             "TigerBeetle Ledger (Go+In-Memory Fallback)",
-		Status:              "OPERATIONAL",
+		Service:             "TigerBeetle Ledger (Go+PostgreSQL)",
+		Status:              "DEGRADED",
 		ClusterID:           s.clusterID,
-		TotalAccounts:       len(s.accounts),
-		TotalTransfers:      len(s.transfers),
-		PendingTransfers:    len(s.pendingTransfers),
+		TotalAccounts:       0,
+		TotalTransfers:      0,
+		PendingTransfers:    0,
 		LedgerCodes:         s.ledgerCodes,
 		SupportedCurrencies: currencies,
 		DatabaseConnected:   false,

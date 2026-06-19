@@ -796,10 +796,10 @@ func (s *CryptoService) countFromDB(txType string) int {
 		return 0
 	}
 	var count int
-	query := "SELECT COUNT(*) FROM crypto_transactions"
 	if txType != "" {
-		query += " WHERE tx_type='" + txType + "'"
+		database.DB.QueryRow("SELECT COUNT(*) FROM crypto_transactions WHERE tx_type=$1", txType).Scan(&count)
+	} else {
+		database.DB.QueryRow("SELECT COUNT(*) FROM crypto_transactions").Scan(&count)
 	}
-	database.DB.QueryRow(query).Scan(&count)
 	return count
 }

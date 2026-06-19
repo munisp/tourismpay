@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -13,24 +14,17 @@ import (
 )
 
 type SettlementService struct {
-	ledger                 *TigerBeetleLedgerService
-	mojaloop               *MojaloopDFSPService
-	// In-memory fallback
-	settlementBatches      map[string]*models.SettlementBatch
-	reconciliationReports  map[string]*models.ReconciliationReport
-	pendingSettlements     map[string][]*models.PendingSettlement
-	feeStructure           models.FeeStructure
-	providerAccounts       map[string]models.ProviderAccount
-	mu                     sync.RWMutex
+	ledger           *TigerBeetleLedgerService
+	mojaloop         *MojaloopDFSPService
+	feeStructure     models.FeeStructure
+	providerAccounts map[string]models.ProviderAccount
+	mu               sync.RWMutex
 }
 
 func NewSettlementService(ledger *TigerBeetleLedgerService, mojaloop *MojaloopDFSPService) *SettlementService {
 	return &SettlementService{
-		ledger:                ledger,
-		mojaloop:              mojaloop,
-		settlementBatches:     make(map[string]*models.SettlementBatch),
-		reconciliationReports: make(map[string]*models.ReconciliationReport),
-		pendingSettlements:    make(map[string][]*models.PendingSettlement),
+		ledger:   ledger,
+		mojaloop: mojaloop,
 		feeStructure: models.FeeStructure{
 			PlatformFeePercent:       3.0,
 			PaymentProcessingPercent: 1.5,
@@ -62,15 +56,15 @@ func (s *SettlementService) generateID(prefix string) string {
 }
 
 type BookingPaymentResult struct {
-	Success        bool                   `json:"success"`
-	BookingID      string                 `json:"booking_id"`
-	TotalAmount    float64                `json:"total_amount"`
-	PlatformFee    float64                `json:"platform_fee"`
-	ProcessingFee  float64                `json:"processing_fee"`
-	ProviderAmount float64                `json:"provider_amount"`
-	Currency       string                 `json:"currency"`
-	LedgerTransfers []TransferResult      `json:"ledger_transfers,omitempty"`
-	Error          string                 `json:"error,omitempty"`
+	Success         bool              `json:"success"`
+	BookingID       string            `json:"booking_id"`
+	TotalAmount     float64           `json:"total_amount"`
+	PlatformFee     float64           `json:"platform_fee"`
+	ProcessingFee   float64           `json:"processing_fee"`
+	ProviderAmount  float64           `json:"provider_amount"`
+	Currency        string            `json:"currency"`
+	LedgerTransfers []TransferResult  `json:"ledger_transfers,omitempty"`
+	Error           string            `json:"error,omitempty"`
 }
 
 func (s *SettlementService) RecordBookingPayment(
@@ -110,31 +104,11 @@ func (s *SettlementService) RecordBookingPayment(
 
 	result := s.ledger.CreateLinkedTransfers(transfers)
 
-	if result.Success {
-		transferIDs := make([]uint64, 0)
-		for _, t := range result.Transfers {
-			if t.Success {
-				transferIDs = append(transferIDs, t.TransferID)
-			}
-		}
-
-		if s.hasDB() {
-			s.db().Exec(
-				"INSERT INTO pending_settlements (provider_id, booking_id, amount, platform_fee, processing_fee, currency) VALUES ($1,$2,$3,$4,$5,$6)",
-				providerID, bookingID, providerAmount, platformFee, processingFee, currency,
-			)
-		} else {
-			pending := &models.PendingSettlement{
-				BookingID:     bookingID,
-				Amount:        providerAmount,
-				Currency:      currency,
-				PlatformFee:   platformFee,
-				ProcessingFee: processingFee,
-				TransferIDs:   transferIDs,
-				RecordedAt:    time.Now(),
-			}
-			s.pendingSettlements[providerID] = append(s.pendingSettlements[providerID], pending)
-		}
+	if result.Success && s.hasDB() {
+		s.db().Exec(
+			"INSERT INTO pending_settlements (provider_id, booking_id, amount, platform_fee, processing_fee, currency) VALUES ($1,$2,$3,$4,$5,$6)",
+			providerID, bookingID, providerAmount, platformFee, processingFee, currency,
+		)
 	}
 
 	return BookingPaymentResult{
@@ -157,13 +131,10 @@ func (s *SettlementService) CreateSettlementBatch(providerID, settlementDate str
 		settlementDate = time.Now().Format("2006-01-02")
 	}
 
-	if s.hasDB() {
-		return s.createBatchDB(providerID, settlementDate)
+	if !s.hasDB() {
+		return nil, fmt.Errorf("database not available")
 	}
-	return s.createBatchMem(providerID, settlementDate)
-}
 
-func (s *SettlementService) createBatchDB(providerID, settlementDate string) (*models.SettlementBatch, error) {
 	var count int
 	var totalAmount float64
 	s.db().QueryRow("SELECT COUNT(*), COALESCE(SUM(amount),0) FROM pending_settlements WHERE provider_id=$1 AND status='pending'", providerID).Scan(&count, &totalAmount)
@@ -198,46 +169,6 @@ func (s *SettlementService) createBatchDB(providerID, settlementDate string) (*m
 	}, nil
 }
 
-func (s *SettlementService) createBatchMem(providerID, settlementDate string) (*models.SettlementBatch, error) {
-	pending := s.pendingSettlements[providerID]
-	if len(pending) == 0 {
-		return nil, fmt.Errorf("no pending settlements for provider %s", providerID)
-	}
-
-	var totalAmount float64
-	currency := "USD"
-	transactions := make([]string, 0)
-	for _, p := range pending {
-		totalAmount += p.Amount
-		currency = p.Currency
-		transactions = append(transactions, p.BookingID)
-	}
-
-	if totalAmount < s.feeStructure.MinimumSettlement {
-		return nil, fmt.Errorf("settlement amount %.2f below minimum %.2f", totalAmount, s.feeStructure.MinimumSettlement)
-	}
-
-	settlementFee := s.feeStructure.SettlementFeeFixed
-	netAmount := totalAmount - settlementFee
-	batchID := s.generateID("STL")
-
-	batch := &models.SettlementBatch{
-		BatchID:          batchID,
-		SettlementDate:   settlementDate,
-		Status:           models.SettlementPending,
-		ProviderID:       providerID,
-		TotalAmount:      totalAmount,
-		Currency:         currency,
-		TransactionCount: len(pending),
-		FeesDeducted:     settlementFee,
-		NetAmount:        netAmount,
-		CreatedAt:        time.Now(),
-		Transactions:     transactions,
-	}
-	s.settlementBatches[batchID] = batch
-	return batch, nil
-}
-
 type ProcessBatchResult struct {
 	Success            bool    `json:"success"`
 	BatchID            string  `json:"batch_id"`
@@ -252,19 +183,11 @@ func (s *SettlementService) ProcessSettlementBatch(batchID string) ProcessBatchR
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	var batch *models.SettlementBatch
-	if s.hasDB() {
-		batch = s.loadBatchFromDB(batchID)
-	}
+	batch := s.loadBatchFromDB(batchID)
 	if batch == nil {
-		var ok bool
-		batch, ok = s.settlementBatches[batchID]
-		if !ok {
-			return ProcessBatchResult{Success: false, Error: "Batch not found"}
-		}
+		return ProcessBatchResult{Success: false, Error: "Batch not found"}
 	}
 
-	batch.Status = models.SettlementProcessing
 	if s.hasDB() {
 		s.db().Exec("UPDATE settlement_batches SET status='processing' WHERE id=$1", batchID)
 	}
@@ -281,7 +204,6 @@ func (s *SettlementService) ProcessSettlementBatch(batchID string) ProcessBatchR
 		batch.Currency,
 	)
 	if err != nil {
-		batch.Status = models.SettlementFailed
 		if s.hasDB() {
 			s.db().Exec("UPDATE settlement_batches SET status='failed' WHERE id=$1", batchID)
 		}
@@ -290,7 +212,6 @@ func (s *SettlementService) ProcessSettlementBatch(batchID string) ProcessBatchR
 
 	transfer, err := s.mojaloop.PrepareTransfer(quote.QuoteID)
 	if err != nil {
-		batch.Status = models.SettlementFailed
 		if s.hasDB() {
 			s.db().Exec("UPDATE settlement_batches SET status='failed' WHERE id=$1", batchID)
 		}
@@ -299,7 +220,6 @@ func (s *SettlementService) ProcessSettlementBatch(batchID string) ProcessBatchR
 
 	completedTransfer, err := s.mojaloop.CommitTransfer(transfer.TransferID)
 	if err != nil {
-		batch.Status = models.SettlementFailed
 		if s.hasDB() {
 			s.db().Exec("UPDATE settlement_batches SET status='failed' WHERE id=$1", batchID)
 		}
@@ -307,21 +227,9 @@ func (s *SettlementService) ProcessSettlementBatch(batchID string) ProcessBatchR
 	}
 
 	if completedTransfer.State == models.MojaloopStateCompleted {
-		batch.Status = models.SettlementCompleted
-		now := time.Now()
-		batch.CompletedAt = &now
-		batch.MojaloopTransferID = transfer.TransferID
-
 		if s.hasDB() {
 			s.db().Exec("UPDATE settlement_batches SET status='completed', processed_at=NOW() WHERE id=$1", batchID)
 			s.db().Exec("UPDATE pending_settlements SET status='settled', settled_at=NOW() WHERE batch_id=$1", batchID)
-		} else {
-			for _, pending := range s.pendingSettlements[batch.ProviderID] {
-				for _, tid := range pending.TransferIDs {
-					s.ledger.PostPendingTransfer(tid)
-				}
-			}
-			s.pendingSettlements[batch.ProviderID] = nil
 		}
 
 		return ProcessBatchResult{
@@ -334,7 +242,6 @@ func (s *SettlementService) ProcessSettlementBatch(batchID string) ProcessBatchR
 		}
 	}
 
-	batch.Status = models.SettlementFailed
 	if s.hasDB() {
 		s.db().Exec("UPDATE settlement_batches SET status='failed' WHERE id=$1", batchID)
 	}
@@ -365,10 +272,10 @@ func (s *SettlementService) loadBatchFromDB(batchID string) *models.SettlementBa
 
 type DailySettlementResult struct {
 	SettlementDate     string               `json:"settlement_date"`
-	ProvidersProcessed int                  `json:"providers_processed"`
-	Successful         int                  `json:"successful"`
-	Failed             int                  `json:"failed"`
-	Results            []ProcessBatchResult `json:"results"`
+	ProvidersProcessed int                   `json:"providers_processed"`
+	Successful         int                   `json:"successful"`
+	Failed             int                   `json:"failed"`
+	Results            []ProcessBatchResult  `json:"results"`
 }
 
 func (s *SettlementService) RunDailySettlements() DailySettlementResult {
@@ -387,12 +294,6 @@ func (s *SettlementService) RunDailySettlements() DailySettlementResult {
 				}
 			}
 		}
-	} else {
-		s.mu.RLock()
-		for providerID := range s.pendingSettlements {
-			providers = append(providers, providerID)
-		}
-		s.mu.RUnlock()
 	}
 
 	for _, providerID := range providers {
@@ -425,60 +326,41 @@ func (s *SettlementService) RunDailySettlements() DailySettlementResult {
 }
 
 func (s *SettlementService) ListSettlementBatches(providerID, status string) []*models.SettlementBatch {
-	if s.hasDB() {
-		query := "SELECT id, provider_id, total_amount, net_amount, fee_amount, currency, transaction_count, status, settlement_date, created_at FROM settlement_batches WHERE 1=1"
-		args := make([]interface{}, 0)
-		argIdx := 1
-		if providerID != "" {
-			query += fmt.Sprintf(" AND provider_id=$%d", argIdx)
-			args = append(args, providerID)
-			argIdx++
-		}
-		if status != "" {
-			query += fmt.Sprintf(" AND status=$%d", argIdx)
-			args = append(args, status)
-		}
-		query += " ORDER BY created_at DESC"
-		rows, err := s.db().Query(query, args...)
-		if err == nil {
-			defer rows.Close()
-			result := make([]*models.SettlementBatch, 0)
-			for rows.Next() {
-				batch := &models.SettlementBatch{}
-				var st string
-				if rows.Scan(&batch.BatchID, &batch.ProviderID, &batch.TotalAmount, &batch.NetAmount, &batch.FeesDeducted, &batch.Currency, &batch.TransactionCount, &st, &batch.SettlementDate, &batch.CreatedAt) == nil {
-					batch.Status = models.SettlementStatus(st)
-					result = append(result, batch)
-				}
-			}
-			return result
-		}
+	if !s.hasDB() {
+		return make([]*models.SettlementBatch, 0)
 	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	query := "SELECT id, provider_id, total_amount, net_amount, fee_amount, currency, transaction_count, status, settlement_date, created_at FROM settlement_batches WHERE 1=1"
+	args := make([]interface{}, 0)
+	argIdx := 1
+	if providerID != "" {
+		query += fmt.Sprintf(" AND provider_id=$%d", argIdx)
+		args = append(args, providerID)
+		argIdx++
+	}
+	if status != "" {
+		query += fmt.Sprintf(" AND status=$%d", argIdx)
+		args = append(args, status)
+	}
+	query += " ORDER BY created_at DESC"
+	rows, err := s.db().Query(query, args...)
+	if err != nil {
+		return make([]*models.SettlementBatch, 0)
+	}
+	defer rows.Close()
 	result := make([]*models.SettlementBatch, 0)
-	for _, batch := range s.settlementBatches {
-		if providerID != "" && batch.ProviderID != providerID {
-			continue
+	for rows.Next() {
+		batch := &models.SettlementBatch{}
+		var st string
+		if rows.Scan(&batch.BatchID, &batch.ProviderID, &batch.TotalAmount, &batch.NetAmount, &batch.FeesDeducted, &batch.Currency, &batch.TransactionCount, &st, &batch.SettlementDate, &batch.CreatedAt) == nil {
+			batch.Status = models.SettlementStatus(st)
+			result = append(result, batch)
 		}
-		if status != "" && string(batch.Status) != status {
-			continue
-		}
-		result = append(result, batch)
 	}
 	return result
 }
 
 func (s *SettlementService) GetSettlementBatch(batchID string) *models.SettlementBatch {
-	if s.hasDB() {
-		if batch := s.loadBatchFromDB(batchID); batch != nil {
-			return batch
-		}
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.settlementBatches[batchID]
+	return s.loadBatchFromDB(batchID)
 }
 
 type ProviderBalance struct {
@@ -490,38 +372,18 @@ type ProviderBalance struct {
 }
 
 func (s *SettlementService) GetProviderBalance(providerID string) ProviderBalance {
-	if s.hasDB() {
-		var pendingAmount float64
-		var pendingCount int
-		var settledAmount float64
-		s.db().QueryRow("SELECT COUNT(*), COALESCE(SUM(amount),0) FROM pending_settlements WHERE provider_id=$1 AND status='pending'", providerID).Scan(&pendingCount, &pendingAmount)
-		s.db().QueryRow("SELECT COALESCE(SUM(net_amount),0) FROM settlement_batches WHERE provider_id=$1 AND status='completed'", providerID).Scan(&settledAmount)
-		return ProviderBalance{
-			ProviderID:          providerID,
-			PendingAmount:       pendingAmount,
-			PendingTransactions: pendingCount,
-			TotalSettled:        settledAmount,
-			Currency:            "USD",
-		}
+	if !s.hasDB() {
+		return ProviderBalance{ProviderID: providerID, Currency: "USD"}
 	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	pending := s.pendingSettlements[providerID]
 	var pendingAmount float64
-	for _, p := range pending {
-		pendingAmount += p.Amount
-	}
+	var pendingCount int
 	var settledAmount float64
-	for _, batch := range s.settlementBatches {
-		if batch.ProviderID == providerID && batch.Status == models.SettlementCompleted {
-			settledAmount += batch.NetAmount
-		}
-	}
+	s.db().QueryRow("SELECT COUNT(*), COALESCE(SUM(amount),0) FROM pending_settlements WHERE provider_id=$1 AND status='pending'", providerID).Scan(&pendingCount, &pendingAmount)
+	s.db().QueryRow("SELECT COALESCE(SUM(net_amount),0) FROM settlement_batches WHERE provider_id=$1 AND status='completed'", providerID).Scan(&settledAmount)
 	return ProviderBalance{
 		ProviderID:          providerID,
 		PendingAmount:       pendingAmount,
-		PendingTransactions: len(pending),
+		PendingTransactions: pendingCount,
 		TotalSettled:        settledAmount,
 		Currency:            "USD",
 	}
@@ -534,34 +396,22 @@ type PendingSettlementSummary struct {
 }
 
 func (s *SettlementService) ListPendingSettlements() map[string]PendingSettlementSummary {
-	if s.hasDB() {
-		rows, err := s.db().Query("SELECT provider_id, COUNT(*), COALESCE(SUM(amount),0) FROM pending_settlements WHERE status='pending' GROUP BY provider_id")
-		if err == nil {
-			defer rows.Close()
-			result := make(map[string]PendingSettlementSummary)
-			for rows.Next() {
-				var pid string
-				var count int
-				var total float64
-				if rows.Scan(&pid, &count, &total) == nil {
-					result[pid] = PendingSettlementSummary{Count: count, TotalAmount: total, Currency: "USD"}
-				}
-			}
-			return result
-		}
+	if !s.hasDB() {
+		return make(map[string]PendingSettlementSummary)
 	}
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	rows, err := s.db().Query("SELECT provider_id, COUNT(*), COALESCE(SUM(amount),0) FROM pending_settlements WHERE status='pending' GROUP BY provider_id")
+	if err != nil {
+		return make(map[string]PendingSettlementSummary)
+	}
+	defer rows.Close()
 	result := make(map[string]PendingSettlementSummary)
-	for providerID, settlements := range s.pendingSettlements {
-		var totalAmount float64
-		currency := "USD"
-		for _, p := range settlements {
-			totalAmount += p.Amount
-			currency = p.Currency
+	for rows.Next() {
+		var pid string
+		var count int
+		var total float64
+		if rows.Scan(&pid, &count, &total) == nil {
+			result[pid] = PendingSettlementSummary{Count: count, TotalAmount: total, Currency: "USD"}
 		}
-		result[providerID] = PendingSettlementSummary{Count: len(settlements), TotalAmount: totalAmount, Currency: currency}
 	}
 	return result
 }
@@ -616,37 +466,72 @@ func (s *SettlementService) GenerateReconciliationReport(periodStart, periodEnd 
 		GeneratedAt:      time.Now(),
 	}
 
-	s.reconciliationReports[reportID] = report
+	if s.hasDB() {
+		discJSON, _ := json.Marshal(discrepancies)
+		s.db().Exec(
+			"INSERT INTO reconciliation_reports (report_id, period_start, period_end, total_bookings, total_revenue, total_settlements, discrepancies, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+			reportID, periodStart, periodEnd, totalBookings, totalRevenue, totalSettlements, string(discJSON), status,
+		)
+	}
+
 	return report
 }
 
 func (s *SettlementService) ListReconciliationReports() []*models.ReconciliationReport {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	if !s.hasDB() {
+		return make([]*models.ReconciliationReport, 0)
+	}
 
-	result := make([]*models.ReconciliationReport, 0, len(s.reconciliationReports))
-	for _, report := range s.reconciliationReports {
-		result = append(result, report)
+	rows, err := s.db().Query("SELECT report_id, period_start, period_end, total_bookings, total_revenue, total_settlements, discrepancies, status, generated_at FROM reconciliation_reports ORDER BY generated_at DESC")
+	if err != nil {
+		return make([]*models.ReconciliationReport, 0)
+	}
+	defer rows.Close()
+	result := make([]*models.ReconciliationReport, 0)
+	for rows.Next() {
+		report := &models.ReconciliationReport{}
+		var discJSON string
+		if rows.Scan(&report.ReportID, &report.PeriodStart, &report.PeriodEnd, &report.TotalBookings, &report.TotalRevenue, &report.TotalSettlements, &discJSON, &report.Status, &report.GeneratedAt) == nil {
+			json.Unmarshal([]byte(discJSON), &report.Discrepancies)
+			if report.Discrepancies == nil {
+				report.Discrepancies = make([]models.ReconciliationDiscrep, 0)
+			}
+			result = append(result, report)
+		}
 	}
 	return result
 }
 
 func (s *SettlementService) GetReconciliationReport(reportID string) *models.ReconciliationReport {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.reconciliationReports[reportID]
+	if !s.hasDB() {
+		return nil
+	}
+	report := &models.ReconciliationReport{}
+	var discJSON string
+	err := s.db().QueryRow(
+		"SELECT report_id, period_start, period_end, total_bookings, total_revenue, total_settlements, discrepancies, status, generated_at FROM reconciliation_reports WHERE report_id=$1",
+		reportID,
+	).Scan(&report.ReportID, &report.PeriodStart, &report.PeriodEnd, &report.TotalBookings, &report.TotalRevenue, &report.TotalSettlements, &discJSON, &report.Status, &report.GeneratedAt)
+	if err != nil {
+		return nil
+	}
+	json.Unmarshal([]byte(discJSON), &report.Discrepancies)
+	if report.Discrepancies == nil {
+		report.Discrepancies = make([]models.ReconciliationDiscrep, 0)
+	}
+	return report
 }
 
 type SettlementStatus struct {
-	Service                string                 `json:"service"`
-	Status                 string                 `json:"status"`
-	TigerBeetle            map[string]interface{} `json:"tigerbeetle"`
-	Mojaloop               map[string]interface{} `json:"mojaloop"`
-	SettlementBatches      int                    `json:"settlement_batches"`
-	PendingProviders       int                    `json:"pending_providers"`
-	ReconciliationReports  int                    `json:"reconciliation_reports"`
-	FeeStructure           models.FeeStructure    `json:"fee_structure"`
-	DatabaseConnected      bool                   `json:"database_connected"`
+	Service               string                 `json:"service"`
+	Status                string                 `json:"status"`
+	TigerBeetle           map[string]interface{} `json:"tigerbeetle"`
+	Mojaloop              map[string]interface{} `json:"mojaloop"`
+	SettlementBatches     int                    `json:"settlement_batches"`
+	PendingProviders      int                    `json:"pending_providers"`
+	ReconciliationReports int                    `json:"reconciliation_reports"`
+	FeeStructure          models.FeeStructure    `json:"fee_structure"`
+	DatabaseConnected     bool                   `json:"database_connected"`
 }
 
 func (s *SettlementService) GetStatus() SettlementStatus {
@@ -656,17 +541,17 @@ func (s *SettlementService) GetStatus() SettlementStatus {
 	ledgerStatus := s.ledger.GetStatus()
 	mojaloopStatus := s.mojaloop.GetStatus()
 
-	batchCount := len(s.settlementBatches)
-	pendingCount := len(s.pendingSettlements)
+	var batchCount, pendingCount, reportCount int
 	dbConnected := s.hasDB()
 
 	if dbConnected {
 		s.db().QueryRow("SELECT COUNT(*) FROM settlement_batches").Scan(&batchCount)
 		s.db().QueryRow("SELECT COUNT(DISTINCT provider_id) FROM pending_settlements WHERE status='pending'").Scan(&pendingCount)
+		s.db().QueryRow("SELECT COUNT(*) FROM reconciliation_reports").Scan(&reportCount)
 	}
 
 	return SettlementStatus{
-		Service: "Settlement & Reconciliation (Go)",
+		Service: "Settlement & Reconciliation (Go+PostgreSQL)",
 		Status:  "OPERATIONAL",
 		TigerBeetle: map[string]interface{}{
 			"status":    ledgerStatus.Status,
@@ -680,7 +565,7 @@ func (s *SettlementService) GetStatus() SettlementStatus {
 		},
 		SettlementBatches:     batchCount,
 		PendingProviders:      pendingCount,
-		ReconciliationReports: len(s.reconciliationReports),
+		ReconciliationReports: reportCount,
 		FeeStructure:          s.feeStructure,
 		DatabaseConnected:     dbConnected,
 	}
