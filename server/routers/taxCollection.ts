@@ -111,36 +111,40 @@ async function getTaxRulesForJurisdiction(jurisdictionCode: string): Promise<Tax
   const code = jurisdictionCode.toUpperCase();
   const db = await getDb();
   if (db) {
-    // Check primary tax_rules table first
-    const rows = await db.execute(
-      sql`SELECT * FROM tax_rules WHERE jurisdiction_code = ${code} AND is_active = true ORDER BY priority ASC`
-    );
-    const dbRules = rows as any[];
-    // Also check custom rules
-    let customRows: any[] = [];
     try {
-      const cr = await db.execute(
-        sql`SELECT * FROM tax_rules_custom WHERE jurisdiction_code = ${code} AND is_active = true ORDER BY priority ASC`
+      // Check primary tax_rules table first
+      const rows = await db.execute(
+        sql`SELECT * FROM tax_rules WHERE jurisdiction_code = ${code} AND is_active = true ORDER BY priority ASC`
       );
-      customRows = cr as any[];
-    } catch { /* table may not exist */ }
+      const dbRules = rows as any[];
+      // Also check custom rules
+      let customRows: any[] = [];
+      try {
+        const cr = await db.execute(
+          sql`SELECT * FROM tax_rules_custom WHERE jurisdiction_code = ${code} AND is_active = true ORDER BY priority ASC`
+        );
+        customRows = cr as any[];
+      } catch { /* custom table may not exist */ }
 
-    const allDbRules = [...dbRules, ...customRows];
-    if (allDbRules.length > 0) {
-      return allDbRules.map(r => ({
-        id: r.id,
-        jurisdictionCode: r.jurisdiction_code,
-        taxType: r.tax_type,
-        name: r.name,
-        rate: Number(r.rate),
-        flatAmount: Number(r.flat_amount ?? 0),
-        currency: r.currency ?? JURISDICTION_INFO[code]?.currency ?? "USD",
-        appliesToCategory: r.applies_to_category ?? "all",
-        minAmount: Number(r.min_amount ?? 0),
-        maxCap: Number(r.max_cap ?? 0),
-        isCompound: Boolean(r.is_compound),
-        priority: Number(r.priority),
-      }));
+      const allDbRules = [...dbRules, ...customRows];
+      if (allDbRules.length > 0) {
+        return allDbRules.map(r => ({
+          id: r.id,
+          jurisdictionCode: r.jurisdiction_code,
+          taxType: r.tax_type,
+          name: r.name,
+          rate: Number(r.rate),
+          flatAmount: Number(r.flat_amount ?? 0),
+          currency: r.currency ?? JURISDICTION_INFO[code]?.currency ?? "USD",
+          appliesToCategory: r.applies_to_category ?? "all",
+          minAmount: Number(r.min_amount ?? 0),
+          maxCap: Number(r.max_cap ?? 0),
+          isCompound: Boolean(r.is_compound),
+          priority: Number(r.priority),
+        }));
+      }
+    } catch {
+      // tax_rules table may not exist if migration 0074 hasn't been applied
     }
   }
   return JURISDICTION_TAX_RULES[code] ?? [];
