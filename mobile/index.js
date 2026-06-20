@@ -1,9 +1,16 @@
 /**
- * TourismPay Mobile — React Native entry point
- * @format
+ * TourismPay Mobile — Entry point.
+ * Registers the app component and background message handler.
  */
 import { AppRegistry } from "react-native";
-import App from "./App";
-import { name as appName } from "./package.json";
+import messaging from "@react-native-firebase/messaging";
+import App from "./src/App";
+import { name as appName } from "./app.json";
 
-AppRegistry.registerComponent(appName || "TourismPayMobile", () => App);
+// Register background message handler (runs when app is killed)
+messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+  // Handle data-only notifications in background
+  console.log("Background message:", remoteMessage.data);
+});
+
+AppRegistry.registerComponent(appName, () => App);

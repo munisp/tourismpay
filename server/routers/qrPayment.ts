@@ -526,4 +526,116 @@ export const qrPaymentRouter = router({
         .where(eq(qrPaymentTokens.id, qr.id));
       return { success: true, token: input.token, amountUsd: input.amountUsd, currency: input.currency, paidAt: new Date().toISOString() };
     }),
+
+  /** Initialize card/bank payment via Paystack or Flutterwave gateway */
+  initGatewayPayment: protectedProcedure
+    .input(z.object({
+      token: z.string(),
+      amountMinor: z.number().int().positive(), // Amount in kobo/cents
+      currency: z.string().max(10).default("NGN"),
+      email: z.string().email(),
+      callbackUrl: z.string().url().optional(),
+      channels: z.array(z.enum(["card", "bank", "ussd", "mobile_money", "bank_transfer"])).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { initializePayment, isPaymentGatewayConfigured, getConfiguredProvider } = await import("../_core/paymentGateway");
+
+      const db = await getDb();
+      if (!db) throw new Error("Database unavailable");
+
+      // Validate QR token
+      const [qr] = await db
+        .select()
+        .from(qrPaymentTokens)
+        .where(and(
+          eq(qrPaymentTokens.token, input.token),
+          eq(qrPaymentTokens.status, "pending"),
+          gt(qrPaymentTokens.expiresAt, new Date()),
+        ))
+        .limit(1);
+      if (!qr) throw new Error("QR token is invalid, expired, or already used");
+
+      const reference = `TP-QR-${qr.id}-${Date.now()}`;
+
+      const result = await initializePayment({
+        amountKobo: input.amountMinor,
+        currency: input.currency,
+        email: input.email,
+        reference,
+        callbackUrl: input.callbackUrl,
+        metadata: {
+          qrTokenId: qr.id,
+          establishmentId: qr.establishmentId,
+          userId: ctx.user.id,
+          source: "qr_payment",
+        },
+        channels: input.channels,
+      });
+
+      return {
+        ...result,
+        qrTokenId: qr.id,
+        provider: getConfiguredProvider(),
+        gatewayConfigured: isPaymentGatewayConfigured(),
+      };
+    }),
+
+  /** Verify payment status after redirect from gateway */
+  verifyGatewayPayment: protectedProcedure
+    .input(z.object({
+      reference: z.string().min(1),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { verifyPayment } = await import("../_core/paymentGateway");
+
+      const result = await verifyPayment(input.reference);
+
+      if (result.status === "success") {
+        // Mark QR token as paid
+        const db = await getDb();
+        if (db) {
+          // Extract QR ID from reference (format: TP-QR-{id}-{timestamp})
+          const refParts = input.reference.split("-");
+          const qrId = refParts.length >= 3 ? parseInt(refParts[2]) : 0;
+          if (qrId > 0) {
+            await db.update(qrPaymentTokens)
+              .set({
+                status: "paid",
+                paidByUserId: ctx.user.id,
+                paidAt: new Date(),
+                walletTxId: input.reference,
+              })
+              .where(eq(qrPaymentTokens.id, qrId));
+
+            // Record wallet transaction for the gateway payment
+            await db.insert(walletTransactions).values({
+              userId: String(ctx.user.id),
+              type: "debit",
+              status: "completed",
+              fromCurrency: result.currency,
+              amount: (result.amount / 100).toFixed(2),
+              fee: "0",
+              counterparty: `gateway:${result.provider}`,
+              reference: input.reference,
+              note: `Card/bank payment via ${result.provider} (ref: ${input.reference})`,
+              completedAt: Math.floor(Date.now() / 1000),
+            });
+          }
+        }
+      }
+
+      return result;
+    }),
+
+  /** Payment gateway webhook handler endpoint info */
+  webhookInfo: protectedProcedure
+    .query(async () => {
+      const { isPaymentGatewayConfigured, getConfiguredProvider } = await import("../_core/paymentGateway");
+      return {
+        configured: isPaymentGatewayConfigured(),
+        provider: getConfiguredProvider(),
+        webhookEndpoint: "/api/webhooks/payment",
+        supportedEvents: ["charge.success", "charge.failed", "refund.processed"],
+      };
+    }),
 });

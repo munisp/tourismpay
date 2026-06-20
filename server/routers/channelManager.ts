@@ -354,6 +354,207 @@ export const channelManagerRouter = router({
       clearTimeout(timeout);
     }
   }),
+
+  // ─── Push rates to OTA channels (Expedia, Booking.com, Google Hotel) ────────
+  pushRates: protectedProcedure
+    .input(z.object({
+      establishmentId: z.number().int().positive(),
+      channel: z.enum(["expedia", "booking_com", "google_hotel"]),
+      rates: z.array(z.object({
+        roomTypeCode: z.string().min(1),
+        ratePlanCode: z.string().min(1),
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        amountPerNight: z.number().positive(),
+        currency: z.string().length(3).default("USD"),
+        minStay: z.number().int().optional(),
+        maxStay: z.number().int().optional(),
+        closedToArrival: z.boolean().optional(),
+        closedToDeparture: z.boolean().optional(),
+      })).min(1).max(100),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const { establishments } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [est] = await db.select().from(establishments).where(eq(establishments.id, input.establishmentId)).limit(1);
+      if (!est) throw new TRPCError({ code: "NOT_FOUND" });
+      if (est.ownerId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { pushRates, isChannelConfigured } = await import("../_core/otaConnector");
+      if (!isChannelConfigured(input.channel)) {
+        return {
+          success: false,
+          channel: input.channel,
+          configured: false,
+          message: `${getChannelDisplayName(input.channel)} API credentials not configured. Set the required env vars.`,
+        };
+      }
+
+      const propertyId = (est.metadata as Record<string, string>)?.[`${input.channel}_property_id`]
+        ?? process.env[`${input.channel.toUpperCase()}_PROPERTY_ID`]
+        ?? String(input.establishmentId);
+
+      const result = await pushRates(input.channel, propertyId, input.rates);
+      await createAuditLog({
+        actorId: ctx.user.id,
+        action: "channel_rate_push",
+        entityType: "channel_manager",
+        entityId: String(input.establishmentId),
+        description: `Pushed ${input.rates.length} rates to ${input.channel}`,
+        after: { channel: input.channel, success: result.success, errors: result.errors },
+      });
+
+      return { ...result, configured: true };
+    }),
+
+  // ─── Push availability to OTA channels ──────────────────────────────────────
+  pushAvailability: protectedProcedure
+    .input(z.object({
+      establishmentId: z.number().int().positive(),
+      channel: z.enum(["expedia", "booking_com", "google_hotel"]),
+      updates: z.array(z.object({
+        roomTypeCode: z.string().min(1),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        totalInventory: z.number().int().min(0),
+        soldCount: z.number().int().min(0).optional(),
+      })).min(1).max(365),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+
+      const { establishments } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [est] = await db.select().from(establishments).where(eq(establishments.id, input.establishmentId)).limit(1);
+      if (!est) throw new TRPCError({ code: "NOT_FOUND" });
+      if (est.ownerId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { pushAvailability, isChannelConfigured } = await import("../_core/otaConnector");
+      if (!isChannelConfigured(input.channel)) {
+        return {
+          success: false,
+          channel: input.channel,
+          configured: false,
+          message: `${getChannelDisplayName(input.channel)} not configured`,
+        };
+      }
+
+      const propertyId = (est.metadata as Record<string, string>)?.[`${input.channel}_property_id`]
+        ?? process.env[`${input.channel.toUpperCase()}_PROPERTY_ID`]
+        ?? String(input.establishmentId);
+
+      const result = await pushAvailability(input.channel, propertyId, input.updates);
+      await createAuditLog({
+        actorId: ctx.user.id,
+        action: "channel_availability_push",
+        entityType: "channel_manager",
+        entityId: String(input.establishmentId),
+        description: `Pushed ${input.updates.length} availability updates to ${input.channel}`,
+        after: { channel: input.channel, success: result.success },
+      });
+
+      return { ...result, configured: true };
+    }),
+
+  // ─── Fetch inbound bookings from OTA channels ──────────────────────────────
+  fetchOtaBookings: protectedProcedure
+    .input(z.object({
+      establishmentId: z.number().int().positive(),
+      channel: z.enum(["expedia", "booking_com", "google_hotel"]),
+      since: z.string().optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) return { bookings: [], configured: false };
+
+      const { establishments } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [est] = await db.select().from(establishments).where(eq(establishments.id, input.establishmentId)).limit(1);
+      if (!est) throw new TRPCError({ code: "NOT_FOUND" });
+      if (est.ownerId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { fetchBookings, isChannelConfigured } = await import("../_core/otaConnector");
+      if (!isChannelConfigured(input.channel)) {
+        return { bookings: [], configured: false };
+      }
+
+      const propertyId = (est.metadata as Record<string, string>)?.[`${input.channel}_property_id`]
+        ?? String(input.establishmentId);
+
+      const bookings = await fetchBookings(input.channel, propertyId, input.since);
+      return { bookings, configured: true };
+    }),
+
+  // ─── Sync all configured OTA channels ───────────────────────────────────────
+  syncAll: protectedProcedure
+    .input(z.object({
+      establishmentId: z.number().int().positive(),
+      rates: z.array(z.object({
+        roomTypeCode: z.string().min(1),
+        ratePlanCode: z.string().min(1),
+        startDate: z.string(),
+        endDate: z.string(),
+        amountPerNight: z.number().positive(),
+        currency: z.string().length(3).default("USD"),
+      })).optional(),
+      availability: z.array(z.object({
+        roomTypeCode: z.string().min(1),
+        date: z.string(),
+        totalInventory: z.number().int().min(0),
+        soldCount: z.number().int().min(0).optional(),
+      })).optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { getDb } = await import("../db");
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const { establishments } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const [est] = await db.select().from(establishments).where(eq(establishments.id, input.establishmentId)).limit(1);
+      if (!est) throw new TRPCError({ code: "NOT_FOUND" });
+      if (est.ownerId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const { syncAllChannels, getConfiguredChannels } = await import("../_core/otaConnector");
+      const propertyId = String(input.establishmentId);
+
+      const { results, bookings } = await syncAllChannels(
+        propertyId,
+        input.rates ?? [],
+        input.availability ?? [],
+      );
+
+      await createAuditLog({
+        actorId: ctx.user.id,
+        action: "channel_sync_all",
+        entityType: "channel_manager",
+        entityId: String(input.establishmentId),
+        description: `Synced all OTA channels for establishment ${input.establishmentId}`,
+        after: { configuredChannels: getConfiguredChannels(), resultsCount: results.length, bookingsCount: bookings.length },
+      });
+
+      return { results, bookings, configuredChannels: getConfiguredChannels() };
+    }),
+
+  // ─── Check OTA channel connection status ────────────────────────────────────
+  connectionStatus: protectedProcedure
+    .query(async () => {
+      const { isChannelConfigured, getConfiguredChannels } = await import("../_core/otaConnector");
+      return {
+        configured: getConfiguredChannels(),
+        channels: {
+          expedia: { configured: isChannelConfigured("expedia"), name: "Expedia Partner Central" },
+          booking_com: { configured: isChannelConfigured("booking_com"), name: "Booking.com" },
+          google_hotel: { configured: isChannelConfigured("google_hotel"), name: "Google Hotel Center" },
+        },
+      };
+    }),
 });
 
 function getChannelDisplayName(channel: string): string {

@@ -1,51 +1,56 @@
 /**
- * MerchantStaff — Staff Management
+ * MerchantStaff — Staff list from tRPC API with roles.
  */
-import React from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, Text, ScrollView, StyleSheet, RefreshControl, ActivityIndicator } from "react-native";
+import { merchantAPI } from "../../services/api";
 
-export function MerchantStaff({ navigation }: any) {
+export function MerchantStaff() {
+  const [staff, setStaff] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadData = useCallback(async () => {
+    try { const data = await merchantAPI.getStaff(); setStaff(data); } catch {} finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+  const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
+
+  if (loading) return <View style={[s.container, { justifyContent: "center", alignItems: "center" }]}><ActivityIndicator size="large" color="#6c63ff" /></View>;
+
   return (
-    <ScrollView style={s.container}>
-      <Text style={s.title}>Staff Management</Text>
-      {/* Stats */}
-      <View style={s.statsRow}>
-        <View style={s.stat}><Text style={s.statNum}>0</Text><Text style={s.statLabel}>Total Staff</Text></View>
-        <View style={s.stat}><Text style={s.statNum}>0</Text><Text style={s.statLabel}>Active</Text></View>
-        <View style={s.stat}><Text style={s.statNum}>0</Text><Text style={s.statLabel}>Pending</Text></View>
-      </View>
-      {/* Actions */}
-      <View style={s.actionsGrid}>
-        <TouchableOpacity style={s.actionBtn}><Text style={s.actionEmoji}>➕</Text><Text style={s.actionLabel}>Invite</Text></TouchableOpacity>
-        <TouchableOpacity style={s.actionBtn}><Text style={s.actionEmoji}>👥</Text><Text style={s.actionLabel}>Roles</Text></TouchableOpacity>
-        <TouchableOpacity style={s.actionBtn}><Text style={s.actionEmoji}>📊</Text><Text style={s.actionLabel}>Activity</Text></TouchableOpacity>
-      </View>
-      {/* Content */}
-      <Text style={s.section}>Staff Members</Text>
-      <View style={s.emptyState}>
-        <Text style={s.emptyEmoji}>👥</Text>
-        <Text style={s.emptyText}>No staff</Text>
-        <Text style={s.emptySubtext}>Invite team members to help manage your establishment</Text>
-      </View>
-      <View style={{ height: 40 }} />
+    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6c63ff" />}>
+      <Text style={s.title}>{staff.length} Staff Members</Text>
+      {staff.length === 0 ? (
+        <View style={s.empty}><Text style={s.emptyText}>No staff added yet</Text></View>
+      ) : (
+        staff.map((member) => (
+          <View key={member.id} style={s.card}>
+            <View style={s.avatar}><Text style={s.avatarText}>{(member.name ?? "?")[0].toUpperCase()}</Text></View>
+            <View style={s.info}>
+              <Text style={s.name}>{member.name}</Text>
+              <Text style={s.role}>{member.role ?? "Staff"}</Text>
+            </View>
+            <View style={[s.statusDot, { backgroundColor: member.active ? "#22c55e" : "#666" }]} />
+          </View>
+        ))
+      )}
+      <View style={{ height: 30 }} />
     </ScrollView>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f0f1a", padding: 16 },
-  title: { fontSize: 22, fontWeight: "700", color: "#fff", marginTop: 12, marginBottom: 16 },
-  statsRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
-  stat: { flex: 1, backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, alignItems: "center" },
-  statNum: { fontSize: 18, fontWeight: "700", color: "#fff" },
-  statLabel: { fontSize: 10, color: "#888", marginTop: 4 },
-  actionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
-  actionBtn: { width: "30%", backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, alignItems: "center" },
-  actionEmoji: { fontSize: 22, marginBottom: 4 },
-  actionLabel: { fontSize: 10, color: "#ccc" },
-  section: { fontSize: 16, fontWeight: "600", color: "#fff", marginTop: 16, marginBottom: 12 },
-  emptyState: { backgroundColor: "#1a1a2e", borderRadius: 14, padding: 30, alignItems: "center" },
-  emptyEmoji: { fontSize: 40, marginBottom: 10 },
-  emptyText: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  emptySubtext: { color: "#888", fontSize: 12, marginTop: 4, textAlign: "center" },
+  title: { color: "#fff", fontSize: 18, fontWeight: "600", marginTop: 8, marginBottom: 16 },
+  empty: { backgroundColor: "#1a1a2e", borderRadius: 14, padding: 30, alignItems: "center" },
+  emptyText: { color: "#888", fontSize: 14 },
+  card: { flexDirection: "row", alignItems: "center", backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, marginBottom: 8, gap: 12 },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#6c63ff33", alignItems: "center", justifyContent: "center" },
+  avatarText: { color: "#6c63ff", fontSize: 16, fontWeight: "700" },
+  info: { flex: 1 },
+  name: { color: "#fff", fontSize: 14, fontWeight: "500" },
+  role: { color: "#888", fontSize: 11, textTransform: "capitalize" },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
 });

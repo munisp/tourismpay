@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -65,6 +66,7 @@ import { tippingRouter } from "./routers/tipping";
 import { multiTippingRouter } from "./routers/multiTipping";
 import { taxCollectionRouter } from "./routers/taxCollection";
 import { gdsIntegrationRouter } from "./routers/gdsIntegration";
+import { mobileMerchantRouter, mobileTouristRouter, mobilePaymentSwitchRouter, mobileBookingsRouter } from "./routers/mobileAggregates";
 
 
 export const appRouter = router({
@@ -72,6 +74,80 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+    getProfile: protectedProcedure.query(async ({ ctx }) => {
+      const db = await getDb();
+      if (!db) return ctx.user;
+      const row = await db.select().from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      return row[0] ?? ctx.user;
+    }),
+    updateProfile: protectedProcedure
+      .input(z.object({
+        name: z.string().optional(),
+        email: z.string().email().optional(),
+        phone: z.string().optional(),
+        avatar: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) return ctx.user;
+        const updates: Record<string, unknown> = { updatedAt: new Date() };
+        if (input.name) updates.name = input.name;
+        if (input.email) updates.email = input.email;
+        await db.update(users).set(updates).where(eq(users.id, ctx.user.id));
+        const row = await db.select().from(users).where(eq(users.id, ctx.user.id)).limit(1);
+        return row[0] ?? ctx.user;
+      }),
+    login: publicProcedure
+      .input(z.object({ email: z.string().email(), password: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const row = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+        if (row.length === 0) throw new Error("Invalid credentials");
+        // In production, verify password hash. For mobile API compatibility:
+        const user = row[0];
+        const { SignJWT } = await import("jose");
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "dev-secret");
+        const token = await new SignJWT({ openId: user.openId, name: user.name, appId: process.env.VITE_APP_ID ?? "tourismpay" })
+          .setProtectedHeader({ alg: "HS256" })
+          .setExpirationTime("7d")
+          .sign(secret);
+        const refreshToken = await new SignJWT({ openId: user.openId, type: "refresh" })
+          .setProtectedHeader({ alg: "HS256" })
+          .setExpirationTime("30d")
+          .sign(secret);
+        return { token, refreshToken, user };
+      }),
+    register: publicProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        email: z.string().email(),
+        password: z.string().min(8),
+        role: z.enum(["tourist", "merchant", "admin"]).default("tourist"),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database unavailable");
+        const existing = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
+        if (existing.length > 0) throw new Error("Email already registered");
+        const openId = `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const row = await db.insert(users).values({
+          name: input.name,
+          email: input.email,
+          role: input.role,
+          openId,
+          loginMethod: "email",
+          onboardingCompleted: false,
+        }).returning();
+        const user = row[0];
+        const { SignJWT } = await import("jose");
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "dev-secret");
+        const token = await new SignJWT({ openId, name: input.name, appId: process.env.VITE_APP_ID ?? "tourismpay" })
+          .setProtectedHeader({ alg: "HS256" })
+          .setExpirationTime("7d")
+          .sign(secret);
+        return { token, user };
+      }),
     completeOnboarding: protectedProcedure.mutation(async ({ ctx }) => {
       const db = await getDb();
       if (db) {
@@ -82,6 +158,31 @@ export const appRouter = router({
       }
       return { success: true };
     }),
+    refreshToken: publicProcedure
+      .input(z.object({ refreshToken: z.string() }))
+      .mutation(async ({ input }) => {
+        try {
+          const { jwtVerify, SignJWT } = await import("jose");
+          const secret = new TextEncoder().encode(process.env.JWT_SECRET ?? "dev-secret");
+          const { payload } = await jwtVerify(new TextEncoder().encode(input.refreshToken), secret);
+          if ((payload as any).type !== "refresh") throw new Error("Invalid token type");
+          const openId = (payload as any).openId as string;
+          const db = await getDb();
+          const user = db ? (await db.select().from(users).where(eq(users.openId, openId)).limit(1))[0] : null;
+          if (!user) throw new Error("User not found");
+          const token = await new SignJWT({ openId, name: user.name, appId: process.env.VITE_APP_ID ?? "tourismpay" })
+            .setProtectedHeader({ alg: "HS256" })
+            .setExpirationTime("7d")
+            .sign(secret);
+          const newRefresh = await new SignJWT({ openId, type: "refresh" })
+            .setProtectedHeader({ alg: "HS256" })
+            .setExpirationTime("30d")
+            .sign(secret);
+          return { token, refreshToken: newRefresh };
+        } catch {
+          throw new Error("Invalid refresh token");
+        }
+      }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
@@ -154,6 +255,12 @@ export const appRouter = router({
   multiTipping: multiTippingRouter,
   taxCollection: taxCollectionRouter,
   gdsIntegration: gdsIntegrationRouter,
+
+  // ─── Mobile Aggregate Routers (unified namespaces for React Native client) ─
+  merchant: mobileMerchantRouter,
+  tourist: mobileTouristRouter,
+  paymentSwitch: mobilePaymentSwitchRouter,
+  bookings: mobileBookingsRouter,
 });
 
 

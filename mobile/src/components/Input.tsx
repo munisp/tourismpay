@@ -10,7 +10,7 @@ interface InputProps extends TextInputProps {
   icon?: string;
 }
 
-export function Input({ label, error, icon, style, ...props }: InputProps) {
+export function Input({ label, error, icon, style, ...props }: InputProps & { style?: any }) {
   return (
     <View style={s.container}>
       {label && <Text style={s.label}>{label}</Text>}

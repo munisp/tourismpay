@@ -1,95 +1,135 @@
 /**
- * Merchant Dashboard — Native mobile home screen for merchants.
- * Shows revenue summary, recent bookings, quick actions, and alerts.
+ * Merchant Dashboard — real-time stats, revenue, and quick actions from tRPC API.
  */
-import React from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  RefreshControl, ActivityIndicator,
+} from "react-native";
+import { merchantAPI, MerchantStats } from "../../services/api";
+import { useAuth } from "../../hooks/useAuth";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { MerchantStackParams } from "../../navigation/RootNavigator";
 
-export function MerchantDashboard({ navigation }: any) {
+type Props = { navigation: NativeStackNavigationProp<MerchantStackParams, "MerchantHome"> };
+
+export function MerchantDashboard({ navigation }: Props) {
+  const { user } = useAuth();
+  const [stats, setStats] = useState<MerchantStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadStats = useCallback(async () => {
+    try {
+      const data = await merchantAPI.getDashboardStats();
+      setStats(data);
+    } catch {
+      // Graceful fallback
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadStats(); }, [loadStats]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadStats();
+    setRefreshing(false);
+  };
+
+  if (loading) {
+    return (
+      <View style={[s.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color="#6c63ff" />
+      </View>
+    );
+  }
+
+  const currency = stats?.currency ?? "USD";
+
   return (
-    <ScrollView style={s.container}>
-      {/* Revenue Summary */}
-      <View style={s.revenueCard}>
-        <Text style={s.revenueLabel}>Today's Revenue</Text>
-        <Text style={s.revenueAmount}>$0.00</Text>
-        <Text style={s.revenueChange}>Connect channels to start earning</Text>
+    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6c63ff" />}>
+      <Text style={s.greeting}>Welcome, {user?.name ?? "Merchant"}</Text>
+
+      {/* Stats Grid */}
+      <View style={s.statsGrid}>
+        <View style={s.statCard}>
+          <Text style={s.statNum}>{currency} {(stats?.todayRevenue ?? 0).toLocaleString()}</Text>
+          <Text style={s.statLabel}>Today's Revenue</Text>
+          {stats?.revenueChange !== undefined && (
+            <Text style={[s.change, stats.revenueChange >= 0 ? s.positive : s.negative]}>
+              {stats.revenueChange >= 0 ? "+" : ""}{stats.revenueChange.toFixed(1)}%
+            </Text>
+          )}
+        </View>
+        <View style={s.statCard}>
+          <Text style={s.statNum}>{stats?.todayTransactions ?? 0}</Text>
+          <Text style={s.statLabel}>Transactions</Text>
+        </View>
+        <View style={s.statCard}>
+          <Text style={s.statNum}>{stats?.activeBookings ?? 0}</Text>
+          <Text style={s.statLabel}>Active Bookings</Text>
+        </View>
+        <View style={s.statCard}>
+          <Text style={s.statNum}>{stats?.channelSync ?? 0}</Text>
+          <Text style={s.statLabel}>Channel Syncs</Text>
+        </View>
       </View>
 
-      {/* Quick Actions Grid */}
+      {/* Quick Actions */}
+      <Text style={s.section}>Quick Actions</Text>
       <View style={s.actionsGrid}>
-        <TouchableOpacity style={s.actionCard} onPress={() => navigation.navigate("Revenue")}>
+        <TouchableOpacity style={s.action} onPress={() => navigation.navigate("Revenue")}>
           <Text style={s.actionEmoji}>📊</Text>
-          <Text style={s.actionLabel}>Revenue</Text>
+          <Text style={s.actionText}>Revenue</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.actionCard} onPress={() => navigation.navigate("QRCodes")}>
+        <TouchableOpacity style={s.action} onPress={() => navigation.navigate("QRCodes")}>
           <Text style={s.actionEmoji}>📱</Text>
-          <Text style={s.actionLabel}>QR Codes</Text>
+          <Text style={s.actionText}>QR Pay</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.actionCard} onPress={() => navigation.navigate("Products")}>
+        <TouchableOpacity style={s.action} onPress={() => navigation.navigate("Products")}>
           <Text style={s.actionEmoji}>🛍️</Text>
-          <Text style={s.actionLabel}>Products</Text>
+          <Text style={s.actionText}>Products</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.actionCard} onPress={() => navigation.navigate("Bookings")}>
-          <Text style={s.actionEmoji}>📋</Text>
-          <Text style={s.actionLabel}>Bookings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.actionCard} onPress={() => navigation.navigate("Channels")}>
-          <Text style={s.actionEmoji}>🌐</Text>
-          <Text style={s.actionLabel}>Channels</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.actionCard} onPress={() => navigation.navigate("Cashier")}>
-          <Text style={s.actionEmoji}>💳</Text>
-          <Text style={s.actionLabel}>Cashier</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.actionCard} onPress={() => navigation.navigate("Availability")}>
+        <TouchableOpacity style={s.action} onPress={() => navigation.navigate("Bookings")}>
           <Text style={s.actionEmoji}>📅</Text>
-          <Text style={s.actionLabel}>Calendar</Text>
+          <Text style={s.actionText}>Bookings</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={s.actionCard} onPress={() => navigation.navigate("Payouts")}>
+        <TouchableOpacity style={s.action} onPress={() => navigation.navigate("Cashier")}>
+          <Text style={s.actionEmoji}>💳</Text>
+          <Text style={s.actionText}>Cashier</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.action} onPress={() => navigation.navigate("Payouts")}>
           <Text style={s.actionEmoji}>💰</Text>
-          <Text style={s.actionLabel}>Payouts</Text>
+          <Text style={s.actionText}>Payouts</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.action} onPress={() => navigation.navigate("Staff")}>
+          <Text style={s.actionEmoji}>👥</Text>
+          <Text style={s.actionText}>Staff</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.action} onPress={() => navigation.navigate("Channels")}>
+          <Text style={s.actionEmoji}>🌐</Text>
+          <Text style={s.actionText}>Channels</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Recent Bookings */}
-      <Text style={s.section}>Recent Bookings</Text>
-      <View style={s.emptyState}>
-        <Text style={s.emptyEmoji}>📭</Text>
-        <Text style={s.emptyText}>No bookings yet</Text>
-        <Text style={s.emptySubtext}>Connect distribution channels to start receiving bookings</Text>
-      </View>
-
-      {/* Channel Status */}
-      <Text style={s.section}>Channel Status</Text>
-      <View style={s.channelRow}>
-        <View style={s.channelItem}><Text style={s.chEmoji}>🌐</Text><Text style={s.chName}>Sabre</Text><View style={s.offDot} /></View>
-        <View style={s.channelItem}><Text style={s.chEmoji}>✈️</Text><Text style={s.chName}>Amadeus</Text><View style={s.offDot} /></View>
-        <View style={s.channelItem}><Text style={s.chEmoji}>🏨</Text><Text style={s.chName}>Expedia</Text><View style={s.offDot} /></View>
-      </View>
-
-      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f0f1a", padding: 16 },
-  revenueCard: { backgroundColor: "#1a1a2e", borderRadius: 16, padding: 24, marginTop: 8, alignItems: "center", borderWidth: 1, borderColor: "#6c63ff30" },
-  revenueLabel: { color: "#888", fontSize: 13 },
-  revenueAmount: { color: "#fff", fontSize: 36, fontWeight: "700", marginTop: 4 },
-  revenueChange: { color: "#6c63ff", fontSize: 12, marginTop: 4 },
-  actionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 20 },
-  actionCard: { width: "23%", backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, alignItems: "center" },
-  actionEmoji: { fontSize: 22, marginBottom: 4 },
-  actionLabel: { fontSize: 10, color: "#ccc", fontWeight: "500" },
+  greeting: { fontSize: 22, fontWeight: "700", color: "#fff", marginTop: 16, marginBottom: 20 },
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  statCard: { width: "48%", backgroundColor: "#1a1a2e", borderRadius: 12, padding: 16, alignItems: "center" },
+  statNum: { fontSize: 18, fontWeight: "700", color: "#fff" },
+  statLabel: { fontSize: 11, color: "#888", marginTop: 4 },
+  change: { fontSize: 12, fontWeight: "600", marginTop: 4 },
+  positive: { color: "#22c55e" },
+  negative: { color: "#ef4444" },
   section: { fontSize: 16, fontWeight: "600", color: "#fff", marginTop: 24, marginBottom: 12 },
-  emptyState: { backgroundColor: "#1a1a2e", borderRadius: 14, padding: 30, alignItems: "center" },
-  emptyEmoji: { fontSize: 40, marginBottom: 10 },
-  emptyText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  emptySubtext: { color: "#888", fontSize: 12, marginTop: 4, textAlign: "center" },
-  channelRow: { flexDirection: "row", gap: 10 },
-  channelItem: { flex: 1, backgroundColor: "#1a1a2e", borderRadius: 10, padding: 12, alignItems: "center", flexDirection: "row", gap: 6 },
-  chEmoji: { fontSize: 16 },
-  chName: { color: "#ccc", fontSize: 11, flex: 1 },
-  offDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#666" },
+  actionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  action: { width: "23%", alignItems: "center", backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14 },
+  actionEmoji: { fontSize: 24, marginBottom: 6 },
+  actionText: { fontSize: 10, color: "#ccc", textAlign: "center" },
 });
