@@ -1481,4 +1481,58 @@ export const loyaltyRouter = router({
         promoName,
       };
     }),
+
+  // Mobile-compatible aliases
+  getPoints: protectedProcedure.query(async ({ ctx }) => {
+    const acct = await ensureAccount(ctx.user.id);
+    return {
+      pointsBalance: acct.pointsBalance,
+      lifetimePoints: acct.lifetimePoints,
+      tier: acct.tier,
+    };
+  }),
+
+  getTier: protectedProcedure.query(async ({ ctx }) => {
+    const acct = await ensureAccount(ctx.user.id);
+    const naturalTier = getTierFromPoints(acct.lifetimePoints);
+    const nowMs = Date.now();
+    const isInGracePeriod = acct.tierProtectedUntil != null && acct.tierProtectedUntil > nowMs;
+    return {
+      tier: acct.tier,
+      naturalTier,
+      lifetimePoints: acct.lifetimePoints,
+      isInGracePeriod,
+      nextTierAt: acct.tier === "BRONZE" ? 1000 : acct.tier === "SILVER" ? 5000 : acct.tier === "GOLD" ? 20000 : null,
+    };
+  }),
+
+  getRewards: protectedProcedure.query(async () => {
+    const cached = await cacheGet<unknown[]>("loyalty:rewards");
+    if (cached) return cached;
+    const db = await getDb();
+    if (!db) return DEFAULT_REWARDS;
+    try {
+      const nowMs = Date.now();
+      const rows = await db.execute(
+        sql`SELECT * FROM loyalty_rewards
+            WHERE is_active = TRUE AND (expires_at IS NULL OR expires_at > ${nowMs})
+            ORDER BY points_cost ASC`
+      );
+      if ((rows as any[]).length === 0) return DEFAULT_REWARDS;
+      const result = (rows as any[]).map(r => mapRewardRow(r, nowMs));
+      await cacheSet("loyalty:rewards", result, 60);
+      return result;
+    } catch {
+      return DEFAULT_REWARDS;
+    }
+  }),
+
+  getReferralCode: protectedProcedure.query(async ({ ctx }) => {
+    const code = `TP-${String(ctx.user.id).slice(0, 6).toUpperCase()}-REF`;
+    return {
+      code,
+      url: `https://tourismpay.com/join?ref=${code}`,
+      pointsPerReferral: 500,
+    };
+  }),
 });

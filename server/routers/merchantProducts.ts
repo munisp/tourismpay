@@ -540,4 +540,66 @@ export const merchantProductsRouter = router({
       const meta = product.metadata as Record<string, unknown> | null;
       return (meta?.priceHistory as unknown[]) ?? [];
     }),
+
+  // Mobile-compatible aliases
+  getProducts: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const ests = await db.select({ id: establishments.id }).from(establishments).where(eq(establishments.ownerId, ctx.user.id));
+    if (ests.length === 0) return [];
+    return db
+      .select()
+      .from(merchantProducts)
+      .where(eq(merchantProducts.establishmentId, ests[0].id))
+      .orderBy(asc(merchantProducts.sortOrder), desc(merchantProducts.createdAt));
+  }),
+
+  createProduct: protectedProcedure
+    .input(z.object({
+      name: z.string().min(1).max(255),
+      description: z.string().optional(),
+      category: z.string().min(1).max(100).default("general"),
+      price: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid price format"),
+      currency: z.string().length(3).default("USD"),
+      imageUrl: z.string().url().optional(),
+      available: z.boolean().default(true),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const ests = await db.select({ id: establishments.id }).from(establishments).where(eq(establishments.ownerId, ctx.user.id));
+      if (ests.length === 0) throw new TRPCError({ code: "FORBIDDEN", message: "No establishment found" });
+      const [product] = await db.insert(merchantProducts).values({
+        establishmentId: ests[0].id,
+        name: input.name,
+        description: input.description,
+        category: input.category,
+        price: input.price,
+        currency: input.currency,
+        imageUrl: input.imageUrl,
+        available: input.available,
+      }).returning();
+      return product;
+    }),
+
+  updateProduct: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      price: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+      available: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+      const { id, ...updates } = input;
+      const [updated] = await db
+        .update(merchantProducts)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(merchantProducts.id, id))
+        .returning();
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Product not found" });
+      return updated;
+    }),
 });

@@ -638,4 +638,47 @@ export const qrPaymentRouter = router({
         supportedEvents: ["charge.success", "charge.failed", "refund.processed"],
       };
     }),
+
+  // Mobile-compatible aliases
+  generateQR: protectedProcedure
+    .input(z.object({
+      amount: z.number().optional(),
+      currency: z.string().max(10).default("USD"),
+      description: z.string().max(256).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database unavailable");
+      const ests = await db.select({ id: establishments.id }).from(establishments).where(eq(establishments.ownerId, ctx.user.id));
+      if (ests.length === 0) throw new Error("No establishment found");
+      const token = crypto.randomUUID();
+      const [row] = await db.insert(qrPaymentTokens).values({
+        establishmentId: ests[0].id,
+        token,
+        amountUsd: input.amount ? String(input.amount) : null,
+        currency: input.currency,
+        description: input.description ?? null,
+        status: "pending",
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      }).returning();
+      return {
+        tokenId: row.id,
+        token: row.token,
+        expiresAt: row.expiresAt,
+        qrData: `tourismpay://pay?token=${row.token}&est=${ests[0].id}`,
+      };
+    }),
+
+  getQRCodes: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    const ests = await db.select({ id: establishments.id }).from(establishments).where(eq(establishments.ownerId, ctx.user.id));
+    if (ests.length === 0) return [];
+    return db
+      .select()
+      .from(qrPaymentTokens)
+      .where(eq(qrPaymentTokens.establishmentId, ests[0].id))
+      .orderBy(desc(qrPaymentTokens.createdAt))
+      .limit(20);
+  }),
 });

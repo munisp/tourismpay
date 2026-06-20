@@ -1966,6 +1966,54 @@ export const walletRouter = router({
         totalQrCount: totalQr?.txCount ?? 0,
       };
     }),
+
+  // Mobile-compatible aliases
+  getBalances: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return [];
+    await ensureDefaultBalances(String(ctx.user.id));
+    const rows = await db
+      .select()
+      .from(walletBalances)
+      .where(eq(walletBalances.userId, String(ctx.user.id)))
+      .orderBy(walletBalances.currency);
+    return rows.map((r) => ({
+      ...r,
+      label: CURRENCY_LABELS[r.currency as WalletCurrency] || r.currency,
+      network: CURRENCY_NETWORKS[r.currency as WalletCurrency] || r.network,
+      balance: parseFloat(r.balance as unknown as string),
+      lockedBalance: parseFloat(r.lockedBalance as unknown as string),
+    }));
+  }),
+
+  getTransactions: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(100).default(50),
+      offset: z.number().optional(),
+      currency: z.string().optional(),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { transactions: [], total: 0 };
+      const limit = input?.limit ?? 50;
+      const conditions = [eq(walletTransactions.userId, String(ctx.user.id))];
+      if (input?.currency) conditions.push(eq(walletTransactions.fromCurrency, input.currency));
+      const rows = await db
+        .select()
+        .from(walletTransactions)
+        .where(and(...conditions))
+        .orderBy(desc(walletTransactions.createdAt))
+        .limit(limit);
+      return {
+        transactions: rows.map((tx) => ({
+          ...tx,
+          amount: parseFloat(tx.amount as unknown as string),
+          toAmount: tx.toAmount ? parseFloat(tx.toAmount as unknown as string) : null,
+          fee: parseFloat(tx.fee as unknown as string),
+        })),
+        total: rows.length,
+      };
+    }),
 });
 function computeNextRun(recurrence: string, fromMs: number): number {
   const d = new Date(fromMs);

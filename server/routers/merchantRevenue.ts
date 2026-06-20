@@ -1135,4 +1135,33 @@ export const merchantRevenueRouter = router({
         totalCount: steps.length,
       };
     }),
+
+  // Mobile-compatible alias
+  getRevenue: protectedProcedure
+    .input(z.object({ period: z.enum(["day", "week", "month", "year"]).default("month") }).optional())
+    .query(async ({ ctx, input }) => {
+      const db = await getDb();
+      if (!db) return { revenue: 0, transactions: 0, period: input?.period ?? "month" };
+      const ests = await db.select({ id: establishments.id }).from(establishments).where(eq(establishments.ownerId, ctx.user.id));
+      if (ests.length === 0) return { revenue: 0, transactions: 0, period: input?.period ?? "month" };
+      const estId = ests[0].id;
+
+      const periodDays: Record<string, number> = { day: 1, week: 7, month: 30, year: 365 };
+      const days = periodDays[input?.period ?? "month"] ?? 30;
+      const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
+
+      const result = await db.execute(
+        sql`SELECT COALESCE(SUM(CAST(amount AS NUMERIC)), 0) as total, COUNT(*)::int as cnt
+            FROM wallet_transactions
+            WHERE counterparty LIKE ${'%est:' + estId + '%'}
+              AND created_at > ${cutoff}`
+      ) as any[];
+
+      const row = result[0] ?? { total: 0, cnt: 0 };
+      return {
+        revenue: Number(row.total),
+        transactions: Number(row.cnt),
+        period: input?.period ?? "month",
+      };
+    }),
 });
