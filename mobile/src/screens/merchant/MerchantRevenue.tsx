@@ -1,105 +1,127 @@
 /**
- * Merchant Revenue — Revenue analytics with charts, breakdowns, and period selection.
+ * MerchantRevenue — Revenue analytics from tRPC API with period selector.
  */
-import React, { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  RefreshControl, ActivityIndicator,
+} from "react-native";
+import { merchantAPI } from "../../services/api";
 
-type Period = "today" | "week" | "month" | "year";
+type Period = "day" | "week" | "month" | "year";
 
 export function MerchantRevenue() {
+  const [revenue, setRevenue] = useState<any>(null);
   const [period, setPeriod] = useState<Period>("week");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const periodData: Record<Period, { revenue: string; txCount: number; avgOrder: string; growth: string }> = {
-    today: { revenue: "$0.00", txCount: 0, avgOrder: "$0.00", growth: "—" },
-    week: { revenue: "$0.00", txCount: 0, avgOrder: "$0.00", growth: "—" },
-    month: { revenue: "$0.00", txCount: 0, avgOrder: "$0.00", growth: "—" },
-    year: { revenue: "$0.00", txCount: 0, avgOrder: "$0.00", growth: "—" },
-  };
+  const loadData = useCallback(async () => {
+    try {
+      const data = await merchantAPI.getRevenue(period);
+      setRevenue(data);
+    } catch {
+      // Offline
+    } finally {
+      setLoading(false);
+    }
+  }, [period]);
 
-  const data = periodData[period];
+  useEffect(() => { setLoading(true); loadData(); }, [loadData]);
+
+  const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
+
+  if (loading) {
+    return <View style={[s.container, { justifyContent: "center", alignItems: "center" }]}><ActivityIndicator size="large" color="#6c63ff" /></View>;
+  }
 
   return (
-    <ScrollView style={s.container}>
+    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6c63ff" />}>
       {/* Period Selector */}
       <View style={s.periodRow}>
-        {(["today", "week", "month", "year"] as Period[]).map((p) => (
-          <TouchableOpacity
-            key={p}
-            style={[s.periodBtn, period === p && s.periodActive]}
-            onPress={() => setPeriod(p)}
-          >
-            <Text style={[s.periodText, period === p && s.periodActiveText]}>
-              {p.charAt(0).toUpperCase() + p.slice(1)}
-            </Text>
+        {(["day", "week", "month", "year"] as Period[]).map((p) => (
+          <TouchableOpacity key={p} style={[s.periodBtn, period === p && s.periodActive]} onPress={() => setPeriod(p)}>
+            <Text style={[s.periodText, period === p && s.periodActiveText]}>{p.charAt(0).toUpperCase() + p.slice(1)}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Revenue Card */}
-      <View style={s.mainCard}>
-        <Text style={s.mainLabel}>Total Revenue</Text>
-        <Text style={s.mainAmount}>{data.revenue}</Text>
-        <Text style={s.mainGrowth}>{data.growth} vs previous period</Text>
+      {/* Revenue Summary */}
+      <View style={s.summaryCard}>
+        <Text style={s.summaryLabel}>Total Revenue</Text>
+        <Text style={s.summaryAmount}>${(revenue?.total ?? 0).toLocaleString()}</Text>
+        <Text style={[s.change, (revenue?.changePercent ?? 0) >= 0 ? s.positive : s.negative]}>
+          {(revenue?.changePercent ?? 0) >= 0 ? "+" : ""}{revenue?.changePercent ?? 0}% vs prev period
+        </Text>
       </View>
 
-      {/* Metrics Grid */}
-      <View style={s.metricsRow}>
-        <View style={s.metric}><Text style={s.metricVal}>{data.txCount}</Text><Text style={s.metricLabel}>Transactions</Text></View>
-        <View style={s.metric}><Text style={s.metricVal}>{data.avgOrder}</Text><Text style={s.metricLabel}>Avg Order</Text></View>
-        <View style={s.metric}><Text style={s.metricVal}>{data.growth}</Text><Text style={s.metricLabel}>Growth</Text></View>
+      {/* Breakdown */}
+      <View style={s.breakdownRow}>
+        <View style={s.breakdownCard}>
+          <Text style={s.breakdownLabel}>Transactions</Text>
+          <Text style={s.breakdownValue}>{revenue?.transactionCount ?? 0}</Text>
+        </View>
+        <View style={s.breakdownCard}>
+          <Text style={s.breakdownLabel}>Avg Ticket</Text>
+          <Text style={s.breakdownValue}>${(revenue?.avgTicket ?? 0).toFixed(2)}</Text>
+        </View>
       </View>
 
-      <View style={s.chartBox}>
-        <Text style={s.chartLabel}>Revenue Chart</Text>
-        <View style={s.chartArea}>
-          {[0.3, 0.5, 0.7, 0.4, 0.8, 0.6, 0.9].map((h, i) => (
-            <View key={i} style={[s.bar, { height: h * 100 }]} />
+      <View style={s.breakdownRow}>
+        <View style={s.breakdownCard}>
+          <Text style={s.breakdownLabel}>QR Payments</Text>
+          <Text style={s.breakdownValue}>${(revenue?.qrRevenue ?? 0).toLocaleString()}</Text>
+        </View>
+        <View style={s.breakdownCard}>
+          <Text style={s.breakdownLabel}>Bookings</Text>
+          <Text style={s.breakdownValue}>${(revenue?.bookingRevenue ?? 0).toLocaleString()}</Text>
+        </View>
+      </View>
+
+      {/* Top Products */}
+      {revenue?.topProducts && revenue.topProducts.length > 0 && (
+        <>
+          <Text style={s.section}>Top Products</Text>
+          {revenue.topProducts.map((product: any, i: number) => (
+            <View key={i} style={s.productRow}>
+              <Text style={s.productRank}>#{i + 1}</Text>
+              <View style={s.productInfo}>
+                <Text style={s.productName}>{product.name}</Text>
+                <Text style={s.productSales}>{product.salesCount} sales</Text>
+              </View>
+              <Text style={s.productRevenue}>${product.revenue.toLocaleString()}</Text>
+            </View>
           ))}
-        </View>
-      </View>
+        </>
+      )}
 
-      {/* Revenue by Source */}
-      <Text style={s.section}>Revenue by Source</Text>
-      {[
-        { name: "Direct Bookings", pct: "42%", color: "#6c63ff" },
-        { name: "Channel (Sabre)", pct: "23%", color: "#2563eb" },
-        { name: "Channel (Expedia)", pct: "19%", color: "#ca8a04" },
-        { name: "Walk-in (Cashier)", pct: "16%", color: "#10b981" },
-      ].map((src) => (
-        <View key={src.name} style={s.sourceRow}>
-          <View style={[s.sourceDot, { backgroundColor: src.color }]} />
-          <Text style={s.sourceName}>{src.name}</Text>
-          <Text style={s.sourcePct}>{src.pct}</Text>
-        </View>
-      ))}
-
-      <View style={{ height: 40 }} />
+      <View style={{ height: 30 }} />
     </ScrollView>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f0f1a", padding: 16 },
-  periodRow: { flexDirection: "row", backgroundColor: "#1a1a2e", borderRadius: 10, padding: 4, marginTop: 8 },
-  periodBtn: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 8 },
+  periodRow: { flexDirection: "row", gap: 8, marginTop: 8 },
+  periodBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: "#1a1a2e", alignItems: "center" },
   periodActive: { backgroundColor: "#6c63ff" },
-  periodText: { color: "#888", fontSize: 13, fontWeight: "500" },
+  periodText: { color: "#888", fontSize: 12, fontWeight: "500" },
   periodActiveText: { color: "#fff" },
-  mainCard: { backgroundColor: "#1a1a2e", borderRadius: 16, padding: 24, marginTop: 16, alignItems: "center" },
-  mainLabel: { color: "#888", fontSize: 12 },
-  mainAmount: { color: "#fff", fontSize: 32, fontWeight: "700", marginTop: 4 },
-  mainGrowth: { color: "#888", fontSize: 12, marginTop: 4 },
-  metricsRow: { flexDirection: "row", gap: 10, marginTop: 12 },
-  metric: { flex: 1, backgroundColor: "#1a1a2e", borderRadius: 10, padding: 12, alignItems: "center" },
-  metricVal: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  metricLabel: { color: "#888", fontSize: 10, marginTop: 4 },
-  chartBox: { backgroundColor: "#1a1a2e", borderRadius: 14, padding: 16, marginTop: 16 },
-  chartLabel: { color: "#fff", fontSize: 14, fontWeight: "600", marginBottom: 12 },
-  chartArea: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", height: 100, gap: 4 },
-  bar: { flex: 1, backgroundColor: "#6c63ff", borderRadius: 4 },
-  section: { fontSize: 16, fontWeight: "600", color: "#fff", marginTop: 24, marginBottom: 12 },
-  sourceRow: { flexDirection: "row", alignItems: "center", backgroundColor: "#1a1a2e", borderRadius: 10, padding: 12, marginBottom: 8 },
-  sourceDot: { width: 10, height: 10, borderRadius: 5, marginRight: 10 },
-  sourceName: { flex: 1, color: "#ccc", fontSize: 13 },
-  sourcePct: { color: "#fff", fontWeight: "600", fontSize: 13 },
+  summaryCard: { backgroundColor: "#1a1a2e", borderRadius: 16, padding: 24, alignItems: "center", marginTop: 16 },
+  summaryLabel: { color: "#888", fontSize: 12 },
+  summaryAmount: { color: "#fff", fontSize: 36, fontWeight: "700", marginTop: 4 },
+  change: { fontSize: 13, marginTop: 8 },
+  positive: { color: "#22c55e" },
+  negative: { color: "#ef4444" },
+  breakdownRow: { flexDirection: "row", gap: 8, marginTop: 12 },
+  breakdownCard: { flex: 1, backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, alignItems: "center" },
+  breakdownLabel: { color: "#888", fontSize: 10, marginBottom: 4 },
+  breakdownValue: { color: "#fff", fontSize: 16, fontWeight: "600" },
+  section: { color: "#fff", fontSize: 16, fontWeight: "600", marginTop: 24, marginBottom: 12 },
+  productRow: { flexDirection: "row", alignItems: "center", backgroundColor: "#1a1a2e", borderRadius: 10, padding: 12, marginBottom: 8 },
+  productRank: { color: "#6c63ff", fontSize: 14, fontWeight: "700", width: 30 },
+  productInfo: { flex: 1 },
+  productName: { color: "#fff", fontSize: 13, fontWeight: "500" },
+  productSales: { color: "#888", fontSize: 11 },
+  productRevenue: { color: "#22c55e", fontSize: 14, fontWeight: "600" },
 });

@@ -25,6 +25,7 @@ import { PaymentReceipt } from "../screens/tourist/PaymentReceipt";
 import { TouristOnboarding } from "../screens/tourist/TouristOnboarding";
 import { Itinerary } from "../screens/tourist/Itinerary";
 import { TripSummary } from "../screens/tourist/TripSummary";
+import { MapExplore } from "../screens/tourist/MapExplore";
 
 // Merchant
 import { MerchantDashboard } from "../screens/merchant/MerchantDashboard";
@@ -116,12 +117,13 @@ export type ChannelStackParams = {
 export type TouristStackParams = {
   TouristHome: undefined;
   Portal: undefined;
-  Catalog: { token?: string };
+  Catalog: { token?: string; experienceId?: number };
   OrderConfirm: { orderId?: string };
   Receipt: { token?: string };
   Onboarding: undefined;
   Itinerary: undefined;
   TripSummary: { shareToken?: string };
+  MapExplore: undefined;
 };
 
 export type MerchantStackParams = {
@@ -222,6 +224,7 @@ function TouristNavigator() {
       <TouristStack.Screen name="Onboarding" component={TouristOnboarding} options={{ title: "Get Started" }} />
       <TouristStack.Screen name="Itinerary" component={Itinerary} options={{ title: "My Itinerary" }} />
       <TouristStack.Screen name="TripSummary" component={TripSummary} options={{ title: "Trip Summary" }} />
+      <TouristStack.Screen name="MapExplore" component={MapExplore} options={{ title: "Map", headerShown: false }} />
     </TouristStack.Navigator>
   );
 }

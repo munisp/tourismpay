@@ -3,19 +3,24 @@
     "target": "esnext",
     "module": "commonjs",
     "lib": ["es2022"],
+    "allowJs": true,
     "jsx": "react-native",
+    "noEmit": true,
     "strict": true,
-    "moduleResolution": "node",
-    "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "isolatedModules": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
-    },
-    "noEmit": true
+      "@services/*": ["src/services/*"],
+      "@hooks/*": ["src/hooks/*"],
+      "@screens/*": ["src/screens/*"],
+      "@navigation/*": ["src/navigation/*"]
+    }
   },
-  "include": ["src/**/*", "index.js", "App.tsx"],
-  "exclude": ["node_modules"]
+  "include": ["src/**/*", "index.js"],
+  "exclude": ["node_modules", "babel.config.js", "metro.config.js"]
 }

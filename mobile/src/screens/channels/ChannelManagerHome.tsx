@@ -56,7 +56,7 @@ export function ChannelManagerHome({ navigation }: Props) {
   const loadChannels = useCallback(async () => {
     if (!token) return;
     try {
-      const data = await channelManagerAPI.listChannels(establishmentId, token);
+      const data = await channelManagerAPI.listChannels(establishmentId);
       setChannels(data);
     } catch (err) {
       // Graceful fallback
@@ -73,7 +73,7 @@ export function ChannelManagerHome({ navigation }: Props) {
     if (!token) return;
     setSyncing(channelName);
     try {
-      await channelManagerAPI.triggerSync({ establishmentId, channel: channelName }, token);
+      await channelManagerAPI.triggerSync({ establishmentId, channel: channelName });
       Alert.alert("Sync Started", "Channel sync has been triggered.");
       await loadChannels();
     } catch {

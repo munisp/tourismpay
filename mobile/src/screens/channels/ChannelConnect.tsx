@@ -145,14 +145,11 @@ export function ChannelConnect({ navigation, route }: Props) {
     if (!token) return;
     setStep("connecting");
     try {
-      await channelManagerAPI.connect(
-        {
-          establishmentId,
-          channel: info.name,
-          config: { apiKey, apiSecret, propertyId: propertyId || undefined, environment },
-        },
-        token
-      );
+      await channelManagerAPI.connect({
+        establishmentId,
+        channel: info.name,
+        config: { apiKey, apiSecret, propertyId: propertyId || undefined, environment },
+      });
       Alert.alert(
         "Connected! 🎉",
         `${info.displayName} is now live. Your inventory will sync automatically every 5 minutes.`,
