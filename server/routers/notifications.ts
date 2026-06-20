@@ -216,6 +216,25 @@ export const notificationsRouter = router({
 
       return results;
     }),
+
+  // Mobile-compatible aliases
+  getAll: protectedProcedure
+    .input(z.object({
+      limit: z.number().int().min(1).max(100).default(50),
+      offset: z.number().int().min(0).default(0),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      return getUserNotifications(ctx.user.id, {
+        limit: input?.limit ?? 50,
+        offset: input?.offset ?? 0,
+        unreadOnly: false,
+      });
+    }),
+
+  getUnreadCount: protectedProcedure.query(async ({ ctx }) => {
+    const count = await getUnreadNotificationCount(ctx.user.id);
+    return { count };
+  }),
 });
 
 /** Build a generic TourismPay notification email template */
