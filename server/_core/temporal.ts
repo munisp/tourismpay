@@ -24,7 +24,7 @@ interface TemporalClient {
 let client: TemporalClient | null = null;
 let connectionAttempted = false;
 
-async function getTemporalClient(): Promise<TemporalClient | null> {
+export async function getTemporalClient(): Promise<TemporalClient | null> {
   if (client) return client;
   if (connectionAttempted) return null;
   connectionAttempted = true;

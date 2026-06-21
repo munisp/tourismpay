@@ -217,22 +217,51 @@ export async function publish(channel: string, message: string): Promise<void> {
 
 // ─── Distributed Lock ────────────────────────────────────────────────────────
 
-export async function acquireLock(key: string, ttlMs: number): Promise<boolean> {
+/**
+ * Acquire a distributed lock with owner tracking.
+ * Overload 1: acquireLock(key, ttlMs) — legacy, returns boolean
+ * Overload 2: acquireLock(key, ownerId, ttlMs) — safe release with CAS
+ */
+export async function acquireLock(key: string, ownerOrTtl: string | number, ttlMs?: number): Promise<boolean> {
   const client = getRedis();
   if (!client) return true; // Without Redis, assume lock acquired (single-instance)
   try {
-    const result = await client.set(`lock:${key}`, "1", "PX", ttlMs, "NX");
+    if (typeof ownerOrTtl === "number") {
+      // Legacy: acquireLock(key, ttlMs)
+      const result = await client.set(`lock:${key}`, "1", "PX", ownerOrTtl, "NX");
+      return result === "OK";
+    }
+    // New: acquireLock(key, ownerId, ttlMs)
+    const owner = ownerOrTtl;
+    const ttl = ttlMs || 30000;
+    const result = await client.set(`lock:${key}`, owner, "PX", ttl, "NX");
     return result === "OK";
   } catch {
     return true;
   }
 }
 
-export async function releaseLock(key: string): Promise<void> {
+/**
+ * Release a distributed lock. If ownerId is provided, only releases if
+ * the current owner matches (CAS — prevents releasing someone else's lock).
+ */
+export async function releaseLock(key: string, ownerId?: string): Promise<void> {
   const client = getRedis();
   if (!client) return;
   try {
-    await client.del(`lock:${key}`);
+    if (ownerId) {
+      // Atomic check-and-delete via Lua script (CAS)
+      const script = `
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+          return redis.call("del", KEYS[1])
+        else
+          return 0
+        end
+      `;
+      await (client as any).eval(script, 1, `lock:${key}`, ownerId);
+    } else {
+      await client.del(`lock:${key}`);
+    }
   } catch {
     // Silent
   }

@@ -23,6 +23,8 @@ mod travel_readiness;
 mod pricing_engine;
 #[allow(dead_code)]
 mod tax_tip_engine;
+#[allow(dead_code)]
+mod fund_flow_atomicity;
 
 use actix_web::{web, App, HttpServer, middleware::Logger};
 use std::env;

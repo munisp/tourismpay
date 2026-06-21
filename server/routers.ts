@@ -67,6 +67,7 @@ import { multiTippingRouter } from "./routers/multiTipping";
 import { taxCollectionRouter } from "./routers/taxCollection";
 import { gdsIntegrationRouter } from "./routers/gdsIntegration";
 import { mobileMerchantRouter, mobileTouristRouter, mobilePaymentSwitchRouter, mobileBookingsRouter } from "./routers/mobileAggregates";
+import { fundFlowRouter } from "./routers/fundFlow";
 
 
 export const appRouter = router({
@@ -255,6 +256,9 @@ export const appRouter = router({
   multiTipping: multiTippingRouter,
   taxCollection: taxCollectionRouter,
   gdsIntegration: gdsIntegrationRouter,
+
+  // ─── Fund Flow Orchestrator (atomic financial transactions) ─────────────────
+  fundFlow: fundFlowRouter,
 
   // ─── Mobile Aggregate Routers (unified namespaces for React Native client) ─
   merchant: mobileMerchantRouter,
