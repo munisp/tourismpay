@@ -200,3 +200,145 @@ export async function registerSSLCertificate(
 export function isApisixEnabled(): boolean {
   return !!process.env.APISIX_ADMIN_URL;
 }
+
+// ─── Fund Flow Protection Routes ─────────────────────────────────────────────
+
+/**
+ * Register dedicated APISIX routes for fund-flow endpoints with:
+ * - Strict rate limiting (prevent abuse/DDoS on financial endpoints)
+ * - JWT validation (Keycloak-issued tokens)
+ * - Request body validation (OpenAppSec WAF)
+ * - IP allow-listing for settlement/admin operations
+ * - Request ID propagation for distributed tracing
+ */
+const FUND_FLOW_ROUTES: RouteConfig[] = [
+  {
+    id: "tourismpay-fund-flow-wallet",
+    uri: "/api/trpc/wallet.*",
+    methods: ["POST"],
+    upstream: {
+      type: "roundrobin",
+      nodes: { [`${process.env.PWA_HOST || "127.0.0.1"}:${process.env.PORT || 3000}`]: 1 },
+    },
+    plugins: {
+      "jwt-auth": { _meta: { disable: false } },
+      "limit-count": {
+        count: 30, // Max 30 wallet mutations per minute
+        time_window: 60,
+        rejected_code: 429,
+        key: "consumer_name", // Per-user rate limit
+        rejected_msg: "Rate limit exceeded on financial endpoint",
+      },
+      "openid-connect": {
+        client_id: process.env.KEYCLOAK_CLIENT_ID || "tourismpay-api",
+        client_secret: process.env.KEYCLOAK_CLIENT_SECRET || "",
+        discovery: `${process.env.KEYCLOAK_URL || "http://localhost:8080"}/realms/tourismpay/.well-known/openid-configuration`,
+        bearer_only: true,
+        scope: "openid fund-transfer",
+      },
+      "request-id": { include_in_response: true },
+      "proxy-rewrite": {
+        headers: { "X-Fund-Flow-Protected": "true" },
+      },
+    },
+  },
+  {
+    id: "tourismpay-fund-flow-settlement",
+    uri: "/settlement/payout*",
+    methods: ["POST"],
+    upstream: {
+      type: "roundrobin",
+      nodes: { [`${process.env.SETTLEMENT_HOST || "127.0.0.1"}:8080`]: 1 },
+    },
+    plugins: {
+      "jwt-auth": { _meta: { disable: false } },
+      "limit-count": {
+        count: 10, // Max 10 settlement payouts per minute
+        time_window: 60,
+        rejected_code: 429,
+        key: "consumer_name",
+      },
+      "ip-restriction": {
+        whitelist: (process.env.SETTLEMENT_ALLOWED_IPS || "127.0.0.1,10.0.0.0/8,172.16.0.0/12").split(","),
+      },
+      "request-id": { include_in_response: true },
+    },
+  },
+  {
+    id: "tourismpay-fund-flow-remittance",
+    uri: "/api/trpc/remittance.*",
+    methods: ["POST"],
+    upstream: {
+      type: "roundrobin",
+      nodes: { [`${process.env.PWA_HOST || "127.0.0.1"}:${process.env.PORT || 3000}`]: 1 },
+    },
+    plugins: {
+      "jwt-auth": { _meta: { disable: false } },
+      "limit-count": {
+        count: 5, // Max 5 remittances per minute (high-value)
+        time_window: 60,
+        rejected_code: 429,
+        key: "consumer_name",
+      },
+      "request-id": { include_in_response: true },
+    },
+  },
+];
+
+export async function syncFundFlowRoutes(): Promise<number> {
+  const config = getApisixConfig();
+  if (!config) return 0;
+
+  let synced = 0;
+  for (const route of FUND_FLOW_ROUTES) {
+    const result = await apisixRequest("PUT", `/apisix/admin/routes/${route.id}`, {
+      uri: route.uri,
+      methods: route.methods,
+      upstream: route.upstream,
+      plugins: route.plugins,
+      priority: 10, // Higher priority than generic routes
+    });
+    if (result) synced++;
+  }
+  logger.info(`[APISIX] Synced ${synced} fund-flow protection routes`);
+  return synced;
+}
+
+// ─── OpenAppSec WAF Integration ──────────────────────────────────────────────
+
+/**
+ * Register OpenAppSec WAF rules for fund-flow endpoints.
+ * Protects against:
+ * - SQL injection in transaction parameters
+ * - Request body tampering
+ * - Abnormal payload sizes (fund amounts)
+ * - Cross-site request forgery on mutations
+ */
+export async function configureOpenAppSecWAF(): Promise<boolean> {
+  const config = getApisixConfig();
+  if (!config) return false;
+
+  const wafPlugin = {
+    "openappsec": {
+      config_path: "/etc/openappsec/tourismpay-fund-flow.policy",
+      mode: "prevent", // Block malicious requests (not just detect)
+      rules: [
+        { name: "sql-injection", severity: "critical", action: "block" },
+        { name: "request-body-tampering", severity: "high", action: "block" },
+        { name: "abnormal-amount", severity: "high", action: "block",
+          condition: "body.amount > 1000000 || body.amount < 0" },
+        { name: "csrf-protection", severity: "medium", action: "block" },
+      ],
+    },
+  };
+
+  // Apply WAF to all fund-flow routes
+  for (const route of FUND_FLOW_ROUTES) {
+    await apisixRequest("PATCH", `/apisix/admin/routes/${route.id}`, {
+      plugins: { ...route.plugins, ...wafPlugin },
+    });
+  }
+
+  logger.info("[APISIX/OpenAppSec] WAF configured for fund-flow endpoints");
+  return true;
+}
