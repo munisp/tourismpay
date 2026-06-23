@@ -11,7 +11,7 @@
 
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
-use std::time::SystemTime;
+
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

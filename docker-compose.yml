@@ -172,8 +172,8 @@ services:
   # ─── Partner Remittance Service (Python) ─────────────────────────────────
   partner-remittance:
     build:
-      context: ./python-services/partner-remittance
-      dockerfile: ../../python-services/Dockerfile
+      context: ./python-services
+      dockerfile: Dockerfile
     depends_on:
       postgres:
         condition: service_healthy

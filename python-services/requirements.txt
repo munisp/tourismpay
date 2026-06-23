@@ -1,19 +1,56 @@
+# Core web framework
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
 pydantic==2.10.3
+starlette>=0.41.0
+python-multipart==0.0.20
+
+# HTTP clients
+httpx==0.28.1
+aiohttp==3.11.11
+
+# Database
+asyncpg==0.30.0
+psycopg2-binary==2.9.10
+
+# Data science
 numpy==2.2.0
 scipy==1.15.0
 scikit-learn==1.6.0
+scikit-image>=0.22.0
 pandas==2.2.3
 reportlab==4.2.5
-httpx==0.28.1
-aiohttp==3.11.11
-python-multipart==0.0.20
-asyncpg==0.30.0
-psycopg2-binary==2.9.10
+
 # ML/DL models
 torch>=2.2.0
+transformers>=4.38.0
+onnxruntime>=1.17.0
+
+# Computer vision
+opencv-python-headless>=4.9.0
+Pillow>=10.2.0
+mediapipe>=0.10.11
+paddleocr>=2.7.0
+insightface>=0.7.3
+
+# Document processing
+docling>=2.0.0
+
+# Graph & analytics
 duckdb>=0.10.0
 neo4j>=5.17.0
 pyarrow>=15.0.0
 networkx>=3.2
+
+# Distributed computing
+ray[default]>=2.9.0
+
+# Streaming & messaging
+aiokafka>=0.10.0
+
+# Search & monitoring
+opensearch-py>=2.4.0
+prometheus-client>=0.20.0
+
+# Database connectors
+trino>=0.328.0

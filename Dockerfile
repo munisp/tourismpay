@@ -23,16 +23,15 @@ FROM base AS production
 ENV NODE_ENV=production
 ENV PORT=3000
 
+# Only copy production node_modules (exclude devDependencies)
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/package.json ./
 COPY --from=build /app/drizzle ./drizzle
-COPY --from=build /app/server ./server
-COPY --from=build /app/shared ./shared
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
-CMD ["node", "--import", "tsx", "server/_core/index.ts"]
+CMD ["node", "dist/index.js"]
