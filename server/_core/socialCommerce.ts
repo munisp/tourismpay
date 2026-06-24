@@ -239,15 +239,16 @@ export async function redeemDeal(dealId: string, userId: string): Promise<boolea
   const db = await getDb();
   if (!db) return false;
 
-  // Atomic UPDATE prevents race condition — only succeeds if still active and under limit
+  // Atomic UPDATE prevents race condition — only succeeds if still active and under limit.
+  // RETURNING id ensures Drizzle gives us the affected rows (db.execute returns [] for bare UPDATE).
   const result = await db.execute(sql`
     UPDATE flash_deals
     SET current_redemptions = current_redemptions + 1,
         status = CASE WHEN current_redemptions + 1 >= max_redemptions THEN 'sold_out' ELSE 'active' END
     WHERE id = ${dealId} AND status = 'active' AND current_redemptions < max_redemptions
+    RETURNING id
   `);
-  const rowsAffected = (result as any).rowCount ?? (result as any).length ?? 0;
-  if (rowsAffected === 0) return false;
+  if ((result as any[]).length === 0) return false;
 
   await publishAuditEvent("social.deal_redeemed", { dealId, userId });
   return true;
