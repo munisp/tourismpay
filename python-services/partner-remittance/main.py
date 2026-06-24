@@ -266,6 +266,9 @@ async def livez():
 async def readyz():
     if not is_ready:
         raise HTTPException(status_code=503, detail="not ready")
+    pool = await get_pool()
+    if pool is None:
+        raise HTTPException(status_code=503, detail="database not connected")
     return {"status": "ready"}
 
 @app.get("/metrics")

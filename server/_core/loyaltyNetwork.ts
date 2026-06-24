@@ -218,7 +218,7 @@ export async function getBalance(userId: string): Promise<LoyaltyBalance> {
       tier: balance.tier,
       tierProgress: balance.tierProgress,
       achievements: balance.achievements,
-    });
+    }).onConflictDoNothing();
   }
 
   return balance;
