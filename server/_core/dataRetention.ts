@@ -6,10 +6,14 @@
  *
  * Middleware integration: Redis (processing queue), Kafka (audit events),
  * OpenSearch (personal data index), PostgreSQL (data deletion).
+ * Persistence: PostgreSQL via Drizzle ORM.
  */
 import { logger } from "./logger";
 import { publishAuditEvent } from "./kafka";
-import { cacheSet, cacheGet } from "./redis";
+import { cacheSet } from "./redis";
+import { getDb } from "../db";
+import { eq } from "drizzle-orm";
+import { dataExportRequests, dataErasureRequests } from "../../drizzle/schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,7 +44,7 @@ export interface ErasureRequest {
   reason: string;
   requestedAt: string;
   completedAt?: string;
-  retainedData?: string[]; // Data categories kept for legal reasons
+  retainedData?: string[];
   denialReason?: string;
 }
 
@@ -74,7 +78,7 @@ interface ConsentRecord {
 const RETENTION_POLICIES: RetentionPolicy[] = [
   {
     dataCategory: "transaction_history",
-    retentionDays: 2555, // 7 years (financial regulation)
+    retentionDays: 2555,
     legalBasis: "legal_obligation",
     canDelete: false,
     tables: ["transactions", "settlements", "refunds"],
@@ -82,7 +86,7 @@ const RETENTION_POLICIES: RetentionPolicy[] = [
   },
   {
     dataCategory: "kyc_documents",
-    retentionDays: 1825, // 5 years after relationship ends
+    retentionDays: 1825,
     legalBasis: "legal_obligation",
     canDelete: false,
     tables: ["kyc_verifications", "kyb_documents"],
@@ -90,7 +94,7 @@ const RETENTION_POLICIES: RetentionPolicy[] = [
   },
   {
     dataCategory: "user_profile",
-    retentionDays: 0, // Retained until deletion request
+    retentionDays: 0,
     legalBasis: "contract",
     canDelete: true,
     tables: ["users", "user_preferences"],
@@ -98,7 +102,7 @@ const RETENTION_POLICIES: RetentionPolicy[] = [
   },
   {
     dataCategory: "payment_methods",
-    retentionDays: 365, // 1 year after last use
+    retentionDays: 365,
     legalBasis: "consent",
     canDelete: true,
     tables: ["payment_methods", "bank_accounts"],
@@ -122,7 +126,7 @@ const RETENTION_POLICIES: RetentionPolicy[] = [
   },
   {
     dataCategory: "support_tickets",
-    retentionDays: 730, // 2 years
+    retentionDays: 730,
     legalBasis: "legitimate_interest",
     canDelete: true,
     tables: ["support_tickets", "chat_messages"],
@@ -130,7 +134,7 @@ const RETENTION_POLICIES: RetentionPolicy[] = [
   },
   {
     dataCategory: "audit_logs",
-    retentionDays: 2555, // 7 years
+    retentionDays: 2555,
     legalBasis: "legal_obligation",
     canDelete: false,
     tables: ["audit_logs", "security_events"],
@@ -139,9 +143,6 @@ const RETENTION_POLICIES: RetentionPolicy[] = [
 ];
 
 // ─── Operations ───────────────────────────────────────────────────────────────
-
-const exportRequests: Map<string, DataExportRequest> = new Map();
-const erasureRequests: Map<string, ErasureRequest> = new Map();
 
 export function getRetentionPolicies(): RetentionPolicy[] {
   return RETENTION_POLICIES;
@@ -160,7 +161,17 @@ export async function requestDataExport(userId: string, format: "json" | "csv" =
     requestedAt: new Date().toISOString(),
   };
 
-  exportRequests.set(request.id, request);
+  const db = await getDb();
+  if (db) {
+    await db.insert(dataExportRequests).values({
+      id: request.id,
+      userId: request.userId,
+      status: request.status,
+      format: request.format,
+      requestedAt: request.requestedAt,
+    });
+  }
+
   await publishAuditEvent("gdpr.export_requested", { userId, requestId: request.id });
   await cacheSet(`gdpr:export:${request.id}`, JSON.stringify(request), 86400 * 7);
 
@@ -169,24 +180,32 @@ export async function requestDataExport(userId: string, format: "json" | "csv" =
 }
 
 export async function requestErasure(userId: string, reason: string): Promise<ErasureRequest> {
+  const retainedCategories = RETENTION_POLICIES
+    .filter(p => !p.canDelete)
+    .map(p => p.dataCategory);
+
   const request: ErasureRequest = {
     id: `erasure_${Date.now()}`,
     userId,
     status: "received",
     reason,
     requestedAt: new Date().toISOString(),
+    retainedData: retainedCategories,
   };
 
-  // Identify data that CANNOT be erased (legal obligations)
-  const retainedCategories = RETENTION_POLICIES
-    .filter(p => !p.canDelete)
-    .map(p => p.dataCategory);
+  const db = await getDb();
+  if (db) {
+    await db.insert(dataErasureRequests).values({
+      id: request.id,
+      userId: request.userId,
+      status: request.status,
+      reason: request.reason,
+      requestedAt: request.requestedAt,
+      retainedData: retainedCategories,
+    });
+  }
 
-  request.retainedData = retainedCategories;
-
-  erasureRequests.set(request.id, request);
   await publishAuditEvent("gdpr.erasure_requested", { userId, requestId: request.id, retained: retainedCategories });
-
   logger.info(`[GDPR] Erasure requested: ${request.id} for user ${userId}. Retained: ${retainedCategories.join(", ")}`);
   return request;
 }
@@ -216,12 +235,41 @@ export async function getDataInventory(userId: string): Promise<DataInventory> {
   };
 }
 
-export function getExportStatus(requestId: string): DataExportRequest | undefined {
-  return exportRequests.get(requestId);
+export async function getExportStatus(requestId: string): Promise<DataExportRequest | undefined> {
+  const db = await getDb();
+  if (db) {
+    const rows = await db.select().from(dataExportRequests).where(eq(dataExportRequests.id, requestId));
+    if (rows.length > 0) {
+      const r = rows[0];
+      return {
+        ...r,
+        status: r.status as DataExportRequest["status"],
+        format: r.format as DataExportRequest["format"],
+        completedAt: r.completedAt ?? undefined,
+        downloadUrl: r.downloadUrl ?? undefined,
+        expiresAt: r.expiresAt ?? undefined,
+      };
+    }
+  }
+  return undefined;
 }
 
-export function getErasureStatus(requestId: string): ErasureRequest | undefined {
-  return erasureRequests.get(requestId);
+export async function getErasureStatus(requestId: string): Promise<ErasureRequest | undefined> {
+  const db = await getDb();
+  if (db) {
+    const rows = await db.select().from(dataErasureRequests).where(eq(dataErasureRequests.id, requestId));
+    if (rows.length > 0) {
+      const r = rows[0];
+      return {
+        ...r,
+        status: r.status as ErasureRequest["status"],
+        completedAt: r.completedAt ?? undefined,
+        retainedData: (r.retainedData as string[] | null) ?? undefined,
+        denialReason: r.denialReason ?? undefined,
+      };
+    }
+  }
+  return undefined;
 }
 
 export async function withdrawConsent(userId: string, purpose: string): Promise<void> {

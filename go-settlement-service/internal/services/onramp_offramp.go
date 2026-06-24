@@ -216,11 +216,37 @@ type OnrampOfframpService struct {
 }
 
 func NewOnrampOfframpService(crypto *CryptoService, cbdc *CBDCBridge) *OnrampOfframpService {
-	return &OnrampOfframpService{
+	svc := &OnrampOfframpService{
 		dailyVolume:   make(map[string]float64),
 		cryptoService: crypto,
 		cbdcBridge:    cbdc,
 	}
+	svc.hydrateDailyVolume()
+	return svc
+}
+
+// hydrateDailyVolume loads today's transaction volumes from PostgreSQL so
+// velocity checks survive service restarts.
+func (s *OnrampOfframpService) hydrateDailyVolume() {
+	if database.DB == nil {
+		return
+	}
+	rows, err := database.DB.Query(
+		"SELECT user_id, COALESCE(SUM(fiat_amount * CASE WHEN fiat_currency = 'USD' THEN 1 ELSE 0.01 END), 0) FROM onramp_offramp_transactions WHERE created_at >= CURRENT_DATE AND status = 'completed' GROUP BY user_id",
+	)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	s.mu.Lock()
+	for rows.Next() {
+		var userID string
+		var vol float64
+		if err := rows.Scan(&userID, &vol); err == nil {
+			s.dailyVolume[userID] = vol
+		}
+	}
+	s.mu.Unlock()
 }
 
 func (s *OnrampOfframpService) generateID(prefix string) string {
