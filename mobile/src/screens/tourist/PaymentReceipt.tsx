@@ -1,19 +1,50 @@
+/**
+ * PaymentReceipt — Wired to tRPC API
+ */
 import React from "react";
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, FlatList } from "react-native";
+import { View, Text, ScrollView, RefreshControl, StyleSheet, ActivityIndicator } from "react-native";
+import { useApiData } from "../../hooks/useApiData";
 
-export function PaymentReceipt({ navigation, route }: any) {
+export function PaymentReceipt({ navigation }: any) {
+  const { data, loading, error, refresh, refreshing } = useApiData<any>({
+    endpoint: "tourist.getLastReceipt",
+    defaultValue: { receiptId: "", amount: 0, currency: "NGN", merchant: "", date: "", method: "" },
+  });
+
+  if (loading) return <View style={s.loadingContainer}><ActivityIndicator size="large" color="#6366f1" /></View>;
+
   return (
-    <ScrollView style={s.container}>
+    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#6366f1" />}>
       <Text style={s.title}>Payment Receipt</Text>
-      <View style={s.content}>
-        <Text style={s.placeholder}>Live data from TourismPay API</Text>
+      {error && <Text style={s.error}>{error}</Text>}
+      <View style={s.statsRow}>
+        <View style={s.stat}><Text style={s.statNum}>{String(data?.merchant ?? "—")}</Text><Text style={s.statLabel}>Merchant</Text></View>
+        <View style={s.stat}><Text style={s.statNum}>{String(data?.amount ?? "—")}</Text><Text style={s.statLabel}>Amount</Text></View>
+        <View style={s.stat}><Text style={s.statNum}>{String(data?.method ?? "—")}</Text><Text style={s.statLabel}>Payment Method</Text></View>
+        <View style={s.stat}><Text style={s.statNum}>{String(data?.date ?? "—")}</Text><Text style={s.statLabel}>Date</Text></View>
       </View>
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
+
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f0f1a", padding: 16 },
+  loadingContainer: { flex: 1, backgroundColor: "#0f0f1a", justifyContent: "center", alignItems: "center" },
   title: { fontSize: 22, fontWeight: "700", color: "#fff", marginTop: 12, marginBottom: 16 },
-  content: { backgroundColor: "#1a1a2e", borderRadius: 14, padding: 20, minHeight: 200 },
-  placeholder: { color: "#666", fontSize: 14, textAlign: "center", marginTop: 60 },
+  error: { color: "#ef4444", fontSize: 12, marginBottom: 8 },
+  section: { fontSize: 16, fontWeight: "600", color: "#fff", marginTop: 16, marginBottom: 12 },
+  statsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
+  stat: { flex: 1, minWidth: "45%", backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, alignItems: "center" },
+  statNum: { fontSize: 16, fontWeight: "700", color: "#fff" },
+  statLabel: { fontSize: 10, color: "#888", marginTop: 4 },
+  card: { backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, marginBottom: 10 },
+  cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  cardTitle: { fontSize: 14, fontWeight: "600", color: "#fff", flex: 1 },
+  cardSub: { fontSize: 12, color: "#888", marginTop: 4 },
+  cardDate: { fontSize: 10, color: "#666", marginTop: 4 },
+  cardAmount: { fontSize: 14, fontWeight: "700", color: "#6366f1" },
+  statusBadge: { fontSize: 10, color: "#f59e0b", fontWeight: "600", backgroundColor: "#f59e0b20", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, overflow: "hidden" },
+  statusGreen: { color: "#10b981", backgroundColor: "#10b98120" },
+  badge: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#6366f1", marginLeft: 8 },
 });

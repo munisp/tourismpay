@@ -1,8 +1,6 @@
 {
   "name": "TourismPay",
   "displayName": "TourismPay",
-  "version": "1.0.0",
-  "buildNumber": "1",
   "expo": {
     "name": "TourismPay",
     "slug": "tourismpay",
@@ -13,42 +11,83 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0f0f1a"
+      "backgroundColor": "#0f172a"
     },
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tourismpay.app",
+      "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "TourismPay needs camera access for QR code scanning and document verification",
+        "NSCameraUsageDescription": "TourismPay uses the camera for QR code scanning and document verification",
         "NSFaceIDUsageDescription": "TourismPay uses Face ID for secure authentication",
-        "NSLocationWhenInUseUsageDescription": "TourismPay uses your location to find nearby experiences and merchants"
+        "NSLocationWhenInUseUsageDescription": "TourismPay uses your location to show nearby merchants and tourist attractions",
+        "NSPhotoLibraryUsageDescription": "TourismPay needs access to your photos for document upload"
+      },
+      "config": {
+        "googleMapsApiKey": "YOUR_IOS_GOOGLE_MAPS_KEY"
+      },
+      "entitlements": {
+        "aps-environment": "production"
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0f0f1a"
+        "backgroundColor": "#0f172a"
       },
       "package": "com.tourismpay.app",
+      "versionCode": 1,
       "permissions": [
         "CAMERA",
-        "USE_BIOMETRIC",
-        "USE_FINGERPRINT",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
-        "INTERNET",
-        "ACCESS_NETWORK_STATE"
-      ]
+        "RECEIVE_BOOT_COMPLETED",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "NFC",
+        "READ_EXTERNAL_STORAGE"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_ANDROID_GOOGLE_MAPS_KEY"
+        }
+      },
+      "googleServicesFile": "./google-services.json"
     },
     "plugins": [
-      "expo-camera",
-      "expo-local-authentication",
-      "expo-location",
+      "expo-router",
       "expo-secure-store",
-      "expo-notifications"
+      "expo-local-authentication",
+      "expo-camera",
+      "expo-location",
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "minSdkVersion": 24,
+            "buildToolsVersion": "34.0.0"
+          },
+          "ios": {
+            "deploymentTarget": "15.0"
+          }
+        }
+      ]
     ],
-    "scheme": "tourismpay"
+    "extra": {
+      "eas": {
+        "projectId": "tourismpay-mobile"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/tourismpay-mobile"
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    }
   }
 }

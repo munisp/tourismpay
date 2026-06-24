@@ -530,6 +530,178 @@ grep -c 'block_in_place' rust-kyc-service/src/biometric_pay.rs  # >= 3
 grep -c 'hydrate_from_db' rust-kyc-service/src/biometric_pay.rs  # >= 1
 ```
 
+### Dockerfile & Docker Compose Verification
+
+When verifying Docker build fixes, these patterns catch common issues:
+
+```bash
+# 1. Verify production CMD uses pre-built bundle (not tsx/ts-node devDeps)
+grep "CMD" Dockerfile
+# Expected: CMD ["node", "dist/index.js"] — NOT tsx or ts-node
+# Verify dist/index.js exists and is >100KB (real bundle)
+ls -la dist/index.js
+
+# 2. Verify no COPY references outside build context
+grep -c "COPY \.\." python-services/Dockerfile  # should be 0
+# Docker COPY cannot access files outside the build context
+
+# 3. Verify docker-compose build contexts align with Dockerfiles
+# Parse each service's context + dockerfile — the dockerfile path
+# must be relative to the context, and COPY paths in the Dockerfile
+# must reference files within the context
+grep -A5 "build:" docker-compose.yml | grep -E "context:|dockerfile:"
+
+# 4. Verify production image doesn't need source files
+# The Dockerfile should NOT COPY server/ or shared/ if esbuild bundles them into dist/
+grep -E "COPY.*server|COPY.*shared" Dockerfile  # should be 0 for bundled apps
+
+# 5. Test the actual production bundle runs without devDeps
+node dist/index.js  # Should NOT fail with "Cannot find module 'tsx'"
+curl http://localhost:3000/health  # Should return HTTP 200
+```
+
+**Key insight:** A common deployment bug is the Dockerfile CMD referencing a dev-only transpiler (tsx, ts-node) that isn't in the production image. Always verify CMD uses pre-built artifacts.
+
+### Python requirements.txt Completeness Audit
+
+```bash
+# AST-based import audit (more reliable than grep)
+python3 -c "
+import os, ast
+external = set()
+stdlib = {'os','sys','json','asyncio','typing','datetime','pathlib','uuid',
+  'hashlib','hmac','base64','time','re','io','logging','collections','enum',
+  'dataclasses','abc','functools','math','random','secrets','copy','itertools'}
+for root, _, files in os.walk('python-services'):
+    for f in files:
+        if f.endswith('.py'):
+            try:
+                tree = ast.parse(open(os.path.join(root,f)).read())
+                for n in ast.walk(tree):
+                    if isinstance(n, ast.Import):
+                        for a in n.names:
+                            t = a.name.split('.')[0]
+                            if t not in stdlib: external.add(t)
+                    elif isinstance(n, ast.ImportFrom) and n.module and n.level==0:
+                        t = n.module.split('.')[0]
+                        if t not in stdlib: external.add(t)
+            except: pass
+print(f'External imports: {len(external)}')
+for i in sorted(external): print(f'  {i}')
+"
+# Cross-reference output against requirements.txt
+# Common false positives: local modules, import-name != pip-name
+# (cv2→opencv-python, PIL→pillow, sklearn→scikit-learn)
+```
+
+### Cache-Busting / HTTP Header Verification
+
+Cache headers only apply in **production mode** (`serveStatic()` in `vite.ts`), NOT in dev mode (`setupVite()`). To test:
+
+```bash
+# Build + start in production mode
+pnpm run build
+NODE_ENV=production node dist/index.js &
+sleep 3
+
+# Verify index.html gets no-cache (should see: no-cache, no-store, must-revalidate)
+curl -sI http://localhost:3000/ | grep -E "Cache-Control|Pragma|Expires"
+
+# Verify hashed JS assets get immutable (should see: max-age=31536000, immutable)
+curl -sI http://localhost:3000/assets/$(ls dist/public/assets/*.js | head -1 | xargs basename) | grep Cache-Control
+
+# Verify sw.js gets no-cache
+curl -sI http://localhost:3000/sw.js | grep -E "Cache-Control|Pragma|Expires"
+
+# Verify SPA fallback routes also get no-cache
+curl -sI http://localhost:3000/any/spa/route | grep Cache-Control
+
+# Kill server when done
+fuser -k 3000/tcp
+```
+
+**Key assertions:**
+- HTML + sw.js → `Cache-Control: no-cache, no-store, must-revalidate` + `Pragma: no-cache` + `Expires: 0`
+- Hashed assets (`.js`, `.css`) → `Cache-Control: public, max-age=31536000, immutable`
+- Meta tags in `client/index.html` → `http-equiv="Cache-Control"`, `Pragma`, `Expires` (before `<title>`)
+- SW: `CACHE_VERSION` dynamic (not hardcoded), `updateViaCache: 'none'` on registration, `CACHE_PURGED` message on activate
+
+## Mobile API Alias Testing
+
+When testing mobile-backend endpoint alignment (procedure-name aliases), use this pattern to verify all mobile endpoints resolve:
+
+```bash
+# 1. Extract all mobile endpoint names from api.ts
+grep -oP 'request<[^>]*>\("([^"]+)"' mobile/src/services/api.ts | sed 's/.*"//;s/".*//' | sort
+
+# 2. Extract all appRouter procedure paths
+# The appRouter keys are in server/routers.ts — each top-level key is a namespace.
+# Each router file exports procedures. Combine namespace + procedure = endpoint path.
+
+# 3. Cross-reference: for each mobile endpoint, verify it exists in the backend
+# Start the dev server, then curl each endpoint:
+curl -s -b /tmp/cookies.txt "http://localhost:3000/api/trpc/NAMESPACE.PROCEDURE" \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); print('OK' if 'result' in d else 'FAIL')"
+
+# 4. For mutations, remember CSRF:
+curl -s -c /tmp/cookies.txt -b /tmp/cookies.txt "http://localhost:3000/api/trpc/auth.me" > /dev/null
+CSRF=$(grep csrf-token /tmp/cookies.txt | awk '{print $NF}')
+curl -s -b /tmp/cookies.txt -b "csrf-token=$CSRF" \
+  -H "X-CSRF-Token: $CSRF" -H "Content-Type: application/json" \
+  -X POST "http://localhost:3000/api/trpc/NAMESPACE.PROCEDURE" \
+  -d '{"json":{...}}'
+```
+
+**Key gotchas:**
+- Mobile uses standardized names (`getBalances`, `getProducts`, `getRevenue`) but backend originally used shorter names (`balances`, `list`, `summary`). Aliases bridge this gap.
+- tRPC HTTP accepts both GET and POST for queries, so mobile using `method: "POST"` for queries works fine.
+- When a procedure returns NOT_FOUND with `path: "namespace.procedure"` in the stack trace, the procedure itself resolved — it's a business logic error (e.g., product ID doesn't exist). A namespace-level NOT_FOUND means the router key doesn't exist in `appRouter`.
+- The `mobileAggregates.ts` file contains unified routers (`merchant`, `tourist`, `paymentSwitch`, `bookings`) that aggregate procedures from multiple sub-routers under mobile-friendly namespaces.
+
+## TypeScript Module-Level Persistence Testing (PR #56+)
+
+For testing Drizzle ORM persistence in TypeScript `_core/` modules, write a tsx script that imports functions directly:
+
+```bash
+# Create test-persistence.ts that imports module functions and pg for direct SQL
+cat > test-persistence.ts << 'EOF'
+import { purchasePolicy, getUserPolicies } from "./server/_core/parametricInsurance";
+import pg from "pg";
+
+const DB_URL = process.env.DATABASE_URL!;
+async function directQuery(sql: string, params: any[] = []) {
+  const client = new pg.Client({ connectionString: DB_URL });
+  await client.connect();
+  const res = await client.query(sql, params);
+  await client.end();
+  return res.rows;
+}
+
+async function main() {
+  const userId = `test-${Date.now()}`;
+  const policy = await purchasePolicy(userId, "trip-1", "flight_delay");
+  const dbRows = await directQuery("SELECT * FROM insurance_policies WHERE id = $1", [policy.id]);
+  console.log(dbRows.length === 1 ? "PASS" : "FAIL", `DB write: ${dbRows.length} rows`);
+  const policies = await getUserPolicies(userId);
+  console.log(policies.find(p => p.id === policy.id) ? "PASS" : "FAIL", "DB read");
+}
+main().catch(e => { console.error(e); process.exit(1); });
+EOF
+
+# Run with DATABASE_URL
+DATABASE_URL="postgresql://tourismpay_user:testpass123@localhost:5432/tourismpay" \
+KAFKAJS_NO_PARTITIONER_WARNING=1 npx tsx test-persistence.ts
+```
+
+**Critical: Table schema must match Drizzle schema exactly.** If tables were created manually (e.g., via SQL instead of `drizzle-kit push`), column names/types may not match. The Drizzle schema is the source of truth — compare `drizzle/schema.ts` definitions against `\d tablename` output. Common mismatches:
+- `loyalty_balances`: Drizzle uses `user_id` as primary key (no separate `id`), `tourismpay_credits` (not `balance`), `partner_balances` JSONB, `total_value_usd` NUMERIC
+- `social_posts`: Drizzle uses `media` JSONB (not `media_urls`), `verified` BOOLEAN, `transaction_id` TEXT, `merchant_id` TEXT
+- `data_export_requests`: Drizzle uses `expires_at` (not `data_size`)
+
+**Install `pg` if needed:** `pnpm add -D pg` — it's not a default dependency but needed for direct SQL verification.
+
+**Suppress noise:** Set `KAFKAJS_NO_PARTITIONER_WARNING=1` to suppress Kafka warnings when Kafka isn't running.
+
 ## Troubleshooting
 
 - **Port already in use**: `fuser -k PORT/tcp` (not `lsof`, which may not be installed)

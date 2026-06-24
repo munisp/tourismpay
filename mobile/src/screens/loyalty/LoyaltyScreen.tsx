@@ -1,156 +1,34 @@
 /**
- * Loyalty Screen — Points balance, tier progress, rewards catalog, and redemption.
+ * LoyaltyScreen — Wired to tRPC API
  */
-import React, { useState, useEffect, useCallback } from "react";
-import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  RefreshControl, Alert, ActivityIndicator,
-} from "react-native";
-import { loyaltyAPI, LoyaltyPoints, LoyaltyTier, Reward } from "../../services/api";
+import React from "react";
+import { View, Text, ScrollView, RefreshControl, StyleSheet, ActivityIndicator } from "react-native";
+import { useApiData } from "../../hooks/useApiData";
 
-export function LoyaltyScreen() {
-  const [points, setPoints] = useState<LoyaltyPoints | null>(null);
-  const [tier, setTier] = useState<LoyaltyTier | null>(null);
-  const [rewards, setRewards] = useState<Reward[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [redeeming, setRedeeming] = useState<number | null>(null);
+export function LoyaltyScreen({ navigation }: any) {
+  const { data, loading, error, refresh, refreshing } = useApiData<any>({
+    endpoint: "loyalty.getPoints",
+    defaultValue: { points: 0, tier: "Bronze", rewards: [] },
+  });
 
-  const loadData = useCallback(async () => {
-    try {
-      const [p, t, r] = await Promise.all([
-        loyaltyAPI.getPoints(),
-        loyaltyAPI.getTier(),
-        loyaltyAPI.getRewards(),
-      ]);
-      setPoints(p);
-      setTier(t);
-      setRewards(r);
-    } catch {
-      // Offline fallback
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { loadData(); }, [loadData]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  };
-
-  const handleRedeem = async (reward: Reward) => {
-    if (!points || points.balance < reward.pointsCost) {
-      Alert.alert("Insufficient Points", `You need ${reward.pointsCost - (points?.balance ?? 0)} more points`);
-      return;
-    }
-
-    Alert.alert("Redeem Reward", `Spend ${reward.pointsCost} points for "${reward.name}"?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Redeem",
-        onPress: async () => {
-          setRedeeming(reward.id);
-          try {
-            await loyaltyAPI.redeemReward(reward.id);
-            Alert.alert("Redeemed!", `You've redeemed "${reward.name}"`);
-            await loadData();
-          } catch (err) {
-            Alert.alert("Failed", err instanceof Error ? err.message : "Redemption failed");
-          } finally {
-            setRedeeming(null);
-          }
-        },
-      },
-    ]);
-  };
-
-  if (loading) {
-    return (
-      <View style={[s.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color="#6c63ff" />
-      </View>
-    );
-  }
-
-  const tierColors: Record<string, string> = { bronze: "#cd7f32", silver: "#c0c0c0", gold: "#ffd700", platinum: "#e5e4e2" };
-  const tierColor = tierColors[tier?.current ?? "bronze"] ?? "#cd7f32";
+  if (loading) return <View style={s.loadingContainer}><ActivityIndicator size="large" color="#6366f1" /></View>;
 
   return (
-    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6c63ff" />}>
-      {/* Points Card */}
-      <View style={[s.pointsCard, { borderColor: tierColor }]}>
-        <Text style={s.tierBadge}>{tier?.current?.toUpperCase() ?? "BRONZE"}</Text>
-        <Text style={s.pointsBalance}>{points?.balance?.toLocaleString() ?? 0}</Text>
-        <Text style={s.pointsLabel}>Available Points</Text>
-        {tier && <Text style={s.tierProgress}>{tier.pointsToNext.toLocaleString()} points to next tier</Text>}
+    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#6366f1" />}>
+      <Text style={s.title}>Loyalty</Text>
+      {error && <Text style={s.error}>{error}</Text>}
+      <View style={s.statsRow}>
+        <View style={s.stat}><Text style={s.statNum}>{String(data?.points ?? "—")}</Text><Text style={s.statLabel}>Points</Text></View>
+        <View style={s.stat}><Text style={s.statNum}>{String(data?.tier ?? "—")}</Text><Text style={s.statLabel}>Tier</Text></View>
       </View>
-
-      {/* Points Breakdown */}
-      <View style={s.breakdownRow}>
-        <View style={s.breakdownItem}>
-          <Text style={s.breakdownNum}>{points?.lifetime?.toLocaleString() ?? 0}</Text>
-          <Text style={s.breakdownLabel}>Lifetime</Text>
-        </View>
-        <View style={s.breakdownItem}>
-          <Text style={s.breakdownNum}>{points?.pendingPoints?.toLocaleString() ?? 0}</Text>
-          <Text style={s.breakdownLabel}>Pending</Text>
-        </View>
-        <View style={s.breakdownItem}>
-          <Text style={[s.breakdownNum, { color: "#ef4444" }]}>{points?.expiringPoints?.toLocaleString() ?? 0}</Text>
-          <Text style={s.breakdownLabel}>Expiring</Text>
-        </View>
-      </View>
-
-      {/* Tier Benefits */}
-      {tier && tier.benefits.length > 0 && (
+      {data?.rewards?.length > 0 ? (
         <>
-          <Text style={s.section}>Your Benefits</Text>
-          {tier.benefits.map((benefit, i) => (
-            <View key={i} style={s.benefitRow}>
-              <Text style={s.benefitDot}>•</Text>
-              <Text style={s.benefitText}>{benefit}</Text>
-            </View>
+          <Text style={s.section}>Items</Text>
+          {data.rewards.map((item: any) => (
+            <View key={item.id} style={s.card}><View style={s.cardRow}><Text style={s.cardTitle}>{item.name}</Text><Text style={s.cardAmount}>{item.cost} pts</Text></View><Text style={[s.statusBadge, item.available && s.statusGreen]}>{item.available ? "Available" : "Locked"}</Text></View>
           ))}
         </>
-      )}
-
-      {/* Rewards Catalog */}
-      <Text style={s.section}>Redeem Rewards</Text>
-      {rewards.length === 0 ? (
-        <View style={s.emptyState}>
-          <Text style={s.emptyEmoji}>🎁</Text>
-          <Text style={s.emptyText}>No rewards available</Text>
-        </View>
-      ) : (
-        rewards.map((reward) => (
-          <TouchableOpacity
-            key={reward.id}
-            style={[s.rewardCard, !reward.available && { opacity: 0.5 }]}
-            onPress={() => reward.available && handleRedeem(reward)}
-            disabled={!reward.available || redeeming === reward.id}
-          >
-            <View style={s.rewardInfo}>
-              <Text style={s.rewardName}>{reward.name}</Text>
-              <Text style={s.rewardDesc} numberOfLines={1}>{reward.description}</Text>
-              <Text style={s.rewardCategory}>{reward.category}</Text>
-            </View>
-            <View style={s.rewardCost}>
-              {redeeming === reward.id ? (
-                <ActivityIndicator size="small" color="#6c63ff" />
-              ) : (
-                <>
-                  <Text style={s.rewardPoints}>{reward.pointsCost.toLocaleString()}</Text>
-                  <Text style={s.rewardPtsLabel}>pts</Text>
-                </>
-              )}
-            </View>
-          </TouchableOpacity>
-        ))
-      )}
-
+      ) : null}
       <View style={{ height: 40 }} />
     </ScrollView>
   );
@@ -158,28 +36,21 @@ export function LoyaltyScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f0f1a", padding: 16 },
-  pointsCard: { backgroundColor: "#1a1a2e", borderRadius: 20, padding: 28, alignItems: "center", marginTop: 8, borderWidth: 2 },
-  tierBadge: { fontSize: 12, fontWeight: "700", color: "#888", letterSpacing: 2, marginBottom: 8 },
-  pointsBalance: { fontSize: 44, fontWeight: "700", color: "#fff" },
-  pointsLabel: { color: "#888", fontSize: 13, marginTop: 4 },
-  tierProgress: { color: "#6c63ff", fontSize: 12, marginTop: 8 },
-  breakdownRow: { flexDirection: "row", gap: 8, marginTop: 16 },
-  breakdownItem: { flex: 1, backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, alignItems: "center" },
-  breakdownNum: { fontSize: 16, fontWeight: "700", color: "#fff" },
-  breakdownLabel: { fontSize: 10, color: "#888", marginTop: 4 },
-  section: { fontSize: 16, fontWeight: "600", color: "#fff", marginTop: 24, marginBottom: 12 },
-  benefitRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6, gap: 8 },
-  benefitDot: { color: "#6c63ff", fontSize: 16 },
-  benefitText: { color: "#ccc", fontSize: 13 },
-  emptyState: { backgroundColor: "#1a1a2e", borderRadius: 14, padding: 30, alignItems: "center" },
-  emptyEmoji: { fontSize: 40, marginBottom: 8 },
-  emptyText: { color: "#888", fontSize: 14 },
-  rewardCard: { flexDirection: "row", alignItems: "center", backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, marginBottom: 8 },
-  rewardInfo: { flex: 1 },
-  rewardName: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  rewardDesc: { color: "#888", fontSize: 11, marginTop: 2 },
-  rewardCategory: { color: "#6c63ff", fontSize: 10, marginTop: 4 },
-  rewardCost: { alignItems: "center", paddingLeft: 12 },
-  rewardPoints: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  rewardPtsLabel: { color: "#888", fontSize: 10 },
+  loadingContainer: { flex: 1, backgroundColor: "#0f0f1a", justifyContent: "center", alignItems: "center" },
+  title: { fontSize: 22, fontWeight: "700", color: "#fff", marginTop: 12, marginBottom: 16 },
+  error: { color: "#ef4444", fontSize: 12, marginBottom: 8 },
+  section: { fontSize: 16, fontWeight: "600", color: "#fff", marginTop: 16, marginBottom: 12 },
+  statsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
+  stat: { flex: 1, minWidth: "45%", backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, alignItems: "center" },
+  statNum: { fontSize: 16, fontWeight: "700", color: "#fff" },
+  statLabel: { fontSize: 10, color: "#888", marginTop: 4 },
+  card: { backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, marginBottom: 10 },
+  cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  cardTitle: { fontSize: 14, fontWeight: "600", color: "#fff", flex: 1 },
+  cardSub: { fontSize: 12, color: "#888", marginTop: 4 },
+  cardDate: { fontSize: 10, color: "#666", marginTop: 4 },
+  cardAmount: { fontSize: 14, fontWeight: "700", color: "#6366f1" },
+  statusBadge: { fontSize: 10, color: "#f59e0b", fontWeight: "600", backgroundColor: "#f59e0b20", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, overflow: "hidden" },
+  statusGreen: { color: "#10b981", backgroundColor: "#10b98120" },
+  badge: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#6366f1", marginLeft: 8 },
 });

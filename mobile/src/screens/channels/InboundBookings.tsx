@@ -1,55 +1,52 @@
 /**
- * Inbound Bookings — Reservations received from external GDS/OTA channels.
+ * InboundBookings — Wired to tRPC API
  */
-import React, { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
+import React from "react";
+import { View, Text, ScrollView, RefreshControl, StyleSheet, ActivityIndicator } from "react-native";
+import { useApiData } from "../../hooks/useApiData";
 
-export function InboundBookings() {
-  const [filter, setFilter] = useState<"all" | "pending" | "confirmed">("all");
+export function InboundBookings({ navigation }: any) {
+  const { data, loading, error, refresh, refreshing } = useApiData<any>({
+    endpoint: "bookings.getInbound",
+    defaultValue: { bookings: [] },
+  });
+
+  if (loading) return <View style={s.loadingContainer}><ActivityIndicator size="large" color="#6366f1" /></View>;
+
+  const items = data?.bookings || [];
 
   return (
-    <ScrollView style={s.container}>
-      {/* Filter */}
-      <View style={s.filterRow}>
-        {(["all", "pending", "confirmed"] as const).map((f) => (
-          <TouchableOpacity key={f} style={[s.filterPill, filter === f && s.filterActive]} onPress={() => setFilter(f)}>
-            <Text style={[s.filterText, filter === f && s.filterActiveText]}>{f.charAt(0).toUpperCase() + f.slice(1)}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Stats */}
-      <View style={s.statsRow}>
-        <View style={s.stat}><Text style={s.statVal}>0</Text><Text style={s.statLabel}>Total</Text></View>
-        <View style={s.stat}><Text style={s.statVal}>0</Text><Text style={s.statLabel}>Pending</Text></View>
-        <View style={s.stat}><Text style={s.statVal}>$0</Text><Text style={s.statLabel}>Revenue</Text></View>
-      </View>
-
-      {/* Empty State */}
-      <View style={s.empty}>
-        <Text style={s.emptyEmoji}>📥</Text>
-        <Text style={s.emptyTitle}>No inbound bookings</Text>
-        <Text style={s.emptySubtext}>
-          Once you connect channels like Sabre, Amadeus, or Expedia, reservations will automatically flow in here.
-        </Text>
-      </View>
+    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#6366f1" />}>
+      <Text style={s.title}>Inbound Bookings</Text>
+      {error && <Text style={s.error}>{error}</Text>}
+      {items.length === 0 ? (
+        <View style={s.emptyState}>
+          <Text style={s.emptyText}>No inbound bookings</Text>
+        </View>
+      ) : (
+        items.map((item: any) => (
+          <View key={item.id} style={s.card}><View style={s.cardRow}><Text style={s.cardTitle}>{item.guestName}</Text><Text style={s.cardAmount}>{item.amount} {item.currency}</Text></View><Text style={s.cardSub}>Check-in: {item.checkIn}</Text><Text style={s.cardDate}>via {item.channel}</Text></View>
+        ))
+      )}
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f0f1a", padding: 16 },
-  filterRow: { flexDirection: "row", gap: 8, marginTop: 8, marginBottom: 16 },
-  filterPill: { flex: 1, backgroundColor: "#1a1a2e", borderRadius: 8, paddingVertical: 8, alignItems: "center" },
-  filterActive: { backgroundColor: "#6c63ff" },
-  filterText: { color: "#888", fontSize: 12, fontWeight: "500" },
-  filterActiveText: { color: "#fff" },
-  statsRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
-  stat: { flex: 1, backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, alignItems: "center" },
-  statVal: { fontSize: 18, fontWeight: "700", color: "#fff" },
-  statLabel: { fontSize: 10, color: "#888", marginTop: 4 },
-  empty: { alignItems: "center", marginTop: 40, padding: 20 },
-  emptyEmoji: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { color: "#fff", fontSize: 18, fontWeight: "600" },
-  emptySubtext: { color: "#888", fontSize: 13, marginTop: 8, textAlign: "center", lineHeight: 20 },
+  loadingContainer: { flex: 1, backgroundColor: "#0f0f1a", justifyContent: "center", alignItems: "center" },
+  title: { fontSize: 22, fontWeight: "700", color: "#fff", marginTop: 12, marginBottom: 16 },
+  error: { color: "#ef4444", fontSize: 12, marginBottom: 8 },
+  emptyState: { backgroundColor: "#1a1a2e", borderRadius: 14, padding: 30, alignItems: "center" },
+  emptyText: { color: "#888", fontSize: 14 },
+  card: { backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, marginBottom: 10 },
+  cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  cardTitle: { fontSize: 14, fontWeight: "600", color: "#fff", flex: 1 },
+  cardSub: { fontSize: 12, color: "#888", marginTop: 4 },
+  cardDate: { fontSize: 10, color: "#666", marginTop: 4 },
+  cardAmount: { fontSize: 14, fontWeight: "700", color: "#6366f1" },
+  statusBadge: { fontSize: 10, color: "#f59e0b", fontWeight: "600", backgroundColor: "#f59e0b20", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, overflow: "hidden" },
+  statusGreen: { color: "#10b981", backgroundColor: "#10b98120" },
+  badge: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#6366f1", marginLeft: 8 },
 });
