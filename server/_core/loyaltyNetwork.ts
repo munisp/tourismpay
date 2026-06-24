@@ -6,10 +6,14 @@
  *
  * Middleware integration: Redis (points cache), Kafka (earn/burn events),
  * OpenSearch (partner catalog), Temporal (tier evaluation workflows).
+ * Persistence: PostgreSQL via Drizzle ORM.
  */
 import { logger } from "./logger";
 import { publishAuditEvent } from "./kafka";
 import { cacheGet, cacheSet } from "./redis";
+import { getDb } from "../db";
+import { eq } from "drizzle-orm";
+import { loyaltyBalances, loyaltyConversions, tourismPassesTable } from "../../drizzle/schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -17,9 +21,9 @@ export interface LoyaltyPartner {
   id: string;
   name: string;
   type: "airline" | "hotel" | "merchant" | "transport" | "attraction";
-  pointsName: string; // "Miles", "Points", "Credits"
-  conversionRate: number; // Points per 1 TourismPay credit
-  reverseRate: number; // TourismPay credits per 1 partner point
+  pointsName: string;
+  conversionRate: number;
+  reverseRate: number;
   logo?: string;
   regions: string[];
   active: boolean;
@@ -31,7 +35,7 @@ export interface LoyaltyBalance {
   partnerBalances: PartnerBalance[];
   totalValueUsd: number;
   tier: LoyaltyTier;
-  tierProgress: number; // 0-100% to next tier
+  tierProgress: number;
   achievements: Achievement[];
 }
 
@@ -58,7 +62,7 @@ export interface PointsConversion {
   id: string;
   userId: string;
   fromPartner: string;
-  toPartner: string; // "tourismpay" for converting to credits
+  toPartner: string;
   fromAmount: number;
   toAmount: number;
   rate: number;
@@ -87,8 +91,8 @@ const PARTNERS: LoyaltyPartner[] = [
     name: "Kenya Airways",
     type: "airline",
     pointsName: "Asante Miles",
-    conversionRate: 100, // 100 miles = 1 credit
-    reverseRate: 80, // 1 credit = 80 miles
+    conversionRate: 100,
+    reverseRate: 80,
     regions: ["KE", "EA"],
     active: true,
   },
@@ -137,18 +141,12 @@ const PARTNERS: LoyaltyPartner[] = [
     name: "Uber Africa",
     type: "transport",
     pointsName: "Uber Credits",
-    conversionRate: 10, // 10 uber credits = 1 tourismpay credit
+    conversionRate: 10,
     reverseRate: 8,
     regions: ["KE", "NG", "ZA", "GH", "TZ"],
     active: true,
   },
 ];
-
-// ─── In-memory store ──────────────────────────────────────────────────────────
-
-const balances: Map<string, LoyaltyBalance> = new Map();
-const conversions: Map<string, PointsConversion> = new Map();
-const tourismPasses: Map<string, TourismPass> = new Map();
 
 // ─── Tier Calculation ─────────────────────────────────────────────────────────
 
@@ -182,6 +180,25 @@ export async function getBalance(userId: string): Promise<LoyaltyBalance> {
   const cached = await cacheGet<string>(`loyalty:balance:${userId}`);
   if (cached) return JSON.parse(cached) as LoyaltyBalance;
 
+  const db = await getDb();
+  if (db) {
+    const rows = await db.select().from(loyaltyBalances).where(eq(loyaltyBalances.userId, userId));
+    if (rows.length > 0) {
+      const r = rows[0];
+      const balance: LoyaltyBalance = {
+        userId: r.userId,
+        tourismpayCredits: r.tourismpayCredits,
+        partnerBalances: r.partnerBalances as PartnerBalance[],
+        totalValueUsd: parseFloat(r.totalValueUsd),
+        tier: r.tier as LoyaltyTier,
+        tierProgress: r.tierProgress,
+        achievements: r.achievements as Achievement[],
+      };
+      await cacheSet(`loyalty:balance:${userId}`, JSON.stringify(balance), 3600);
+      return balance;
+    }
+  }
+
   const balance: LoyaltyBalance = {
     userId,
     tourismpayCredits: 0,
@@ -191,22 +208,39 @@ export async function getBalance(userId: string): Promise<LoyaltyBalance> {
     tierProgress: 0,
     achievements: [],
   };
-  balances.set(userId, balance);
+
+  if (db) {
+    await db.insert(loyaltyBalances).values({
+      userId: balance.userId,
+      tourismpayCredits: balance.tourismpayCredits,
+      partnerBalances: balance.partnerBalances,
+      totalValueUsd: String(balance.totalValueUsd),
+      tier: balance.tier,
+      tierProgress: balance.tierProgress,
+      achievements: balance.achievements,
+    });
+  }
+
   return balance;
 }
 
 export async function earnCredits(userId: string, amount: number, source: string): Promise<LoyaltyBalance> {
   const balance = await getBalance(userId);
   balance.tourismpayCredits += amount;
-  balance.totalValueUsd = balance.tourismpayCredits / 100; // 100 credits = $1
-
-  // Recalculate tier
+  balance.totalValueUsd = balance.tourismpayCredits / 100;
   balance.tier = calculateTier(balance.tourismpayCredits, balance.achievements.filter(a => a.category === "travel").length);
 
-  balances.set(userId, balance);
+  const db = await getDb();
+  if (db) {
+    await db.update(loyaltyBalances).set({
+      tourismpayCredits: balance.tourismpayCredits,
+      totalValueUsd: String(balance.totalValueUsd),
+      tier: balance.tier,
+    }).where(eq(loyaltyBalances.userId, userId));
+  }
+
   await cacheSet(`loyalty:balance:${userId}`, JSON.stringify(balance), 3600);
   await publishAuditEvent("loyalty.credits_earned", { userId, amount, source });
-
   return balance;
 }
 
@@ -235,7 +269,20 @@ export async function convertPoints(
     createdAt: new Date().toISOString(),
   };
 
-  conversions.set(conversion.id, conversion);
+  const db = await getDb();
+  if (db) {
+    await db.insert(loyaltyConversions).values({
+      id: conversion.id,
+      userId: conversion.userId,
+      fromPartner: conversion.fromPartner,
+      toPartner: conversion.toPartner,
+      fromAmount: conversion.fromAmount,
+      toAmount: conversion.toAmount,
+      rate: String(conversion.rate),
+      status: conversion.status,
+      createdAt: conversion.createdAt,
+    });
+  }
 
   if (toPartner === "tourismpay") {
     await earnCredits(userId, toAmount, `conversion:${fromPartner}`);
@@ -249,7 +296,14 @@ export async function awardAchievement(userId: string, achievement: Omit<Achieve
   const balance = await getBalance(userId);
   const awarded: Achievement = { ...achievement, earnedAt: new Date().toISOString() };
   balance.achievements.push(awarded);
-  balances.set(userId, balance);
+
+  const db = await getDb();
+  if (db) {
+    await db.update(loyaltyBalances).set({
+      achievements: balance.achievements,
+    }).where(eq(loyaltyBalances.userId, userId));
+  }
+
   await cacheSet(`loyalty:balance:${userId}`, JSON.stringify(balance), 3600);
   await publishAuditEvent("loyalty.achievement_awarded", { userId, achievementId: achievement.id });
   return awarded;
@@ -272,11 +326,26 @@ export async function createTourismPass(
     includedServices: services,
     maxUsages: services.length * 3,
     currentUsages: 0,
-    price: durationDays * 500, // $5/day
+    price: durationDays * 500,
     currency: "USD",
   };
 
-  tourismPasses.set(pass.id, pass);
+  const db = await getDb();
+  if (db) {
+    await db.insert(tourismPassesTable).values({
+      id: pass.id,
+      userId: pass.userId,
+      region: pass.region,
+      validFrom: pass.validFrom,
+      validTo: pass.validTo,
+      includedServices: pass.includedServices,
+      maxUsages: pass.maxUsages,
+      currentUsages: pass.currentUsages,
+      price: pass.price,
+      currency: pass.currency,
+    });
+  }
+
   await publishAuditEvent("loyalty.pass_created", { passId: pass.id, region });
   return pass;
 }

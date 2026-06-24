@@ -6,10 +6,14 @@
  *
  * Middleware integration: Redis (price cache), Kafka (inventory events),
  * OpenSearch (product catalog), Temporal (settlement workflows).
+ * Persistence: PostgreSQL via Drizzle ORM.
  */
 import { logger } from "./logger";
 import { publishAuditEvent } from "./kafka";
 import { cacheGet, cacheSet } from "./redis";
+import { getDb } from "../db";
+import { eq } from "drizzle-orm";
+import { merchantInventory, merchantLocations, merchantSplitPayments } from "../../drizzle/schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -19,7 +23,7 @@ export interface InventoryItem {
   sku: string;
   name: string;
   category: string;
-  price: number; // Cents
+  price: number;
   currency: string;
   quantity: number;
   lowStockThreshold: number;
@@ -36,7 +40,7 @@ export interface DynamicPricingRule {
   minPrice: number;
   maxPrice: number;
   multiplier: number;
-  peakHours?: number[]; // 0-23
+  peakHours?: number[];
   peakSeason?: string[];
   bundleSize?: number;
   bundleDiscount?: number;
@@ -89,16 +93,10 @@ export interface MerchantAnalytics {
   transactions: number;
   averageOrderValue: number;
   topProducts: { name: string; quantity: number; revenue: number }[];
-  customerRetention: number; // Percentage
+  customerRetention: number;
   peakHours: { hour: number; transactions: number }[];
   comparisonPrevious: { revenueChange: number; transactionChange: number };
 }
-
-// ─── In-memory stores ─────────────────────────────────────────────────────────
-
-const inventory: Map<string, InventoryItem> = new Map();
-const locations: Map<string, MerchantLocation> = new Map();
-const splitPayments: Map<string, SplitPayment> = new Map();
 
 // ─── Inventory Management ─────────────────────────────────────────────────────
 
@@ -111,28 +109,91 @@ export async function addInventoryItem(item: Omit<InventoryItem, "id" | "status"
     updatedAt: new Date().toISOString(),
   };
 
-  inventory.set(newItem.id, newItem);
+  const db = await getDb();
+  if (db) {
+    await db.insert(merchantInventory).values({
+      id: newItem.id,
+      merchantId: newItem.merchantId,
+      sku: newItem.sku,
+      name: newItem.name,
+      category: newItem.category,
+      price: newItem.price,
+      currency: newItem.currency,
+      quantity: newItem.quantity,
+      lowStockThreshold: newItem.lowStockThreshold,
+      dynamicPricing: newItem.dynamicPricing,
+      images: newItem.images,
+      status: newItem.status,
+      createdAt: newItem.createdAt,
+      updatedAt: newItem.updatedAt,
+    });
+  }
+
   await publishAuditEvent("merchant.inventory_added", { itemId: newItem.id, merchantId: item.merchantId });
   return newItem;
 }
 
 export async function updateStock(itemId: string, quantityChange: number): Promise<InventoryItem | null> {
-  const item = inventory.get(itemId);
-  if (!item) return null;
+  const db = await getDb();
+  if (!db) return null;
 
-  item.quantity = Math.max(0, item.quantity + quantityChange);
-  item.updatedAt = new Date().toISOString();
-  item.status = item.quantity > 0 ? "active" : "out_of_stock";
+  const rows = await db.select().from(merchantInventory).where(eq(merchantInventory.id, itemId));
+  if (rows.length === 0) return null;
 
-  if (item.quantity <= item.lowStockThreshold && item.quantity > 0) {
-    await publishAuditEvent("merchant.low_stock_alert", { itemId, quantity: item.quantity, threshold: item.lowStockThreshold });
+  const row = rows[0];
+  const newQuantity = Math.max(0, row.quantity + quantityChange);
+  const newStatus = newQuantity > 0 ? "active" : "out_of_stock";
+  const updatedAt = new Date().toISOString();
+
+  await db.update(merchantInventory).set({
+    quantity: newQuantity,
+    status: newStatus,
+    updatedAt,
+  }).where(eq(merchantInventory.id, itemId));
+
+  if (newQuantity <= row.lowStockThreshold && newQuantity > 0) {
+    await publishAuditEvent("merchant.low_stock_alert", { itemId, quantity: newQuantity, threshold: row.lowStockThreshold });
   }
 
-  return item;
+  return {
+    id: row.id,
+    merchantId: row.merchantId,
+    sku: row.sku,
+    name: row.name,
+    category: row.category,
+    price: row.price,
+    currency: row.currency,
+    quantity: newQuantity,
+    lowStockThreshold: row.lowStockThreshold,
+    dynamicPricing: row.dynamicPricing as DynamicPricingRule | null,
+    images: row.images as string[],
+    status: newStatus as InventoryItem["status"],
+    createdAt: row.createdAt,
+    updatedAt,
+  };
 }
 
-export function getInventory(merchantId: string): InventoryItem[] {
-  return Array.from(inventory.values()).filter(i => i.merchantId === merchantId);
+export async function getInventory(merchantId: string): Promise<InventoryItem[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db.select().from(merchantInventory).where(eq(merchantInventory.merchantId, merchantId));
+  return rows.map(r => ({
+    id: r.id,
+    merchantId: r.merchantId,
+    sku: r.sku,
+    name: r.name,
+    category: r.category,
+    price: r.price,
+    currency: r.currency,
+    quantity: r.quantity,
+    lowStockThreshold: r.lowStockThreshold,
+    dynamicPricing: r.dynamicPricing as DynamicPricingRule | null,
+    images: r.images as string[],
+    status: r.status as InventoryItem["status"],
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }));
 }
 
 // ─── Dynamic Pricing ──────────────────────────────────────────────────────────
@@ -174,7 +235,6 @@ export async function createSplitPayment(
   currency: string,
   splits: Omit<PaymentSplit, "status">[],
 ): Promise<SplitPayment> {
-  // Validate splits sum to total
   const splitSum = splits.reduce((sum, s) => sum + s.amount, 0);
   if (Math.abs(splitSum - totalAmount) > 1) {
     throw new Error(`Split amounts (${splitSum}) don't match total (${totalAmount})`);
@@ -189,36 +249,92 @@ export async function createSplitPayment(
     createdAt: new Date().toISOString(),
   };
 
-  splitPayments.set(payment.id, payment);
+  const db = await getDb();
+  if (db) {
+    await db.insert(merchantSplitPayments).values({
+      id: payment.id,
+      totalAmount: payment.totalAmount,
+      currency: payment.currency,
+      splits: payment.splits,
+      status: payment.status,
+      createdAt: payment.createdAt,
+    });
+  }
+
   await publishAuditEvent("merchant.split_payment_created", { paymentId: payment.id, splits: splits.length });
   return payment;
 }
 
 export async function settleSplit(paymentId: string, recipientId: string): Promise<SplitPayment | null> {
-  const payment = splitPayments.get(paymentId);
-  if (!payment) return null;
+  const db = await getDb();
+  if (!db) return null;
 
-  const split = payment.splits.find(s => s.recipientId === recipientId);
+  const rows = await db.select().from(merchantSplitPayments).where(eq(merchantSplitPayments.id, paymentId));
+  if (rows.length === 0) return null;
+
+  const row = rows[0];
+  const splits = row.splits as PaymentSplit[];
+  const split = splits.find(s => s.recipientId === recipientId);
   if (!split) return null;
   split.status = "settled";
 
-  const allSettled = payment.splits.every(s => s.status === "settled");
-  payment.status = allSettled ? "completed" : "partial";
+  const allSettled = splits.every(s => s.status === "settled");
+  const newStatus = allSettled ? "completed" : "partial";
 
-  return payment;
+  await db.update(merchantSplitPayments).set({ splits, status: newStatus }).where(eq(merchantSplitPayments.id, paymentId));
+
+  return {
+    id: row.id,
+    totalAmount: row.totalAmount,
+    currency: row.currency,
+    splits,
+    status: newStatus,
+    createdAt: row.createdAt,
+  };
 }
 
 // ─── Multi-Location ───────────────────────────────────────────────────────────
 
 export async function addLocation(location: Omit<MerchantLocation, "id">): Promise<MerchantLocation> {
   const newLoc: MerchantLocation = { ...location, id: `loc_${Date.now()}` };
-  locations.set(newLoc.id, newLoc);
+
+  const db = await getDb();
+  if (db) {
+    await db.insert(merchantLocations).values({
+      id: newLoc.id,
+      merchantId: newLoc.merchantId,
+      name: newLoc.name,
+      address: newLoc.address,
+      lat: String(newLoc.lat),
+      lng: String(newLoc.lng),
+      timezone: newLoc.timezone,
+      operatingHours: newLoc.operatingHours,
+      capabilities: newLoc.capabilities,
+      status: newLoc.status,
+    });
+  }
+
   await publishAuditEvent("merchant.location_added", { locationId: newLoc.id, merchantId: location.merchantId });
   return newLoc;
 }
 
-export function getLocations(merchantId: string): MerchantLocation[] {
-  return Array.from(locations.values()).filter(l => l.merchantId === merchantId);
+export async function getLocations(merchantId: string): Promise<MerchantLocation[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db.select().from(merchantLocations).where(eq(merchantLocations.merchantId, merchantId));
+  return rows.map(r => ({
+    id: r.id,
+    merchantId: r.merchantId,
+    name: r.name,
+    address: r.address,
+    lat: parseFloat(r.lat),
+    lng: parseFloat(r.lng),
+    timezone: r.timezone,
+    operatingHours: r.operatingHours as OperatingHours,
+    capabilities: r.capabilities as string[],
+    status: r.status as MerchantLocation["status"],
+  }));
 }
 
 // ─── Analytics ────────────────────────────────────────────────────────────────

@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from dataclasses import dataclass, field, asdict
 
+import asyncpg
 from fastapi import FastAPI, HTTPException, Request, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -182,10 +183,40 @@ FX_RATES = {
     "USDC": 1.0, "USDT": 1.0, "DAI": 1.0,
 }
 
-# ─── In-Memory State (production: PostgreSQL + Redis) ────────────────────────
+# ─── Database Connection ─────────────────────────────────────────────────────
 
-quotes_store: dict[str, dict] = {}
-transfers_store: dict[str, dict] = {}
+db_pool: Optional[asyncpg.Pool] = None
+
+async def get_pool() -> Optional[asyncpg.Pool]:
+    global db_pool
+    if db_pool is None:
+        dsn = os.getenv("DATABASE_URL")
+        if dsn:
+            try:
+                db_pool = await asyncpg.create_pool(dsn, min_size=2, max_size=10)
+                await db_pool.execute("""
+                    CREATE TABLE IF NOT EXISTS partner_quotes (
+                        quote_id TEXT PRIMARY KEY,
+                        data JSONB NOT NULL,
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                await db_pool.execute("""
+                    CREATE TABLE IF NOT EXISTS partner_transfers (
+                        id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        data JSONB NOT NULL,
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                await db_pool.execute("""
+                    CREATE INDEX IF NOT EXISTS pt_user_idx ON partner_transfers(user_id)
+                """)
+                logger.info("PostgreSQL pool initialized for partner-remittance")
+            except Exception as e:
+                logger.warning(f"Failed to connect to PostgreSQL: {e}")
+                db_pool = None
+    return db_pool
 
 # ─── Lifecycle ───────────────────────────────────────────────────────────────
 
@@ -221,6 +252,7 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     global is_ready
+    await get_pool()
     is_ready = True
     logger.info("Partner remittance service started")
 
@@ -307,13 +339,23 @@ async def get_quote(req: PartnerQuoteRequest):
         "redirect_url": f"{config['redirect_base']}?ref={quote_id}&amount={req.source_amount}&currency={req.source_currency}",
         "expires_at": expires_at,
     }
-    quotes_store[quote_id] = quote
+    pool = await get_pool()
+    if pool:
+        await pool.execute(
+            "INSERT INTO partner_quotes (quote_id, data) VALUES ($1, $2) ON CONFLICT (quote_id) DO NOTHING",
+            quote_id, json.dumps(quote)
+        )
     return PartnerQuoteResponse(**quote)
 
 @app.post("/api/v1/partners/transfer", response_model=PartnerTransfer)
 async def initiate_transfer(req: PartnerTransferRequest):
     """Initiate a transfer using an accepted quote"""
-    quote = quotes_store.get(req.quote_id)
+    pool = await get_pool()
+    quote = None
+    if pool:
+        row = await pool.fetchrow("SELECT data FROM partner_quotes WHERE quote_id = $1", req.quote_id)
+        if row:
+            quote = json.loads(row["data"])
     if not quote:
         raise HTTPException(status_code=404, detail="Quote not found or expired")
 
@@ -340,7 +382,11 @@ async def initiate_transfer(req: PartnerTransferRequest):
         "wallet_id": req.wallet_id,
         "created_at": datetime.utcnow().isoformat() + "Z",
     }
-    transfers_store[transfer_id] = transfer
+    if pool:
+        await pool.execute(
+            "INSERT INTO partner_transfers (id, user_id, data) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING",
+            transfer_id, req.user_id, json.dumps(transfer)
+        )
 
     partner_transfers_total.labels(partner=partner, status="initiated", source_currency=quote["source_currency"]).inc()
     partner_volume_usd.labels(partner=partner).inc(quote["source_amount"] * FX_RATES.get(quote["source_currency"], 1.0))
@@ -357,7 +403,12 @@ async def partner_webhook(partner: str, payload: WebhookPayload):
 
     partner_webhook_total.labels(partner=partner, event_type=payload.event_type).inc()
 
-    transfer = transfers_store.get(payload.transfer_id)
+    pool = await get_pool()
+    transfer = None
+    if pool:
+        row = await pool.fetchrow("SELECT data FROM partner_transfers WHERE id = $1", payload.transfer_id)
+        if row:
+            transfer = json.loads(row["data"])
     if not transfer:
         logger.warning(f"Webhook for unknown transfer: {payload.transfer_id}")
         raise HTTPException(status_code=404, detail="Transfer not found")
@@ -379,22 +430,35 @@ async def partner_webhook(partner: str, payload: WebhookPayload):
         partner_transfers_total.labels(partner=partner, status="failed", source_currency=transfer["source_currency"]).inc()
         logger.warning(f"Transfer failed: {payload.transfer_id}")
 
+    if pool:
+        await pool.execute(
+            "UPDATE partner_transfers SET data = $1 WHERE id = $2",
+            json.dumps(transfer), payload.transfer_id
+        )
+
     return {"status": "processed", "transfer_id": payload.transfer_id}
 
 @app.get("/api/v1/partners/transfer/{transfer_id}")
 async def get_transfer(transfer_id: str):
     """Get transfer status"""
-    transfer = transfers_store.get(transfer_id)
-    if not transfer:
-        raise HTTPException(status_code=404, detail="Transfer not found")
-    return transfer
+    pool = await get_pool()
+    if pool:
+        row = await pool.fetchrow("SELECT data FROM partner_transfers WHERE id = $1", transfer_id)
+        if row:
+            return json.loads(row["data"])
+    raise HTTPException(status_code=404, detail="Transfer not found")
 
 @app.get("/api/v1/partners/transfers/{user_id}")
 async def list_transfers(user_id: str):
     """List all transfers for a user"""
-    result = [t for t in transfers_store.values() if t["user_id"] == user_id]
-    result.sort(key=lambda x: x["created_at"], reverse=True)
-    return result
+    pool = await get_pool()
+    if not pool:
+        return []
+    rows = await pool.fetch(
+        "SELECT data FROM partner_transfers WHERE user_id = $1 ORDER BY created_at DESC",
+        user_id
+    )
+    return [json.loads(r["data"]) for r in rows]
 
 @app.get("/api/v1/partners/best")
 async def best_partner(source_currency: str, target_currency: str, amount: float):

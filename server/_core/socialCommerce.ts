@@ -6,10 +6,14 @@
  *
  * Middleware integration: OpenSearch (full-text search), Redis (feed cache),
  * Kafka (social events), Fluvio (real-time activity stream).
+ * Persistence: PostgreSQL via Drizzle ORM.
  */
 import { logger } from "./logger";
 import { publishAuditEvent } from "./kafka";
 import { cacheGet, cacheSet } from "./redis";
+import { getDb } from "../db";
+import { eq, desc } from "drizzle-orm";
+import { socialPosts, flashDeals, referralRewards } from "../../drizzle/schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -20,13 +24,13 @@ export interface SocialPost {
   type: "review" | "photo" | "tip" | "deal" | "experience";
   content: string;
   media: string[];
-  rating?: number; // 1-5
+  rating?: number;
   location?: { lat: number; lng: number; name: string };
   tags: string[];
   likes: number;
   comments: number;
-  verified: boolean; // Verified purchase/visit
-  transactionId?: string; // Proof of purchase
+  verified: boolean;
+  transactionId?: string;
   createdAt: string;
 }
 
@@ -53,8 +57,8 @@ export interface ReferralReward {
   referrerId: string;
   referredId: string;
   status: "pending" | "completed" | "expired";
-  referrerReward: number; // Cents
-  referredReward: number; // Cents
+  referrerReward: number;
+  referredReward: number;
   currency: string;
   completedAt?: string;
   createdAt: string;
@@ -75,10 +79,6 @@ export interface MerchantProfile {
 
 // ─── Social Feed ──────────────────────────────────────────────────────────────
 
-const posts: Map<string, SocialPost> = new Map();
-const deals: Map<string, FlashDeal> = new Map();
-const referrals: Map<string, ReferralReward> = new Map();
-
 export async function createPost(post: Omit<SocialPost, "id" | "likes" | "comments" | "createdAt">): Promise<SocialPost> {
   const newPost: SocialPost = {
     ...post,
@@ -88,10 +88,28 @@ export async function createPost(post: Omit<SocialPost, "id" | "likes" | "commen
     createdAt: new Date().toISOString(),
   };
 
-  posts.set(newPost.id, newPost);
+  const db = await getDb();
+  if (db) {
+    await db.insert(socialPosts).values({
+      id: newPost.id,
+      userId: newPost.userId,
+      merchantId: newPost.merchantId ?? null,
+      type: newPost.type,
+      content: newPost.content,
+      media: newPost.media,
+      rating: newPost.rating ?? null,
+      location: newPost.location ?? null,
+      tags: newPost.tags,
+      likes: newPost.likes,
+      comments: newPost.comments,
+      verified: newPost.verified,
+      transactionId: newPost.transactionId ?? null,
+      createdAt: newPost.createdAt,
+    });
+  }
+
   await publishAuditEvent("social.post_created", { postId: newPost.id, type: post.type });
   await cacheSet(`social:post:${newPost.id}`, JSON.stringify(newPost), 86400);
-
   return newPost;
 }
 
@@ -105,13 +123,33 @@ export async function getFeed(options: {
   limit?: number;
   offset?: number;
 }): Promise<SocialPost[]> {
-  let feedPosts = Array.from(posts.values());
+  const db = await getDb();
+  let feedPosts: SocialPost[] = [];
+
+  if (db) {
+    const rows = await db.select().from(socialPosts).orderBy(desc(socialPosts.createdAt)).limit(200);
+    feedPosts = rows.map(r => ({
+      id: r.id,
+      userId: r.userId,
+      merchantId: r.merchantId ?? undefined,
+      type: r.type as SocialPost["type"],
+      content: r.content,
+      media: r.media as string[],
+      rating: r.rating ?? undefined,
+      location: r.location as SocialPost["location"],
+      tags: r.tags as string[],
+      likes: r.likes,
+      comments: r.comments,
+      verified: r.verified,
+      transactionId: r.transactionId ?? undefined,
+      createdAt: r.createdAt,
+    }));
+  }
 
   if (options.type) feedPosts = feedPosts.filter(p => p.type === options.type);
   if (options.merchantId) feedPosts = feedPosts.filter(p => p.merchantId === options.merchantId);
   if (options.userId) feedPosts = feedPosts.filter(p => p.userId === options.userId);
 
-  // Geofence filter
   if (options.lat && options.lng && options.radiusKm) {
     feedPosts = feedPosts.filter(p => {
       if (!p.location) return false;
@@ -120,7 +158,6 @@ export async function getFeed(options: {
     });
   }
 
-  // Sort by recency + engagement
   feedPosts.sort((a, b) => {
     const scoreA = a.likes * 2 + a.comments * 3 + (a.verified ? 10 : 0);
     const scoreB = b.likes * 2 + b.comments * 3 + (b.verified ? 10 : 0);
@@ -135,11 +172,15 @@ export async function getFeed(options: {
 }
 
 export async function likePost(postId: string, userId: string): Promise<boolean> {
-  const post = posts.get(postId);
-  if (!post) return false;
-  post.likes++;
-  await publishAuditEvent("social.post_liked", { postId, userId });
-  return true;
+  const db = await getDb();
+  if (db) {
+    const rows = await db.select().from(socialPosts).where(eq(socialPosts.id, postId));
+    if (rows.length === 0) return false;
+    await db.update(socialPosts).set({ likes: rows[0].likes + 1 }).where(eq(socialPosts.id, postId));
+    await publishAuditEvent("social.post_liked", { postId, userId });
+    return true;
+  }
+  return false;
 }
 
 // ─── Flash Deals ──────────────────────────────────────────────────────────────
@@ -152,30 +193,64 @@ export async function createFlashDeal(deal: Omit<FlashDeal, "id" | "currentRedem
     status: "active",
   };
 
-  deals.set(newDeal.id, newDeal);
+  const db = await getDb();
+  if (db) {
+    await db.insert(flashDeals).values({
+      id: newDeal.id,
+      merchantId: newDeal.merchantId,
+      merchantName: newDeal.merchantName,
+      title: newDeal.title,
+      description: newDeal.description,
+      discountPercentage: newDeal.discountPercentage,
+      originalPrice: newDeal.originalPrice,
+      dealPrice: newDeal.dealPrice,
+      currency: newDeal.currency,
+      maxRedemptions: newDeal.maxRedemptions,
+      currentRedemptions: newDeal.currentRedemptions,
+      geofence: newDeal.geofence ?? null,
+      startsAt: newDeal.startsAt,
+      expiresAt: newDeal.expiresAt,
+      status: newDeal.status,
+    });
+  }
+
   await publishAuditEvent("social.deal_created", { dealId: newDeal.id, merchantId: deal.merchantId });
   return newDeal;
 }
 
 export async function getNearbyDeals(lat: number, lng: number, radiusKm: number): Promise<FlashDeal[]> {
-  const activeDeals = Array.from(deals.values()).filter(d => {
-    if (d.status !== "active") return false;
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db.select().from(flashDeals).where(eq(flashDeals.status, "active"));
+  return rows.filter(d => {
     if (new Date(d.expiresAt) < new Date()) return false;
-    if (!d.geofence) return true;
-    return haversineDistance(lat, lng, d.geofence.lat, d.geofence.lng) <= radiusKm;
-  });
-  return activeDeals;
+    const geo = d.geofence as FlashDeal["geofence"];
+    if (!geo) return true;
+    return haversineDistance(lat, lng, geo.lat, geo.lng) <= radiusKm;
+  }).map(d => ({
+    ...d,
+    status: d.status as FlashDeal["status"],
+    geofence: d.geofence as FlashDeal["geofence"],
+  }));
 }
 
 export async function redeemDeal(dealId: string, userId: string): Promise<boolean> {
-  const deal = deals.get(dealId);
-  if (!deal || deal.status !== "active") return false;
+  const db = await getDb();
+  if (!db) return false;
+
+  const rows = await db.select().from(flashDeals).where(eq(flashDeals.id, dealId));
+  if (rows.length === 0) return false;
+  const deal = rows[0];
+  if (deal.status !== "active") return false;
   if (deal.currentRedemptions >= deal.maxRedemptions) {
-    deal.status = "sold_out";
+    await db.update(flashDeals).set({ status: "sold_out" }).where(eq(flashDeals.id, dealId));
     return false;
   }
-  deal.currentRedemptions++;
-  if (deal.currentRedemptions >= deal.maxRedemptions) deal.status = "sold_out";
+
+  const newRedemptions = deal.currentRedemptions + 1;
+  const newStatus = newRedemptions >= deal.maxRedemptions ? "sold_out" : "active";
+  await db.update(flashDeals).set({ currentRedemptions: newRedemptions, status: newStatus }).where(eq(flashDeals.id, dealId));
   await publishAuditEvent("social.deal_redeemed", { dealId, userId });
   return true;
 }
@@ -188,29 +263,59 @@ export async function createReferral(referrerId: string, referredId: string): Pr
     referrerId,
     referredId,
     status: "pending",
-    referrerReward: 500, // $5.00
-    referredReward: 300, // $3.00
+    referrerReward: 500,
+    referredReward: 300,
     currency: "USD",
     createdAt: new Date().toISOString(),
   };
 
-  referrals.set(referral.id, referral);
+  const db = await getDb();
+  if (db) {
+    await db.insert(referralRewards).values({
+      id: referral.id,
+      referrerId: referral.referrerId,
+      referredId: referral.referredId,
+      status: referral.status,
+      referrerReward: referral.referrerReward,
+      referredReward: referral.referredReward,
+      currency: referral.currency,
+      createdAt: referral.createdAt,
+    });
+  }
+
   await publishAuditEvent("social.referral_created", { referralId: referral.id });
   return referral;
 }
 
 export async function completeReferral(referralId: string): Promise<ReferralReward | null> {
-  const referral = referrals.get(referralId);
-  if (!referral || referral.status !== "pending") return null;
+  const db = await getDb();
+  if (!db) return null;
 
-  referral.status = "completed";
-  referral.completedAt = new Date().toISOString();
+  const rows = await db.select().from(referralRewards).where(eq(referralRewards.id, referralId));
+  if (rows.length === 0 || rows[0].status !== "pending") return null;
+
+  const completedAt = new Date().toISOString();
+  await db.update(referralRewards).set({ status: "completed", completedAt }).where(eq(referralRewards.id, referralId));
   await publishAuditEvent("social.referral_completed", { referralId });
-  return referral;
+
+  return {
+    ...rows[0],
+    status: "completed",
+    completedAt,
+    completedAt2: undefined,
+  } as unknown as ReferralReward;
 }
 
-export function getUserReferrals(userId: string): ReferralReward[] {
-  return Array.from(referrals.values()).filter(r => r.referrerId === userId || r.referredId === userId);
+export async function getUserReferrals(userId: string): Promise<ReferralReward[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  const rows = await db.select().from(referralRewards).where(eq(referralRewards.referrerId, userId));
+  return rows.map(r => ({
+    ...r,
+    status: r.status as ReferralReward["status"],
+    completedAt: r.completedAt ?? undefined,
+  }));
 }
 
 // ─── Utility ──────────────────────────────────────────────────────────────────

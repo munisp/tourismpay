@@ -2543,3 +2543,212 @@ export const smartContractEvents = pgTable("smart_contract_events", {
   index("sce_created_idx").on(t.createdAt),
 ]);
 export type SmartContractEvent = typeof smartContractEvents.$inferSelect;
+
+// ─── Parametric Insurance Tables ──────────────────────────────────────────────
+
+export const insurancePolicies = pgTable("insurance_policies", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  tripId: text("trip_id").notNull(),
+  type: text("type").notNull(),
+  premium: integer("premium").notNull(),
+  maxPayout: integer("max_payout").notNull(),
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date").notNull(),
+  status: text("status").notNull().default("active"),
+  triggers: jsonb("triggers").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("ins_pol_user_idx").on(t.userId),
+  index("ins_pol_status_idx").on(t.status),
+]);
+
+export const insuranceClaims = pgTable("insurance_claims", {
+  id: text("id").primaryKey(),
+  policyId: text("policy_id").notNull(),
+  userId: text("user_id").notNull(),
+  triggerEvent: text("trigger_event").notNull(),
+  eventData: jsonb("event_data").notNull(),
+  payoutAmount: integer("payout_amount").notNull(),
+  status: text("status").notNull().default("auto_triggered"),
+  triggeredAt: text("triggered_at").notNull(),
+  paidAt: text("paid_at"),
+}, (t) => [
+  index("ins_clm_user_idx").on(t.userId),
+  index("ins_clm_policy_idx").on(t.policyId),
+]);
+
+// ─── Data Retention Tables ────────────────────────────────────────────────────
+
+export const dataExportRequests = pgTable("data_export_requests", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  status: text("status").notNull().default("queued"),
+  format: text("format").notNull().default("json"),
+  requestedAt: text("requested_at").notNull(),
+  completedAt: text("completed_at"),
+  downloadUrl: text("download_url"),
+  expiresAt: text("expires_at"),
+}, (t) => [
+  index("der_user_idx").on(t.userId),
+  index("der_status_idx").on(t.status),
+]);
+
+export const dataErasureRequests = pgTable("data_erasure_requests", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  status: text("status").notNull().default("received"),
+  reason: text("reason").notNull(),
+  requestedAt: text("requested_at").notNull(),
+  completedAt: text("completed_at"),
+  retainedData: jsonb("retained_data"),
+  denialReason: text("denial_reason"),
+}, (t) => [
+  index("dear_user_idx").on(t.userId),
+  index("dear_status_idx").on(t.status),
+]);
+
+// ─── Loyalty Network Tables ───────────────────────────────────────────────────
+
+export const loyaltyBalances = pgTable("loyalty_balances", {
+  userId: text("user_id").primaryKey(),
+  tourismpayCredits: integer("tourismpay_credits").notNull().default(0),
+  partnerBalances: jsonb("partner_balances").notNull().default([]),
+  totalValueUsd: numeric("total_value_usd").notNull().default("0"),
+  tier: text("tier").notNull().default("explorer"),
+  tierProgress: integer("tier_progress").notNull().default(0),
+  achievements: jsonb("achievements").notNull().default([]),
+});
+
+export const loyaltyConversions = pgTable("loyalty_conversions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  fromPartner: text("from_partner").notNull(),
+  toPartner: text("to_partner").notNull(),
+  fromAmount: integer("from_amount").notNull(),
+  toAmount: integer("to_amount").notNull(),
+  rate: numeric("rate").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("lc_user_idx").on(t.userId),
+]);
+
+export const tourismPassesTable = pgTable("tourism_passes", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  region: text("region").notNull(),
+  validFrom: text("valid_from").notNull(),
+  validTo: text("valid_to").notNull(),
+  includedServices: jsonb("included_services").notNull(),
+  maxUsages: integer("max_usages").notNull(),
+  currentUsages: integer("current_usages").notNull().default(0),
+  price: integer("price").notNull(),
+  currency: text("currency").notNull(),
+}, (t) => [
+  index("tp_user_idx").on(t.userId),
+]);
+
+// ─── Social Commerce Tables ───────────────────────────────────────────────────
+
+export const socialPosts = pgTable("social_posts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  merchantId: text("merchant_id"),
+  type: text("type").notNull(),
+  content: text("content").notNull(),
+  media: jsonb("media").notNull().default([]),
+  rating: integer("rating"),
+  location: jsonb("location"),
+  tags: jsonb("tags").notNull().default([]),
+  likes: integer("likes").notNull().default(0),
+  comments: integer("comments").notNull().default(0),
+  verified: boolean("verified").notNull().default(false),
+  transactionId: text("transaction_id"),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("sp_user_idx").on(t.userId),
+  index("sp_merchant_idx").on(t.merchantId),
+  index("sp_type_idx").on(t.type),
+]);
+
+export const flashDeals = pgTable("flash_deals", {
+  id: text("id").primaryKey(),
+  merchantId: text("merchant_id").notNull(),
+  merchantName: text("merchant_name").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  discountPercentage: integer("discount_percentage").notNull(),
+  originalPrice: integer("original_price").notNull(),
+  dealPrice: integer("deal_price").notNull(),
+  currency: text("currency").notNull(),
+  maxRedemptions: integer("max_redemptions").notNull(),
+  currentRedemptions: integer("current_redemptions").notNull().default(0),
+  geofence: jsonb("geofence"),
+  startsAt: text("starts_at").notNull(),
+  expiresAt: text("expires_at").notNull(),
+  status: text("status").notNull().default("active"),
+}, (t) => [
+  index("fd_merchant_idx").on(t.merchantId),
+  index("fd_status_idx").on(t.status),
+]);
+
+export const referralRewards = pgTable("referral_rewards", {
+  id: text("id").primaryKey(),
+  referrerId: text("referrer_id").notNull(),
+  referredId: text("referred_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  referrerReward: integer("referrer_reward").notNull(),
+  referredReward: integer("referred_reward").notNull(),
+  currency: text("currency").notNull(),
+  completedAt: text("completed_at"),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  index("rr_referrer_idx").on(t.referrerId),
+]);
+
+// ─── Merchant Tools Tables ────────────────────────────────────────────────────
+
+export const merchantInventory = pgTable("merchant_inventory", {
+  id: text("id").primaryKey(),
+  merchantId: text("merchant_id").notNull(),
+  sku: text("sku").notNull(),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  price: integer("price").notNull(),
+  currency: text("currency").notNull(),
+  quantity: integer("quantity").notNull().default(0),
+  lowStockThreshold: integer("low_stock_threshold").notNull().default(5),
+  dynamicPricing: jsonb("dynamic_pricing"),
+  images: jsonb("images").notNull().default([]),
+  status: text("status").notNull().default("active"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("mi_merchant_idx").on(t.merchantId),
+  index("mi_status_idx").on(t.status),
+]);
+
+export const merchantLocations = pgTable("merchant_locations", {
+  id: text("id").primaryKey(),
+  merchantId: text("merchant_id").notNull(),
+  name: text("name").notNull(),
+  address: text("address").notNull(),
+  lat: numeric("lat").notNull(),
+  lng: numeric("lng").notNull(),
+  timezone: text("timezone").notNull(),
+  operatingHours: jsonb("operating_hours").notNull(),
+  capabilities: jsonb("capabilities").notNull().default([]),
+  status: text("status").notNull().default("open"),
+}, (t) => [
+  index("ml_merchant_idx").on(t.merchantId),
+]);
+
+export const merchantSplitPayments = pgTable("merchant_split_payments", {
+  id: text("id").primaryKey(),
+  totalAmount: integer("total_amount").notNull(),
+  currency: text("currency").notNull(),
+  splits: jsonb("splits").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: text("created_at").notNull(),
+});

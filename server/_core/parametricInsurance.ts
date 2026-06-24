@@ -8,11 +8,15 @@
  *
  * Middleware integration: Kafka (event triggers), Temporal (payout workflows),
  * Redis (policy cache), OpenSearch (claims indexing), TigerBeetle (payouts).
+ * Persistence: PostgreSQL via Drizzle ORM.
  */
 import { logger } from "./logger";
 import { publishAuditEvent } from "./kafka";
 import { cacheGet, cacheSet } from "./redis";
 import { signalWorkflow } from "./temporal";
+import { getDb } from "../db";
+import { eq, and } from "drizzle-orm";
+import { insurancePolicies, insuranceClaims } from "../../drizzle/schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,8 +67,8 @@ export interface PolicyQuote {
 const POLICY_TEMPLATES: Record<string, PolicyQuote> = {
   flight_delay: {
     type: "flight_delay",
-    premium: 500, // $5.00
-    maxPayout: 20000, // $200.00
+    premium: 500,
+    maxPayout: 20000,
     validDays: 30,
     triggers: [
       { event: "flight_delay", threshold: 180, unit: "minutes", payoutPercentage: 50, description: "Flight delayed > 3 hours" },
@@ -74,8 +78,8 @@ const POLICY_TEMPLATES: Record<string, PolicyQuote> = {
   },
   weather: {
     type: "weather",
-    premium: 800, // $8.00
-    maxPayout: 15000, // $150.00
+    premium: 800,
+    maxPayout: 15000,
     validDays: 14,
     triggers: [
       { event: "heavy_rain", threshold: 50, unit: "mm/day", payoutPercentage: 30, description: "Heavy rain > 50mm" },
@@ -85,8 +89,8 @@ const POLICY_TEMPLATES: Record<string, PolicyQuote> = {
   },
   medical: {
     type: "medical",
-    premium: 2000, // $20.00
-    maxPayout: 100000, // $1,000.00
+    premium: 2000,
+    maxPayout: 100000,
     validDays: 30,
     triggers: [
       { event: "hospital_admission", threshold: 1, unit: "event", payoutPercentage: 50, description: "Hospital admission abroad" },
@@ -95,8 +99,8 @@ const POLICY_TEMPLATES: Record<string, PolicyQuote> = {
   },
   baggage: {
     type: "baggage",
-    premium: 300, // $3.00
-    maxPayout: 50000, // $500.00
+    premium: 300,
+    maxPayout: 50000,
     validDays: 30,
     triggers: [
       { event: "baggage_delayed", threshold: 360, unit: "minutes", payoutPercentage: 30, description: "Baggage delayed > 6 hours" },
@@ -105,8 +109,8 @@ const POLICY_TEMPLATES: Record<string, PolicyQuote> = {
   },
   comprehensive: {
     type: "comprehensive",
-    premium: 3500, // $35.00
-    maxPayout: 150000, // $1,500.00
+    premium: 3500,
+    maxPayout: 150000,
     validDays: 30,
     triggers: [
       { event: "flight_delay", threshold: 180, unit: "minutes", payoutPercentage: 15, description: "Flight delayed > 3 hours" },
@@ -119,9 +123,6 @@ const POLICY_TEMPLATES: Record<string, PolicyQuote> = {
 };
 
 // ─── Policy Operations ────────────────────────────────────────────────────────
-
-const policies: Map<string, InsurancePolicy> = new Map();
-const claims: Map<string, InsuranceClaim> = new Map();
 
 export function getQuote(type: InsurancePolicy["type"]): PolicyQuote | null {
   return POLICY_TEMPLATES[type] || null;
@@ -149,7 +150,23 @@ export async function purchasePolicy(userId: string, tripId: string, type: Insur
     createdAt: new Date().toISOString(),
   };
 
-  policies.set(policy.id, policy);
+  const db = await getDb();
+  if (db) {
+    await db.insert(insurancePolicies).values({
+      id: policy.id,
+      userId: policy.userId,
+      tripId: policy.tripId,
+      type: policy.type,
+      premium: policy.premium,
+      maxPayout: policy.maxPayout,
+      startDate: policy.startDate,
+      endDate: policy.endDate,
+      status: policy.status,
+      triggers: policy.triggers,
+      createdAt: policy.createdAt,
+    });
+  }
+
   await cacheSet(`insurance:policy:${policy.id}`, JSON.stringify(policy), template.validDays * 86400);
   await publishAuditEvent("insurance.policy_purchased", { policyId: policy.id, type, premium: template.premium });
 
@@ -160,10 +177,19 @@ export async function purchasePolicy(userId: string, tripId: string, type: Insur
 // ─── Event-Driven Trigger System ──────────────────────────────────────────────
 
 export async function processEvent(eventType: string, eventData: Record<string, unknown>, userId: string): Promise<InsuranceClaim | null> {
-  // Find active policies for user that match this event
-  const userPolicies = Array.from(policies.values()).filter(
-    p => p.userId === userId && p.status === "active" && new Date(p.endDate) > new Date()
-  );
+  const db = await getDb();
+  let userPolicies: InsurancePolicy[] = [];
+
+  if (db) {
+    const rows = await db.select().from(insurancePolicies)
+      .where(and(eq(insurancePolicies.userId, userId), eq(insurancePolicies.status, "active")));
+    userPolicies = rows.map(r => ({
+      ...r,
+      type: r.type as InsurancePolicy["type"],
+      status: r.status as InsurancePolicy["status"],
+      triggers: r.triggers as TriggerCondition[],
+    })).filter(p => new Date(p.endDate) > new Date());
+  }
 
   for (const policy of userPolicies) {
     for (const trigger of policy.triggers) {
@@ -196,10 +222,21 @@ async function autoTriggerPayout(
     triggeredAt: new Date().toISOString(),
   };
 
-  claims.set(claim.id, claim);
-  policy.status = "claimed";
+  const db = await getDb();
+  if (db) {
+    await db.insert(insuranceClaims).values({
+      id: claim.id,
+      policyId: claim.policyId,
+      userId: claim.userId,
+      triggerEvent: claim.triggerEvent,
+      eventData: claim.eventData,
+      payoutAmount: claim.payoutAmount,
+      status: claim.status,
+      triggeredAt: claim.triggeredAt,
+    });
+    await db.update(insurancePolicies).set({ status: "claimed" }).where(eq(insurancePolicies.id, policy.id));
+  }
 
-  // Signal Temporal workflow for payout processing
   await signalWorkflow(`insurance-payout-${claim.id}`, "process_payout", claim);
   await publishAuditEvent("insurance.auto_payout_triggered", {
     claimId: claim.id,
@@ -212,12 +249,32 @@ async function autoTriggerPayout(
   return claim;
 }
 
-export function getUserPolicies(userId: string): InsurancePolicy[] {
-  return Array.from(policies.values()).filter(p => p.userId === userId);
+export async function getUserPolicies(userId: string): Promise<InsurancePolicy[]> {
+  const db = await getDb();
+  if (db) {
+    const rows = await db.select().from(insurancePolicies).where(eq(insurancePolicies.userId, userId));
+    return rows.map(r => ({
+      ...r,
+      type: r.type as InsurancePolicy["type"],
+      status: r.status as InsurancePolicy["status"],
+      triggers: r.triggers as TriggerCondition[],
+    }));
+  }
+  return [];
 }
 
-export function getUserClaims(userId: string): InsuranceClaim[] {
-  return Array.from(claims.values()).filter(c => c.userId === userId);
+export async function getUserClaims(userId: string): Promise<InsuranceClaim[]> {
+  const db = await getDb();
+  if (db) {
+    const rows = await db.select().from(insuranceClaims).where(eq(insuranceClaims.userId, userId));
+    return rows.map(r => ({
+      ...r,
+      status: r.status as InsuranceClaim["status"],
+      eventData: r.eventData as Record<string, unknown>,
+      paidAt: r.paidAt ?? undefined,
+    }));
+  }
+  return [];
 }
 
 logger.info("[Insurance] Parametric insurance module loaded");
