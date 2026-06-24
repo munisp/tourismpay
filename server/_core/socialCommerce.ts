@@ -12,7 +12,7 @@ import { logger } from "./logger";
 import { publishAuditEvent } from "./kafka";
 import { cacheGet, cacheSet } from "./redis";
 import { getDb } from "../db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, or, sql } from "drizzle-orm";
 import { socialPosts, flashDeals, referralRewards } from "../../drizzle/schema";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -239,18 +239,16 @@ export async function redeemDeal(dealId: string, userId: string): Promise<boolea
   const db = await getDb();
   if (!db) return false;
 
-  const rows = await db.select().from(flashDeals).where(eq(flashDeals.id, dealId));
-  if (rows.length === 0) return false;
-  const deal = rows[0];
-  if (deal.status !== "active") return false;
-  if (deal.currentRedemptions >= deal.maxRedemptions) {
-    await db.update(flashDeals).set({ status: "sold_out" }).where(eq(flashDeals.id, dealId));
-    return false;
-  }
+  // Atomic UPDATE prevents race condition — only succeeds if still active and under limit
+  const result = await db.execute(sql`
+    UPDATE flash_deals
+    SET current_redemptions = current_redemptions + 1,
+        status = CASE WHEN current_redemptions + 1 >= max_redemptions THEN 'sold_out' ELSE 'active' END
+    WHERE id = ${dealId} AND status = 'active' AND current_redemptions < max_redemptions
+  `);
+  const rowsAffected = (result as any).rowCount ?? (result as any).length ?? 0;
+  if (rowsAffected === 0) return false;
 
-  const newRedemptions = deal.currentRedemptions + 1;
-  const newStatus = newRedemptions >= deal.maxRedemptions ? "sold_out" : "active";
-  await db.update(flashDeals).set({ currentRedemptions: newRedemptions, status: newStatus }).where(eq(flashDeals.id, dealId));
   await publishAuditEvent("social.deal_redeemed", { dealId, userId });
   return true;
 }
@@ -300,17 +298,18 @@ export async function completeReferral(referralId: string): Promise<ReferralRewa
 
   return {
     ...rows[0],
-    status: "completed",
+    status: "completed" as const,
     completedAt,
-    completedAt2: undefined,
-  } as unknown as ReferralReward;
+  };
 }
 
 export async function getUserReferrals(userId: string): Promise<ReferralReward[]> {
   const db = await getDb();
   if (!db) return [];
 
-  const rows = await db.select().from(referralRewards).where(eq(referralRewards.referrerId, userId));
+  const rows = await db.select().from(referralRewards).where(
+    or(eq(referralRewards.referrerId, userId), eq(referralRewards.referredId, userId))
+  );
   return rows.map(r => ({
     ...r,
     status: r.status as ReferralReward["status"],

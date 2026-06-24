@@ -226,25 +226,34 @@ func NewOnrampOfframpService(crypto *CryptoService, cbdc *CBDCBridge) *OnrampOff
 }
 
 // hydrateDailyVolume loads today's transaction volumes from PostgreSQL so
-// velocity checks survive service restarts.
+// velocity checks survive service restarts. Applies the same fiatToUSD rates
+// used at runtime to ensure consistent velocity limit enforcement.
 func (s *OnrampOfframpService) hydrateDailyVolume() {
 	if database.DB == nil {
 		return
 	}
 	rows, err := database.DB.Query(
-		"SELECT user_id, COALESCE(SUM(fiat_amount * CASE WHEN fiat_currency = 'USD' THEN 1 ELSE 0.01 END), 0) FROM onramp_offramp_transactions WHERE created_at >= CURRENT_DATE AND status = 'completed' GROUP BY user_id",
+		"SELECT user_id, fiat_amount, fiat_currency FROM onramp_offramp_transactions WHERE created_at >= CURRENT_DATE AND status = 'completed'",
 	)
 	if err != nil {
 		return
 	}
 	defer rows.Close()
-	s.mu.Lock()
+	volumes := make(map[string]float64)
 	for rows.Next() {
-		var userID string
-		var vol float64
-		if err := rows.Scan(&userID, &vol); err == nil {
-			s.dailyVolume[userID] = vol
+		var userID, currency string
+		var amount float64
+		if err := rows.Scan(&userID, &amount, &currency); err == nil {
+			rate, ok := fiatToUSD[currency]
+			if !ok {
+				rate = 0.01 // fallback for unknown currencies
+			}
+			volumes[userID] += amount * rate
 		}
+	}
+	s.mu.Lock()
+	for uid, vol := range volumes {
+		s.dailyVolume[uid] = vol
 	}
 	s.mu.Unlock()
 }
