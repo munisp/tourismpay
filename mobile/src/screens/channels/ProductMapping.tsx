@@ -1,61 +1,52 @@
 /**
- * Product Mapping — Map local products to GDS/OTA channel room type and rate plan codes.
+ * ProductMapping — Wired to tRPC API
  */
 import React from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, ScrollView, RefreshControl, StyleSheet, ActivityIndicator } from "react-native";
+import { useApiData } from "../../hooks/useApiData";
 
-export function ProductMapping() {
+export function ProductMapping({ navigation }: any) {
+  const { data, loading, error, refresh, refreshing } = useApiData<any>({
+    endpoint: "channelManager.getProductMappings",
+    defaultValue: { mappings: [] },
+  });
+
+  if (loading) return <View style={s.loadingContainer}><ActivityIndicator size="large" color="#6366f1" /></View>;
+
+  const items = data?.mappings || [];
+
   return (
-    <ScrollView style={s.container}>
-      <Text style={s.desc}>Map your products to channel-specific codes so GDS/OTA platforms can display them correctly.</Text>
-
-      {/* Channel Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.channelRow}>
-        {["Sabre", "Amadeus", "Expedia", "Booking.com", "Little Emperors", "Travelport"].map((ch) => (
-          <TouchableOpacity key={ch} style={s.channelPill}>
-            <Text style={s.channelText}>{ch}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Mapping Guide */}
-      <View style={s.guideCard}>
-        <Text style={s.guideTitle}>How Mapping Works</Text>
-        <Text style={s.guideText}>1. Select a channel above</Text>
-        <Text style={s.guideText}>2. Choose a product from your catalog</Text>
-        <Text style={s.guideText}>3. Enter the channel's room type code (e.g., STD, DLX, STE)</Text>
-        <Text style={s.guideText}>4. Optionally set a rate plan code (e.g., BAR, PROMO)</Text>
-      </View>
-
-      {/* Empty Mappings */}
-      <Text style={s.section}>Current Mappings</Text>
-      <View style={s.empty}>
-        <Text style={s.emptyEmoji}>🔗</Text>
-        <Text style={s.emptyTitle}>No mappings configured</Text>
-        <Text style={s.emptySubtext}>Connect a channel and map your products to start distributing</Text>
-      </View>
-
-      <TouchableOpacity style={s.addBtn}>
-        <Text style={s.addBtnText}>+ Add Product Mapping</Text>
-      </TouchableOpacity>
+    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#6366f1" />}>
+      <Text style={s.title}>Product Mapping</Text>
+      {error && <Text style={s.error}>{error}</Text>}
+      {items.length === 0 ? (
+        <View style={s.emptyState}>
+          <Text style={s.emptyText}>No product mappings</Text>
+        </View>
+      ) : (
+        items.map((item: any) => (
+          <View key={item.id} style={s.card}><View style={s.cardRow}><Text style={s.cardTitle}>{item.product}</Text><Text style={s.cardSub}>{item.channel}</Text></View><Text style={[s.statusBadge, item.mapped && s.statusGreen]}>{item.mapped ? "Mapped" : "Unmapped"}</Text></View>
+        ))
+      )}
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f0f1a", padding: 16 },
-  desc: { color: "#888", fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: 16 },
-  channelRow: { marginBottom: 16, maxHeight: 36 },
-  channelPill: { backgroundColor: "#1a1a2e", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6, marginRight: 8 },
-  channelText: { color: "#ccc", fontSize: 12 },
-  guideCard: { backgroundColor: "#1a1a2e", borderRadius: 12, padding: 16, borderWidth: 1, borderColor: "#6c63ff30" },
-  guideTitle: { color: "#fff", fontSize: 14, fontWeight: "600", marginBottom: 8 },
-  guideText: { color: "#888", fontSize: 12, lineHeight: 22 },
-  section: { fontSize: 16, fontWeight: "600", color: "#fff", marginTop: 24, marginBottom: 12 },
-  empty: { alignItems: "center", marginTop: 20 },
-  emptyEmoji: { fontSize: 36, marginBottom: 8 },
-  emptyTitle: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  emptySubtext: { color: "#888", fontSize: 12, marginTop: 4, textAlign: "center" },
-  addBtn: { backgroundColor: "#6c63ff", borderRadius: 12, padding: 16, alignItems: "center", marginTop: 24 },
-  addBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  loadingContainer: { flex: 1, backgroundColor: "#0f0f1a", justifyContent: "center", alignItems: "center" },
+  title: { fontSize: 22, fontWeight: "700", color: "#fff", marginTop: 12, marginBottom: 16 },
+  error: { color: "#ef4444", fontSize: 12, marginBottom: 8 },
+  emptyState: { backgroundColor: "#1a1a2e", borderRadius: 14, padding: 30, alignItems: "center" },
+  emptyText: { color: "#888", fontSize: 14 },
+  card: { backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, marginBottom: 10 },
+  cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  cardTitle: { fontSize: 14, fontWeight: "600", color: "#fff", flex: 1 },
+  cardSub: { fontSize: 12, color: "#888", marginTop: 4 },
+  cardDate: { fontSize: 10, color: "#666", marginTop: 4 },
+  cardAmount: { fontSize: 14, fontWeight: "700", color: "#6366f1" },
+  statusBadge: { fontSize: 10, color: "#f59e0b", fontWeight: "600", backgroundColor: "#f59e0b20", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, overflow: "hidden" },
+  statusGreen: { color: "#10b981", backgroundColor: "#10b98120" },
+  badge: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#6366f1", marginLeft: 8 },
 });

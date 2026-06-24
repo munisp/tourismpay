@@ -412,7 +412,7 @@ export const fundFlowRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       await requirePermission(uid(ctx), ctx.user.role, RESOURCES.SYSTEM, ACTIONS.EXECUTE, undefined);
-      const success = await signalWorkflow(input.workflowId, input.signalName, input.payload);
+      const success = await signalWorkflow(input.workflowId, input.signalName, input.payload as Record<string, unknown> | undefined);
       return { success };
     }),
 
