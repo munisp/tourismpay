@@ -25,6 +25,7 @@ import { sendPushToUser } from "../_core/webPush";
 // ─── Go Settlement Service Client ─────────────────────────────────────────────
 
 const GO_URL = process.env.GO_SETTLEMENT_URL || "http://localhost:8081";
+const OLLAMA_URL = process.env.COPILOT_URL || "http://localhost:8091";
 
 async function callGoService(path: string, method = "GET", body?: unknown): Promise<unknown> {
   const opts: RequestInit = {
@@ -176,7 +177,39 @@ interface GeneratedItinerary {
   total_cost_usd: number;
 }
 
+async function callOllama(prompt: string, systemPrompt: string, jsonMode = false): Promise<string | null> {
+  try {
+    const body: Record<string, unknown> = {
+      model: "qwen2.5:7b",
+      messages: [
+        { role: "system", content: systemPrompt + (jsonMode ? "\n\nIMPORTANT: Respond ONLY with valid JSON. No markdown, no explanation — just the JSON object." : "") },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+    };
+    if (jsonMode) body.format = "json";
+
+    const res = await fetch(`${OLLAMA_URL}/api/v1/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as Record<string, unknown>;
+    const content = (data?.response as string) || ((data?.message as Record<string, unknown>)?.content as string) || null;
+    return content;
+  } catch {
+    return null;
+  }
+}
+
 async function generateWithLLM(prompt: string, systemPrompt: string): Promise<string> {
+  // Try local Ollama (Qwen 2.5 7B) first — faster, free, no API key needed
+  const ollamaResult = await callOllama(prompt, systemPrompt, true);
+  if (ollamaResult) return ollamaResult;
+
+  // Fall back to Gemini 2.5 Flash via invokeLLM
   const result = await invokeLLM({
     messages: [
       { role: "system" as const, content: systemPrompt },
@@ -651,6 +684,14 @@ Rules:
         })),
         { role: "user" as const, content: input.message },
       ];
+
+      // Try local Ollama first, fall back to Gemini
+      const fullPrompt = (input.conversationHistory ?? [])
+        .map(m => `${m.role}: ${m.content}`).join("\n") + `\nuser: ${input.message}`;
+      const ollamaResult = await callOllama(fullPrompt, systemPrompt);
+      if (ollamaResult) {
+        return { response: ollamaResult, timestamp: new Date().toISOString() };
+      }
 
       const result = await invokeLLM({ messages });
       const content = result.choices?.[0]?.message?.content;
