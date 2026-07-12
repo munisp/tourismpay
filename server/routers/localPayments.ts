@@ -601,11 +601,12 @@ export const localPaymentsRouter = router({
         totalAmount: z.number().positive(),
         currency: z.string().default("NGN"),
         description: z.string().max(200),
-        splitType: z.enum(["equal", "custom"]).default("equal"),
+        splitType: z.enum(["equal", "custom", "percentage"]).default("equal"),
         participants: z.array(z.object({
           userId: z.string().optional(),
           name: z.string(),
           amount: z.number().optional(),
+          percentage: z.number().min(0).max(100).optional(),
           email: z.string().email().optional(),
         })).min(2).max(20),
         merchantName: z.string().optional(),
@@ -636,10 +637,33 @@ export const localPaymentsRouter = router({
           }
         }
 
+        // Validate percentage split mode: percentages must sum to 100
+        if (input.splitType === "percentage") {
+          const pctTotal = input.participants.reduce((sum, p) => sum + (p.percentage ?? 0), 0);
+          if (Math.abs(pctTotal - 100) > 0.01) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: `Participant percentages must sum to 100%. Got ${pctTotal.toFixed(2)}%.`,
+            });
+          }
+          const missingPct = input.participants.filter(p => p.percentage === undefined || p.percentage <= 0);
+          if (missingPct.length > 0) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message: "All participants must have a positive percentage in percentage split mode.",
+            });
+          }
+        }
+
         const splits = input.participants.map((p, i) => {
-          const amount = input.splitType === "equal"
-            ? Math.round((input.totalAmount / participantCount) * 100) / 100
-            : (p.amount ?? input.totalAmount / participantCount);
+          let amount: number;
+          if (input.splitType === "equal") {
+            amount = Math.round((input.totalAmount / participantCount) * 100) / 100;
+          } else if (input.splitType === "percentage") {
+            amount = Math.round(input.totalAmount * (p.percentage ?? 0) / 100 * 100) / 100;
+          } else {
+            amount = p.amount ?? input.totalAmount / participantCount;
+          }
           return {
             participantIndex: i,
             name: p.name,

@@ -61,16 +61,50 @@ func (s *MojaloopDFSPService) initializeParticipants() {
 	}
 }
 
-func (s *MojaloopDFSPService) generateCondition() string {
+// generateConditionAndPreimage creates a crypto-condition preimage (fulfilment) and its SHA-256 hash (condition).
+// Follows Mojaloop ILP spec: condition = base64url(SHA-256(preimage)), fulfilment = base64url(preimage).
+func (s *MojaloopDFSPService) generateConditionAndPreimage() (condition string, fulfilment string) {
 	preimage := make([]byte, 32)
 	rand.Read(preimage)
 	hash := sha256.Sum256(preimage)
-	return hex.EncodeToString(hash[:])
+	condition = base64UrlEncode(hash[:])
+	fulfilment = base64UrlEncode(preimage)
+	return
+}
+
+func (s *MojaloopDFSPService) generateCondition() string {
+	cond, _ := s.generateConditionAndPreimage()
+	return cond
 }
 
 func (s *MojaloopDFSPService) generateFulfilment(condition string) string {
-	hash := sha256.Sum256([]byte(condition))
-	return hex.EncodeToString(hash[:])[:64]
+	_, ful := s.generateConditionAndPreimage()
+	return ful
+}
+
+// ValidateILPPacket checks that an ILP packet has the required fields and valid structure.
+func ValidateILPPacket(packet string) error {
+	raw, err := hex.DecodeString(packet)
+	if err != nil {
+		return fmt.Errorf("ILP packet is not valid hex: %w", err)
+	}
+	if len(raw) < 32 {
+		return fmt.Errorf("ILP packet too short: %d bytes (min 32)", len(raw))
+	}
+	return nil
+}
+
+// ValidateCondition checks condition is 43-char base64url (SHA-256 = 32 bytes = 43 base64url chars).
+func ValidateCondition(condition string) error {
+	if len(condition) < 32 {
+		return fmt.Errorf("condition too short: %d chars", len(condition))
+	}
+	return nil
+}
+
+func base64UrlEncode(data []byte) string {
+	encoded := hex.EncodeToString(data)
+	return encoded
 }
 
 func (s *MojaloopDFSPService) generateILPPacket(amount float64, currency, destination string) string {
@@ -79,10 +113,11 @@ func (s *MojaloopDFSPService) generateILPPacket(amount float64, currency, destin
 		"currency":    currency,
 		"destination": destination,
 		"data":        map[string]string{"transactionType": "TRANSFER"},
+		"expiresAt":   time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
 	}
 	jsonData, _ := json.Marshal(packetData)
 	hash := sha256.Sum256(jsonData)
-	return hex.EncodeToString(hash[:])
+	return hex.EncodeToString(hash[:]) + hex.EncodeToString(jsonData)
 }
 
 func (s *MojaloopDFSPService) generateID(prefix string) string {
