@@ -6,10 +6,10 @@
    - Background Sync for queued payments (payment-queue-sync)
    ============================================================================= */
 
-const CACHE_NAME = "tourismpay-v4.0";
+const CACHE_VERSION = self.__WB_CACHE_VERSION || "v4.0";
+const CACHE_NAME = `tourismpay-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   "/",
-  "/index.html",
   "/manifest.json",
 ];
 
@@ -78,9 +78,18 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches.keys().then((keys) => {
+      const stale = keys.filter((k) => k !== CACHE_NAME);
+      if (stale.length > 0) {
+        // Notify all clients that caches were purged (version change)
+        self.clients.matchAll({ type: "window" }).then((clients) => {
+          for (const client of clients) {
+            client.postMessage({ type: "CACHE_PURGED", oldCaches: stale, newCache: CACHE_NAME });
+          }
+        });
+      }
+      return Promise.all(stale.map((k) => caches.delete(k)));
+    })
   );
   self.clients.claim();
 });
@@ -255,5 +264,11 @@ self.addEventListener("message", (event) => {
   }
   if (event.data?.type === "REPLAY_QUEUE") {
     replayQueuedPayments();
+  }
+  if (event.data?.type === "GET_VERSION") {
+    event.source?.postMessage({ type: "SW_VERSION", version: CACHE_VERSION });
+  }
+  if (event.data?.type === "FORCE_CLEAR_CACHES") {
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
   }
 });

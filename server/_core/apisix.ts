@@ -57,6 +57,7 @@ interface RouteConfig {
   id: string;
   uri: string;
   methods: string[];
+  priority?: number;
   upstream: {
     type: "roundrobin" | "least_conn";
     nodes: Record<string, number>;
@@ -68,6 +69,29 @@ interface RouteConfig {
 }
 
 const TOURISMPAY_ROUTES: RouteConfig[] = [
+  {
+    id: "tourismpay-static-nocache",
+    uri: "/*",
+    methods: ["GET"],
+    upstream: {
+      type: "roundrobin",
+      nodes: { [`${process.env.PWA_HOST || "127.0.0.1"}:${process.env.PORT || 3000}`]: 1 },
+    },
+    plugins: {
+      "response-rewrite": {
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          "Pragma": "no-cache",
+          "Expires": "0",
+        },
+      },
+      "uri-blocker": {
+        rejected_code: 403,
+        block_rules: [],
+      },
+    },
+    priority: 1,
+  },
   {
     id: "tourismpay-pwa",
     uri: "/api/*",
@@ -151,12 +175,14 @@ export async function syncRoutes(): Promise<number> {
 
   let synced = 0;
   for (const route of TOURISMPAY_ROUTES) {
-    const result = await apisixRequest("PUT", `/apisix/admin/routes/${route.id}`, {
+    const routeBody: Record<string, unknown> = {
       uri: route.uri,
       methods: route.methods,
       upstream: route.upstream,
       plugins: route.plugins,
-    });
+    };
+    if (route.priority !== undefined) routeBody.priority = route.priority;
+    const result = await apisixRequest("PUT", `/apisix/admin/routes/${route.id}`, routeBody);
     if (result) synced++;
   }
   logger.info(`[APISIX] Synced ${synced}/${TOURISMPAY_ROUTES.length} routes`);

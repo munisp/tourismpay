@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { logger } from "@/lib/logger";
+import { initCacheBuster } from "@/lib/cacheBuster";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
@@ -8,6 +9,8 @@ import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
+
+initCacheBuster();
 
 const queryClient = new QueryClient();
 
