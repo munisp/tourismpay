@@ -68,7 +68,29 @@ import { taxCollectionRouter } from "./routers/taxCollection";
 import { gdsIntegrationRouter } from "./routers/gdsIntegration";
 import { mobileMerchantRouter, mobileTouristRouter, mobilePaymentSwitchRouter, mobileBookingsRouter } from "./routers/mobileAggregates";
 import { fundFlowRouter } from "./routers/fundFlow";
-
+import { taxRemittanceRouter } from "./routers/taxRemittance";
+import {
+  rateAlertsRouter,
+  twoFactorRouter,
+  trustedDeviceRouter,
+  accountActivityRouter,
+  apiKeysRouter,
+  notificationChannelsRouter,
+  reminderEmailsRouter,
+  ocrCorrectionRouter,
+  integrationRouter,
+  testingCertificationRouter,
+  technicalOnboardingRouter,
+  apiKeyEnhancementsRouter,
+  productionGoLiveRouter,
+  remittanceRouter,
+  analyticsRouter,
+  merchantRouter,
+  psNotificationPreferencesRouter,
+  psNotificationRouter,
+  accountRecoveryRouter,
+  psAdminRouter,
+} from "./routers/psRouters";)
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -265,6 +287,7 @@ export const appRouter = router({
   tourist: mobileTouristRouter,
   paymentSwitch: mobilePaymentSwitchRouter,
   bookings: mobileBookingsRouter,
+taxRemittance: taxRemittanceRouter,)
 });
 
 

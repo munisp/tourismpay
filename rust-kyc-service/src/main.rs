@@ -25,6 +25,7 @@ mod pricing_engine;
 mod tax_tip_engine;
 #[allow(dead_code)]
 mod fund_flow_atomicity;
+mod tax_remittance;
 
 use actix_web::{web, App, HttpServer, middleware::Logger};
 use std::env;

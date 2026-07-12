@@ -8,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import MultiTipSelector from "@/components/MultiTipSelector";
 import { ShowFor } from "@/components/RoleGuard";
 import { useRole } from "@/hooks/useRole";
+import TaxRemittanceDashboard from "@/components/TaxRemittanceDashboard";
 
 // ─── Tip Selector Component ─────────────────────────────────────────────────
 
@@ -397,46 +398,7 @@ export default function TippingTaxPage() {
         )}
 
         {activeTab === "remittance" && (
-          <div className="space-y-4">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <h4 className="text-sm font-semibold text-amber-900">Tax Remittance Tracker</h4>
-              <p className="text-xs text-amber-700 mt-1">
-                Track collected taxes and remittance status per jurisdiction.
-              </p>
-            </div>
-
-            {/* Quick stats per jurisdiction */}
-            <div className="grid grid-cols-2 gap-3">
-              {["NG", "KE", "GH", "ZA", "TZ"].map(code => {
-                const info = tipJurisdictions.data?.find(j => j.code === code);
-                return (
-                  <div key={code} className="bg-white border rounded-lg p-3">
-                    <p className="text-xs text-gray-500">{info?.name ?? code}</p>
-                    <p className="text-lg font-bold text-gray-900">{code}</p>
-                    <p className="text-xs text-gray-400">Filing: monthly</p>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Admin-only actions */}
-            <ShowFor roles={["admin", "settlement_officer"]}>
-              <div className="bg-white border border-blue-200 rounded-xl p-4 space-y-3">
-                <h4 className="text-sm font-semibold text-blue-900">Admin Actions</h4>
-                <div className="flex gap-2">
-                  <button className="flex-1 py-2 px-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
-                    Initiate Remittance
-                  </button>
-                  <button className="flex-1 py-2 px-3 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">
-                    Reconcile
-                  </button>
-                </div>
-                <button className="w-full py-2 px-3 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700">
-                  Generate Compliance Report
-                </button>
-              </div>
-            </ShowFor>
-          </div>
+<TaxRemittanceDashboard jurisdiction={jurisdiction} />)
         )}
       </div>
     </div>

@@ -1439,6 +1439,288 @@ async def gds_occupancy_benchmark(
         "low_season_expected": round(base * season_data["mult_low"] * 100, 1),
         "current_expected": round(min(98, current_expected * 100), 1),
         "industry_top_quartile": round(min(95, base * 1.3 * 100), 1),
+
+# ─── Government Tax Remittance & Compliance ─────────────────────────────────
+
+class RemittanceBatchRequest(BaseModel):
+    jurisdiction_code: str
+    period: str  # e.g., "2026-06"
+    tax_lines: List[Dict[str, Any]]  # [{tax_type, collected, remitted}]
+
+class ComplianceReportRequest(BaseModel):
+    jurisdiction_code: str
+    period: str
+    report_type: str = "monthly_return"  # monthly_return, annual_summary, audit_response
+
+class PenaltyEstimateRequest(BaseModel):
+    jurisdiction_code: str
+    outstanding_amount: float
+    days_overdue: int
+
+
+# Penalty rules per jurisdiction (basis points per day, annual interest bps, max %)
+PENALTY_RULES = {
+    "NG": {"daily_bps": 50, "annual_interest_bps": 2100, "max_pct": 25, "grace_days": 7, "authority": "FIRS"},
+    "KE": {"daily_bps": 100, "annual_interest_bps": 2400, "max_pct": 100, "grace_days": 5, "authority": "KRA"},
+    "GH": {"daily_bps": 80, "annual_interest_bps": 2500, "max_pct": 50, "grace_days": 5, "authority": "GRA"},
+    "ZA": {"daily_bps": 33, "annual_interest_bps": 1050, "max_pct": 10, "grace_days": 7, "authority": "SARS"},
+    "TZ": {"daily_bps": 67, "annual_interest_bps": 2200, "max_pct": 25, "grace_days": 7, "authority": "TRA"},
+    "RW": {"daily_bps": 50, "annual_interest_bps": 1800, "max_pct": 20, "grace_days": 5, "authority": "RRA"},
+    "EG": {"daily_bps": 40, "annual_interest_bps": 2000, "max_pct": 50, "grace_days": 10, "authority": "ETA"},
+    "MA": {"daily_bps": 17, "annual_interest_bps": 1200, "max_pct": 15, "grace_days": 10, "authority": "DGI"},
+    "UG": {"daily_bps": 67, "annual_interest_bps": 2400, "max_pct": 100, "grace_days": 5, "authority": "URA"},
+    "ET": {"daily_bps": 50, "annual_interest_bps": 2500, "max_pct": 25, "grace_days": 7, "authority": "ERCA"},
+}
+
+# Filing frequency and government bank details
+GOVT_REMITTANCE_CONFIG = {
+    "NG": {"frequency": "monthly", "deadline_day": 21, "bank": "CBN", "account": "FIRS VAT Collection", "method": "NIP", "currency": "NGN"},
+    "KE": {"frequency": "monthly", "deadline_day": 20, "bank": "CBK", "account": "KRA Revenue", "method": "RTGS", "currency": "KES"},
+    "GH": {"frequency": "monthly", "deadline_day": 15, "bank": "BOG", "account": "GRA Domestic Revenue", "method": "GhIPSS", "currency": "GHS"},
+    "ZA": {"frequency": "bi-monthly", "deadline_day": 25, "bank": "SARB", "account": "SARS Revenue", "method": "EFT", "currency": "ZAR"},
+    "TZ": {"frequency": "monthly", "deadline_day": 20, "bank": "BOT", "account": "TRA Revenue", "method": "TISS", "currency": "TZS"},
+    "RW": {"frequency": "monthly", "deadline_day": 15, "bank": "BNR", "account": "RRA Tax Collection", "method": "RIPPS", "currency": "RWF"},
+    "EG": {"frequency": "monthly", "deadline_day": 15, "bank": "CBE", "account": "ETA Revenue", "method": "RTGS", "currency": "EGP"},
+    "MA": {"frequency": "quarterly", "deadline_day": 20, "bank": "BAM", "account": "DGI Tresor Public", "method": "SWIFT", "currency": "MAD"},
+    "UG": {"frequency": "monthly", "deadline_day": 15, "bank": "BOU", "account": "URA Revenue", "method": "EFT", "currency": "UGX"},
+    "ET": {"frequency": "monthly", "deadline_day": 20, "bank": "NBE", "account": "ERCA Revenue", "method": "RTGS", "currency": "ETB"},
+}
+
+
+@app.post("/api/tax/remittance/penalty-estimate")
+async def estimate_penalty(req: PenaltyEstimateRequest):
+    """Calculate penalty and interest for overdue tax remittance."""
+    code = req.jurisdiction_code.upper()
+    rule = PENALTY_RULES.get(code)
+    if not rule:
+        raise HTTPException(status_code=400, detail=f"Unknown jurisdiction: {code}")
+
+    effective_days = max(0, req.days_overdue - rule["grace_days"])
+    daily_rate = rule["daily_bps"] / 10000.0
+    penalty = req.outstanding_amount * daily_rate * effective_days
+    max_penalty = req.outstanding_amount * rule["max_pct"] / 100.0
+    penalty = min(penalty, max_penalty)
+
+    annual_rate = rule["annual_interest_bps"] / 10000.0
+    interest = req.outstanding_amount * annual_rate * (effective_days / 365.0)
+
+    return {
+        "jurisdiction": code,
+        "authority": rule["authority"],
+        "outstanding_amount": req.outstanding_amount,
+        "days_overdue": req.days_overdue,
+        "grace_period_days": rule["grace_days"],
+        "effective_penalty_days": effective_days,
+        "penalty_amount": round(penalty, 2),
+        "interest_amount": round(interest, 2),
+        "total_payable": round(req.outstanding_amount + penalty + interest, 2),
+        "penalty_rate": f"{rule['daily_bps']}bps/day",
+        "interest_rate": f"{rule['annual_interest_bps']}bps/year",
+        "max_penalty_pct": rule["max_pct"],
+    }
+
+
+@app.post("/api/tax/remittance/compliance-report")
+async def generate_compliance_report(req: ComplianceReportRequest):
+    """Generate a tax compliance report for a jurisdiction and period."""
+    code = req.jurisdiction_code.upper()
+    config = GOVT_REMITTANCE_CONFIG.get(code)
+    if not config:
+        raise HTTPException(status_code=400, detail=f"Unknown jurisdiction: {code}")
+
+    rule = PENALTY_RULES.get(code, {})
+    report_id = f"COMPL-{code}-{req.period}-{int(time.time())}"
+
+    # Simulated compliance data (in production, aggregated from DB)
+    if req.report_type == "monthly_return":
+        return {
+            "report_id": report_id,
+            "type": "monthly_return",
+            "jurisdiction": code,
+            "period": req.period,
+            "authority": rule.get("authority", "Unknown"),
+            "filing_deadline_day": config["deadline_day"],
+            "frequency": config["frequency"],
+            "currency": config["currency"],
+            "sections": [
+                {
+                    "name": "Tax Collection Summary",
+                    "fields": [
+                        {"label": "Total Taxable Transactions", "value": 1203},
+                        {"label": "Total Tax Collected", "value": 1780000.0},
+                        {"label": "VAT Component", "value": 1350000.0},
+                        {"label": "Tourism Levy Component", "value": 320000.0},
+                        {"label": "Service Charge Component", "value": 110000.0},
+                    ]
+                },
+                {
+                    "name": "Remittance Status",
+                    "fields": [
+                        {"label": "Amount Remitted", "value": 0.0},
+                        {"label": "Outstanding Balance", "value": 1780000.0},
+                        {"label": "Penalty (if overdue)", "value": 0.0},
+                        {"label": "Interest Accrued", "value": 0.0},
+                    ]
+                },
+                {
+                    "name": "Payment Details",
+                    "fields": [
+                        {"label": "Receiving Bank", "value": config["bank"]},
+                        {"label": "Account Name", "value": config["account"]},
+                        {"label": "Transfer Method", "value": config["method"]},
+                    ]
+                },
+            ],
+            "generated_at": datetime.utcnow().isoformat(),
+            "status": "generated",
+        }
+    elif req.report_type == "annual_summary":
+        return {
+            "report_id": report_id,
+            "type": "annual_summary",
+            "jurisdiction": code,
+            "period": req.period[:4],  # Year only
+            "authority": rule.get("authority", "Unknown"),
+            "currency": config["currency"],
+            "annual_totals": {
+                "total_collected": 28500000.0,
+                "total_remitted": 26720000.0,
+                "outstanding": 1780000.0,
+                "penalties_paid": 45000.0,
+                "on_time_rate": 91.2,
+            },
+            "monthly_breakdown": [
+                {"month": f"{req.period[:4]}-{str(m).zfill(2)}", "collected": 2375000 + (m * 10000), "remitted": 2375000 + (m * 10000) if m < 6 else 0}
+                for m in range(1, 13)
+            ],
+            "compliance_grade": "A" if code in ["NG", "GH"] else "B+",
+            "generated_at": datetime.utcnow().isoformat(),
+        }
+    else:
+        return {
+            "report_id": report_id,
+            "type": req.report_type,
+            "jurisdiction": code,
+            "period": req.period,
+            "status": "generated",
+            "message": f"Audit response report generated for {code} period {req.period}",
+            "generated_at": datetime.utcnow().isoformat(),
+        }
+
+
+@app.get("/api/tax/remittance/schedules")
+async def get_remittance_schedules():
+    """Get all jurisdiction filing schedules and government bank details."""
+    schedules = []
+    for code, config in GOVT_REMITTANCE_CONFIG.items():
+        rule = PENALTY_RULES.get(code, {})
+        schedules.append({
+            "jurisdiction_code": code,
+            "authority": rule.get("authority", "Unknown"),
+            "frequency": config["frequency"],
+            "deadline_day": config["deadline_day"],
+            "grace_period_days": rule.get("grace_days", 7),
+            "receiving_bank": config["bank"],
+            "account_name": config["account"],
+            "transfer_method": config["method"],
+            "currency": config["currency"],
+            "penalty_rate": f"{rule.get('daily_bps', 50)}bps/day",
+            "max_penalty_pct": rule.get("max_pct", 25),
+        })
+    return {"schedules": schedules, "total": len(schedules)}
+
+
+@app.get("/api/tax/remittance/dashboard")
+async def remittance_dashboard():
+    """Get remittance dashboard data for all jurisdictions."""
+    now = datetime.utcnow()
+    dashboard = []
+    for code, config in GOVT_REMITTANCE_CONFIG.items():
+        rule = PENALTY_RULES.get(code, {})
+        # Simulated data
+        collected = {
+            "NG": 1780000, "KE": 890000, "GH": 345000, "ZA": 560000, "TZ": 420000,
+            "RW": 180000, "EG": 290000, "MA": 150000, "UG": 310000, "ET": 220000,
+        }.get(code, 100000)
+        remitted_pct = {"NG": 0, "KE": 0, "GH": 100, "ZA": 50, "TZ": 0, "RW": 100, "EG": 0, "MA": 0, "UG": 0, "ET": 0}.get(code, 0)
+        remitted = collected * remitted_pct / 100
+
+        deadline_day = config["deadline_day"]
+        days_until = deadline_day - now.day
+        if days_until < 0:
+            days_until += 30
+
+        dashboard.append({
+            "jurisdiction_code": code,
+            "authority": rule.get("authority", "Unknown"),
+            "currency": config["currency"],
+            "total_collected": collected,
+            "total_remitted": remitted,
+            "outstanding": collected - remitted,
+            "compliance_pct": round(remitted / collected * 100, 1) if collected > 0 else 100,
+            "next_deadline_day": deadline_day,
+            "days_until_due": days_until,
+            "is_overdue": days_until < 0,
+            "frequency": config["frequency"],
+            "transfer_method": config["method"],
+            "status": "remitted" if remitted_pct >= 100 else ("overdue" if days_until < 0 else "pending"),
+        })
+
+    total_collected = sum(d["total_collected"] for d in dashboard)
+    total_remitted = sum(d["total_remitted"] for d in dashboard)
+
+    return {
+        "jurisdictions": dashboard,
+        "summary": {
+            "total_jurisdictions": len(dashboard),
+            "total_collected": total_collected,
+            "total_remitted": total_remitted,
+            "total_outstanding": total_collected - total_remitted,
+            "overall_compliance_pct": round(total_remitted / total_collected * 100, 1) if total_collected > 0 else 100,
+            "overdue_count": sum(1 for d in dashboard if d["is_overdue"]),
+            "remitted_count": sum(1 for d in dashboard if d["status"] == "remitted"),
+            "pending_count": sum(1 for d in dashboard if d["status"] == "pending"),
+        },
+        "generated_at": datetime.utcnow().isoformat(),
+    }
+
+
+@app.post("/api/tax/remittance/reconcile")
+async def reconcile_remittance(
+    jurisdiction_code: str = Query(...),
+    period: str = Query(...),
+):
+    """Reconcile expected vs actual tax collection for a period."""
+    code = jurisdiction_code.upper()
+    config = GOVT_REMITTANCE_CONFIG.get(code)
+    if not config:
+        raise HTTPException(status_code=400, detail=f"Unknown jurisdiction: {code}")
+
+    # Simulated reconciliation (in production, queries transaction DB)
+    tax_config = JURISDICTION_TAX_CONFIG.get(code, {})
+    expected_items = []
+    actual_items = []
+    for tax_type, details in tax_config.get("taxes", {}).items():
+        expected = 500000 + hash(f"{code}{tax_type}") % 200000
+        # Simulate small variance
+        actual = expected + (hash(f"{code}{tax_type}{period}") % 5000 - 2500)
+        expected_items.append({"tax_type": tax_type, "expected": expected, "actual": actual, "difference": actual - expected})
+        actual_items.append({"tax_type": tax_type, "amount": actual})
+
+    total_expected = sum(i["expected"] for i in expected_items)
+    total_actual = sum(i["actual"] for i in expected_items)
+
+    return {
+        "jurisdiction": code,
+        "period": period,
+        "currency": config["currency"],
+        "total_expected": total_expected,
+        "total_actual": total_actual,
+        "discrepancy": total_actual - total_expected,
+        "discrepancy_pct": round((total_actual - total_expected) / total_expected * 100, 2) if total_expected > 0 else 0,
+        "status": "matched" if abs(total_actual - total_expected) < total_expected * 0.01 else ("underpaid" if total_actual < total_expected else "overpaid"),
+        "line_items": expected_items,
+        "reconciled_at": datetime.utcnow().isoformat(),)
     }
 
 
