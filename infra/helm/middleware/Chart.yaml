@@ -1,0 +1,48 @@
+apiVersion: v2
+name: tourismpay-middleware
+description: |
+  Helm chart for all TourismPay middleware dependencies.
+  Includes: Keycloak, TigerBeetle, Temporal, Fluvio, Permify,
+  Dapr, MinIO, Trino, APISIX, OpenAppSec, Ollama, Jaeger,
+  Prometheus, and Grafana.
+type: application
+version: 1.0.0
+appVersion: "2026.07"
+keywords:
+  - tourismpay
+  - fintech
+  - tourism
+  - middleware
+home: https://github.com/munisp/tourismpay
+maintainers:
+  - name: TourismPay Engineering
+    email: engineering@tourismpay.io
+dependencies:
+  - name: keycloak
+    version: "21.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: keycloak.enabled
+  - name: kafka
+    version: "29.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: kafka.enabled
+  - name: redis
+    version: "19.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+  - name: minio
+    version: "14.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: minio.enabled
+  - name: jaeger
+    version: "3.x.x"
+    repository: https://jaegertracing.github.io/helm-charts
+    condition: jaeger.enabled
+  - name: prometheus
+    version: "25.x.x"
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: prometheus.enabled
+  - name: grafana
+    version: "8.x.x"
+    repository: https://grafana.github.io/helm-charts
+    condition: grafana.enabled

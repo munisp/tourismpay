@@ -10,6 +10,7 @@ import cookieParser from "cookie-parser";
 import compression from "compression";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { registerDaprRoutes } from "./daprSubscriptions";
 import { registerSSERoutes } from "../sse";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -196,6 +197,8 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "16mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  // ─── Dapr pub/sub subscriptions & sidecar health endpoint ─────────────────────────────
+  registerDaprRoutes(app);
 
   // DEV ONLY: session token endpoint for screenshots/testing
   if (process.env.NODE_ENV === "development") {

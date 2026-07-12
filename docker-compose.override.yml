@@ -1,0 +1,719 @@
+# TourismPay — Middleware Override
+# Adds all advanced middleware services not present in docker-compose.yml.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
+#
+# Services added:
+#   - Keycloak (identity & SSO)
+#   - TigerBeetle (double-entry ledger)
+#   - Temporal + PostgreSQL backend (workflow engine)
+#   - Fluvio (real-time streaming)
+#   - Permify (ReBAC authorization)
+#   - Dapr placement + sidecar (microservice mesh)
+#   - MinIO (object storage / lakehouse)
+#   - Trino (SQL analytics over lakehouse)
+#   - Apache Hudi Lakehouse connector
+#   - APISIX API Gateway + Dashboard
+#   - OpenAppSec WAF
+#   - Ollama (local LLM runtime)
+#   - eNaira Gateway (CBN CBDC-NG)
+#   - GDS standalone microservices (11 services)
+#   - Jaeger (distributed tracing)
+#   - Prometheus + Grafana (observability)
+
+services:
+
+  # ─── Keycloak Identity Provider ─────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin123}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/tourismpay
+      KC_DB_USERNAME: tourismpay_user
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-testpass123}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+    volumes:
+      - ./scripts/keycloak/tourismpay-realm.json:/opt/keycloak/data/import/tourismpay-realm.json:ro
+      - ./gds-standalone/keycloak/gds-realm.json:/opt/keycloak/data/import/gds-realm.json:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  # ─── TigerBeetle Double-Entry Ledger ────────────────────────────────────────
+  tigerbeetle-init:
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.11
+    command: format --cluster=0 --replica=0 --replica-count=1 /data/0_0.tigerbeetle
+    volumes:
+      - tigerbeetledata:/data
+    restart: "no"
+
+  tigerbeetle:
+    image: ghcr.io/tigerbeetle/tigerbeetle:0.16.11
+    command: start --addresses=0.0.0.0:3001 /data/0_0.tigerbeetle
+    volumes:
+      - tigerbeetledata:/data
+    ports:
+      - "3001:3001"
+    depends_on:
+      tigerbeetle-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 3001 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ─── Temporal Workflow Engine ────────────────────────────────────────────────
+  temporal-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:-temporal123}
+      POSTGRES_DB: temporal
+    volumes:
+      - temporalpgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  temporal:
+    image: temporalio/auto-setup:1.24
+    environment:
+      DB: postgresql
+      DB_PORT: "5432"
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD:-temporal123}
+      POSTGRES_SEEDS: temporal-postgres
+      DYNAMIC_CONFIG_FILE_PATH: /etc/temporal/config/dynamicconfig/development-sql.yaml
+    volumes:
+      - ./infra/temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
+    ports:
+      - "7233:7233"
+    depends_on:
+      temporal-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "localhost:7233", "cluster", "health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  temporal-ui:
+    image: temporalio/ui:2.26
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8088:8080"
+    depends_on:
+      - temporal
+
+  # ─── Fluvio Real-Time Streaming ─────────────────────────────────────────────
+  fluvio-sc:
+    image: infinyon/fluvio:0.11.11
+    command: ./fluvio-run sc --local /fluvio/metadata
+    volumes:
+      - fluviodata:/fluvio/metadata
+    ports:
+      - "9003:9003"
+      - "9004:9004"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9003 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  fluvio-spu:
+    image: infinyon/fluvio:0.11.11
+    command: ./fluvio-run spu -i 5001 -p fluvio-spu:9010 -v fluvio-spu:9011 --sc-addr fluvio-sc:9004
+    volumes:
+      - fluviospudata:/fluvio/data
+    ports:
+      - "9010:9010"
+      - "9011:9011"
+    depends_on:
+      fluvio-sc:
+        condition: service_healthy
+
+  fluvio-topic-init:
+    image: infinyon/fluvio:0.11.11
+    command: >
+      sh -c "
+        sleep 10 &&
+        fluvio profile add docker fluvio-sc:9003 &&
+        fluvio topic create tourismpay.payments.stream --partitions 4 --replication 1 || true &&
+        fluvio topic create tourismpay.fx.rates --partitions 2 --replication 1 || true &&
+        fluvio topic create tourismpay.noc.live --partitions 2 --replication 1 || true &&
+        fluvio topic create tourismpay.transactions.events --partitions 4 --replication 1 || true &&
+        echo 'Fluvio topics created'
+      "
+    depends_on:
+      - fluvio-spu
+    restart: "no"
+
+  # ─── Permify Fine-Grained Authorization ─────────────────────────────────────
+  permify:
+    image: ghcr.io/permify/permify:v0.9.6
+    command: serve
+    environment:
+      PERMIFY_DATABASE_ENGINE: postgres
+      PERMIFY_DATABASE_URI: postgres://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay?sslmode=disable
+      PERMIFY_DATABASE_MAX_OPEN_CONNECTIONS: "20"
+      PERMIFY_SERVER_PORT: "3476"
+      PERMIFY_SERVER_GRPC_PORT: "3478"
+      PERMIFY_LOG_LEVEL: info
+    ports:
+      - "3476:3476"
+      - "3478:3478"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3476/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  permify-schema-init:
+    image: curlimages/curl:8.7.1
+    command: >
+      sh -c "
+        sleep 15 &&
+        curl -sf -X POST http://permify:3476/v1/tenants/tourismpay/schemas/write
+          -H 'Content-Type: application/json'
+          -d @/schemas/permify-schema.json &&
+        echo 'Permify schema loaded'
+      "
+    volumes:
+      - ./scripts/permify:/schemas:ro
+    depends_on:
+      permify:
+        condition: service_healthy
+    restart: "no"
+
+  # ─── Dapr Placement Service ──────────────────────────────────────────────────
+  dapr-placement:
+    image: daprio/dapr:1.13.4
+    command: ["./placement", "--port", "50006", "--log-level", "warn"]
+    ports:
+      - "50006:50006"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 50006 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  dapr-redis-statestore:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - daprredisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Dapr sidecar for the TypeScript server
+  server-dapr:
+    image: daprio/daprd:1.13.4
+    command: >
+      ./daprd
+        --app-id tourismpay-server
+        --app-port 3000
+        --dapr-http-port 3500
+        --dapr-grpc-port 50001
+        --placement-host-address dapr-placement:50006
+        --components-path /components
+        --log-level warn
+    volumes:
+      - ./infra/dapr/components:/components:ro
+    network_mode: "service:server"
+    depends_on:
+      - server
+      - dapr-placement
+      - dapr-redis-statestore
+
+  # Dapr sidecar for the Go settlement service
+  settlement-dapr:
+    image: daprio/daprd:1.13.4
+    command: >
+      ./daprd
+        --app-id tourismpay-settlement
+        --app-port 8081
+        --dapr-http-port 3501
+        --dapr-grpc-port 50002
+        --placement-host-address dapr-placement:50006
+        --components-path /components
+        --log-level warn
+    volumes:
+      - ./infra/dapr/components:/components:ro
+    network_mode: "service:settlement"
+    depends_on:
+      - settlement
+      - dapr-placement
+
+  # ─── MinIO Object Storage (Lakehouse S3-compatible) ─────────────────────────
+  minio:
+    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tourismpay}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-tourismpay123}
+    volumes:
+      - miniodata:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:RELEASE.2024-06-10T16-44-15Z
+    command: >
+      sh -c "
+        sleep 5 &&
+        mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-tourismpay} ${MINIO_ROOT_PASSWORD:-tourismpay123} &&
+        mc mb local/tourismpay-lakehouse --ignore-existing &&
+        mc mb local/tourismpay-raw --ignore-existing &&
+        mc mb local/tourismpay-curated --ignore-existing &&
+        mc mb local/tourismpay-exports --ignore-existing &&
+        echo 'MinIO buckets created'
+      "
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+
+  # ─── Trino SQL Analytics Engine ──────────────────────────────────────────────
+  trino:
+    image: trinodb/trino:448
+    volumes:
+      - ./infra/trino/catalog:/etc/trino/catalog:ro
+      - ./infra/trino/config:/etc/trino/config:ro
+    ports:
+      - "8090:8080"
+    depends_on:
+      - minio
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/v1/info"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ─── APISIX API Gateway ──────────────────────────────────────────────────────
+  apisix-etcd:
+    image: bitnami/etcd:3.5
+    environment:
+      ALLOW_NONE_AUTHENTICATION: "yes"
+      ETCD_ADVERTISE_CLIENT_URLS: http://apisix-etcd:2379
+    volumes:
+      - etcddata:/bitnami/etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  apisix:
+    image: apache/apisix:3.9.1-debian
+    volumes:
+      - ./infra/apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ./infra/apisix/routes:/usr/local/apisix/conf/routes:ro
+    ports:
+      - "9080:9080"
+      - "9443:9443"
+      - "9180:9180"
+    depends_on:
+      apisix-etcd:
+        condition: service_healthy
+    environment:
+      APISIX_STAND_ALONE: "false"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9180/apisix/admin/routes"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  apisix-dashboard:
+    image: apache/apisix-dashboard:3.0.1-alpine
+    volumes:
+      - ./infra/apisix/dashboard.yaml:/usr/local/apisix-dashboard/conf/conf.yaml:ro
+    ports:
+      - "9082:9000"
+    depends_on:
+      - apisix
+
+  # ─── OpenAppSec WAF ──────────────────────────────────────────────────────────
+  openappsec-agent:
+    image: ghcr.io/openappsec/agent:latest
+    privileged: true
+    environment:
+      OPEN_APPSEC_TOKEN: ${OPENAPPSEC_TOKEN:-local-dev-token}
+      OPEN_APPSEC_MODE: prevent-learn
+      OPEN_APPSEC_UPSTREAM: http://apisix:9080
+    volumes:
+      - ./infra/openappsec/policy.json:/etc/cp/conf/local_policy.json:ro
+      - openappsecdata:/etc/cp/data
+    ports:
+      - "8081:80"
+    depends_on:
+      - apisix
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:80/openappsec-health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─── Ollama Local LLM Runtime ────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:0.3.6
+    volumes:
+      - ollamadata:/root/.ollama
+    ports:
+      - "11434:11434"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  ollama-pull:
+    image: curlimages/curl:8.7.1
+    command: >
+      sh -c "
+        sleep 10 &&
+        curl -sf -X POST http://ollama:11434/api/pull
+          -d '{\"name\": \"qwen2.5:7b\"}' &&
+        echo 'Ollama model pulled'
+      "
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  # ─── eNaira / CBDC-NG Gateway ────────────────────────────────────────────────
+  enaira-gateway:
+    build:
+      context: ./enaira-gateway
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8095"
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      CBN_ENAIRA_BASE_URL: ${CBN_ENAIRA_BASE_URL:-https://sandbox.enaira.gov.ng/api/v1}
+      CBN_ENAIRA_API_KEY: ${CBN_ENAIRA_API_KEY:-sandbox-key}
+      CBN_ENAIRA_MERCHANT_ID: ${CBN_ENAIRA_MERCHANT_ID:-tourismpay-ng-001}
+      CBN_ENAIRA_SPEED_WALLET_ID: ${CBN_ENAIRA_SPEED_WALLET_ID:-}
+      JWT_SECRET: ${JWT_SECRET:-tourismpay-test-jwt-secret-for-dev-32chars}
+      TIGERBEETLE_ADDRESS: tigerbeetle:3001
+      DAPR_HTTP_PORT: "3502"
+    ports:
+      - "8095:8095"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8095/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  enaira-gateway-dapr:
+    image: daprio/daprd:1.13.4
+    command: >
+      ./daprd
+        --app-id tourismpay-enaira
+        --app-port 8095
+        --dapr-http-port 3502
+        --dapr-grpc-port 50003
+        --placement-host-address dapr-placement:50006
+        --components-path /components
+        --log-level warn
+    volumes:
+      - ./infra/dapr/components:/components:ro
+    network_mode: "service:enaira-gateway"
+    depends_on:
+      - enaira-gateway
+      - dapr-placement
+
+  # ─── GDS Standalone Microservices ────────────────────────────────────────────
+  gds-cancellation:
+    build:
+      context: ./gds-standalone/services/cancellation-policy
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8100"
+      GDS_DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: gds
+    ports:
+      - "8100:8100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gds-commission:
+    build:
+      context: ./gds-standalone/services/commission-engine
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8101"
+      GDS_DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      KEYCLOAK_URL: http://keycloak:8080
+    ports:
+      - "8101:8101"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gds-content:
+    build:
+      context: ./gds-standalone/services/content-mgmt
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8102"
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      KEYCLOAK_URL: http://keycloak:8080
+    ports:
+      - "8102:8102"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gds-discount:
+    build:
+      context: ./gds-standalone/services/discount-promo
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8103"
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+    ports:
+      - "8103:8103"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gds-group-bookings:
+    build:
+      context: ./gds-standalone/services/group-bookings
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8104"
+      GDS_DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+    ports:
+      - "8104:8104"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gds-guest-profile:
+    build:
+      context: ./gds-standalone/services/guest-profile
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8105"
+      GDS_DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+    ports:
+      - "8105:8105"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gds-negotiated-rates:
+    build:
+      context: ./gds-standalone/services/negotiated-rates
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8106"
+      GDS_DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+    ports:
+      - "8106:8106"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gds-pnr-engine:
+    build:
+      context: ./gds-standalone/services/pnr-engine
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8107"
+      GDS_DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+    ports:
+      - "8107:8107"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gds-queue-system:
+    build:
+      context: ./gds-standalone/services/queue-system
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8108"
+      GDS_DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+    ports:
+      - "8108:8108"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gds-revenue-mgmt:
+    build:
+      context: ./gds-standalone/services/revenue-mgmt
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8109"
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+    ports:
+      - "8109:8109"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gds-settlement-saga:
+    build:
+      context: ./gds-standalone/services/settlement-saga
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8110"
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      TEMPORAL_ADDRESS: temporal:7233
+    ports:
+      - "8110:8110"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+
+  # ─── Observability Stack ─────────────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.58
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:14269/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheusdata:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "3010:3000"
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ─── Update existing server with new env vars ────────────────────────────────
+  server:
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      permify:
+        condition: service_healthy
+      tigerbeetle:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    environment:
+      TIGERBEETLE_ADDRESS: tigerbeetle:3001
+      TEMPORAL_ADDRESS: temporal:7233
+      PERMIFY_URL: http://permify:3476
+      PERMIFY_GRPC_URL: permify:3478
+      FLUVIO_SC_ADDRESS: fluvio-sc:9003
+      LAKEHOUSE_URL: http://trino:8080
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-tourismpay}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-tourismpay123}
+      OLLAMA_BASE_URL: http://ollama:11434
+      ENAIRA_GATEWAY_URL: http://enaira-gateway:8095
+      JAEGER_ENDPOINT: http://jaeger:4318/v1/traces
+      DAPR_HTTP_PORT: "3500"
+      OPENAPPSEC_ENABLED: "true"
+
+  # ─── Update Python ML with new env vars ─────────────────────────────────────
+  python-ml:
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-tourismpay}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-tourismpay123}
+      FLUVIO_SC_ADDRESS: fluvio-sc:9003
+      LAKEHOUSE_BUCKET: tourismpay-lakehouse
+      TRINO_URL: http://trino:8090
+
+  # ─── Update Go Settlement with TigerBeetle + Temporal ───────────────────────
+  settlement:
+    environment:
+      TIGERBEETLE_ADDRESS: tigerbeetle:3001
+      TEMPORAL_ADDRESS: temporal:7233
+      DAPR_HTTP_PORT: "3501"
+
+volumes:
+  tigerbeetledata:
+  temporalpgdata:
+  fluviodata:
+  fluviospudata:
+  miniodata:
+  etcddata:
+  openappsecdata:
+  ollamadata:
+  daprredisdata:
+  prometheusdata:
+  grafanadata:

@@ -190,3 +190,192 @@ export async function writeRelationship(
 export function isPermifyEnabled(): boolean {
   return !!process.env.PERMIFY_URL;
 }
+
+// ─── Extended Resource & Action Definitions (v2) ─────────────────────────────
+export const RESOURCES_V2 = {
+  ...RESOURCES,
+  LEDGER_ACCOUNT: "ledger_account",
+  GDS_BOOKING: "gds_booking",
+  GDS_RATE: "gds_rate",
+  REMITTANCE: "remittance",
+  TAX_REMITTANCE: "tax_remittance",
+  KYC_PROFILE: "kyc_profile",
+  KYB_APPLICATION: "kyb_application",
+  IDENTITY_PROFILE: "identity_profile",
+  FRAUD_ALERT: "fraud_alert",
+  PAYOUT_SCHEDULE: "payout_schedule",
+  LOYALTY_ACCOUNT: "loyalty_account",
+  NOC_DASHBOARD: "noc_dashboard",
+  ANALYTICS_DATASET: "analytics_dataset",
+  ENAIRA_WALLET: "enaira_wallet",
+  TRIP_PLAN: "trip_plan",
+  TIPPING_TRANSACTION: "tipping_transaction",
+} as const;
+
+export const ACTIONS_V2 = {
+  ...ACTIONS,
+  SEND: "send",
+  RECEIVE: "receive",
+  VIEW_BALANCE: "view_balance",
+  VIEW_TRANSACTIONS: "view_transactions",
+  FREEZE: "freeze",
+  EXECUTE_TRANSFER: "execute_transfer",
+  MANAGE: "manage",
+  DEBIT: "debit",
+  CREDIT: "credit",
+  RECONCILE: "reconcile",
+  CANCEL: "cancel",
+  TRACK: "track",
+  SUBMIT: "submit",
+  AUDIT: "audit",
+  REVIEW: "review",
+  REJECT: "reject",
+  REQUEST_DOCS: "request_docs",
+  VIEW_PII: "view_pii",
+  VERIFY: "verify",
+  REVOKE: "revoke",
+  INVESTIGATE: "investigate",
+  ESCALATE: "escalate",
+  CLOSE: "close",
+  EXPORT: "export",
+  VOID: "void",
+  REFUND: "refund",
+  EARN: "earn",
+  REDEEM: "redeem",
+  ADJUST: "adjust",
+  OPERATE: "operate",
+  QUERY: "query",
+  LOAD: "load",
+  PAY: "pay",
+  SHARE: "share",
+  BOOK: "book",
+  SCHEDULE: "schedule",
+  PUBLISH: "publish",
+  NEGOTIATE: "negotiate",
+  ACKNOWLEDGE: "acknowledge",
+  DISMISS: "dismiss",
+} as const;
+
+// ─── Bulk Relationship Write ──────────────────────────────────────────────────
+/**
+ * Write multiple relationships in a single Permify API call.
+ * Used during onboarding to establish initial ownership relationships.
+ */
+export async function writeRelationships(
+  tuples: Array<{
+    subject: { type: string; id: string };
+    relation: string;
+    resource: { type: string; id: string };
+  }>,
+): Promise<boolean> {
+  const config = getConfig();
+  if (!config) return true;
+  try {
+    const res = await fetch(`${config.url}/v1/tenants/${config.tenantId}/relationships/write`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        metadata: {},
+        tuples: tuples.map((t) => ({
+          entity: t.resource,
+          relation: t.relation,
+          subject: t.subject,
+        })),
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok;
+  } catch (err) {
+    logger.warn(`[Permify] Bulk write relationships failed: ${(err as Error).message}`);
+    return false;
+  }
+}
+
+/**
+ * Delete a relationship tuple from Permify.
+ * Used when ownership is transferred or access is revoked.
+ */
+export async function deleteRelationship(
+  subject: { type: string; id: string },
+  relation: string,
+  resource: { type: string; id: string },
+): Promise<boolean> {
+  const config = getConfig();
+  if (!config) return true;
+  try {
+    const res = await fetch(`${config.url}/v1/tenants/${config.tenantId}/relationships/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filter: {
+          entity_type: resource.type,
+          entity_id: resource.id,
+          relation,
+          subject_type: subject.type,
+          subject_id: subject.id,
+        },
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok;
+  } catch (err) {
+    logger.warn(`[Permify] Delete relationship failed: ${(err as Error).message}`);
+    return false;
+  }
+}
+
+/**
+ * List all subjects that have a given permission on a resource.
+ * Used for auditing and admin dashboards.
+ */
+export async function lookupSubjects(
+  resource: { type: string; id: string },
+  permission: string,
+  subjectType: string = "user",
+): Promise<string[]> {
+  const config = getConfig();
+  if (!config) return [];
+  try {
+    const res = await fetch(`${config.url}/v1/tenants/${config.tenantId}/permissions/lookup-subject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        metadata: { depth: 5 },
+        entity: resource,
+        permission,
+        subject_reference: { type: subjectType },
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return [];
+    const body = await res.json() as { subject_ids: string[] };
+    return body.subject_ids || [];
+  } catch (err) {
+    logger.warn(`[Permify] Lookup subjects failed: ${(err as Error).message}`);
+    return [];
+  }
+}
+
+/**
+ * Establish standard ownership relationships when a new resource is created.
+ * Automatically writes owner, organization.member, and org.admin relationships.
+ */
+export async function grantOwnership(
+  userId: string,
+  orgId: string,
+  resourceType: string,
+  resourceId: string,
+): Promise<void> {
+  await writeRelationships([
+    {
+      subject: { type: "user", id: userId },
+      relation: "owner",
+      resource: { type: resourceType, id: resourceId },
+    },
+    {
+      subject: { type: "organization", id: orgId },
+      relation: "organization",
+      resource: { type: resourceType, id: resourceId },
+    },
+  ]);
+}

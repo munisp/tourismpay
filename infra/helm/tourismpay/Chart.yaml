@@ -1,0 +1,23 @@
+apiVersion: v2
+name: tourismpay
+description: |
+  Helm chart for the TourismPay application services.
+  Deploys: TypeScript API server, Go settlement service, Go eNaira gateway,
+  Rust KYC service, Python ML/Lakehouse service, and React frontend.
+type: application
+version: 1.0.0
+appVersion: "2026.07"
+keywords:
+  - tourismpay
+  - fintech
+  - tourism
+  - payments
+home: https://github.com/munisp/tourismpay
+maintainers:
+  - name: TourismPay Engineering
+    email: engineering@tourismpay.io
+dependencies:
+  - name: tourismpay-middleware
+    version: "1.0.0"
+    repository: "file://../middleware"
+    condition: middleware.enabled

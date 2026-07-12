@@ -1,0 +1,67 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: tourismpay-local
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: tourismpay-server
+    static_configs:
+      - targets: ["server:3000"]
+    metrics_path: /metrics
+
+  - job_name: tourismpay-settlement
+    static_configs:
+      - targets: ["settlement:8081"]
+    metrics_path: /metrics
+
+  - job_name: tourismpay-kyc
+    static_configs:
+      - targets: ["kyc:8082"]
+    metrics_path: /metrics
+
+  - job_name: tourismpay-python-ml
+    static_configs:
+      - targets: ["python-ml:8001"]
+    metrics_path: /metrics
+
+  - job_name: tourismpay-enaira-gateway
+    static_configs:
+      - targets: ["enaira-gateway:8095"]
+    metrics_path: /metrics
+
+  - job_name: apisix
+    static_configs:
+      - targets: ["apisix:9091"]
+    metrics_path: /apisix/prometheus/metrics
+
+  - job_name: kafka
+    static_configs:
+      - targets: ["kafka:9092"]
+
+  - job_name: redis
+    static_configs:
+      - targets: ["redis:6379"]
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres:5432"]
+
+  - job_name: temporal
+    static_configs:
+      - targets: ["temporal:7233"]
+    metrics_path: /metrics
+
+  - job_name: minio
+    static_configs:
+      - targets: ["minio:9000"]
+    metrics_path: /minio/v2/metrics/cluster
+
+  - job_name: trino
+    static_configs:
+      - targets: ["trino:8090"]
+    metrics_path: /v1/jmx/mbean/io.trino%3Atype%3DQueryManager

@@ -1,0 +1,60 @@
+{
+  "policies": {
+    "default": {
+      "mode": "prevent-learn",
+      "practices": {
+        "webAttacks": {
+          "minConfidence": "medium",
+          "maxBodySizeKb": 1024,
+          "maxHeaderSizeBytes": 4096,
+          "maxObjectDepth": 20,
+          "illegalHttpMethods": true
+        },
+        "snortSignatures": {
+          "overrideMode": "detect"
+        },
+        "openapi": {
+          "enforceHeaderValidation": true,
+          "enforceParameterValidation": true,
+          "enforceBodyValidation": true
+        }
+      },
+      "triggers": {
+        "log": {
+          "verbosity": "standard",
+          "extendedLogging": true,
+          "logToAgent": true
+        }
+      }
+    },
+    "specific": [
+      {
+        "hosts": ["*/api/v1/enaira/*"],
+        "mode": "prevent",
+        "practices": {
+          "webAttacks": {
+            "minConfidence": "high"
+          }
+        }
+      },
+      {
+        "hosts": ["*/api/v1/payments/*", "*/api/v1/remittances/*"],
+        "mode": "prevent",
+        "practices": {
+          "webAttacks": {
+            "minConfidence": "medium"
+          }
+        }
+      },
+      {
+        "hosts": ["*/webhooks/*"],
+        "mode": "detect",
+        "practices": {
+          "webAttacks": {
+            "minConfidence": "high"
+          }
+        }
+      }
+    ]
+  }
+}

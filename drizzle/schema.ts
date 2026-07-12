@@ -3669,3 +3669,106 @@ export const keycloakSessionTokens = pgTable("keycloak_session_tokens", {
   index("idx_keycloak_session_tokens_user_id").on(t.userId),
   index("idx_keycloak_session_tokens_keycloak_session_id").on(t.keycloakSessionId),
 ]);
+
+// ─── eNaira / CBDC Tables (Migration 0076) ───────────────────────────────────
+export const enairaWallets = pgTable("enaira_wallets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  walletAddress: text("wallet_address").notNull().unique(),
+  cbnWalletId: text("cbn_wallet_id"),
+  balanceKobo: bigint("balance_kobo", { mode: "number" }).notNull().default(0),
+  currency: varchar("currency", { length: 8 }).notNull().default("eNGN"),
+  status: text("status").notNull().default("active"),
+  kycTier: smallint("kyc_tier").notNull().default(1),
+  dailyLimitKobo: bigint("daily_limit_kobo", { mode: "number" }).notNull().default(20000000),
+  transactionLimitKobo: bigint("transaction_limit_kobo", { mode: "number" }).notNull().default(5000000),
+  lastSyncAt: timestamp("last_sync_at"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("idx_enaira_wallets_user_id").on(t.userId),
+  index("idx_enaira_wallets_status").on(t.status),
+]);
+
+export const enairaTransactions = pgTable("enaira_transactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  enairaWalletId: uuid("enaira_wallet_id").notNull().references(() => enairaWallets.id),
+  cbnTransactionRef: text("cbn_transaction_ref").unique(),
+  transactionType: text("transaction_type").notNull(),
+  amountKobo: bigint("amount_kobo", { mode: "number" }).notNull(),
+  feeKobo: bigint("fee_kobo", { mode: "number" }).notNull().default(0),
+  counterpartyAddress: text("counterparty_address"),
+  counterpartyName: text("counterparty_name"),
+  narration: text("narration"),
+  status: text("status").notNull().default("pending"),
+  cbnResponse: jsonb("cbn_response").default({}),
+  ledgerTransferId: bigint("ledger_transfer_id", { mode: "number" }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("idx_enaira_txns_wallet").on(t.enairaWalletId),
+  index("idx_enaira_txns_status").on(t.status),
+  index("idx_enaira_txns_cbn_ref").on(t.cbnTransactionRef),
+]);
+
+export const cbnMerchantRegistrations = pgTable("cbn_merchant_registrations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  establishmentId: uuid("establishment_id").notNull().references(() => establishments.id, { onDelete: "cascade" }),
+  cbnMerchantId: text("cbn_merchant_id").notNull().unique(),
+  cbnTerminalId: text("cbn_terminal_id"),
+  merchantCategoryCode: varchar("merchant_category_code", { length: 8 }),
+  registrationStatus: text("registration_status").notNull().default("pending"),
+  registeredAt: timestamp("registered_at"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("idx_cbn_merchant_establishment").on(t.establishmentId),
+]);
+
+// ─── Fluvio Consumer Offset Tracking (Migration 0076) ────────────────────────
+export const fluvioConsumerOffsets = pgTable("fluvio_consumer_offsets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  consumerGroup: text("consumer_group").notNull(),
+  topic: text("topic").notNull(),
+  partition: integer("partition").notNull().default(0),
+  lastOffset: bigint("last_offset", { mode: "number" }).notNull().default(0),
+  lastProcessedAt: timestamp("last_processed_at").defaultNow(),
+  consumerHost: text("consumer_host"),
+}, (t) => [
+  index("idx_fluvio_offsets_group_topic").on(t.consumerGroup, t.topic),
+]);
+
+// ─── APISIX Route Registry (Migration 0076) ──────────────────────────────────
+export const apisixRouteRegistry = pgTable("apisix_route_registry", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  routeId: text("route_id").notNull().unique(),
+  routeName: text("route_name").notNull(),
+  upstreamService: text("upstream_service").notNull(),
+  pathPrefix: text("path_prefix").notNull(),
+  methods: text("methods").array().notNull().default(["GET", "POST"]),
+  plugins: jsonb("plugins").default({}),
+  authRequired: boolean("auth_required").notNull().default(true),
+  rateLimitRps: integer("rate_limit_rps"),
+  wafEnabled: boolean("waf_enabled").notNull().default(true),
+  status: text("status").notNull().default("active"),
+  syncedAt: timestamp("synced_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ─── Dapr Sidecar Health Tracking (Migration 0076) ───────────────────────────
+export const daprSidecarHealth = pgTable("dapr_sidecar_health", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  serviceName: text("service_name").notNull(),
+  appId: text("app_id").notNull().unique(),
+  appPort: integer("app_port").notNull(),
+  daprHttpPort: integer("dapr_http_port").notNull().default(3500),
+  daprGrpcPort: integer("dapr_grpc_port").notNull().default(50001),
+  lastHealthCheck: timestamp("last_health_check"),
+  isHealthy: boolean("is_healthy").notNull().default(false),
+  componentsLoaded: text("components_loaded").array().default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});

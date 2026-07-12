@@ -1,0 +1,233 @@
+# TourismPay Application Helm Chart — Default Values
+
+global:
+  namespace: tourismpay
+  imageRegistry: "ghcr.io/munisp"
+  imageTag: "latest"
+  imagePullPolicy: IfNotPresent
+  postgresHost: "tourismpay-middleware-postgresql"
+  postgresPort: 5432
+  postgresUser: tourismpay_user
+  postgresDb: tourismpay
+
+middleware:
+  enabled: true
+
+# ─── TypeScript API Server ───────────────────────────────────────────────────
+server:
+  enabled: true
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/tourismpay-server"
+    tag: "{{ .Values.global.imageTag }}"
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 3000
+  env:
+    NODE_ENV: production
+    PORT: "3000"
+    LOG_LEVEL: info
+    TEMPORAL_ADDRESS: "temporal:7233"
+    TEMPORAL_NAMESPACE: default
+    PERMIFY_URL: "http://permify:3476"
+    PERMIFY_TENANT_ID: tourismpay
+    REDIS_URL: "redis://redis-master:6379"
+    KAFKA_BROKERS: "kafka:9092"
+    FLUVIO_SC_ADDR: "fluvio-sc:9003"
+    TIGERBEETLE_ADDRESS: "tigerbeetle:3001"
+    DAPR_HTTP_PORT: "3500"
+    DAPR_GRPC_PORT: "50001"
+    SETTLEMENT_SERVICE_URL: "http://settlement:8081"
+    ENAIRA_GATEWAY_URL: "http://enaira-gateway:8095"
+    PYTHON_ML_URL: "http://python-ml:8001"
+    LAKEHOUSE_URL: "http://python-ml:8001"
+    OLLAMA_BASE_URL: "http://ollama:11434"
+    APISIX_ADMIN_URL: "http://apisix-admin:9180"
+    APISIX_ADMIN_KEY: ""  # Set via secret
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  dapr:
+    enabled: true
+    appId: tourismpay-server
+    appPort: 3000
+    logLevel: warn
+
+# ─── Go Settlement Service ───────────────────────────────────────────────────
+settlement:
+  enabled: true
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/tourismpay-settlement"
+    tag: "{{ .Values.global.imageTag }}"
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 8081
+  env:
+    TIGERBEETLE_ADDRESS: "tigerbeetle:3001"
+    KAFKA_BROKERS: "kafka:9092"
+    DAPR_HTTP_PORT: "3500"
+    DAPR_GRPC_PORT: "50001"
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 256Mi
+      cpu: 500m
+  dapr:
+    enabled: true
+    appId: tourismpay-settlement
+    appPort: 8081
+    logLevel: warn
+
+# ─── eNaira Gateway ─────────────────────────────────────────────────────────
+enairaGateway:
+  enabled: true
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/tourismpay-enaira-gateway"
+    tag: "{{ .Values.global.imageTag }}"
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 8095
+  env:
+    CBN_SPEED_WALLET_URL: ""  # Set via secret
+    CBN_API_KEY: ""           # Set via secret
+    CBN_MERCHANT_ID: ""       # Set via secret
+    KAFKA_BROKERS: "kafka:9092"
+    TIGERBEETLE_ADDRESS: "tigerbeetle:3001"
+    DAPR_HTTP_PORT: "3500"
+    DAPR_GRPC_PORT: "50001"
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 250m
+  dapr:
+    enabled: true
+    appId: tourismpay-enaira
+    appPort: 8095
+    logLevel: warn
+
+# ─── Rust KYC Service ───────────────────────────────────────────────────────
+kyc:
+  enabled: true
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/tourismpay-kyc"
+    tag: "{{ .Values.global.imageTag }}"
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 8082
+  env:
+    KAFKA_BROKERS: "kafka:9092"
+    KEYCLOAK_URL: "http://keycloak:8080"
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 250m
+
+# ─── Python ML / Lakehouse Service ──────────────────────────────────────────
+pythonMl:
+  enabled: true
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/tourismpay-python-ml"
+    tag: "{{ .Values.global.imageTag }}"
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 8001
+  env:
+    MINIO_ENDPOINT: "minio:9000"
+    MINIO_ACCESS_KEY: tourismpay
+    MINIO_SECRET_KEY: ""  # Set via secret
+    TRINO_HOST: "trino"
+    TRINO_PORT: "8080"
+    KAFKA_BROKERS: "kafka:9092"
+    FLUVIO_SC_ADDR: "fluvio-sc:9003"
+    OLLAMA_BASE_URL: "http://ollama:11434"
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 250m
+    limits:
+      memory: 2Gi
+      cpu: 1000m
+
+# ─── React Frontend ──────────────────────────────────────────────────────────
+frontend:
+  enabled: true
+  image:
+    repository: "{{ .Values.global.imageRegistry }}/tourismpay-frontend"
+    tag: "{{ .Values.global.imageTag }}"
+  replicaCount: 2
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 250m
+
+# ─── Ingress ─────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: api.tourismpay.io
+      paths:
+        - path: /
+          pathType: Prefix
+          service: server
+    - host: app.tourismpay.io
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+    - host: enaira.tourismpay.io
+      paths:
+        - path: /
+          pathType: Prefix
+          service: enairaGateway
+  tls:
+    - secretName: tourismpay-tls
+      hosts:
+        - api.tourismpay.io
+        - app.tourismpay.io
+        - enaira.tourismpay.io
+
+# ─── Secrets (referenced by name — create externally or via Vault) ───────────
+secrets:
+  name: tourismpay-secrets
+  create: false  # Set to true for dev; use external-secrets in prod
+  data:
+    database-url: ""
+    keycloak-admin-password: ""
+    temporal-db-password: ""
+    permify-db-uri: ""
+    minio-secret-key: ""
+    apisix-admin-key: ""
+    cbn-api-key: ""
+    cbn-merchant-id: ""
+    jwt-secret: ""

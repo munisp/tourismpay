@@ -1,0 +1,106 @@
+apisix:
+  node_listen: 9080
+  enable_ipv6: false
+  enable_admin: true
+  admin_key:
+    - name: admin
+      key: tourismpay-apisix-admin-key
+      role: admin
+
+etcd:
+  host:
+    - http://apisix-etcd:2379
+  prefix: /apisix
+  timeout: 30
+
+plugin_attr:
+  opentelemetry:
+    resource:
+      service.name: tourismpay-apisix
+    collector:
+      address: jaeger:4317
+      request_timeout: 3
+  prometheus:
+    export_uri: /apisix/prometheus/metrics
+    metric_prefix: apisix_
+    enable_export_server: true
+    export_addr:
+      ip: 0.0.0.0
+      port: 9091
+
+plugins:
+  - real-ip
+  - ai
+  - client-control
+  - proxy-control
+  - request-id
+  - zipkin
+  - ext-plugin-pre-req
+  - fault-injection
+  - mocking
+  - serverless-pre-function
+  - cors
+  - ip-restriction
+  - ua-restriction
+  - referer-restriction
+  - csrf
+  - uri-blocker
+  - request-validation
+  - openid-connect
+  - cas-auth
+  - authz-casbin
+  - authz-casdoor
+  - wolf-rbac
+  - ldap-auth
+  - hmac-auth
+  - basic-auth
+  - jwt-auth
+  - key-auth
+  - consumer-restriction
+  - attach-consumer-label
+  - forward-auth
+  - opa
+  - authz-keycloak
+  - proxy-mirror
+  - proxy-cache
+  - proxy-rewrite
+  - api-breaker
+  - limit-conn
+  - limit-count
+  - limit-req
+  - gzip
+  - server-info
+  - traffic-split
+  - redirect
+  - response-rewrite
+  - kafka-logger
+  - kafka-proxy
+  - grpc-transcode
+  - grpc-web
+  - public-api
+  - prometheus
+  - datadog
+  - loki-logger
+  - elasticsearch-logger
+  - echo
+  - loggly
+  - http-logger
+  - splunk-hec-logging
+  - skywalking-logger
+  - google-cloud-logging
+  - sls-logger
+  - tcp-logger
+  - udp-logger
+  - file-logger
+  - clickhouse-logger
+  - tencent-cloud-cls
+  - inspect
+  - example-plugin
+  - aws-lambda
+  - azure-functions
+  - openwhisk
+  - opentelemetry
+  - skywalking
+  - body-transformer
+  - ext-plugin-post-req
+  - ext-plugin-post-resp

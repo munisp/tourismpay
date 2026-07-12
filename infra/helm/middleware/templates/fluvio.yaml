@@ -1,0 +1,154 @@
+{{- if .Values.fluvio.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fluvio-sc
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: fluvio-sc
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  replicas: {{ .Values.fluvio.sc.replicaCount }}
+  selector:
+    matchLabels:
+      app: fluvio-sc
+  template:
+    metadata:
+      labels:
+        app: fluvio-sc
+    spec:
+      containers:
+        - name: fluvio-sc
+          image: {{ .Values.fluvio.image.repository }}:{{ .Values.fluvio.image.tag }}
+          args: ["run", "sc", "--local"]
+          ports:
+            - containerPort: 9003
+              name: api
+            - containerPort: 9004
+              name: internal
+          env:
+            - name: RUST_LOG
+              value: "fluvio=info"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fluvio-sc
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: fluvio-sc
+spec:
+  selector:
+    app: fluvio-sc
+  ports:
+    - name: api
+      port: {{ .Values.fluvio.sc.service.ports.api }}
+      targetPort: 9003
+    - name: internal
+      port: {{ .Values.fluvio.sc.service.ports.internal }}
+      targetPort: 9004
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fluvio-spu
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: fluvio-spu
+spec:
+  replicas: {{ .Values.fluvio.spu.replicaCount }}
+  selector:
+    matchLabels:
+      app: fluvio-spu
+  template:
+    metadata:
+      labels:
+        app: fluvio-spu
+    spec:
+      containers:
+        - name: fluvio-spu
+          image: {{ .Values.fluvio.image.repository }}:{{ .Values.fluvio.image.tag }}
+          args: ["run", "spu"]
+          ports:
+            - containerPort: 9010
+              name: public
+            - containerPort: 9011
+              name: private
+          env:
+            - name: FLV_SC_ADDR
+              value: "fluvio-sc:9004"
+            - name: RUST_LOG
+              value: "fluvio=info"
+          {{- if .Values.fluvio.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/fluvio
+          {{- end }}
+      {{- if .Values.fluvio.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: fluvio-spu-data
+      {{- end }}
+---
+{{- if .Values.fluvio.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fluvio-spu-data
+  namespace: {{ .Values.global.namespace }}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: {{ .Values.global.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.fluvio.persistence.size }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fluvio-spu
+  namespace: {{ .Values.global.namespace }}
+spec:
+  selector:
+    app: fluvio-spu
+  ports:
+    - name: public
+      port: {{ .Values.fluvio.spu.service.ports.public }}
+      targetPort: 9010
+    - name: private
+      port: {{ .Values.fluvio.spu.service.ports.private }}
+      targetPort: 9011
+  type: ClusterIP
+---
+# Topic init job — creates all required Fluvio topics on first install
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fluvio-topic-init
+  namespace: {{ .Values.global.namespace }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "10"
+    "helm.sh/hook-delete-policy": hook-succeeded
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: topic-init
+          image: {{ .Values.fluvio.image.repository }}:{{ .Values.fluvio.image.tag }}
+          command:
+            - sh
+            - -c
+            - |
+              sleep 15
+              fluvio profile add k8s fluvio-sc:9003
+              {{- range .Values.fluvio.topics }}
+              fluvio topic create {{ .name }} --partitions {{ .partitions }} --replication {{ .replication }} || true
+              {{- end }}
+              echo "Fluvio topics initialized"
+{{- end }}

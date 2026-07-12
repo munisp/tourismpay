@@ -69,6 +69,7 @@ import { gdsIntegrationRouter } from "./routers/gdsIntegration";
 import { mobileMerchantRouter, mobileTouristRouter, mobilePaymentSwitchRouter, mobileBookingsRouter } from "./routers/mobileAggregates";
 import { fundFlowRouter } from "./routers/fundFlow";
 import { taxRemittanceRouter } from "./routers/taxRemittance";
+import { enairaRouter } from "./routers/enaira";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -287,7 +288,9 @@ export const appRouter = router({
   tourist: mobileTouristRouter,
   paymentSwitch: mobilePaymentSwitchRouter,
   bookings: mobileBookingsRouter,
-taxRemittance: taxRemittanceRouter,)
+taxRemittance: taxRemittanceRouter,
+  // ─── eNaira / CBDC-NG Gateway ─────────────────────────────────────────────
+  enaira: enairaRouter,)
 });
 
 

@@ -1,0 +1,95 @@
+{{- if .Values.enairaGateway.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enaira-gateway
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: enaira-gateway
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+spec:
+  replicas: {{ .Values.enairaGateway.replicaCount }}
+  selector:
+    matchLabels:
+      app: enaira-gateway
+  template:
+    metadata:
+      labels:
+        app: enaira-gateway
+      annotations:
+        {{- if .Values.enairaGateway.dapr.enabled }}
+        dapr.io/enabled: "true"
+        dapr.io/app-id: {{ .Values.enairaGateway.dapr.appId }}
+        dapr.io/app-port: "{{ .Values.enairaGateway.dapr.appPort }}"
+        dapr.io/log-level: {{ .Values.enairaGateway.dapr.logLevel }}
+        {{- end }}
+    spec:
+      containers:
+        - name: enaira-gateway
+          image: {{ .Values.global.imageRegistry }}/tourismpay-enaira-gateway:{{ .Values.global.imageTag }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: 8095
+              name: http
+          env:
+            - name: CBN_SPEED_WALLET_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.name }}
+                  key: cbn-speed-wallet-url
+                  optional: true
+            - name: CBN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.name }}
+                  key: cbn-api-key
+                  optional: true
+            - name: CBN_MERCHANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.name }}
+                  key: cbn-merchant-id
+                  optional: true
+            {{- range $key, $value := .Values.enairaGateway.env }}
+            {{- if not (has $key (list "CBN_SPEED_WALLET_URL" "CBN_API_KEY" "CBN_MERCHANT_ID")) }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+          resources:
+            requests:
+              memory: {{ .Values.enairaGateway.resources.requests.memory }}
+              cpu: {{ .Values.enairaGateway.resources.requests.cpu }}
+            limits:
+              memory: {{ .Values.enairaGateway.resources.limits.memory }}
+              cpu: {{ .Values.enairaGateway.resources.limits.cpu }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8095
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8095
+            initialDelaySeconds: 15
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enaira-gateway
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app: enaira-gateway
+spec:
+  selector:
+    app: enaira-gateway
+  ports:
+    - name: http
+      port: {{ .Values.enairaGateway.service.port }}
+      targetPort: 8095
+  type: {{ .Values.enairaGateway.service.type }}
+{{- end }}

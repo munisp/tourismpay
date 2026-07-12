@@ -1,0 +1,40 @@
+apiVersion: dapr.io/v1alpha1
+kind: Resiliency
+metadata:
+  name: tourismpay-resiliency
+spec:
+  policies:
+    retries:
+      DefaultRetryPolicy:
+        policy: exponential
+        duration: 500ms
+        maxInterval: 10s
+        maxRetries: 3
+      CriticalRetryPolicy:
+        policy: exponential
+        duration: 1s
+        maxInterval: 30s
+        maxRetries: 5
+    timeouts:
+      DefaultTimeout: 30s
+      SettlementTimeout: 60s
+    circuitBreakers:
+      DefaultCircuitBreaker:
+        maxRequests: 1
+        interval: 10s
+        timeout: 30s
+        trip: consecutiveFailures >= 5
+  targets:
+    apps:
+      tourismpay-settlement:
+        retry: CriticalRetryPolicy
+        timeout: SettlementTimeout
+        circuitBreaker: DefaultCircuitBreaker
+      tourismpay-enaira:
+        retry: CriticalRetryPolicy
+        timeout: SettlementTimeout
+        circuitBreaker: DefaultCircuitBreaker
+      tourismpay-server:
+        retry: DefaultRetryPolicy
+        timeout: DefaultTimeout
+        circuitBreaker: DefaultCircuitBreaker

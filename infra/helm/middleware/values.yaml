@@ -1,0 +1,372 @@
+# TourismPay Middleware Helm Chart — Default Values
+# Override with: helm install ... -f my-values.yaml
+
+global:
+  namespace: tourismpay
+  imageRegistry: ""
+  storageClass: "standard"
+  postgresHost: "postgres.tourismpay.svc.cluster.local"
+  postgresPort: 5432
+  postgresUser: tourismpay_user
+  postgresPassword: ""  # Set via secret
+  postgresDb: tourismpay
+
+# ─── Keycloak ────────────────────────────────────────────────────────────────
+keycloak:
+  enabled: true
+  auth:
+    adminUser: admin
+    adminPassword: ""  # Set via secret
+  postgresql:
+    enabled: false
+  externalDatabase:
+    host: "{{ .Values.global.postgresHost }}"
+    port: 5432
+    user: "{{ .Values.global.postgresUser }}"
+    password: ""
+    database: tourismpay
+  extraEnvVars:
+    - name: KC_HOSTNAME_STRICT
+      value: "false"
+    - name: KC_HTTP_ENABLED
+      value: "true"
+  service:
+    type: ClusterIP
+    ports:
+      http: 8080
+  realmImport:
+    enabled: true
+    configMapName: keycloak-realm-config
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+
+# ─── TigerBeetle ─────────────────────────────────────────────────────────────
+tigerbeetle:
+  enabled: true
+  image:
+    repository: ghcr.io/tigerbeetle/tigerbeetle
+    tag: "0.16.11"
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  clusterId: 0
+  service:
+    type: ClusterIP
+    port: 3001
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 1000m
+
+# ─── Temporal ────────────────────────────────────────────────────────────────
+temporal:
+  enabled: true
+  image:
+    repository: temporalio/auto-setup
+    tag: "1.24"
+  server:
+    replicaCount: 1
+    config:
+      persistence:
+        defaultStore: postgres
+        visibilityStore: postgres
+      db:
+        host: "{{ .Values.global.postgresHost }}"
+        port: 5432
+        user: temporal
+        password: ""
+        database: temporal
+  ui:
+    enabled: true
+    image:
+      repository: temporalio/ui
+      tag: "2.26"
+  service:
+    type: ClusterIP
+    port: 7233
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+# ─── Fluvio ──────────────────────────────────────────────────────────────────
+fluvio:
+  enabled: true
+  image:
+    repository: infinyon/fluvio
+    tag: "0.11.11"
+  sc:
+    replicaCount: 1
+    service:
+      type: ClusterIP
+      ports:
+        api: 9003
+        internal: 9004
+  spu:
+    replicaCount: 1
+    service:
+      type: ClusterIP
+      ports:
+        public: 9010
+        private: 9011
+  topics:
+    - name: tourismpay.payments.stream
+      partitions: 4
+      replication: 1
+    - name: tourismpay.fx.rates
+      partitions: 2
+      replication: 1
+    - name: tourismpay.noc.live
+      partitions: 2
+      replication: 1
+    - name: tourismpay.transactions.events
+      partitions: 4
+      replication: 1
+  persistence:
+    enabled: true
+    size: 5Gi
+
+# ─── Permify ─────────────────────────────────────────────────────────────────
+permify:
+  enabled: true
+  image:
+    repository: ghcr.io/permify/permify
+    tag: "v0.9.6"
+  replicaCount: 2
+  config:
+    database:
+      engine: postgres
+      uri: ""  # Set via secret
+      maxOpenConnections: 20
+    server:
+      port: 3476
+      grpcPort: 3478
+    log:
+      level: info
+  service:
+    type: ClusterIP
+    httpPort: 3476
+    grpcPort: 3478
+  schemaInit:
+    enabled: true
+    configMapName: permify-schema-config
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 256Mi
+      cpu: 250m
+
+# ─── Dapr ────────────────────────────────────────────────────────────────────
+dapr:
+  enabled: true
+  global:
+    ha:
+      enabled: false
+    logLevel: warn
+    logAsJson: true
+  placement:
+    replicaCount: 1
+  operator:
+    replicaCount: 1
+  sidecar:
+    image:
+      repository: daprio/daprd
+      tag: "1.13.4"
+
+# ─── MinIO ───────────────────────────────────────────────────────────────────
+minio:
+  enabled: true
+  mode: standalone
+  auth:
+    rootUser: tourismpay
+    rootPassword: ""  # Set via secret
+  defaultBuckets: "tourismpay-lakehouse,tourismpay-raw,tourismpay-curated,tourismpay-exports"
+  persistence:
+    enabled: true
+    size: 50Gi
+  service:
+    type: ClusterIP
+    ports:
+      api: 9000
+      console: 9001
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+
+# ─── Trino ───────────────────────────────────────────────────────────────────
+trino:
+  enabled: true
+  image:
+    repository: trinodb/trino
+    tag: "448"
+  coordinator:
+    replicaCount: 1
+    jvm:
+      maxHeapSize: "512M"
+  worker:
+    replicaCount: 0  # Single-node for dev; scale for prod
+  service:
+    type: ClusterIP
+    port: 8080
+  additionalCatalogs:
+    lakehouse: |
+      connector.name=hive
+      hive.metastore=file
+      hive.s3.endpoint=http://minio:9000
+      hive.s3.aws-access-key=tourismpay
+      hive.s3.aws-secret-key=tourismpay123
+      hive.s3.path-style-access=true
+      hive.s3.ssl.enabled=false
+
+# ─── APISIX ──────────────────────────────────────────────────────────────────
+apisix:
+  enabled: true
+  image:
+    repository: apache/apisix
+    tag: "3.9.1-debian"
+  replicaCount: 2
+  apisix:
+    enabled: true
+  dashboard:
+    enabled: true
+    image:
+      repository: apache/apisix-dashboard
+      tag: "3.0.1-alpine"
+  etcd:
+    enabled: true
+    replicaCount: 1
+  service:
+    type: ClusterIP
+    externalTrafficPolicy: Cluster
+    http:
+      enabled: true
+      servicePort: 80
+      containerPort: 9080
+    tls:
+      enabled: true
+      servicePort: 443
+      containerPort: 9443
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+# ─── Ollama ──────────────────────────────────────────────────────────────────
+ollama:
+  enabled: true
+  image:
+    repository: ollama/ollama
+    tag: "0.3.6"
+  replicaCount: 1
+  models:
+    - qwen2.5:7b
+  persistence:
+    enabled: true
+    size: 20Gi
+  service:
+    type: ClusterIP
+    port: 11434
+  resources:
+    requests:
+      memory: 4Gi
+      cpu: 2000m
+    limits:
+      memory: 8Gi
+      cpu: 4000m
+
+# ─── Observability ───────────────────────────────────────────────────────────
+jaeger:
+  enabled: true
+  allInOne:
+    enabled: true
+    image:
+      repository: jaegertracing/all-in-one
+      tag: "1.58"
+  collector:
+    service:
+      otlp:
+        grpc:
+          name: otlp-grpc
+          port: 4317
+        http:
+          name: otlp-http
+          port: 4318
+  query:
+    service:
+      port: 16686
+
+prometheus:
+  enabled: true
+  server:
+    retention: "30d"
+    persistentVolume:
+      enabled: true
+      size: 20Gi
+  alertmanager:
+    enabled: false
+
+grafana:
+  enabled: true
+  adminPassword: ""  # Set via secret
+  persistence:
+    enabled: true
+    size: 5Gi
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          url: http://tourismpay-middleware-prometheus-server
+          isDefault: true
+        - name: Jaeger
+          type: jaeger
+          url: http://tourismpay-middleware-jaeger-query:16686
+
+# ─── Kafka (Bitnami) ─────────────────────────────────────────────────────────
+kafka:
+  enabled: true
+  replicaCount: 1
+  kraft:
+    enabled: true
+  persistence:
+    enabled: true
+    size: 10Gi
+  service:
+    type: ClusterIP
+    ports:
+      client: 9092
+
+# ─── Redis (Bitnami) ─────────────────────────────────────────────────────────
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi

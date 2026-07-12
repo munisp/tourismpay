@@ -1,0 +1,18 @@
+conf:
+  listen:
+    host: 0.0.0.0
+    port: 9000
+  etcd:
+    endpoints:
+      - apisix-etcd:2379
+  log:
+    error_log:
+      level: warn
+    access_log:
+      file_path: /dev/stdout
+authentication:
+  secret: tourismpay-dashboard-secret
+  expire_time: 3600
+  users:
+    - username: admin
+      password: tourismpay-admin-123
