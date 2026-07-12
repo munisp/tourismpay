@@ -2,13 +2,26 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    cluster: tourismpay-local
+    cluster: tourismpay-prod
+    environment: production
 
+# ─── Alertmanager Integration ─────────────────────────────────────────────────
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+# ─── Alert Rule Files ─────────────────────────────────────────────────────────
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+# ─── Scrape Configurations ────────────────────────────────────────────────────
 scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
 
+  # Application Services
   - job_name: tourismpay-server
     static_configs:
       - targets: ["server:3000"]
@@ -33,29 +46,61 @@ scrape_configs:
     static_configs:
       - targets: ["enaira-gateway:8095"]
     metrics_path: /metrics
+    scrape_interval: 10s  # Higher frequency for payment-critical service
 
+  # Authorization & Identity
+  - job_name: permify
+    static_configs:
+      - targets: ["permify:3476"]
+    metrics_path: /metrics
+
+  - job_name: keycloak
+    static_configs:
+      - targets: ["keycloak:8080"]
+    metrics_path: /metrics
+
+  # API Gateway
   - job_name: apisix
     static_configs:
       - targets: ["apisix:9091"]
     metrics_path: /apisix/prometheus/metrics
 
+  # Event Streaming
   - job_name: kafka
     static_configs:
-      - targets: ["kafka:9092"]
+      - targets: ["kafka-exporter:9308"]
 
+  - job_name: fluvio
+    static_configs:
+      - targets: ["fluvio:9090"]
+    metrics_path: /metrics
+
+  # Data Stores
   - job_name: redis
     static_configs:
-      - targets: ["redis:6379"]
+      - targets: ["redis-exporter:9121"]
 
   - job_name: postgres
     static_configs:
-      - targets: ["postgres:5432"]
+      - targets: ["postgres-exporter:9187"]
 
+  - job_name: tigerbeetle
+    static_configs:
+      - targets: ["tigerbeetle:3000"]
+    metrics_path: /metrics
+
+  # Workflow & Orchestration
   - job_name: temporal
     static_configs:
       - targets: ["temporal:7233"]
     metrics_path: /metrics
 
+  - job_name: dapr-dashboard
+    static_configs:
+      - targets: ["dapr-dashboard:8080"]
+    metrics_path: /metrics
+
+  # Lakehouse
   - job_name: minio
     static_configs:
       - targets: ["minio:9000"]
@@ -65,3 +110,8 @@ scrape_configs:
     static_configs:
       - targets: ["trino:8090"]
     metrics_path: /v1/jmx/mbean/io.trino%3Atype%3DQueryManager
+
+  # Infrastructure
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]

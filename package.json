@@ -10,7 +10,17 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "db:migrate": "tsx drizzle/migrate.ts",
+    "db:migrate:dry": "tsx drizzle/migrate.ts --dry-run",
+    "db:migrate:status": "tsx drizzle/migrate.ts --status",
+    "db:migrate:verify": "tsx drizzle/migrate.ts --verify",
+    "db:seed": "tsx drizzle/seed.ts",
+    "db:seed:reset": "tsx drizzle/seed.ts --reset",
+    "db:studio": "drizzle-kit studio",
+    "db:generate": "drizzle-kit generate",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

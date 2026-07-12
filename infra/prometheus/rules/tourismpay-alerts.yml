@@ -1,0 +1,321 @@
+groups:
+  # ─── eNaira / CBDC-NG Gateway Alerts ────────────────────────────────────────
+  - name: enaira_gateway
+    interval: 30s
+    rules:
+      - alert: ENairaGatewayDown
+        expr: up{job="tourismpay-enaira-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          service: enaira-gateway
+        annotations:
+          summary: "eNaira Gateway is DOWN"
+          description: "The eNaira/CBDC-NG Gateway has been unreachable for more than 1 minute. All CBDC wallet operations are unavailable."
+          runbook_url: "https://wiki.tourismpay.com/runbooks/enaira-gateway-down"
+
+      - alert: ENairaHigh5xxRate
+        expr: |
+          sum(rate(http_requests_total{job="tourismpay-enaira-gateway",status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{job="tourismpay-enaira-gateway"}[5m])) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          service: enaira-gateway
+        annotations:
+          summary: "eNaira Gateway HTTP 5xx error rate exceeds 1%"
+          description: "Current 5xx rate: {{ $value | humanizePercentage }}. Threshold: 1%. Investigate gateway logs immediately."
+          runbook_url: "https://wiki.tourismpay.com/runbooks/enaira-5xx"
+
+      - alert: ENairaHighLatencyP99
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="tourismpay-enaira-gateway"}[5m])) by (le)
+          ) * 1000 > 2000
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+          service: enaira-gateway
+        annotations:
+          summary: "eNaira Gateway P99 latency exceeds 2 seconds"
+          description: "P99 latency is {{ $value | humanizeDuration }}ms. Threshold: 2000ms. Check CBN API connectivity and database query performance."
+
+      - alert: ENairaCBNAPIHighLatency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(cbn_api_request_duration_seconds_bucket{job="tourismpay-enaira-gateway"}[5m])) by (le)
+          ) * 1000 > 2000
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          service: enaira-gateway
+        annotations:
+          summary: "CBN Speed Wallet API latency exceeds 2 seconds"
+          description: "CBN API P99 latency is {{ $value | humanizeDuration }}ms. This directly impacts all CBDC wallet operations. Check CBN service status."
+          runbook_url: "https://wiki.tourismpay.com/runbooks/cbn-api-degraded"
+
+      - alert: ENairaCBNAPIErrorSpike
+        expr: |
+          sum(rate(cbn_api_requests_total{job="tourismpay-enaira-gateway",status="error"}[5m]))
+          /
+          sum(rate(cbn_api_requests_total{job="tourismpay-enaira-gateway"}[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          service: enaira-gateway
+        annotations:
+          summary: "CBN API error rate exceeds 5%"
+          description: "CBN API error rate: {{ $value | humanizePercentage }}. Threshold: 5%. Possible CBN service outage or authentication failure."
+
+      - alert: ENairaTransactionBlockedSpike
+        expr: sum(rate(enaira_transactions_blocked_total{job="tourismpay-enaira-gateway"}[5m])) > 10
+        for: 2m
+        labels:
+          severity: warning
+          team: fraud
+          service: enaira-gateway
+        annotations:
+          summary: "High rate of blocked eNaira transactions"
+          description: "{{ $value }} transactions/s are being blocked. Possible fraud wave or misconfigured daily limits."
+
+      - alert: ENairaGatewayHighMemory
+        expr: process_resident_memory_bytes{job="tourismpay-enaira-gateway"} > 512 * 1024 * 1024
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          service: enaira-gateway
+        annotations:
+          summary: "eNaira Gateway memory usage exceeds 512MB"
+          description: "Current RSS: {{ $value | humanize1024 }}B. Check for goroutine leaks or unbounded caches."
+
+      - alert: ENairaGatewayGoroutineLeak
+        expr: go_goroutines{job="tourismpay-enaira-gateway"} > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          service: enaira-gateway
+        annotations:
+          summary: "Potential goroutine leak in eNaira Gateway"
+          description: "Active goroutines: {{ $value }}. Threshold: 1000. Check for unclosed HTTP connections or blocked channels."
+
+  # ─── Permify ReBAC Authorization Alerts ─────────────────────────────────────
+  - name: permify_rebac
+    interval: 30s
+    rules:
+      - alert: PermifyDown
+        expr: up{job="permify"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          service: permify
+        annotations:
+          summary: "Permify authorization service is DOWN"
+          description: "Permify has been unreachable for more than 1 minute. All authorization checks are falling back to role-based access control."
+          runbook_url: "https://wiki.tourismpay.com/runbooks/permify-down"
+
+      - alert: PermifyHighCheckLatency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(permify_check_duration_seconds_bucket[5m])) by (le)
+          ) * 1000 > 50
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+          service: permify
+        annotations:
+          summary: "Permify authorization check P99 latency exceeds 50ms"
+          description: "P99 check latency: {{ $value | humanizeDuration }}ms. Threshold: 50ms. Check cache hit ratio and database performance."
+
+      - alert: PermifyCriticalCheckLatency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(permify_check_duration_seconds_bucket[5m])) by (le)
+          ) * 1000 > 200
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          service: permify
+        annotations:
+          summary: "Permify authorization check P99 latency exceeds 200ms — user-facing impact"
+          description: "P99 check latency: {{ $value | humanizeDuration }}ms. This is causing significant user-facing latency on all protected endpoints."
+
+      - alert: PermifyLowCacheHitRatio
+        expr: |
+          sum(rate(permify_cache_hits_total[5m]))
+          /
+          (sum(rate(permify_cache_hits_total[5m])) + sum(rate(permify_cache_misses_total[5m]))) < 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          service: permify
+        annotations:
+          summary: "Permify cache hit ratio below 50%"
+          description: "Cache hit ratio: {{ $value | humanizePercentage }}. Threshold: 50%. Consider increasing cache TTL or cache size."
+
+      - alert: PermifyHighDenialRate
+        expr: |
+          sum(rate(permify_check_denied_total[5m]))
+          /
+          sum(rate(permify_check_requests_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: security
+          service: permify
+        annotations:
+          summary: "Permify authorization denial rate exceeds 10%"
+          description: "Denial rate: {{ $value | humanizePercentage }}. This may indicate a misconfigured schema, a privilege escalation attempt, or a deployment issue."
+          runbook_url: "https://wiki.tourismpay.com/runbooks/permify-high-denials"
+
+      - alert: PermifyAuthorizationAnomalySpike
+        expr: |
+          sum(rate(permify_check_denied_total[5m]))
+          /
+          sum(rate(permify_check_requests_total[5m])) > 0.5
+        for: 1m
+        labels:
+          severity: critical
+          team: security
+          service: permify
+        annotations:
+          summary: "CRITICAL: Permify denial rate exceeds 50% — possible authorization outage"
+          description: "Denial rate: {{ $value | humanizePercentage }}. Over half of all authorization checks are being denied. Immediate investigation required."
+          runbook_url: "https://wiki.tourismpay.com/runbooks/permify-auth-outage"
+
+      - alert: PermifyRelationshipWriteErrors
+        expr: sum(rate(permify_errors_total{error_type="write_error"}[5m])) > 1
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          service: permify
+        annotations:
+          summary: "Permify relationship write errors detected"
+          description: "{{ $value }} write errors/s. Relationship tuples are not being persisted. New resource ownership grants will fail."
+
+  # ─── TigerBeetle Ledger Alerts ───────────────────────────────────────────────
+  - name: tigerbeetle
+    interval: 30s
+    rules:
+      - alert: TigerBeetleDown
+        expr: up{job="tigerbeetle"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          service: tigerbeetle
+        annotations:
+          summary: "TigerBeetle ledger is DOWN"
+          description: "TigerBeetle has been unreachable for more than 1 minute. All financial ledger operations are unavailable."
+
+      - alert: TigerBeetleHighCommitLatency
+        expr: tigerbeetle_commit_latency_ms > 10
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+          service: tigerbeetle
+        annotations:
+          summary: "TigerBeetle commit latency exceeds 10ms"
+          description: "Commit latency: {{ $value }}ms. Threshold: 10ms. Check disk I/O and cluster health."
+
+  # ─── Fluvio Stream Alerts ────────────────────────────────────────────────────
+  - name: fluvio
+    interval: 30s
+    rules:
+      - alert: FluvioConsumerLagHigh
+        expr: fluvio_consumer_lag{topic=~"enaira.*|payment.*"} > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          service: fluvio
+        annotations:
+          summary: "Fluvio consumer lag exceeds 1000 messages on {{ $labels.topic }}"
+          description: "Consumer lag: {{ $value }} messages. Real-time payment streaming is falling behind."
+
+      - alert: FluvioConsumerLagCritical
+        expr: fluvio_consumer_lag{topic=~"enaira.*|payment.*"} > 10000
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          service: fluvio
+        annotations:
+          summary: "CRITICAL: Fluvio consumer lag exceeds 10,000 messages"
+          description: "Consumer lag: {{ $value }} messages on {{ $labels.topic }}. Real-time payment events are severely delayed."
+
+  # ─── Dapr Sidecar Alerts ─────────────────────────────────────────────────────
+  - name: dapr
+    interval: 30s
+    rules:
+      - alert: DaprSidecarOOMKill
+        expr: increase(kube_pod_container_status_restarts_total{container="daprd"}[15m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: platform
+          service: dapr
+        annotations:
+          summary: "Dapr sidecar restarted in pod {{ $labels.pod }}"
+          description: "The Dapr sidecar has restarted. Pub/sub and state management may be temporarily unavailable."
+
+      - alert: DaprPubSubDropRate
+        expr: sum(rate(dapr_pubsub_publish_count{success="false"}[5m])) > 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          service: dapr
+        annotations:
+          summary: "Dapr pub/sub message drops detected"
+          description: "{{ $value }} messages/s are being dropped. Events are not being delivered to subscribers."
+
+  # ─── PostgreSQL Database Alerts ──────────────────────────────────────────────
+  - name: postgresql
+    interval: 30s
+    rules:
+      - alert: PostgreSQLHighConnectionUsage
+        expr: sum(pg_stat_activity_count) / sum(pg_settings_max_connections) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          service: postgresql
+        annotations:
+          summary: "PostgreSQL connection pool usage exceeds 80%"
+          description: "Connection usage: {{ $value | humanizePercentage }}. Consider increasing max_connections or enabling PgBouncer."
+
+      - alert: PostgreSQLSlowQueries
+        expr: rate(pg_stat_activity_max_tx_duration{state="active"}[5m]) > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          service: postgresql
+        annotations:
+          summary: "PostgreSQL slow queries detected (>30s)"
+          description: "Long-running queries detected. Check pg_stat_activity for blocking queries."
+
+      - alert: PostgreSQLReplicationLag
+        expr: pg_replication_lag > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          service: postgresql
+        annotations:
+          summary: "PostgreSQL replication lag exceeds 30 seconds"
+          description: "Replication lag: {{ $value }}s. Read replicas may be serving stale data."
