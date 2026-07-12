@@ -83,7 +83,7 @@ export default function Home() {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center font-bold text-sm text-black">
               54
             </div>
-            <span className="text-lg font-semibold tracking-tight">InsurePortal</span>
+            <span className="text-lg font-semibold tracking-tight">TourismPay</span>
             <Badge
               variant="outline"
               className="text-[10px] border-emerald-500/40 text-emerald-400 ml-1"
@@ -139,7 +139,7 @@ export default function Home() {
               </span>
             </h1>
             <p className="text-lg text-gray-400 leading-relaxed mb-8 max-w-2xl">
-              InsurePortal powers 50,000+ POS agents across Nigeria with real-time
+              TourismPay powers 50,000+ POS agents across Nigeria with real-time
               fraud detection, offline-first transactions, TigerBeetle
               double-entry ledger, and CBN-compliant reporting — all from a
               single terminal.
@@ -248,7 +248,7 @@ export default function Home() {
             Ready to Transform Your Agent Network?
           </h2>
           <p className="text-gray-400 max-w-xl mx-auto mb-8">
-            Join leading insurance companies using InsurePortal to power their
+            Join leading insurance companies using TourismPay to power their
             insurance operations.
           </p>
           <Button
@@ -272,7 +272,7 @@ export default function Home() {
             <div className="w-5 h-5 rounded bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center font-bold text-[8px] text-black">
               54
             </div>
-            InsurePortal Insurance Platform &copy; {new Date().getFullYear()}
+            TourismPay Insurance Platform &copy; {new Date().getFullYear()}
           </div>
           <div className="flex gap-6 text-sm text-gray-500">
             <a href="/privacy" className="hover:text-white transition-colors">

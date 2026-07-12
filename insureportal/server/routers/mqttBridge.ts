@@ -1,5 +1,5 @@
 /**
- * MQTT Bridge Router — InsurePortal Fluvio MQTT Source Connector management
+ * MQTT Bridge Router — TourismPay Fluvio MQTT Source Connector management
  * Manages InfinyOn MQTT Source Connector configuration for bridging
  * POS terminal MQTT events into Fluvio topics.
  */
@@ -361,12 +361,12 @@ export const mqttBridgeRouter = router({
 
       const installScript = [
         `#!/bin/bash`,
-        `# InsurePortal MQTT → Fluvio Bridge — Connector Install Script`,
+        `# TourismPay MQTT → Fluvio Bridge — Connector Install Script`,
         `# Prerequisites: fluvio CLI installed and authenticated to InfinyOn Cloud`,
         `# Run: bash install-mqtt-connectors.sh`,
         ``,
         `set -e`,
-        `echo "Installing InsurePortal MQTT Source Connectors..."`,
+        `echo "Installing TourismPay MQTT Source Connectors..."`,
         ``,
         ...connectors.map(c =>
           [

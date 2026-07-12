@@ -6,6 +6,7 @@
  */
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+import { secureRandom } from "../lib/securityAuditFixes";
 type Severity = "info" | "warning" | "critical";
 type Channel = "email" | "sms" | "push" | "webhook" | "in-app";
 
@@ -236,7 +237,7 @@ async function sendEmailNotification(
   console.log(`[ThresholdDispatcher] EMAIL → ${to}: ${subject}`);
   return {
     success: true,
-    messageId: `email_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    messageId: `email_${Date.now()}_${secureRandom().toString(36).slice(2, 8)}`,
   };
 }
 
@@ -250,7 +251,7 @@ async function sendSmsNotification(
   console.log(`[ThresholdDispatcher] SMS → ${to}: ${message.slice(0, 50)}...`);
   return {
     success: true,
-    messageId: `sms_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    messageId: `sms_${Date.now()}_${secureRandom().toString(36).slice(2, 8)}`,
   };
 }
 
@@ -444,7 +445,7 @@ export async function dispatchThresholdAlert(
           timestamp: event.createdAt,
         };
         const result = await sendWebhookNotification(
-          "https://hooks.54link.com/alerts",
+          "https://hooks.tourismpay.com/alerts",
           payload
         );
         const record: NotificationRecord = {
@@ -452,7 +453,7 @@ export async function dispatchThresholdAlert(
           eventId: event.eventId,
           ruleId: event.ruleId,
           channel: "webhook",
-          recipient: "https://hooks.54link.com/alerts",
+          recipient: "https://hooks.tourismpay.com/alerts",
           status: result.success ? "sent" : "failed",
           sentAt: new Date().toISOString(),
         };

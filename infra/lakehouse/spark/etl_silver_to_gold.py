@@ -19,20 +19,20 @@ from pyspark.sql.functions import (
 import os
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://minio:9000")
-MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "54link-admin")
-MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "54link-minio-secret-2024")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "tourismpay-admin")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "tourismpay-minio-secret-2024")
 ICEBERG_CATALOG_URI = os.getenv("ICEBERG_CATALOG_URI", "http://nessie:19120/api/v1")
 
 
 def create_spark_session() -> SparkSession:
     return (
         SparkSession.builder
-        .appName("54link-silver-to-gold")
+        .appName("tourismpay-silver-to-gold")
         .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
-        .config("spark.sql.catalog.54link", "org.apache.iceberg.spark.SparkCatalog")
-        .config("spark.sql.catalog.54link.type", "nessie")
-        .config("spark.sql.catalog.54link.uri", ICEBERG_CATALOG_URI)
-        .config("spark.sql.catalog.54link.warehouse", "s3a://54link-lakehouse/warehouse")
+        .config("spark.sql.catalog.tourismpay", "org.apache.iceberg.spark.SparkCatalog")
+        .config("spark.sql.catalog.tourismpay.type", "nessie")
+        .config("spark.sql.catalog.tourismpay.uri", ICEBERG_CATALOG_URI)
+        .config("spark.sql.catalog.tourismpay.warehouse", "s3a://tourismpay-lakehouse/warehouse")
         .config("spark.hadoop.fs.s3a.endpoint", MINIO_ENDPOINT)
         .config("spark.hadoop.fs.s3a.access.key", MINIO_ACCESS_KEY)
         .config("spark.hadoop.fs.s3a.secret.key", MINIO_SECRET_KEY)
@@ -44,7 +44,7 @@ def create_spark_session() -> SparkSession:
 
 
 def compute_daily_agent_summary(spark: SparkSession, run_date: str):
-    silver = spark.table("54link.silver.transactions").filter(col("tx_date") == run_date)
+    silver = spark.table("tourismpay.silver.transactions").filter(col("tx_date") == run_date)
 
     summary = (
         silver.groupBy("tx_date", "tenant_id", "agent_id", "agent_code", "agent_tier")
@@ -63,14 +63,14 @@ def compute_daily_agent_summary(spark: SparkSession, run_date: str):
     )
 
     # Upsert into Gold table (delete partition then insert)
-    spark.sql(f"DELETE FROM 54link.gold.daily_agent_summary WHERE summary_date = '{run_date}'")
-    summary.writeTo("54link.gold.daily_agent_summary").append()
+    spark.sql(f"DELETE FROM tourismpay.gold.daily_agent_summary WHERE summary_date = '{run_date}'")
+    summary.writeTo("tourismpay.gold.daily_agent_summary").append()
     print(f"[Gold] daily_agent_summary for {run_date}: {summary.count()} rows written")
 
 
 def compute_cbn_monthly_summary(spark: SparkSession, run_date: str):
     report_month = run_date[:7]  # YYYY-MM
-    silver = spark.table("54link.silver.transactions").filter(
+    silver = spark.table("tourismpay.silver.transactions").filter(
         col("tx_date").startswith(report_month)
     )
 
@@ -93,8 +93,8 @@ def compute_cbn_monthly_summary(spark: SparkSession, run_date: str):
         .withColumn("computed_at", current_timestamp())
     )
 
-    spark.sql(f"DELETE FROM 54link.gold.cbn_monthly_summary WHERE report_month = '{report_month}'")
-    cbn.writeTo("54link.gold.cbn_monthly_summary").append()
+    spark.sql(f"DELETE FROM tourismpay.gold.cbn_monthly_summary WHERE report_month = '{report_month}'")
+    cbn.writeTo("tourismpay.gold.cbn_monthly_summary").append()
     print(f"[Gold] cbn_monthly_summary for {report_month}: {cbn.count()} rows written")
 
 

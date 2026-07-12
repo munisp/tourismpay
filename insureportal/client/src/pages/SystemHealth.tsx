@@ -1,5 +1,5 @@
 /**
- * SystemHealth — InsurePortal Insurance Platform
+ * SystemHealth — TourismPay Insurance Platform
  *
  * Real-time infrastructure health dashboard. Polls /api/health every 15 seconds
  * and displays the status of all critical services: database, Keycloak, TigerBeetle,
@@ -133,7 +133,7 @@ export default function SystemHealth() {
           <div>
             <h1 className="text-3xl font-bold text-white">System Health</h1>
             <p className="text-slate-400 mt-1">
-              InsurePortal Insurance Platform — Infrastructure Status
+              TourismPay Insurance Platform — Infrastructure Status
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -260,7 +260,7 @@ export default function SystemHealth() {
             href="/"
             className="text-sm text-orange-400 hover:text-orange-300 underline"
           >
-            ← Back to InsurePortal
+            ← Back to TourismPay
           </a>
           <a
             href="/admin"

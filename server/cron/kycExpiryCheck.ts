@@ -41,20 +41,52 @@ export async function runKycExpiryCheck() {
       const isExpired = expiryDate < now;
 
       if (isExpired) {
-        // Mark agent as KYC-expired — restrict transaction limits
         expired++;
-        console.log(
-          `[KYC] Agent ${agent.agentCode} KYC expired on ${expiryDate.toISOString()}`
-        );
+        await db
+          .update(agents)
+          .set({ kycStatus: "expired" } as any)
+          .where(eq(agents.id, agent.id));
+
+        try {
+          await fetch(
+            `${process.env.NOTIFICATION_SERVICE_URL || "http://localhost:8087"}/api/v1/send`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                recipientId: agent.id,
+                channel: "sms",
+                template: "kyc_expired",
+                params: { agentCode: agent.agentCode, expiryDate: expiryDate.toISOString() },
+              }),
+            }
+          );
+        } catch {
+          /* notification delivery is best-effort */
+        }
       } else {
-        // Send warning notification
         flagged++;
         const daysUntilExpiry = Math.ceil(
           (expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
         );
-        console.log(
-          `[KYC] Agent ${agent.agentCode} KYC expires in ${daysUntilExpiry} days`
-        );
+
+        try {
+          await fetch(
+            `${process.env.NOTIFICATION_SERVICE_URL || "http://localhost:8087"}/api/v1/send`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                recipientId: agent.id,
+                channel: "sms",
+                template: "kyc_expiring_soon",
+                params: { agentCode: agent.agentCode, daysRemaining: daysUntilExpiry },
+              }),
+            }
+          );
+        } catch {
+          /* notification delivery is best-effort */
+        }
       }
     }
 

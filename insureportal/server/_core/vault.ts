@@ -1,5 +1,5 @@
 /**
- * InsurePortal Vault Client
+ * TourismPay Vault Client
  * Loads secrets from HashiCorp Vault via AppRole auth on startup.
  * Falls back to environment variables when Vault is unavailable (dev/test).
  *

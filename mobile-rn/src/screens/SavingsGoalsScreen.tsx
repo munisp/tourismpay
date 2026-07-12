@@ -1,3 +1,4 @@
+import { secureRandom } from "../lib/secureRandom";
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -29,7 +30,7 @@ interface SavingsGoal {
   category: string;
 }
 
-const API_BASE_URL = 'https://api.54link.io/v1';
+const API_BASE_URL = 'https://api.tourismpay.io/v1';
 
 const SavingsGoalsScreen = () => {
   const navigation = useNavigation();
@@ -100,7 +101,7 @@ const SavingsGoalsScreen = () => {
     } catch (error) {
       // Mock success for demo if API fails
       const mockNewGoal: SavingsGoal = {
-        id: Math.random().toString(),
+        id: secureRandom().toString(),
         title: newGoalTitle,
         targetAmount: parseFloat(newGoalTarget),
         currentAmount: 0,

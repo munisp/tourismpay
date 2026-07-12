@@ -1,5 +1,6 @@
 "use client";
 
+import { secureRandom } from "@/lib/secureRandom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -615,7 +616,7 @@ function SidebarMenuSkeleton({
 }) {
   // Random width between 50 to 90%.
   const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`;
+    return `${Math.floor(secureRandom() * 40) + 50}%`;
   }, []);
 
   return (

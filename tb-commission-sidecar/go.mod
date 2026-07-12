@@ -1,4 +1,4 @@
-module github.com/54link/tb-commission-sidecar
+module github.com/tourismpay/tb-commission-sidecar
 
 go 1.22
 

@@ -1,5 +1,5 @@
 /**
- * InsurePortal Hardware SDK Simulation Layer
+ * TourismPay Hardware SDK Simulation Layer
  *
  * Provides a unified interface for:
  *  - ESC/POS receipt printer (WebUSB with print dialog fallback)
@@ -11,6 +11,7 @@
  */
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+import { secureRandom } from "@/lib/secureRandom";
 export interface ReceiptData {
   ref: string;
   type: string;
@@ -64,7 +65,7 @@ export const printer = {
     const receiptHtml = `
       <html>
       <head>
-        <title>InsurePortal Receipt</title>
+        <title>TourismPay Receipt</title>
         <style>
           body { font-family: 'Courier New', monospace; font-size: 12px; width: 80mm; margin: 0 auto; padding: 8px; }
           .center { text-align: center; }
@@ -76,7 +77,7 @@ export const printer = {
       </head>
       <body>
         <div class="center">
-          <div class="logo">InsurePortal</div>
+          <div class="logo">TourismPay</div>
           <div>Insurance Management Platform</div>
           <div class="divider"></div>
         </div>
@@ -93,7 +94,7 @@ export const printer = {
         <div class="row"><span>Date:</span><span>${timestamp}</span></div>
         <div class="divider"></div>
         <div class="center bold">TRANSACTION SUCCESSFUL</div>
-        <div class="center" style="font-size:10px;margin-top:4px;">Powered by InsurePortal · CBN Licensed</div>
+        <div class="center" style="font-size:10px;margin-top:4px;">Powered by TourismPay · CBN Licensed</div>
       </body>
       </html>
     `;
@@ -169,7 +170,7 @@ export const biometric = {
       const credential = await navigator.credentials.create({
         publicKey: {
           challenge,
-          rp: { name: "InsurePortal", id: window.location.hostname },
+          rp: { name: "TourismPay", id: window.location.hostname },
           user: {
             id: new TextEncoder().encode(agentId),
             name: customerName,
@@ -249,7 +250,7 @@ export const nfc = {
             const record = event.message.records[0];
             resolve({
               success: true,
-              cardNumber: `**** **** **** ${Math.floor(Math.random() * 9000 + 1000)}`,
+              cardNumber: `**** **** **** ${Math.floor(secureRandom() * 9000 + 1000)}`,
               cardType: "Verve",
             });
           };
@@ -272,8 +273,8 @@ export const nfc = {
     const cardTypes = ["Verve", "Mastercard", "Visa"];
     return {
       success: true,
-      cardNumber: `**** **** **** ${Math.floor(Math.random() * 9000 + 1000)}`,
-      cardType: cardTypes[Math.floor(Math.random() * cardTypes.length)],
+      cardNumber: `**** **** **** ${Math.floor(secureRandom() * 9000 + 1000)}`,
+      cardType: cardTypes[Math.floor(secureRandom() * cardTypes.length)],
     };
   },
 };
@@ -287,12 +288,12 @@ export const emv = {
   async readCard(): Promise<CardResult> {
     await new Promise(r => setTimeout(r, 1500));
     const cardTypes = ["Verve", "Mastercard", "Visa"];
-    const year = new Date().getFullYear() + Math.floor(Math.random() * 4 + 1);
+    const year = new Date().getFullYear() + Math.floor(secureRandom() * 4 + 1);
     return {
       success: true,
-      maskedPan: `**** **** **** ${Math.floor(Math.random() * 9000 + 1000)}`,
-      cardType: cardTypes[Math.floor(Math.random() * cardTypes.length)],
-      expiryMonth: String(Math.floor(Math.random() * 12 + 1)).padStart(2, "0"),
+      maskedPan: `**** **** **** ${Math.floor(secureRandom() * 9000 + 1000)}`,
+      cardType: cardTypes[Math.floor(secureRandom() * cardTypes.length)],
+      expiryMonth: String(Math.floor(secureRandom() * 12 + 1)).padStart(2, "0"),
       expiryYear: String(year).slice(-2),
     };
   },

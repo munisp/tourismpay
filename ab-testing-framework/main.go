@@ -5,15 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
+	"crypto/rand"
+	"encoding/binary"
 	"net/http"
 	"os"
 	"sync"
 	"time"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-)
+	"strings"
+
+	"database/sql"
+	_ "github.com/jackc/pgx/v5/stdlib")
 
 // A/B Testing Framework — manages experiments, traffic allocation, and statistical analysis
 // Business Rules:
@@ -51,9 +54,57 @@ var (
 	mu          sync.RWMutex
 )
 
+
+func requireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/health" || path == "/healthz" || path == "/ready" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+var db *sql.DB
+
+func initDB() {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://postgres:postgres@localhost:5432/tourismpay?sslmode=disable"
+	}
+	var err error
+	db, err = sql.Open("pgx", dsn)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err = db.PingContext(ctx); err != nil {
+		log.Printf("Warning: database ping failed: %v (will retry on first query)", err)
+	}
+}
+
 func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger, middleware.Recoverer, middleware.Timeout(30*time.Second))
+	r.Use(requireAuth)
 
 	r.Get("/health", healthHandler)
 	r.Route("/api/v1/experiments", func(r chi.Router) {
@@ -116,7 +167,9 @@ func assignUser(w http.ResponseWriter, r *http.Request) {
 	if !ok { http.Error(w, `{"error":"not_found"}`, 404); return }
 	if exp.Status != "running" { http.Error(w, `{"error":"experiment_not_running"}`, 400); return }
 	// Deterministic assignment based on user hash
-	variant := exp.Variants[rand.Intn(len(exp.Variants))]
+	var vb [2]byte
+	rand.Read(vb[:])
+	variant := exp.Variants[int(binary.BigEndian.Uint16(vb[:]))%len(exp.Variants)]
 	json.NewEncoder(w).Encode(map[string]interface{}{"experiment_id": id, "variant": variant.Name, "variant_id": variant.ID})
 }
 

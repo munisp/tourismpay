@@ -1,5 +1,5 @@
 /**
- * InsurePortal Insurance Platform — Privacy Policy & NDPR Compliance Page
+ * TourismPay Insurance Platform — Privacy Policy & NDPR Compliance Page
  * Covers NDPR (Nigeria Data Protection Regulation) and GDPR-aligned disclosures.
  */
 import { Link } from "wouter";
@@ -13,11 +13,11 @@ const DISP = "'Inter', sans-serif";
 const SECTIONS = [
   {
     title: "1. Introduction",
-    content: `InsurePortal Limited ("InsurePortal", "we", "us", or "our") is committed to protecting the privacy and personal data of all individuals who interact with our Insurance Platform. This Privacy Policy describes how we collect, use, store, and disclose personal data in compliance with the Nigeria Data Protection Regulation (NDPR) 2019, the Nigeria Data Protection Act (NDPA) 2023, and applicable international standards including the General Data Protection Regulation (GDPR) where relevant.`,
+    content: `TourismPay Limited ("TourismPay", "we", "us", or "our") is committed to protecting the privacy and personal data of all individuals who interact with our Insurance Platform. This Privacy Policy describes how we collect, use, store, and disclose personal data in compliance with the Nigeria Data Protection Regulation (NDPR) 2019, the Nigeria Data Protection Act (NDPA) 2023, and applicable international standards including the General Data Protection Regulation (GDPR) where relevant.`,
   },
   {
     title: "2. Data Controller Information",
-    content: `InsurePortal Limited is the data controller for personal data processed through this platform. Our registered address is: 1, Broad Street, Lagos Island, Lagos State, Nigeria. Data Protection Officer: dpo@insureportal.ng | +234 (0) 800 INSURE.`,
+    content: `TourismPay Limited is the data controller for personal data processed through this platform. Our registered address is: 1, Broad Street, Lagos Island, Lagos State, Nigeria. Data Protection Officer: dpo@insureportal.ng | +234 (0) 800 INSURE.`,
   },
   {
     title: "3. Categories of Personal Data Collected",
@@ -116,11 +116,11 @@ export default function PrivacyPolicy() {
           }}
         >
           <div className="text-sm font-bold text-white mb-1">
-            InsurePortal Limited — Privacy Policy
+            TourismPay Limited — Privacy Policy
           </div>
           <div className="text-xs text-gray-400">
             This document governs the collection, use, and protection of
-            personal data on the InsurePortal Insurance Platform. It is compliant
+            personal data on the TourismPay Insurance Platform. It is compliant
             with the Nigeria Data Protection Regulation (NDPR) 2019, the Nigeria
             Data Protection Act (NDPA) 2023, and applicable GDPR standards. Last
             updated: 1 April 2026.
@@ -168,7 +168,7 @@ export default function PrivacyPolicy() {
 
         {/* Footer */}
         <div className="mt-8 text-center text-xs text-gray-500 pb-8">
-          © 2026 InsurePortal Limited. All rights reserved.
+          © 2026 TourismPay Limited. All rights reserved.
           <br />
           Regulated by the Central Bank of Nigeria (CBN) | RC No. 1234567 | NDPC
           Registration No. NDPC-2024-001234

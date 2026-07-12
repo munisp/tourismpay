@@ -1,12 +1,12 @@
 /**
- * useQRCode — Offline-capable QR code hook for InsurePortal
+ * useQRCode — Offline-capable QR code hook for TourismPay
  *
  * Capabilities:
  *  1. Generate QR codes with real qrcode.react canvas (works fully offline)
  *  2. Scan QR codes via device camera using jsQR (works offline — no cloud OCR)
  *  3. Persist generated QR codes in IndexedDB so they survive page reloads
  *  4. Sync IndexedDB-persisted QR codes to the server when connectivity is restored
- *  5. Parse InsurePortal QR payload format: INSUREPORTAL:{ref}:{amount}:{agentCode}
+ *  5. Parse TourismPay QR payload format: INSUREPORTAL:{ref}:{amount}:{agentCode}
  *
  * Offline strategy:
  *  - QR generation: fully offline — canvas rendering is pure client-side
@@ -17,6 +17,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { secureRandom } from "@/lib/secureRandom";
+import { logger } from "@/lib/logger";
 
 // ── IndexedDB helpers ─────────────────────────────────────────────────────────
 
@@ -122,7 +124,7 @@ async function idbDelete(id: string): Promise<void> {
   });
 }
 
-// ── InsurePortal QR payload format ──────────────────────────────────────────────────
+// ── TourismPay QR payload format ──────────────────────────────────────────────────
 
 export interface ParsedQRPayload {
   valid: boolean;
@@ -130,14 +132,14 @@ export interface ParsedQRPayload {
   amount?: number;
   agentCode?: string;
   raw: string;
-  /** true if this is a InsurePortal QR; false for external QR (Masterpass, Visa QR, NIBSS, etc.) */
-  isInsurePortal: boolean;
+  /** true if this is a TourismPay QR; false for external QR (Masterpass, Visa QR, NIBSS, etc.) */
+  isTourismPay: boolean;
   /** For external QR, the raw string is the payment reference */
   externalType?: "NIBSS" | "Masterpass" | "VisaQR" | "NIPQr" | "Unknown";
 }
 
 export function parseQRPayload(raw: string): ParsedQRPayload {
-  // InsurePortal format: INSUREPORTAL:{ref}:{amount}:{agentCode}
+  // TourismPay format: INSUREPORTAL:{ref}:{amount}:{agentCode}
   if (raw.startsWith("INSUREPORTAL:")) {
     const parts = raw.split(":");
     if (parts.length >= 4) {
@@ -148,31 +150,31 @@ export function parseQRPayload(raw: string): ParsedQRPayload {
         amount,
         agentCode: parts[3],
         raw,
-        isInsurePortal: true,
+        isTourismPay: true,
       };
     }
-    return { valid: false, raw, isInsurePortal: true };
+    return { valid: false, raw, isTourismPay: true };
   }
 
   // NIBSS QR: starts with "NIBSS" or contains NIP
   if (raw.startsWith("NIBSS") || raw.includes("NIP")) {
-    return { valid: true, raw, isInsurePortal: false, externalType: "NIBSS" };
+    return { valid: true, raw, isTourismPay: false, externalType: "NIBSS" };
   }
 
   // Masterpass
   if (raw.startsWith("MP:") || raw.includes("masterpass")) {
-    return { valid: true, raw, isInsurePortal: false, externalType: "Masterpass" };
+    return { valid: true, raw, isTourismPay: false, externalType: "Masterpass" };
   }
 
   // Visa QR
   if (raw.startsWith("000201") || raw.includes("VISA")) {
-    return { valid: true, raw, isInsurePortal: false, externalType: "VisaQR" };
+    return { valid: true, raw, isTourismPay: false, externalType: "VisaQR" };
   }
 
-  return { valid: true, raw, isInsurePortal: false, externalType: "Unknown" };
+  return { valid: true, raw, isTourismPay: false, externalType: "Unknown" };
 }
 
-export function buildInsurePortalQRPayload(
+export function buildTourismPayQRPayload(
   ref: string,
   amount: number,
   agentCode: string
@@ -280,7 +282,7 @@ export function useQRScanner(onScan: (result: QRScanResult) => void) {
       const msg = e instanceof Error ? e.message : "Camera access denied";
       setError(msg);
       setCameraAvailable(false);
-      console.error("[QRScanner]", e);
+      logger.error("[QRScanner]", e);
     }
   }, [onScan, stopScanning]);
 
@@ -310,15 +312,15 @@ export function useOfflineQRGenerator(agentCode: string) {
       .then(records =>
         setOfflineQRCodes(records.filter(r => r.agentCode === agentCode))
       )
-      .catch(e => console.error("[QR IDB] Load failed:", e));
+      .catch(e => logger.error("[QR IDB] Load failed:", e));
   }, [agentCode]);
 
   const generateOfflineQR = useCallback(
     async (amount: number, label?: string): Promise<OfflineQRRecord> => {
       setLoading(true);
       try {
-        const ref = `QR-${agentCode}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
-        const payload = buildInsurePortalQRPayload(ref, amount, agentCode);
+        const ref = `QR-${agentCode}-${Date.now().toString(36).toUpperCase()}-${secureRandom().toString(36).slice(2, 5).toUpperCase()}`;
+        const payload = buildTourismPayQRPayload(ref, amount, agentCode);
         const record: OfflineQRRecord = {
           id: ref,
           code: ref,

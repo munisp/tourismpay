@@ -1,4 +1,5 @@
 use actix_web::{web, App, HttpServer, HttpResponse, middleware};
+mod auth;
 use serde::{Deserialize, Serialize};
 
 /// Security Operations / SIEM — threat detection and incident response
@@ -45,6 +46,7 @@ async fn main() -> std::io::Result<()> {
     println!("Security Operations starting on :{}", port);
     HttpServer::new(|| {
         App::new()
+            .wrap(auth::RequireAuth)
             .route("/health", web::get().to(health))
             .route("/api/v1/alerts", web::get().to(get_alerts))
             .route("/api/v1/threat-intel", web::get().to(get_threat_intel))

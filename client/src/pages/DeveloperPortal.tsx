@@ -730,7 +730,7 @@ export default function DeveloperPortal() {
             >
               Base URL:{" "}
               <code className="text-blue-400" style={{ fontFamily: MONO }}>
-                https://api.54link.ng/api/v1
+                https://api.tourismpay.ng/api/v1
               </code>
               <br />
               Authentication:{" "}

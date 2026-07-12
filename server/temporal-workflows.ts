@@ -199,7 +199,7 @@ export async function SettlementWorkflow(
     status.phase = "notifying_agents";
     await notifyAgentsOfSettlement({
       settlements,
-      reportUrl: `https://app.54link.ng/settlements/${input.batchId}`,
+      reportUrl: `https://app.tourismpay.ng/settlements/${input.batchId}`,
     });
 
     // Phase 9: Archive

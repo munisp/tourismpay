@@ -9,12 +9,14 @@
  * ALL 26 SCREENS FULLY IMPLEMENTED — Tier 1-4 improvements applied
  */
 
+import { secureRandom } from "@/lib/secureRandom";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import LiveChatSupport from "./LiveChatSupport";
 import LoyaltySystem from "./LoyaltySystem";
 import FraudDashboard from "./FraudDashboard";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 import {
   AreaChart,
   Area,
@@ -1554,7 +1556,7 @@ function TileComponent({
       setWobble(false);
       return;
     }
-    const delay = Math.random() * 300;
+    const delay = secureRandom() * 300;
     const t = setTimeout(() => setWobble(true), delay);
     return () => clearTimeout(t);
   }, [editMode]);
@@ -2411,7 +2413,7 @@ function QRPaymentScreen({ onBack }: { onBack: () => void }) {
   const DEFAULT_PRESET_AMOUNTS = [
     500, 1000, 2000, 5000, 10000, 20000, 50000, 100000,
   ];
-  const LS_PRESETS_KEY = "54link-qr-preset-amounts";
+  const LS_PRESETS_KEY = "tourismpay-qr-preset-amounts";
   const [batchPresetAmounts, setBatchPresetAmounts] = useState<number[]>(() => {
     try {
       const saved = localStorage.getItem(LS_PRESETS_KEY);
@@ -2529,7 +2531,7 @@ function QRPaymentScreen({ onBack }: { onBack: () => void }) {
 
   // Load offline QR codes from IndexedDB
   useEffect(() => {
-    const IDB_NAME = "54link-qr-store";
+    const IDB_NAME = "tourismpay-qr-store";
     const IDB_STORE = "offline_qr_codes";
     const req = indexedDB.open(IDB_NAME, 1);
     req.onupgradeneeded = e => {
@@ -2686,7 +2688,7 @@ function QRPaymentScreen({ onBack }: { onBack: () => void }) {
       toast.error("Enter an amount first");
       return;
     }
-    const IDB_NAME = "54link-qr-store";
+    const IDB_NAME = "tourismpay-qr-store";
     const IDB_STORE = "offline_qr_codes";
     const record = {
       id: qrPayload,
@@ -3348,7 +3350,7 @@ function QRPaymentScreen({ onBack }: { onBack: () => void }) {
             onClick={async () => {
               if (selectedBatchAmounts.size === 0) return;
               setBatchGenerating(true);
-              const IDB_NAME = "54link-qr-store";
+              const IDB_NAME = "tourismpay-qr-store";
               const IDB_STORE = "offline_qr_codes";
               const newItems: typeof batchQRList = [];
               const expiresAt = Date.now() + QR_TTL_MS;
@@ -4434,7 +4436,7 @@ function pickChallenges(count: number): Array<{
   instruction: string;
   completed: boolean;
 }> {
-  const shuffled = [...KYC_CHALLENGE_POOL].sort(() => Math.random() - 0.5);
+  const shuffled = [...KYC_CHALLENGE_POOL].sort(() => secureRandom() - 0.5);
   return shuffled
     .slice(0, Math.min(count, shuffled.length))
     .map(c => ({ ...c, completed: false }));
@@ -5503,7 +5505,7 @@ function OpenAccountScreen({ onBack }: { onBack: () => void }) {
   // Stable account number generated once on mount (not on every render)
   const [acctNo] = useState(
     () =>
-      `20${Math.floor(Math.random() * 100000000)
+      `20${Math.floor(secureRandom() * 100000000)
         .toString()
         .padStart(8, "0")}`
   );
@@ -11287,7 +11289,7 @@ function OfflineResilienceScreen({ onBack }: { onBack: () => void }) {
                 className="text-center text-xs mt-2"
                 style={{ color: "#bbb" }}
               >
-                www.54link.io
+                www.tourismpay.io
               </div>
             </div>
             {/* Thermal paper bottom perforation */}
@@ -11389,7 +11391,7 @@ ${thermalPreviewCode.carrier_hint ? `<div class="row"><span>CARRIER</span><span 
     qr.appendChild(img);
   })();
 <\/script>
-<div class="footer">www.54link.io</div>
+<div class="footer">www.tourismpay.io</div>
 <div class="perf" style="margin-top:6px"></div>
 </body></html>`);
                   printWin.document.close();
@@ -11914,7 +11916,7 @@ export default function POSShell() {
     const screen = screenMap[activeScreen];
     if (!screen) {
       // All screens are implemented — this branch only fires if a tile ID is misconfigured
-      console.warn(`[POSShell] No screen mapped for: ${activeScreen}`);
+      logger.warn(`[POSShell] No screen mapped for: ${activeScreen}`);
       setActiveScreen(null);
       return null;
     }

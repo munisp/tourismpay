@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useCallback, useRef, useSt
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 import SQLite from 'react-native-sqlite-storage';
+import { secureRandom } from "../utils/secureRandom";
 
 SQLite.enablePromise(true);
 
@@ -124,7 +125,7 @@ export function OfflineSyncProvider({ children }: { children: React.ReactNode })
 
   const enqueue = useCallback(async (op: Omit<QueuedOperation, 'id' | 'timestamp' | 'retryCount'>) => {
     if (!dbRef.current) return;
-    const id = `op_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const id = `op_${Date.now()}_${secureRandom().toString(36).slice(2, 9)}`;
     await dbRef.current.executeSql(
       `INSERT INTO offline_queue (id, type, entity, payload, timestamp, max_retries, priority, conflict_strategy)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

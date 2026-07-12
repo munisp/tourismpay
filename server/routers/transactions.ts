@@ -347,7 +347,16 @@ export const transactionsRouter = router({
           }
         }
 
-        // ── Gate 0: Remote kill-switch (terminal disabled by admin) ──────────────
+        // ── Gate 0: KYC expiry check ────────────────────────────────────────────
+        if ((agentRecord as any).kycStatus === "expired") {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              "Your KYC verification has expired. Please renew your KYC documents to continue transacting.",
+          });
+        }
+
+        // ── Gate 0b: Remote kill-switch (terminal disabled by admin) ──────────────
         if (agentRecord.terminalEnabled === false) {
           throw new TRPCError({
             code: "FORBIDDEN",

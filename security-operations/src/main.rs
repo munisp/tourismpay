@@ -1,4 +1,5 @@
 use actix_web::{web, App, HttpServer, HttpResponse, middleware};
+mod auth;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -222,6 +223,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            .wrap(auth::RequireAuth)
             .app_data(web::Data::new(state.clone()))
             .route("/health", web::get().to(health))
             .route("/api/v1/alerts", web::get().to(get_alerts))

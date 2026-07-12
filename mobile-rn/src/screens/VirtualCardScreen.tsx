@@ -25,7 +25,7 @@ const VirtualCardScreen: React.FC = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [isFrozen, setIsFrozen] = useState(false);
 
-  const API_BASE_URL = 'https://api.54link.io/v1';
+  const API_BASE_URL = 'https://api.tourismpay.io/v1';
 
   useEffect(() => {
     fetchCardDetails();

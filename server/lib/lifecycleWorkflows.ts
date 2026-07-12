@@ -13,6 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // Generic State Machine
 // ═══════════════════════════════════════════════════════════════════════════════
+import { secureRandom } from "../lib/securityAuditFixes";
 export interface StateTransition<S extends string> {
   from: S;
   to: S;
@@ -49,7 +50,7 @@ function recordTransition(
 ): WorkflowEvent {
   const full: WorkflowEvent = {
     ...event,
-    id: `wf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `wf-${Date.now()}-${secureRandom().toString(36).slice(2, 8)}`,
     timestamp: Date.now(),
   };
   workflowHistory.push(full);

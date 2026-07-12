@@ -423,7 +423,7 @@ export default function ERPConfigTab() {
                   color: WHITE,
                   fontFamily: MONO,
                 }}
-                placeholder={`https://erp.54link.ng${selectedErp ? `:${selectedErp.defaultPort}` : ""}`}
+                placeholder={`https://erp.tourismpay.ng${selectedErp ? `:${selectedErp.defaultPort}` : ""}`}
               />
             </div>
           </div>
@@ -488,7 +488,7 @@ export default function ERPConfigTab() {
                   color: WHITE,
                   fontFamily: MONO,
                 }}
-                placeholder="54link_prod"
+                placeholder="tourismpay_prod"
               />
             </div>
           </div>

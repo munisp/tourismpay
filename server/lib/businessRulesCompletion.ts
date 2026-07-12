@@ -12,6 +12,7 @@
 // F6: Transaction Reversal Workflow with Approval Chain
 // ============================================================
 
+import { secureRandom } from "../lib/securityAuditFixes";
 export type ReversalStatus =
   | "pending"
   | "l1_approved"
@@ -362,7 +363,7 @@ export function lockFxRate(
   if (!rate) return null;
 
   // Add small random variance (±0.1%) to simulate market movement
-  const variance = 1 + (Math.random() - 0.5) * 0.002;
+  const variance = 1 + (secureRandom() - 0.5) * 0.002;
   const adjustedRate = rate * variance;
 
   return {
@@ -392,7 +393,7 @@ export function calculateMultiCurrencySettlement(
   const netSettlement = grossSettlement - fees;
 
   return {
-    id: `MCY-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `MCY-${Date.now()}-${secureRandom().toString(36).slice(2, 8)}`,
     originalAmount: amount,
     originalCurrency: fromCurrency,
     settlementAmount: Math.round(grossSettlement * 100) / 100,

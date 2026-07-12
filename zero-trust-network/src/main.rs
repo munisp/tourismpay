@@ -1,6 +1,8 @@
 use actix_web::{web, App, HttpServer, HttpResponse};
 use serde::{Deserialize, Serialize};
 
+mod auth;
+
 /// Zero Trust Network — mTLS, policy enforcement, service mesh security
 /// Business Rules:
 /// - Every request authenticated and authorized (no implicit trust)
@@ -41,6 +43,7 @@ async fn main() -> std::io::Result<()> {
     println!("Zero Trust Network starting on :{}", port);
     HttpServer::new(|| {
         App::new()
+            .wrap(auth::RequireAuth)
             .route("/health", web::get().to(health))
             .route("/api/v1/policy/evaluate", web::get().to(evaluate_policy))
             .route("/api/v1/mesh/status", web::get().to(get_mesh_status))

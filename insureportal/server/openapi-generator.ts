@@ -91,14 +91,14 @@ function generateSpec(): Record<string, unknown> {
   return {
     openapi: "3.1.0",
     info: {
-      title: "InsurePortal Insurance Platform API",
+      title: "TourismPay Insurance Platform API",
       version: "1.0.0",
       description:
-        "Auto-generated API documentation for the InsurePortal insurance platform. " +
+        "Auto-generated API documentation for the TourismPay insurance platform. " +
         `Covers ${routers.length} domain routers across policy management, claims processing, ` +
         "underwriting, compliance, and more.",
       contact: {
-        name: "InsurePortal Engineering",
+        name: "TourismPay Engineering",
         email: "engineering@insureportal.ng",
       },
     },

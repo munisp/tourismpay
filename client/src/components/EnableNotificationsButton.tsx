@@ -13,6 +13,7 @@ import { trpc } from "@/lib/trpc";
 import { usePosStore } from "@/store/posStore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -116,7 +117,7 @@ export function EnableNotificationsButton() {
         userAgent: navigator.userAgent,
       });
     } catch (err) {
-      console.error("Push subscription error:", err);
+      logger.error("Push subscription error:", err);
       toast.error("Failed to subscribe to push notifications");
       setStatus("idle");
     }
@@ -134,7 +135,7 @@ export function EnableNotificationsButton() {
         });
       }
     } catch (err) {
-      console.error("Push unsubscribe error:", err);
+      logger.error("Push unsubscribe error:", err);
     }
   };
 

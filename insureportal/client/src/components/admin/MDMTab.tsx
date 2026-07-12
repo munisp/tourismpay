@@ -7,6 +7,7 @@
  * config push, and OTA update triggers.
  */
 
+import { logger } from "@/lib/logger";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -367,7 +368,7 @@ export function MDMTab() {
         });
         setQrDataUrl(url);
       } catch (e) {
-        console.error("QR generation error", e);
+        logger.error("QR generation error", e);
       }
     },
     onError: e => toast.error(`Token generation failed: ${e.message}`),
@@ -1158,7 +1159,7 @@ export function MDMTab() {
                       <span className="font-mono text-amber-300">
                         {killSwitchTarget?.agentCode}
                       </span>
-                      . The InsurePortal will immediately show a kill-switch
+                      . The TourismPay will immediately show a kill-switch
                       overlay and all transactions will be blocked.
                     </>
                   ) : (
@@ -1171,7 +1172,7 @@ export function MDMTab() {
                       <span className="font-mono text-amber-300">
                         {killSwitchTarget?.agentCode}
                       </span>
-                      . The InsurePortal overlay will dismiss automatically.
+                      . The TourismPay overlay will dismiss automatically.
                     </>
                   )}
                 </p>

@@ -17,10 +17,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { secureRandom } from "@/lib/secureRandom";
+import { logger } from "@/lib/logger";
 
 // ── IndexedDB helpers ─────────────────────────────────────────────────────────
 
-const IDB_NAME = "54link-qr-store";
+const IDB_NAME = "tourismpay-qr-store";
 const IDB_VERSION = 1;
 const IDB_STORE = "offline_qr_codes";
 
@@ -280,7 +282,7 @@ export function useQRScanner(onScan: (result: QRScanResult) => void) {
       const msg = e instanceof Error ? e.message : "Camera access denied";
       setError(msg);
       setCameraAvailable(false);
-      console.error("[QRScanner]", e);
+      logger.error("[QRScanner]", e);
     }
   }, [onScan, stopScanning]);
 
@@ -310,14 +312,14 @@ export function useOfflineQRGenerator(agentCode: string) {
       .then(records =>
         setOfflineQRCodes(records.filter(r => r.agentCode === agentCode))
       )
-      .catch(e => console.error("[QR IDB] Load failed:", e));
+      .catch(e => logger.error("[QR IDB] Load failed:", e));
   }, [agentCode]);
 
   const generateOfflineQR = useCallback(
     async (amount: number, label?: string): Promise<OfflineQRRecord> => {
       setLoading(true);
       try {
-        const ref = `QR-${agentCode}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+        const ref = `QR-${agentCode}-${Date.now().toString(36).toUpperCase()}-${secureRandom().toString(36).slice(2, 5).toUpperCase()}`;
         const payload = build54LinkQRPayload(ref, amount, agentCode);
         const record: OfflineQRRecord = {
           id: ref,

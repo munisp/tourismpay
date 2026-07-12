@@ -1,13 +1,14 @@
 // React Native API Client with Security
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AnalyticsService } from '../services/AnalyticsService';
+import { secureRandom } from "../lib/secureRandom";
 
 export class APIClient {
   // Base URL points to the 54Link pos-shell backend REST bridge.
   // Development: http://10.0.2.2:3000/api/v1  (Android emulator)
   //              http://localhost:3000/api/v1   (iOS simulator)
   // Production:  set REACT_NATIVE_API_BASE_URL env var or update below.
-  private baseURL: string = (process.env.REACT_NATIVE_API_BASE_URL as string) ?? 'https://api.54link.io/v1';
+  private baseURL: string = (process.env.REACT_NATIVE_API_BASE_URL as string) ?? 'https://api.tourismpay.io/v1';
 
   async get(endpoint: string): Promise<any> {
     return this.request('GET', endpoint);
@@ -71,14 +72,14 @@ export class APIClient {
   private async getDeviceId(): Promise<string> {
     let deviceId = await AsyncStorage.getItem('device_id');
     if (!deviceId) {
-      deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      deviceId = `device_${Date.now()}_${secureRandom().toString(36).substr(2, 9)}`;
       await AsyncStorage.setItem('device_id', deviceId);
     }
     return deviceId;
   }
 
   private generateRequestId(): string {
-    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `req_${Date.now()}_${secureRandom().toString(36).substr(2, 9)}`;
   }
 }
 

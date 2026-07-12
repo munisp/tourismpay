@@ -1,5 +1,5 @@
 /**
- * InsurePortal — Live Chat Support
+ * TourismPay — Live Chat Support
  * Design: Bloomberg Terminal dark — near-black bg, electric blue primary
  * Features: Real-time messaging, canned responses, ticket escalation,
  *           file/screenshot sharing, agent status, typing indicators,
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { useChatSocket } from "../hooks/useSocket";
 import { usePosStore } from "../store/posStore";
+import { secureRandom } from "@/lib/secureRandom";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const BG = "oklch(0.08 0.012 240)";
@@ -147,7 +148,7 @@ const BOT_RESPONSES: Record<string, string[]> = {
     "The compliance team has been notified. Please do not process further transactions with this customer until cleared.",
   ],
   default: [
-    "Thank you for reaching out to InsurePortal support. I'm reviewing your request now.",
+    "Thank you for reaching out to TourismPay support. I'm reviewing your request now.",
     "I understand your concern. Let me check our system for more details.",
     "I'm looking into this for you. This should only take a moment.",
     "I've found the relevant information. Here's what I can tell you...",
@@ -264,7 +265,7 @@ export default function LiveChatSupport({ onBack }: { onBack?: () => void }) {
   const [rating, setRating] = useState(0);
   const [rated, setRated] = useState(false);
   const [unread, setUnread] = useState(2);
-  const [queuePos] = useState(Math.floor(Math.random() * 3) + 1);
+  const [queuePos] = useState(Math.floor(secureRandom() * 3) + 1);
   const [sessionRef, setSessionRef] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -323,11 +324,11 @@ export default function LiveChatSupport({ onBack }: { onBack?: () => void }) {
   // Simulate support agent typing + response
   const simulateResponse = useCallback((category: SupportCategory) => {
     setIsTyping(true);
-    const delay = 1500 + Math.random() * 2000;
+    const delay = 1500 + secureRandom() * 2000;
     setTimeout(() => {
       setIsTyping(false);
       const pool = BOT_RESPONSES[category] || BOT_RESPONSES.default;
-      const text = pool[Math.floor(Math.random() * pool.length)];
+      const text = pool[Math.floor(secureRandom() * pool.length)];
       const msg: Message = {
         id: Date.now().toString(),
         role: "support",
@@ -415,7 +416,7 @@ export default function LiveChatSupport({ onBack }: { onBack?: () => void }) {
           const welcomeMsg: Message = {
             id: "sup-1",
             role: "support",
-            text: `Hello! I'm ${data.supportAgentName} from InsurePortal Support. I can see your ticket about "${subject}". How can I assist you today?`,
+            text: `Hello! I'm ${data.supportAgentName} from TourismPay Support. I can see your ticket about "${subject}". How can I assist you today?`,
             time: new Date().toLocaleTimeString("en-NG", {
               hour: "2-digit",
               minute: "2-digit",
@@ -443,7 +444,7 @@ export default function LiveChatSupport({ onBack }: { onBack?: () => void }) {
           const welcomeMsg: Message = {
             id: "sup-1",
             role: "support",
-            text: `Hello! I'm ${assignedAgent.name} from InsurePortal Support. I can see your ticket about "${subject}". How can I assist you today?`,
+            text: `Hello! I'm ${assignedAgent.name} from TourismPay Support. I can see your ticket about "${subject}". How can I assist you today?`,
             time: new Date().toLocaleTimeString("en-NG", {
               hour: "2-digit",
               minute: "2-digit",
@@ -479,7 +480,7 @@ export default function LiveChatSupport({ onBack }: { onBack?: () => void }) {
     const msg: Message = {
       id: Date.now().toString(),
       role: "system",
-      text: "Chat session ended. Thank you for contacting InsurePortal Support.",
+      text: "Chat session ended. Thank you for contacting TourismPay Support.",
       time: new Date().toLocaleTimeString("en-NG", {
         hour: "2-digit",
         minute: "2-digit",
@@ -518,7 +519,7 @@ export default function LiveChatSupport({ onBack }: { onBack?: () => void }) {
             >
               Support Center
             </div>
-            <div className="text-xs text-gray-500">InsurePortal Agent Support</div>
+            <div className="text-xs text-gray-500">TourismPay Agent Support</div>
           </div>
           <div className="flex items-center gap-1.5">
             <div

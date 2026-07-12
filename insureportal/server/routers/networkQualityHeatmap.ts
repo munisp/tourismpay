@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { secureRandom } from "../lib/secureRandom";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { agents } from "../../drizzle/schema";
@@ -23,13 +24,13 @@ const ISP_LIST = ["MTN", "Glo", "Airtel", "9mobile"];
 
 function generateStateMetrics(state: string) {
   const baseQuality = state === "Lagos" || state === "FCT" ? 75 : state === "Rivers" || state === "Oyo" ? 65 : 55;
-  const quality = Math.round(baseQuality + (Math.random() - 0.5) * 20);
+  const quality = Math.round(baseQuality + (secureRandom() - 0.5) * 20);
   const zone = quality > 80 ? "green" : quality > 60 ? "yellow" : quality > 40 ? "orange" : "red";
   return {
     state, qualityScore: quality, zone, latencyMs: Math.round(200 - quality * 1.5),
     packetLoss: Math.round((100 - quality) * 0.05 * 100) / 100, uptimePct: 95 + quality * 0.04,
-    activeAgents: Math.floor(Math.random() * 50) + 10, transactionsPerHour: Math.floor(quality * 5 + Math.random() * 100),
-    topISP: ISP_LIST[Math.floor(Math.random() * ISP_LIST.length)],
+    activeAgents: Math.floor(secureRandom() * 50) + 10, transactionsPerHour: Math.floor(quality * 5 + secureRandom() * 100),
+    topISP: ISP_LIST[Math.floor(secureRandom() * ISP_LIST.length)],
   };
 }
 
@@ -47,7 +48,7 @@ export const networkQualityHeatmapRouter = router({
       timeRange: input.timeRange, states: NIGERIAN_STATES.map(generateStateMetrics),
       nationalAverage: { qualityScore: 67, latencyMs: 95, packetLoss: 1.2, uptimePct: 98.5 },
       breaches: [{ state: "Kano", duration: "45 min", qualityScore: 35, timestamp: new Date(Date.now() - 3600000).toISOString() }],
-      ispRankings: ISP_LIST.map(isp => ({ isp, avgQuality: Math.round(60 + Math.random() * 25), coverage: Math.round(70 + Math.random() * 25) })),
+      ispRankings: ISP_LIST.map(isp => ({ isp, avgQuality: Math.round(60 + secureRandom() * 25), coverage: Math.round(70 + secureRandom() * 25) })),
     })),
 
   getSummary: protectedProcedure.query(async () => {

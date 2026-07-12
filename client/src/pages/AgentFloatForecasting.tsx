@@ -155,7 +155,7 @@ export default function AgentFloatForecasting() {
   const stats = trpc.agentFloatForecasting.getStats.useQuery();
   // @ts-ignore Sprint 85
   const forecast = trpc.agentFloatForecasting.getForecast.useQuery({
-    days: parseInt(selectedPeriod) || 7,
+    horizon: (selectedPeriod || "7") as "7" | "14" | "30",
   });
   const triggerReplenishment =
     // @ts-ignore Sprint 85
@@ -192,7 +192,7 @@ export default function AgentFloatForecasting() {
     triggerReplenishment.mutate({ agentId: selectedAgent.id, amount: 50000 });
   };
 
-  const agents = forecast.data?.forecasts ?? MOCK_AGENTS;
+  const agents = forecast.data?.dailyForecasts ?? MOCK_AGENTS;
 
   return (
     <DashboardLayout>
@@ -313,7 +313,7 @@ export default function AgentFloatForecasting() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(forecast.data?.forecasts as unknown as AgentForecast[]).map(
+                  {(forecast.data?.dailyForecasts as unknown as AgentForecast[]).map(
                     (agent: any) => (
                       <tr key={agent.id} className="border-b hover:bg-muted/50">
                         <td className="py-3 px-2">

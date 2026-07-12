@@ -14,6 +14,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { usePosStore } from "../store/posStore";
 import { trpc } from "../lib/trpc";
+import { logger } from "@/lib/logger";
 
 export type PushPermission = "default" | "granted" | "denied" | "unsupported";
 
@@ -81,7 +82,7 @@ export function usePushNotifications(): PushState {
         if (sub) setIsSubscribed(true);
       })
       .catch(err => {
-        console.warn("[PushNotifications] SW registration failed:", err);
+        logger.warn("[PushNotifications] SW registration failed:", err);
       });
   }, []);
 
@@ -158,7 +159,7 @@ export function usePushNotifications(): PushState {
         applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
       });
 
-      console.info(
+      logger.info(
         "[PushNotifications] Subscribed:",
         JSON.stringify(subscription)
       );
@@ -176,13 +177,13 @@ export function usePushNotifications(): PushState {
             authKey: keys.auth ?? "",
             userAgent: navigator.userAgent,
           });
-          console.info(
+          logger.info(
             "[PushNotifications] Subscription saved to server for agent:",
             agent.agentCode
           );
         } catch (saveErr) {
           // Non-fatal: subscription works locally even if server save fails
-          console.warn(
+          logger.warn(
             "[PushNotifications] Failed to save subscription to server:",
             saveErr
           );
@@ -193,7 +194,7 @@ export function usePushNotifications(): PushState {
         "Notifications enabled! You'll be alerted when offline items need syncing."
       );
     } catch (err) {
-      console.error("[PushNotifications] Subscription failed:", err);
+      logger.error("[PushNotifications] Subscription failed:", err);
       toast.error(
         "Failed to enable push notifications. Check browser settings."
       );

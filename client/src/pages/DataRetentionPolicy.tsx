@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { Database } from "lucide-react";
+import { secureRandom } from "@/lib/secureRandom";
 
 // Data Retention — GDPR/NDPR compliant data lifecycle management
 // Sprint 42: Final Production Features
@@ -40,7 +41,7 @@ export default function DataRetentionPolicy() {
         "active",
         "completed",
       ][i],
-      col4: `${(Math.random() * 100).toFixed(1)}`,
+      col4: `${(secureRandom() * 100).toFixed(1)}`,
       col5: new Date(Date.now() - i * 3600000).toLocaleString(),
     }));
   const [search, setSearch] = useState("");

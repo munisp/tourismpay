@@ -108,7 +108,7 @@ export const reconciliationEngineRouter = router({
       if (!database) return { data: [], total: 0 };
 
       const conditions = [];
-      if (input.status) conditions.push(eq(settlementReconciliation.status, input.status));
+      if (input.status) conditions.push(eq(settlementReconciliation.status, input.status as any));
       if (input.agentId) conditions.push(eq(settlementReconciliation.agentId, input.agentId));
 
       const query = database

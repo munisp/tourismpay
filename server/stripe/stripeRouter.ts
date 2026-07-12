@@ -42,7 +42,7 @@ async function getOrCreateStripeCustomer(
   const customer = await getStripe().customers.create({
     email,
     name: name || undefined,
-    metadata: { userId: userId.toString(), platform: "54link-pos" },
+    metadata: { userId: userId.toString(), platform: "tourismpay-pos" },
   });
 
   await db

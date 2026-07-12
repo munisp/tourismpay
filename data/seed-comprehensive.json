@@ -3,10 +3,10 @@
     {
       "id": "a7af2da3-0e6d-4ba5-821f-06ff00aa5440",
       "name": "54Link Default",
-      "slug": "54link",
+      "slug": "tourismpay",
       "status": "active",
       "plan": "enterprise",
-      "domain": "54link.ng",
+      "domain": "tourismpay.ng",
       "createdAt": 1756010324832
     },
     {
@@ -32256,7 +32256,7 @@
   "webhooks": [
     {
       "id": "c6f2b4d6-f756-4f11-9c8f-5c0f2153104f",
-      "url": "https://api.partner1.com/webhooks/54link",
+      "url": "https://api.partner1.com/webhooks/tourismpay",
       "events": [
         "transaction.completed",
         "fraud.detected"

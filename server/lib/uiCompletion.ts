@@ -12,6 +12,7 @@
 // F11: Global Notification Center
 // ============================================================
 
+import { secureRandom } from "../lib/securityAuditFixes";
 export type NotificationType =
   | "info"
   | "warning"
@@ -54,7 +55,7 @@ export function createNotification(params: {
 }): AppNotification {
   const now = new Date();
   return {
-    id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `notif-${Date.now()}-${secureRandom().toString(36).slice(2, 8)}`,
     userId: params.userId,
     type: params.type,
     title: params.title,
@@ -148,7 +149,7 @@ export function createAuditEntry(params: {
   metadata?: Record<string, unknown>;
 }): AuditEntry {
   return {
-    id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: `audit-${Date.now()}-${secureRandom().toString(36).slice(2, 8)}`,
     userId: params.userId,
     userName: params.userName,
     action: params.action,

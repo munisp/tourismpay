@@ -10,14 +10,14 @@ const REFRESH_KEY = '@insureportal/refresh_token';
 // in the native iOS/Android projects with SHA-256 leaf certificate hashes for:
 //   - api.insureportal.ng
 //   - auth.insureportal.ng
-//   - api.54link.ng
-//   - staging.54link.ng
+//   - api.tourismpay.ng
+//   - staging.tourismpay.ng
 // Pin rotation: include both current and next certificate hashes.
 export const PINNED_DOMAINS = [
   'api.insureportal.ng',
   'auth.insureportal.ng',
-  'api.54link.ng',
-  'staging.54link.ng',
+  'api.tourismpay.ng',
+  'staging.tourismpay.ng',
 ] as const;
 
 export const api = axios.create({

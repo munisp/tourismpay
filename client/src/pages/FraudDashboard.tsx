@@ -5,6 +5,7 @@
  * Features: Live feed, risk heatmap, SHAP explanations, agent network graph, case management
  */
 
+import { secureRandom } from "@/lib/secureRandom";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { useFraudSocket } from "../hooks/useSocket";
@@ -172,8 +173,8 @@ const SHAP_TEMPLATES = [
 let _eventCounter = 0;
 function generateEvent(): FraudEvent {
   _eventCounter++;
-  const agent = AGENTS[Math.floor(Math.random() * AGENTS.length)];
-  const risk = Math.floor(Math.random() * 60) + 40;
+  const agent = AGENTS[Math.floor(secureRandom() * AGENTS.length)];
+  const risk = Math.floor(secureRandom() * 60) + 40;
   const severity: Severity =
     risk >= 85
       ? "critical"
@@ -188,18 +189,18 @@ function generateEvent(): FraudEvent {
     agentCode: agent.code,
     agentName: agent.name,
     location: agent.location,
-    txType: TX_TYPES[Math.floor(Math.random() * TX_TYPES.length)],
-    amount: Math.floor(Math.random() * 490_000) + 10_000,
+    txType: TX_TYPES[Math.floor(secureRandom() * TX_TYPES.length)],
+    amount: Math.floor(secureRandom() * 490_000) + 10_000,
     customer: [
       "Emeka Eze",
       "Fatima Bello",
       "Chidi Obi",
       "Ngozi Adeyemi",
       "Tunde Bakare",
-    ][Math.floor(Math.random() * 5)],
+    ][Math.floor(secureRandom() * 5)],
     riskScore: risk,
     severity,
-    reason: REASONS[Math.floor(Math.random() * REASONS.length)],
+    reason: REASONS[Math.floor(secureRandom() * REASONS.length)],
     time: now.toLocaleTimeString("en-NG", {
       hour: "2-digit",
       minute: "2-digit",
@@ -207,9 +208,9 @@ function generateEvent(): FraudEvent {
     }),
     timestamp: now.getTime(),
     status: "open",
-    channel: ["POS", "USSD", "Mobile", "Web"][Math.floor(Math.random() * 4)],
+    channel: ["POS", "USSD", "Mobile", "Web"][Math.floor(secureRandom() * 4)],
     shapFeatures:
-      SHAP_TEMPLATES[Math.floor(Math.random() * SHAP_TEMPLATES.length)],
+      SHAP_TEMPLATES[Math.floor(secureRandom() * SHAP_TEMPLATES.length)],
   };
 }
 
@@ -546,7 +547,7 @@ export default function FraudDashboard() {
           );
         }
       },
-      4500 + Math.random() * 3000
+      4500 + secureRandom() * 3000
     );
     return () => clearInterval(iv);
   }, [paused, storeEvents.length]);

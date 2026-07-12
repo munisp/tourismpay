@@ -30,7 +30,7 @@ export function SignupScreen({ navigation }: any) {
     <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <View style={s.logoContainer}>
-          <Text style={s.logo}>InsurePortal</Text>
+          <Text style={s.logo}>TourismPay</Text>
           <Text style={s.tagline}>Create Your Account</Text>
         </View>
         <View style={s.form}>

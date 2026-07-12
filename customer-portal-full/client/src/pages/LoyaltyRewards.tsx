@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2 } from "lucide-react";
+import { logger } from "@/lib/logger";
 
 interface Reward {
   id: string;
@@ -121,7 +122,7 @@ const LoyaltyRewards: React.FC = () => {
               className="max-w-sm"
             />
             {/* Example of a dropdown/select, though not strictly needed for this page based on current tRPC.loyalty procedures */}
-            <Select onValueChange={(value) => console.log(value)}>
+            <Select onValueChange={(value) => logger.log(value)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by..." />
               </SelectTrigger>

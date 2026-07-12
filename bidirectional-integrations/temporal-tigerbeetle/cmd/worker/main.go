@@ -7,12 +7,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tigerbeetle/tigerbeetle-go/pkg/types"
-
 	ttb "temporal-tigerbeetle-integration"
 )
 

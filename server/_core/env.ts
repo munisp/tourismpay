@@ -6,10 +6,10 @@
  *
  * Default URLs follow the 54Link Docker Compose service name convention:
  *   http://<service>:<port>  — internal Docker network (production default)
- *   https://<service>.54link.io  — public-facing microservices
- *   https://api.54link.io        — APISix gateway
- *   https://auth.54link.io       — Keycloak OIDC
- *   mqtt://broker.54link.io:1883 — MQTT broker (TLS: 8883)
+ *   https://<service>.tourismpay.io  — public-facing microservices
+ *   https://api.tourismpay.io        — APISix gateway
+ *   https://auth.tourismpay.io       — Keycloak OIDC
+ *   mqtt://broker.tourismpay.io:1883 — MQTT broker (TLS: 8883)
  */
 export const ENV = {
   // ── Manus Platform ──────────────────────────────────────────────────────────
@@ -41,20 +41,20 @@ export const ENV = {
 
   // ── Platform APISix gateway ─────────────────────────────────────────────────
   platformBaseUrl: process.env.PLATFORM_BASE_URL ?? "http://apisix:9080",
-  platformApiKey: process.env.PLATFORM_API_KEY ?? "54link-platform-dev-api-key",
+  platformApiKey: process.env.PLATFORM_API_KEY ?? "tourismpay-platform-dev-api-key",
   platformServiceToken:
-    process.env.PLATFORM_SERVICE_TOKEN ?? "54link-service-token-dev",
+    process.env.PLATFORM_SERVICE_TOKEN ?? "tourismpay-service-token-dev",
 
   // ── Keycloak OIDC ───────────────────────────────────────────────────────────
   keycloakUrl: process.env.KEYCLOAK_URL ?? "http://keycloak:8080",
-  keycloakRealm: process.env.KEYCLOAK_REALM ?? "54link",
+  keycloakRealm: process.env.KEYCLOAK_REALM ?? "tourismpay",
   keycloakClientId: process.env.KEYCLOAK_CLIENT_ID ?? "pos-shell",
   keycloakClientSecret:
-    process.env.KEYCLOAK_CLIENT_SECRET ?? "54link-keycloak-dev-secret",
+    process.env.KEYCLOAK_CLIENT_SECRET ?? "tourismpay-keycloak-dev-secret",
 
   // ── Temporal workflow engine ─────────────────────────────────────────────────
   temporalAddress: process.env.TEMPORAL_ADDRESS ?? "temporal:7233",
-  temporalNamespace: process.env.TEMPORAL_NAMESPACE ?? "54link-production",
+  temporalNamespace: process.env.TEMPORAL_NAMESPACE ?? "tourismpay-production",
   temporalTaskQueue: process.env.TEMPORAL_TASK_QUEUE ?? "settlement-queue",
 
   // ── HashiCorp Vault ──────────────────────────────────────────────────────────
@@ -70,13 +70,13 @@ export const ENV = {
 
   // ── MinIO / Lakehouse ────────────────────────────────────────────────────────
   minioEndpoint: process.env.MINIO_ENDPOINT ?? "http://minio:9000",
-  minioAccessKey: process.env.MINIO_ACCESS_KEY ?? "54link_admin",
-  minioSecretKey: process.env.MINIO_SECRET_KEY ?? "54link_minio_dev_secret",
-  minioBucket: process.env.MINIO_BUCKET ?? "54link-screenshots",
+  minioAccessKey: process.env.MINIO_ACCESS_KEY ?? "tourismpay_admin",
+  minioSecretKey: process.env.MINIO_SECRET_KEY ?? "tourismpay_minio_dev_secret",
+  minioBucket: process.env.MINIO_BUCKET ?? "tourismpay-screenshots",
 
   // ── APISix gateway admin API ────────────────────────────────────────────────
   apisixAdminUrl: process.env.APISIX_ADMIN_URL ?? "http://apisix:9180",
-  apisixAdminKey: process.env.APISIX_ADMIN_KEY ?? "54link-apisix-dev-admin-key",
+  apisixAdminKey: process.env.APISIX_ADMIN_KEY ?? "tourismpay-apisix-dev-admin-key",
 
   // ── MDM microservices ────────────────────────────────────────────────────────
   mdmComplianceEngineUrl:
@@ -87,17 +87,17 @@ export const ENV = {
 
   // ── Resilience / offline sub-services ──────────────────────────────────────
   resilienceAgentUrl:
-    process.env.RESILIENCE_AGENT_URL ?? "https://resilience.54link.io",
-  offlineQueueUrl: process.env.OFFLINE_QUEUE_URL ?? "https://queue.54link.io",
+    process.env.RESILIENCE_AGENT_URL ?? "https://resilience.tourismpay.io",
+  offlineQueueUrl: process.env.OFFLINE_QUEUE_URL ?? "https://queue.tourismpay.io",
   analyticsServiceUrl:
-    process.env.ANALYTICS_SERVICE_URL ?? "https://analytics.54link.io",
+    process.env.ANALYTICS_SERVICE_URL ?? "https://analytics.tourismpay.io",
 
   // ── POS Printer sidecar (Rust ESC/POS service) ──────────────────────────────
   posPrinterUrl: process.env.POS_PRINTER_URL ?? "http://pos-printer:8085",
 
   // ── mTLS ────────────────────────────────────────────────────────────────────
   mtlsEnabled: (process.env.MTLS_ENABLED ?? "false") === "true",
-  mtlsCertDir: process.env.MTLS_CERT_DIR ?? "/etc/54link/certs",
+  mtlsCertDir: process.env.MTLS_CERT_DIR ?? "/etc/tourismpay/certs",
 
   // ── OpenTelemetry ───────────────────────────────────────────────────────────
   otelEndpoint:
@@ -107,7 +107,7 @@ export const ENV = {
 
   // ── Termii SMS / OTP ────────────────────────────────────────────────────────
   // Override TERMII_API_KEY in production Secrets panel.
-  termiiApiKey: process.env.TERMII_API_KEY ?? "TLtest_54link_dev_key",
+  termiiApiKey: process.env.TERMII_API_KEY ?? "TLtest_tourismpay_dev_key",
 
   // ── Web Push (VAPID) ────────────────────────────────────────────────────────
   // These are dev/demo VAPID keys — override via VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY in production.
@@ -117,7 +117,7 @@ export const ENV = {
   vapidPrivateKey:
     process.env.VAPID_PRIVATE_KEY ??
     "vBqalBipE6mu4a592N8c1wucdpun-RaKemy8gZDa99M",
-  vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:admin@54link.io",
+  vapidSubject: process.env.VAPID_SUBJECT ?? "mailto:admin@tourismpay.io",
 
   // ── Platform microservice URLs (override per deployment) ───────────────────
   PLATFORM_KYC_URL: process.env.PLATFORM_KYC_URL ?? "http://kyc-service:8070",
@@ -142,13 +142,13 @@ export const ENV = {
 
   // ── Fluvio streaming cluster ─────────────────────────────────────────────────
   fluvioEndpoint: process.env.FLUVIO_ENDPOINT ?? "http://fluvio:9003",
-  fluvioApiKey: process.env.FLUVIO_API_KEY ?? "54link-fluvio-dev-key",
+  fluvioApiKey: process.env.FLUVIO_API_KEY ?? "tourismpay-fluvio-dev-key",
 
   // ── MQTT broker (InfinyOn MQTT Source Connector) ─────────────────────────────
   mqttBrokerUrl: process.env.MQTT_BROKER_URL ?? "mqtt://mosquitto:1883",
-  mqttClientId: process.env.MQTT_CLIENT_ID ?? "54link-fluvio-bridge",
-  mqttUsername: process.env.MQTT_USERNAME ?? "54link_mqtt",
-  mqttPassword: process.env.MQTT_PASSWORD ?? "54link_mqtt_dev_pass",
+  mqttClientId: process.env.MQTT_CLIENT_ID ?? "tourismpay-fluvio-bridge",
+  mqttUsername: process.env.MQTT_USERNAME ?? "tourismpay_mqtt",
+  mqttPassword: process.env.MQTT_PASSWORD ?? "tourismpay_mqtt_dev_pass",
 
   // ── S3 presigned URL signing ─────────────────────────────────────────────────
   s3Region: process.env.S3_REGION ?? "us-east-1",

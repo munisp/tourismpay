@@ -1,5 +1,5 @@
 /**
- * telemetry.ts — OpenTelemetry distributed tracing for InsurePortal
+ * telemetry.ts — OpenTelemetry distributed tracing for TourismPay
  *
  * Instruments:
  *  - HTTP requests (Express)

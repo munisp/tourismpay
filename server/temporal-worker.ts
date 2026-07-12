@@ -17,7 +17,7 @@ import {
 import * as activities from "./temporal-activities";
 
 const TEMPORAL_ADDRESS = process.env.TEMPORAL_ADDRESS ?? "localhost:7233";
-const TEMPORAL_NAMESPACE = process.env.TEMPORAL_NAMESPACE ?? "54link";
+const TEMPORAL_NAMESPACE = process.env.TEMPORAL_NAMESPACE ?? "tourismpay";
 const TASK_QUEUE = process.env.TEMPORAL_TASK_QUEUE ?? "settlement-queue";
 
 /**

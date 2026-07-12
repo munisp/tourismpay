@@ -17,10 +17,9 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/54link/resilience-agent/internal/carrier"
-	"github.com/54link/resilience-agent/internal/probe"
-	"github.com/54link/resilience-agent/internal/retry"
+	"github.com/tourismpay/resilience-agent/internal/carrier"
+	"github.com/tourismpay/resilience-agent/internal/probe"
+	"github.com/tourismpay/resilience-agent/internal/retry"
 )
 
 func main() {

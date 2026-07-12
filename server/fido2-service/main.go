@@ -20,8 +20,8 @@
 //
 // Environment variables:
 //   PORT              — HTTP listen port (default: 8083)
-//   FIDO2_RP_ID       — Relying Party ID (e.g. "54link.ng")
-//   FIDO2_RP_ORIGIN   — Relying Party origin (e.g. "https://app.54link.ng")
+//   FIDO2_RP_ID       — Relying Party ID (e.g. "tourismpay.ng")
+//   FIDO2_RP_ORIGIN   — Relying Party origin (e.g. "https://app.tourismpay.ng")
 //   FIDO2_RP_NAME     — Relying Party display name (default: "54Link POS")
 //   FIDO2_ADMIN_KEY   — Shared secret for admin endpoints
 
@@ -38,10 +38,12 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
-)
+
+	"database/sql"
+	"context"
+	_ "github.com/jackc/pgx/v5/stdlib")
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -163,7 +165,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":    "ok",
-		"service":   "54link-fido2",
+		"service":   "tourismpay-fido2",
 		"rpId":      rpID,
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
@@ -526,10 +528,10 @@ func newRouter() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/fido2/register/begin", handleRegisterBegin)
-	mux.HandleFunc("/api/v1/fido2/register/finish", handleRegisterFinish)
-	mux.HandleFunc("/api/v1/fido2/authenticate/begin", handleAuthBegin)
-	mux.HandleFunc("/api/v1/fido2/authenticate/finish", handleAuthFinish)
+	mux.HandleFunc("/api/v1/fido2/register/begin", requireAuthFunc(handleRegisterBegin))
+	mux.HandleFunc("/api/v1/fido2/register/finish", requireAuthFunc(handleRegisterFinish))
+	mux.HandleFunc("/api/v1/fido2/authenticate/begin", requireAuthFunc(handleAuthBegin))
+	mux.HandleFunc("/api/v1/fido2/authenticate/finish", requireAuthFunc(handleAuthFinish))
 	mux.HandleFunc("/api/v1/fido2/credentials/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -554,6 +556,74 @@ func min(a, b int) int {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+
+
+func requireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/health" || path == "/healthz" || path == "/ready" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+
+func requireAuthFunc(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
+}
+
+var db *sql.DB
+
+func initDB() {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://postgres:postgres@localhost:5432/tourismpay?sslmode=disable"
+	}
+	var err error
+	db, err = sql.Open("pgx", dsn)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err = db.PingContext(ctx); err != nil {
+		log.Printf("Warning: database ping failed: %v (will retry on first query)", err)
+	}
+}
 
 func main() {
 	if err := initWebAuthn(); err != nil {

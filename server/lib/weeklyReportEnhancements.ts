@@ -55,7 +55,7 @@ export interface EmailDistributionConfig {
 
 let emailConfig: EmailDistributionConfig = {
   recipients: [
-    { email: "admin@54link.io", name: "Platform Admin", role: "admin" },
+    { email: "admin@tourismpay.io", name: "Platform Admin", role: "admin" },
   ],
   enabled: true,
   includeFullReport: true,

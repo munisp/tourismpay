@@ -36,7 +36,7 @@ export const BiometricSetupScreen = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const BASE_URL = 'https://api.54link.io/v1';
+  const BASE_URL = 'https://api.tourismpay.io/v1';
 
   useEffect(() => {
     fetchBiometricSettings();

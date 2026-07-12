@@ -1,3 +1,4 @@
+import { secureRandom } from "@/lib/secureRandom";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -504,7 +505,7 @@ export default function LivenessCameraCapture({
   // ── Active Liveness ───────────────────────────────────────────────────────
 
   const startActiveLiveness = useCallback(() => {
-    const shuffled = [...CHALLENGE_POOL].sort(() => Math.random() - 0.5);
+    const shuffled = [...CHALLENGE_POOL].sort(() => secureRandom() - 0.5);
     const selected = shuffled.slice(0, challengeCount).map(c => ({ ...c }));
     setChallenges(selected);
     setCurrentChallengeIdx(0);

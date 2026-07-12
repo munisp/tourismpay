@@ -32,7 +32,7 @@ function makeCtx(overrides?: Partial<TrpcContext>): TrpcContext {
   const user: AuthenticatedUser = {
     id: 1,
     openId: "test-open-id",
-    email: "admin@54link.test",
+    email: "admin@tourismpay.test",
     name: "Test Admin",
     loginMethod: "manus",
     role: "admin",

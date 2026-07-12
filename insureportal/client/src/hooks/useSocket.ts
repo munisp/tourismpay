@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 import { usePosStore, FraudEvent, ChatMessage } from "../store/posStore";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 const SOCKET_URL = typeof window !== "undefined" ? window.location.origin : "";
 
@@ -72,10 +73,10 @@ export function useFraudSocket() {
     });
     socketRef.current = socket;
     socket.on("connect", () =>
-      console.log("[Fraud Socket] Connected:", socket.id)
+      logger.log("[Fraud Socket] Connected:", socket.id)
     );
     socket.on("fraud:event", handleFraudEvent);
-    socket.on("disconnect", () => console.log("[Fraud Socket] Disconnected"));
+    socket.on("disconnect", () => logger.log("[Fraud Socket] Disconnected"));
 
     // ── Channel 2: SSE (server-side fraud detection engine) ───────────────────
     const sse = new EventSource("/api/fraud/alerts/stream", {
@@ -92,7 +93,7 @@ export function useFraudSocket() {
     };
     sse.onerror = () => {
       // Browser auto-reconnects on error after a short delay
-      console.warn(
+      logger.warn(
         "[Fraud SSE] Connection error — browser will auto-reconnect"
       );
     };
@@ -223,7 +224,7 @@ export function useTerminalSocket(agentCode?: string) {
         tier: string;
         timestamp: string;
       }) => {
-        // Dispatch DOM event so InsurePortal can show an amber banner
+        // Dispatch DOM event so TourismPay can show an amber banner
         window.dispatchEvent(
           new CustomEvent("terminal:velocity_warning", { detail: data })
         );
@@ -244,7 +245,7 @@ export function useTerminalSocket(agentCode?: string) {
       (data: { reason: string; disabledBy: string; disabledAt: string }) => {
         // Persist in localStorage so the overlay survives a page reload
         localStorage.setItem("pos_terminal_disabled", JSON.stringify(data));
-        // Dispatch custom DOM event so InsurePortal reacts immediately
+        // Dispatch custom DOM event so TourismPay reacts immediately
         window.dispatchEvent(
           new CustomEvent("terminal:kill-switch", { detail: data })
         );
@@ -313,7 +314,7 @@ export function useSettlementProgressSocket(
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      console.log("[Settlement Socket] Connected:", socket.id);
+      logger.log("[Settlement Socket] Connected:", socket.id);
     });
 
     // Listen for all batch progress events
@@ -327,7 +328,7 @@ export function useSettlementProgressSocket(
     });
 
     socket.on("disconnect", () => {
-      console.log("[Settlement Socket] Disconnected");
+      logger.log("[Settlement Socket] Disconnected");
     });
 
     return () => {

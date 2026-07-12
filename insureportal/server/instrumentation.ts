@@ -1,5 +1,5 @@
 /**
- * OpenTelemetry Instrumentation for InsurePortal
+ * OpenTelemetry Instrumentation for TourismPay
  * Must be imported BEFORE any other modules to ensure proper instrumentation.
  * 
  * Usage: import './instrumentation' at the top of server/_core/index.ts

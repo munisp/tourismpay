@@ -41,13 +41,13 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 ];
 
 const ENTITY_MAPPINGS = [
-  { local: "Policy", erp: "Sales Invoice", direction: "InsurePortal → ERP", fields: "policyNumber → naming_series, premium → grand_total, customer → customer_name" },
-  { local: "Claim", erp: "Payment Entry", direction: "InsurePortal → ERP", fields: "claimNumber → reference_no, amount → paid_amount, status → payment_type" },
+  { local: "Policy", erp: "Sales Invoice", direction: "TourismPay → ERP", fields: "policyNumber → naming_series, premium → grand_total, customer → customer_name" },
+  { local: "Claim", erp: "Payment Entry", direction: "TourismPay → ERP", fields: "claimNumber → reference_no, amount → paid_amount, status → payment_type" },
   { local: "Customer", erp: "Customer", direction: "Bidirectional", fields: "fullName → customer_name, email → email_id, phone → mobile_no" },
   { local: "Agent", erp: "Sales Partner", direction: "Bidirectional", fields: "name → partner_name, email → email, region → territory, commission → commission_rate" },
-  { local: "Payment", erp: "Payment Entry", direction: "InsurePortal → ERP", fields: "amount → paid_amount, method → mode_of_payment, reference → reference_no" },
-  { local: "Premium Collection", erp: "Journal Entry", direction: "InsurePortal → ERP", fields: "premium → debit, policyId → user_remark, account → account" },
-  { local: "NAICOM Filing", erp: "Custom DocType", direction: "InsurePortal → ERP", fields: "filingType → filing_type, period → period, status → workflow_state" },
+  { local: "Payment", erp: "Payment Entry", direction: "TourismPay → ERP", fields: "amount → paid_amount, method → mode_of_payment, reference → reference_no" },
+  { local: "Premium Collection", erp: "Journal Entry", direction: "TourismPay → ERP", fields: "premium → debit, policyId → user_remark, account → account" },
+  { local: "NAICOM Filing", erp: "Custom DocType", direction: "TourismPay → ERP", fields: "filingType → filing_type, period → period, status → workflow_state" },
   { local: "Reinsurance Treaty", erp: "Custom DocType", direction: "Bidirectional", fields: "treatyName → treaty_name, cedingAmount → ceding_amount, retentionPct → retention" },
 ];
 
@@ -197,7 +197,7 @@ export default function ERPNextIntegration() {
         <div>
           <h1 className="text-2xl font-bold">ERP Integration</h1>
           <p className="text-muted-foreground">
-            Connect InsurePortal with ERPNext, SAP, Odoo, or other ERP systems for seamless data synchronization
+            Connect TourismPay with ERPNext, SAP, Odoo, or other ERP systems for seamless data synchronization
           </p>
         </div>
         <Button onClick={() => syncERPNext()} disabled={isSyncing || isLoadingStatus}>
@@ -352,14 +352,14 @@ export default function ERPNextIntegration() {
                 Entity Mapping Overview
               </CardTitle>
               <CardDescription>
-                How InsurePortal entities map to ERP document types
+                How TourismPay entities map to ERP document types
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>InsurePortal Entity</TableHead>
+                    <TableHead>TourismPay Entity</TableHead>
                     <TableHead>ERP Document Type</TableHead>
                     <TableHead>Sync Direction</TableHead>
                     <TableHead>Key Field Mappings</TableHead>
@@ -578,7 +578,7 @@ export default function ERPNextIntegration() {
               Synchronization History
             </CardTitle>
             <CardDescription>
-              Recent sync transactions between InsurePortal and your ERP system
+              Recent sync transactions between TourismPay and your ERP system
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -655,7 +655,7 @@ export default function ERPNextIntegration() {
                 Field Mapping Configuration
               </CardTitle>
               <CardDescription>
-                Define how InsurePortal fields map to your ERP system fields. These mappings control
+                Define how TourismPay fields map to your ERP system fields. These mappings control
                 data transformation during synchronization.
               </CardDescription>
             </CardHeader>
@@ -670,7 +670,7 @@ export default function ERPNextIntegration() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>InsurePortal Field</TableHead>
+                          <TableHead>TourismPay Field</TableHead>
                           <TableHead>ERP Field</TableHead>
                           <TableHead>Transform</TableHead>
                         </TableRow>
@@ -711,7 +711,7 @@ export default function ERPNextIntegration() {
                   <TableRow>
                     <TableHead>ERP Event</TableHead>
                     <TableHead>Trigger</TableHead>
-                    <TableHead>InsurePortal Action</TableHead>
+                    <TableHead>TourismPay Action</TableHead>
                     <TableHead>Endpoint</TableHead>
                   </TableRow>
                 </TableHeader>

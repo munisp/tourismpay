@@ -39,7 +39,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
-)
+
+	"database/sql"
+	"context"
+	_ "github.com/jackc/pgx/v5/stdlib")
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -146,7 +149,7 @@ func validateDeviceToken(token string) (deviceSerial string, valid bool) {
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":    "ok",
-		"service":   "54link-ota",
+		"service":   "tourismpay-ota",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	})
 }
@@ -202,7 +205,7 @@ func handleLatest(w http.ResponseWriter, r *http.Request) {
 func generatePresignedURL(s3Key string) (string, time.Time) {
 	bucket := os.Getenv("S3_BUCKET")
 	if bucket == "" {
-		bucket = "54link-firmware"
+		bucket = "tourismpay-firmware"
 	}
 	expiryStr := os.Getenv("S3_PRESIGN_EXPIRY_SECS")
 	expirySecs, _ := strconv.ParseInt(expiryStr, 10, 64)
@@ -479,10 +482,10 @@ func newRouter() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/health", handleHealth)
-	mux.HandleFunc("/api/v1/ota/latest", handleLatest)
-	mux.HandleFunc("/api/v1/ota/list", handleList)
-	mux.HandleFunc("/api/v1/ota/upload", handleUpload)
-	mux.HandleFunc("/api/v1/ota/download/", handleDownload)
+	mux.HandleFunc("/api/v1/ota/latest", requireAuthFunc(handleLatest))
+	mux.HandleFunc("/api/v1/ota/list", requireAuthFunc(handleList))
+	mux.HandleFunc("/api/v1/ota/upload", requireAuthFunc(handleUpload))
+	mux.HandleFunc("/api/v1/ota/download/", requireAuthFunc(handleDownload))
 	mux.HandleFunc("/api/v1/ota/", func(w http.ResponseWriter, r *http.Request) {
 		// Route /api/v1/ota/{id}/rollout
 		if strings.HasSuffix(r.URL.Path, "/rollout") && r.Method == http.MethodPut {
@@ -496,6 +499,74 @@ func newRouter() http.Handler {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
+
+
+func requireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/health" || path == "/healthz" || path == "/ready" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+
+func requireAuthFunc(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
+}
+
+var db *sql.DB
+
+func initDB() {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://postgres:postgres@localhost:5432/tourismpay?sslmode=disable"
+	}
+	var err error
+	db, err = sql.Open("pgx", dsn)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err = db.PingContext(ctx); err != nil {
+		log.Printf("Warning: database ping failed: %v (will retry on first query)", err)
+	}
+}
 
 func main() {
 	port := os.Getenv("PORT")

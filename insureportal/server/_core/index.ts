@@ -1,5 +1,5 @@
 /**
- * index.ts — InsurePortal Server Entry Point
+ * index.ts — TourismPay Server Entry Point
  *
  * Production-hardened Express server with:
  *  - Keycloak OIDC authentication (replaces Manus OAuth)

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { logger } from "@/lib/logger";
 
 interface MCMCParams {
   modelType: string;
@@ -32,7 +33,7 @@ const RiskAssessment: React.FC = () => {
   const mcmcSimulateMutation = trpc.mcmc.simulate.useMutation({
     onSuccess: (data) => {
       toast.success('MCMC Simulation initiated successfully!');
-      console.log('MCMC Simulation Results:', data);
+      logger.log('MCMC Simulation Results:', data);
       trpc.useUtils().mcmc.results.invalidate(); // Invalidate MCMC results cache
     },
     onError: (error) => {
@@ -44,7 +45,7 @@ const RiskAssessment: React.FC = () => {
   const geospatialAnalyzeMutation = trpc.geospatial.analyze.useMutation({
     onSuccess: (data) => {
       toast.success('Geospatial Analysis initiated successfully!');
-      console.log('Geospatial Analysis Results:', data);
+      logger.log('Geospatial Analysis Results:', data);
       trpc.useUtils().geospatial.riskMap.invalidate(); // Invalidate Geospatial risk map cache
     },
     onError: (error) => {

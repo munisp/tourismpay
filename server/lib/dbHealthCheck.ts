@@ -6,6 +6,7 @@
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
+import { secureRandom } from "../lib/securityAuditFixes";
 export interface DbHealthStatus {
   connected: boolean;
   latencyMs: number;
@@ -69,8 +70,8 @@ export async function checkDbHealth(): Promise<DbHealthStatus> {
       connected: true,
       latencyMs,
       poolSize: 10,
-      activeConnections: Math.floor(Math.random() * 5),
-      idleConnections: Math.floor(Math.random() * 5) + 5,
+      activeConnections: Math.floor(secureRandom() * 5),
+      idleConnections: Math.floor(secureRandom() * 5) + 5,
       waitingQueries: 0,
       lastChecked: new Date().toISOString(),
       uptime: process.uptime(),
@@ -141,7 +142,7 @@ export async function withRetry<T>(
         opts.baseDelayMs * Math.pow(opts.backoffMultiplier, attempt - 1),
         opts.maxDelayMs
       );
-      const jitter = delay * (0.5 + Math.random() * 0.5);
+      const jitter = delay * (0.5 + secureRandom() * 0.5);
 
       console.warn(
         `[DB Retry] Attempt ${attempt}/${opts.maxRetries} failed: ${err.message}. ` +

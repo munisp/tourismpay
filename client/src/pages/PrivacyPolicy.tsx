@@ -17,7 +17,7 @@ const SECTIONS = [
   },
   {
     title: "2. Data Controller Information",
-    content: `54Link Financial Services Limited is the data controller for personal data processed through this platform. Our registered address is: 1, Broad Street, Lagos Island, Lagos State, Nigeria. Data Protection Officer: dpo@54link.ng | +234 (0) 800 54LINK.`,
+    content: `54Link Financial Services Limited is the data controller for personal data processed through this platform. Our registered address is: 1, Broad Street, Lagos Island, Lagos State, Nigeria. Data Protection Officer: dpo@tourismpay.ng | +234 (0) 800 54LINK.`,
   },
   {
     title: "3. Categories of Personal Data Collected",
@@ -41,7 +41,7 @@ const SECTIONS = [
   },
   {
     title: "8. Your Rights Under NDPR/NDPA",
-    content: `As a data subject, you have the following rights:\n\n• Right of Access: Request a copy of the personal data we hold about you.\n• Right to Rectification: Request correction of inaccurate or incomplete data.\n• Right to Erasure: Request deletion of your data where there is no legitimate basis for continued processing.\n• Right to Data Portability: Receive your data in a structured, machine-readable format.\n• Right to Object: Object to processing based on legitimate interests.\n• Right to Withdraw Consent: Where processing is based on consent, you may withdraw at any time.\n\nTo exercise these rights, submit a Data Rights Request through the platform or email: privacy@54link.ng. We will respond within 30 days.`,
+    content: `As a data subject, you have the following rights:\n\n• Right of Access: Request a copy of the personal data we hold about you.\n• Right to Rectification: Request correction of inaccurate or incomplete data.\n• Right to Erasure: Request deletion of your data where there is no legitimate basis for continued processing.\n• Right to Data Portability: Receive your data in a structured, machine-readable format.\n• Right to Object: Object to processing based on legitimate interests.\n• Right to Withdraw Consent: Where processing is based on consent, you may withdraw at any time.\n\nTo exercise these rights, submit a Data Rights Request through the platform or email: privacy@tourismpay.ng. We will respond within 30 days.`,
   },
   {
     title: "9. Data Security",
@@ -65,7 +65,7 @@ const SECTIONS = [
   },
   {
     title: "14. Contact Us",
-    content: `For privacy-related enquiries, data rights requests, or to report a data breach:\n\nData Protection Officer: dpo@54link.ng\nPrivacy Team: privacy@54link.ng\nPhone: +234 (0) 800 54LINK (548465)\nAddress: 1, Broad Street, Lagos Island, Lagos State, Nigeria\n\nYou also have the right to lodge a complaint with the Nigeria Data Protection Commission (NDPC) at ndpc.gov.ng.`,
+    content: `For privacy-related enquiries, data rights requests, or to report a data breach:\n\nData Protection Officer: dpo@tourismpay.ng\nPrivacy Team: privacy@tourismpay.ng\nPhone: +234 (0) 800 54LINK (548465)\nAddress: 1, Broad Street, Lagos Island, Lagos State, Nigeria\n\nYou also have the right to lodge a complaint with the Nigeria Data Protection Commission (NDPC) at ndpc.gov.ng.`,
   },
 ];
 

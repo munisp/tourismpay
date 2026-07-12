@@ -24,6 +24,18 @@ export function secureRandomString(length: number = 32): string {
   return randomBytes(length).toString("hex").slice(0, length);
 }
 
+/** Cryptographically secure drop-in for Math.random() — returns [0, 1) */
+export function secureRandom(): number {
+  const buf = randomBytes(4);
+  return buf.readUInt32BE(0) / 0x100000000;
+}
+
+/** Cryptographically secure drop-in for Math.floor(Math.random() * max) */
+export function secureRandomInt(max: number): number {
+  const buf = randomBytes(4);
+  return buf.readUInt32BE(0) % max;
+}
+
 /** Generate a secure reference ID (replaces Math.random-based IDs) */
 export function secureReferenceId(prefix: string = ""): string {
   const timestamp = Date.now().toString(36).toUpperCase();

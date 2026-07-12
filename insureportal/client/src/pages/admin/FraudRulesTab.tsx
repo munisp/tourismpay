@@ -1,5 +1,5 @@
 /**
- * InsurePortal Insurance Platform — Fraud Rules Admin Tab
+ * TourismPay Insurance Platform — Fraud Rules Admin Tab
  * CRUD interface for managing real-time fraud detection rules.
  */
 import { useState } from "react";

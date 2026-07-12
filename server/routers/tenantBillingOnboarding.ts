@@ -30,7 +30,7 @@ async function getTemporalClient(): Promise<Client | null> {
     });
     temporalClient = new Client({
       connection,
-      namespace: process.env.TEMPORAL_NAMESPACE || "54link",
+      namespace: process.env.TEMPORAL_NAMESPACE || "tourismpay",
     });
     return temporalClient;
   } catch {

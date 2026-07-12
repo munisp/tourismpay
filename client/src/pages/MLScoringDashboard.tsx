@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { secureRandom } from "@/lib/secureRandom";
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,8 +49,8 @@ export default function MLScoringDashboard() {
   const handleBatchScore = () => {
     const txns = Array.from({ length: 50 }, (_, i) => ({
       transactionId: `BATCH-${Date.now()}-${i}`,
-      amount: Math.floor(Math.random() * 500000) + 1000,
-      agentId: `AGT-${String(Math.floor(Math.random() * 100) + 1).padStart(3, "0")}`,
+      amount: Math.floor(secureRandom() * 500000) + 1000,
+      agentId: `AGT-${String(Math.floor(secureRandom() * 100) + 1).padStart(3, "0")}`,
     }));
     batchMut.mutate({ transactions: txns });
   };

@@ -63,7 +63,7 @@ export const regulatoryComplianceChecksRouter = router({
           "solvency_ratio",
           "filing_deadline",
         ]),
-        parameters: z.record(z.string()).optional(),
+        parameters: z.record(z.string(), z.string()).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -119,11 +119,11 @@ export const regulatoryComplianceChecksRouter = router({
     const [passed] = await database
       .select({ total: count() })
       .from(complianceChecks)
-      .where(eq(complianceChecks.status, "passed"));
+      .where(eq(complianceChecks.result, "passed"));
     const [failed] = await database
       .select({ total: count() })
       .from(complianceChecks)
-      .where(eq(complianceChecks.status, "failed"));
+      .where(eq(complianceChecks.result, "failed"));
 
     const overallScore = (total?.total ?? 0) > 0
       ? (((passed?.total ?? 0) / total.total) * 100).toFixed(1)

@@ -1,5 +1,5 @@
 /**
- * Payment Success Callback Page — InsurePortal
+ * Payment Success Callback Page — TourismPay
  * Displays confirmation after successful Stripe checkout.
  */
 import { useMemo } from "react";

@@ -50,7 +50,7 @@ async function fetchFluvioStats(): Promise<{
   }
 }
 
-// Well-known InsurePortal Kafka topics
+// Well-known TourismPay Kafka topics
 const KNOWN_TOPICS = [
   { name: "pos.transactions.created", description: "POS transaction events" },
   {

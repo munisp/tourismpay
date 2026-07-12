@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { secureRandom } from "@/lib/secureRandom";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -78,14 +79,14 @@ export default function BillingAnalyticsDashboardPage() {
           datasets: [
             {
               label: "Platform Revenue (₦M)",
-              data: labels.map(() => Math.round(Math.random() * 50 + 20)),
+              data: labels.map(() => Math.round(secureRandom() * 50 + 20)),
               backgroundColor: "rgba(59, 130, 246, 0.7)",
               borderColor: "rgb(59, 130, 246)",
               borderWidth: 1,
             },
             {
               label: "Tenant Revenue (₦M)",
-              data: labels.map(() => Math.round(Math.random() * 80 + 40)),
+              data: labels.map(() => Math.round(secureRandom() * 80 + 40)),
               backgroundColor: "rgba(16, 185, 129, 0.7)",
               borderColor: "rgb(16, 185, 129)",
               borderWidth: 1,
@@ -108,7 +109,7 @@ export default function BillingAnalyticsDashboardPage() {
     if (mrrChartRef.current) {
       const mrrBase = 45;
       const mrrData = labels.map((_, i) =>
-        Math.round(mrrBase + i * 3.5 + Math.random() * 5)
+        Math.round(mrrBase + i * 3.5 + secureRandom() * 5)
       );
       chartsRef.current.mrr = new Chart(mrrChartRef.current, {
         type: "line",
@@ -153,7 +154,7 @@ export default function BillingAnalyticsDashboardPage() {
           datasets: [
             {
               label: "Revenue Churn %",
-              data: labels.map(() => (Math.random() * 3 + 1).toFixed(1)),
+              data: labels.map(() => (secureRandom() * 3 + 1).toFixed(1)),
               borderColor: "rgb(239, 68, 68)",
               backgroundColor: "rgba(239, 68, 68, 0.1)",
               fill: true,
@@ -161,7 +162,7 @@ export default function BillingAnalyticsDashboardPage() {
             },
             {
               label: "Logo Churn %",
-              data: labels.map(() => (Math.random() * 5 + 2).toFixed(1)),
+              data: labels.map(() => (secureRandom() * 5 + 2).toFixed(1)),
               borderColor: "rgb(245, 158, 11)",
               backgroundColor: "rgba(245, 158, 11, 0.1)",
               fill: true,
@@ -265,12 +266,12 @@ export default function BillingAnalyticsDashboardPage() {
     // Revenue Forecast Chart
     if (forecastChartRef.current) {
       const forecastLabels = getMonthLabels(monthCount + 6);
-      const actualData = labels.map(() => Math.round(Math.random() * 30 + 50));
+      const actualData = labels.map(() => Math.round(secureRandom() * 30 + 50));
       const forecastValues = Array(6)
         .fill(0)
         .map((_, i) =>
           Math.round(
-            actualData[actualData.length - 1] + (i + 1) * 4 + Math.random() * 3
+            actualData[actualData.length - 1] + (i + 1) * 4 + secureRandom() * 3
           )
         );
 

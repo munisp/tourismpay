@@ -19,9 +19,9 @@ import {
 
 // ── 1. Config defaults ────────────────────────────────────────────────────────
 describe("Keycloak config defaults", () => {
-  it("realm defaults to '54link' when KEYCLOAK_REALM is not set", () => {
+  it("realm defaults to 'tourismpay' when KEYCLOAK_REALM is not set", () => {
     // keycloakConfig is cached at import time; in test env KEYCLOAK_REALM is unset
-    expect(keycloakConfig.realm).toBe(process.env.KEYCLOAK_REALM ?? "54link");
+    expect(keycloakConfig.realm).toBe(process.env.KEYCLOAK_REALM ?? "tourismpay");
   });
 
   it("clientId defaults to 'pos-shell' when KEYCLOAK_CLIENT_ID is not set", () => {
@@ -69,7 +69,7 @@ describe("Keycloak OIDC endpoint URL helpers", () => {
 // ── 3. buildAuthorizationUrl ──────────────────────────────────────────────────
 describe("buildAuthorizationUrl", () => {
   // Use a mock base URL so new URL() doesn't fail on empty KEYCLOAK_URL
-  const mockRedirectUri = "https://pos.54link.io/api/auth/callback";
+  const mockRedirectUri = "https://pos.tourismpay.io/api/auth/callback";
   const mockState = "random-csrf-nonce-123";
 
   // Only run URL-parsing tests when KEYCLOAK_URL is set (non-empty)
@@ -124,11 +124,11 @@ describe("decodeToken", () => {
     const payloadData = {
       sub: "user-uuid-123",
       preferred_username: "supervisor01",
-      email: "supervisor@54link.io",
+      email: "supervisor@tourismpay.io",
       realm_access: { roles: ["supervisor"] },
       exp: Math.floor(Date.now() / 1000) + 3600,
       iat: Math.floor(Date.now() / 1000),
-      iss: "https://auth.54link.io/realms/54link",
+      iss: "https://auth.tourismpay.io/realms/tourismpay",
     };
     const header = Buffer.from(
       JSON.stringify({ alg: "RS256", typ: "JWT" })
@@ -141,7 +141,7 @@ describe("decodeToken", () => {
     const decoded = decodeToken(fakeToken);
     expect(decoded.sub).toBe("user-uuid-123");
     expect(decoded.preferred_username).toBe("supervisor01");
-    expect(decoded.email).toBe("supervisor@54link.io");
+    expect(decoded.email).toBe("supervisor@tourismpay.io");
     expect(decoded.realm_access?.roles).toContain("supervisor");
   });
 
@@ -195,7 +195,7 @@ describe("verifyKeycloakToken", () => {
 describe("/api/health keycloak status field", () => {
   it("reports 'configured' when KEYCLOAK_URL env var is set", () => {
     const original = process.env.KEYCLOAK_URL;
-    process.env.KEYCLOAK_URL = "https://auth.54link.io";
+    process.env.KEYCLOAK_URL = "https://auth.tourismpay.io";
     const status = process.env.KEYCLOAK_URL ? "configured" : "not configured";
     expect(status).toBe("configured");
     if (original === undefined) delete process.env.KEYCLOAK_URL;

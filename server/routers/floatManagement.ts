@@ -34,7 +34,7 @@ export const floatManagementRouter = router({
       if (!database) return { data: [], total: 0 };
 
       const conditions = [];
-      if (input.status) conditions.push(eq(floatTopUpRequests.status, input.status));
+      if (input.status) conditions.push(eq(floatTopUpRequests.status, input.status as any));
       if (input.agentId) conditions.push(eq(floatTopUpRequests.agentId, input.agentId));
 
       const query = database.select().from(floatTopUpRequests)

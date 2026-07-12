@@ -42,9 +42,9 @@ interface BiometricState {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const AUTH_TOKEN_KEY = '@54link:authToken';
-const REFRESH_TOKEN_KEY = '@54link:refreshToken';
-const USER_ID_KEY = '@54link:userId';
+const AUTH_TOKEN_KEY = '@tourismpay:authToken';
+const REFRESH_TOKEN_KEY = '@tourismpay:refreshToken';
+const USER_ID_KEY = '@tourismpay:userId';
 const apiClient = new APIClient();
 
 // ── Real API helpers ──────────────────────────────────────────────────────────
@@ -135,7 +135,7 @@ const BiometricAuthScreen: React.FC<BiometricAuthScreenProps> = () => {
     try {
       const epochSeconds = String(Math.round(Date.now() / 1000));
       const userId = (await AsyncStorage.getItem(USER_ID_KEY)) ?? 'unknown';
-      const payload = `${epochSeconds}:${userId}:54link-biometric`;
+      const payload = `${epochSeconds}:${userId}:tourismpay-biometric`;
 
       // Ensure biometric key pair exists (creates on first use)
       const { keysExist } = await rnBiometrics.biometricKeysExist();

@@ -25,7 +25,7 @@ export const ussdLocalizationRouter = router({
     .input(z.object({ key: z.string(), language: z.enum(["en", "ha", "yo", "ig", "pcm"]) }))
     .query(async ({ input }) => {
       const translations: Record<string, Record<string, string>> = {
-        "welcome": { en: "Welcome to InsurePortal", ha: "Sannu da zuwa", yo: "Ẹ ku abọ", ig: "Nnọọ", pcm: "Welcome o!" },
+        "welcome": { en: "Welcome to TourismPay", ha: "Sannu da zuwa", yo: "Ẹ ku abọ", ig: "Nnọọ", pcm: "Welcome o!" },
         "buy_insurance": { en: "Buy Insurance", ha: "Sayi Inshorar", yo: "Ra Ìdáàbòbò", ig: "Zụta Nchekwa", pcm: "Buy Insurance" },
         "make_claim": { en: "Make a Claim", ha: "Yi Claim", yo: "Ṣe Ẹtọ", ig: "Mee Claim", pcm: "Make Claim" },
         "check_balance": { en: "Check Balance", ha: "Duba Balance", yo: "Ṣe Àyẹ̀wò Owó", ig: "Lee Balance", pcm: "Check Balance" },

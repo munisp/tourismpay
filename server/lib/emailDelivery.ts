@@ -28,7 +28,7 @@ const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || "587");
 const SMTP_USER = process.env.SMTP_USER || "";
 const SMTP_PASS = process.env.SMTP_PASS || "";
-const SMTP_FROM = process.env.SMTP_FROM || "54Link POS <noreply@54link.com>";
+const SMTP_FROM = process.env.SMTP_FROM || "54Link POS <noreply@tourismpay.com>";
 
 const isSmtpConfigured = SMTP_USER && SMTP_PASS;
 

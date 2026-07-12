@@ -20,12 +20,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
+	"crypto/rand"
+	"encoding/binary"
 	"net/http"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
+	"strings"
 )
 
 // ── Data Structures ──────────────────────────────────────────────────────────
@@ -154,7 +156,9 @@ func transferHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if entry.ID == "" {
-		entry.ID = fmt.Sprintf("txn_%d_%d", time.Now().UnixMilli(), rand.Intn(99999))
+		var rb [2]byte
+		rand.Read(rb[:])
+		entry.ID = fmt.Sprintf("txn_%d_%d", time.Now().UnixMilli(), binary.BigEndian.Uint16(rb[:])%99999)
 	}
 	if entry.Timestamp == 0 {
 		entry.Timestamp = time.Now().UnixMilli()
@@ -195,7 +199,9 @@ func batchTransferHandler(w http.ResponseWriter, r *http.Request) {
 	state.mu.Lock()
 	for i := range entries {
 		if entries[i].ID == "" {
-			entries[i].ID = fmt.Sprintf("txn_%d_%d", time.Now().UnixMilli(), rand.Intn(99999))
+			var rb2 [2]byte
+			rand.Read(rb2[:])
+			entries[i].ID = fmt.Sprintf("txn_%d_%d", time.Now().UnixMilli(), binary.BigEndian.Uint16(rb2[:])%99999)
 		}
 		if entries[i].Timestamp == 0 {
 			entries[i].Timestamp = time.Now().UnixMilli()
@@ -525,6 +531,53 @@ func jsonError(w http.ResponseWriter, msg string, code int) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
+
+func requireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/health" || path == "/healthz" || path == "/ready" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+
+func requireAuthFunc(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
+}
+
 func main() {
 	port := os.Getenv("GO_LEDGER_PORT")
 	if port == "" {
@@ -536,30 +589,30 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Ledger endpoints
-	mux.HandleFunc("/transfer", transferHandler)
-	mux.HandleFunc("/transfer/batch", batchTransferHandler)
-	mux.HandleFunc("/balance", balanceHandler)
-	mux.HandleFunc("/balances", allBalancesHandler)
-	mux.HandleFunc("/ledger/query", ledgerQueryHandler)
+	mux.HandleFunc("/transfer", requireAuthFunc(transferHandler))
+	mux.HandleFunc("/transfer/batch", requireAuthFunc(batchTransferHandler))
+	mux.HandleFunc("/balance", requireAuthFunc(balanceHandler))
+	mux.HandleFunc("/balances", requireAuthFunc(allBalancesHandler))
+	mux.HandleFunc("/ledger/query", requireAuthFunc(ledgerQueryHandler))
 
 	// Settlement
-	mux.HandleFunc("/settlement/create", settlementHandler)
+	mux.HandleFunc("/settlement/create", requireAuthFunc(settlementHandler))
 
 	// Reconciliation
-	mux.HandleFunc("/reconcile", reconcileHandler)
+	mux.HandleFunc("/reconcile", requireAuthFunc(reconcileHandler))
 
 	// Transaction lifecycle
-	mux.HandleFunc("/lifecycle", lifecycleHandler)
+	mux.HandleFunc("/lifecycle", requireAuthFunc(lifecycleHandler))
 
 	// Health aggregator (checks all services)
 	mux.HandleFunc("/health/aggregate", healthAggregatorHandler)
 
 	// Signature verification
-	mux.HandleFunc("/signature/verify", signatureVerifyHandler)
+	mux.HandleFunc("/signature/verify", requireAuthFunc(signatureVerifyHandler))
 
 	// Health & stats
 	mux.HandleFunc("/health", healthHandler)
-	mux.HandleFunc("/stats", statsHandler)
+	mux.HandleFunc("/stats", requireAuthFunc(statsHandler))
 
 	log.Printf("[pos-ledger-sync] Starting Go sidecar on port %s", port)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {

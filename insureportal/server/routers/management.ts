@@ -1850,7 +1850,7 @@ export const managementRouter = router({
   // ── Settings ─────────────────────────────────────────────────────
   settings: router({
     get: adminProcedure.query(() => ({
-      platformName: "InsurePortal",
+      platformName: "TourismPay",
       defaultCurrency: "NGN",
       defaultCountry: "NGA",
       maxTransactionAmount: 500000,

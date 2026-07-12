@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * MDM Router — Mobile Device Management for InsurePortal terminals
+ * MDM Router — Mobile Device Management for TourismPay terminals
  *
  * Provides admin-only procedures for:
  *   - Device registry (enroll, list, get, update status)

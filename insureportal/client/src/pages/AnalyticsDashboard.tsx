@@ -1,7 +1,7 @@
 /**
  * AnalyticsDashboard.tsx
  *
- * Real-time analytics dashboard for InsurePortal.
+ * Real-time analytics dashboard for TourismPay.
  * Shows:
  *  - MQTT message throughput (messages/min over time)
  *  - ERP sync success rate (pie + trend)

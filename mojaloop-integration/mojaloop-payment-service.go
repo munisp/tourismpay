@@ -59,7 +59,7 @@ func NewMojaloopPaymentService(
 
 	kafkaWriter := &kafka.Writer{
 		Addr:         kafka.TCP(kafkaBrokers),
-		Topic:        "54link.payments.events",
+		Topic:        "tourismpay.payments.events",
 		Balancer:     &kafka.Hash{},
 		RequiredAcks: kafka.RequireAll,
 		Compression:  kafka.Snappy,

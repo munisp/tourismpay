@@ -210,7 +210,7 @@ const NAICOMCompliance: React.FC = () => {
         <TabsContent value="bidirectional" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" /> Outbound (InsurePortal → NAICOM)</CardTitle><CardDescription>Data sent to NAICOM regulatory portal</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Send className="h-5 w-5" /> Outbound (TourismPay → NAICOM)</CardTitle><CardDescription>Data sent to NAICOM regulatory portal</CardDescription></CardHeader>
               <CardContent className="space-y-4">
                 <div className="p-3 bg-blue-50 rounded"><p className="font-semibold">Total Sent: {dashboard?.bidirectional?.sent ?? 0}</p><p className="text-sm text-muted-foreground">Filings, returns, and ad-hoc submissions</p></div>
                 <div className="space-y-2">
@@ -227,7 +227,7 @@ const NAICOMCompliance: React.FC = () => {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><Download className="h-5 w-5" /> Inbound (NAICOM → InsurePortal)</CardTitle><CardDescription>Data received from NAICOM regulatory portal</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Download className="h-5 w-5" /> Inbound (NAICOM → TourismPay)</CardTitle><CardDescription>Data received from NAICOM regulatory portal</CardDescription></CardHeader>
               <CardContent className="space-y-4">
                 <div className="p-3 bg-green-50 rounded"><p className="font-semibold">Total Received: {dashboard?.bidirectional?.received ?? 0}</p><p className="text-sm text-muted-foreground">Circulars, directives, and acknowledgments</p></div>
                 <div className="space-y-2">

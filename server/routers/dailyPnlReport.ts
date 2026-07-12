@@ -127,7 +127,7 @@ export const dailyPnlReportRouter = router({
         .orderBy(desc(sum(pnlReports.totalRevenue)))
         .limit(input.limit);
 
-      return results.map((r) => ({
+      return results.map((r: { agentId: number | null; totalRevenue: string | null; totalCommission: string | null }) => ({
         agentId: r.agentId,
         revenue: Number(r.totalRevenue ?? 0),
         commission: Number(r.totalCommission ?? 0),

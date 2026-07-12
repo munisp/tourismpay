@@ -131,6 +131,26 @@ export async function getDb() {
   return _db;
 }
 
+export const db = new Proxy(
+  {} as ReturnType<typeof drizzle> & {
+    execute(query: string | TemplateStringsArray, params?: unknown[]): Promise<any>;
+  },
+  {
+    get(_target, prop, receiver) {
+      if (!_db) throw new Error("Database not initialized — call getDb() first");
+      if (prop === "execute") {
+        return (query: string | TemplateStringsArray, params?: unknown[]) => {
+          if (typeof query === "string" && params) {
+            return _pool!.query(query, params);
+          }
+          return (_db as any).execute(query);
+        };
+      }
+      return Reflect.get(_db, prop, receiver);
+    },
+  },
+);
+
 /// ─── Users (Keycloak OIDC) ───────────────────────────────────────────────────
 export async function upsertUser(user: InsertUser): Promise<void> {
   const db = await getDb();

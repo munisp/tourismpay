@@ -38,13 +38,14 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/cors"
 	"golang.org/x/time/rate"
-)
+
+	"database/sql"
+	_ "github.com/jackc/pgx/v5/stdlib")
 
 // ── Service registry ──────────────────────────────────────────────────────────
 
@@ -256,7 +257,7 @@ func (g *gateway) healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":   "healthy",
-		"service":  "54link-api-gateway",
+		"service":  "tourismpay-api-gateway",
 		"version":  "2.0.0",
 		"uptime":   time.Since(g.startTime).String(),
 		"services": len(g.services),
@@ -269,6 +270,27 @@ func (g *gateway) readyHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
+
+var db *sql.DB
+
+func initDB() {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://postgres:postgres@localhost:5432/tourismpay?sslmode=disable"
+	}
+	var err error
+	db, err = sql.Open("pgx", dsn)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err = db.PingContext(ctx); err != nil {
+		log.Printf("Warning: database ping failed: %v (will retry on first query)", err)
+	}
+}
 
 func main() {
 	gw := &gateway{startTime: time.Now(), services: serviceRegistry}

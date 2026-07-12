@@ -49,7 +49,7 @@ export const whiteLabelBrandingRouter = router({
           primaryColor: "#1a56db",
           secondaryColor: "#6b7280",
           logo: null,
-          appName: "InsurePortal",
+          appName: "TourismPay",
           domain: null,
         };
       } catch (error) {

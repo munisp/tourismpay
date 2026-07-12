@@ -8,7 +8,6 @@ import (
 	"github.com/munisp/NGApp/gdpr-compliance/internal/handlers"
 	"github.com/munisp/NGApp/gdpr-compliance/internal/repository"
 	"github.com/munisp/NGApp/gdpr-compliance/internal/service"
-
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

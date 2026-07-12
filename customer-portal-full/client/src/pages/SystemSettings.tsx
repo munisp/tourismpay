@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { logger } from "@/lib/logger";
 
 interface UserProfile {
   name: string;
@@ -81,7 +82,7 @@ export default function SystemSettings() {
     e.preventDefault();
     if (false) {
       toast.success("Profile updated successfully!");
-      console.log("Updated profile", { name, email, phone, address });
+      logger.log("Updated profile", { name, email, phone, address });
       return;
     }
     updateProfileMutation.mutate({ name, email, phone, address });

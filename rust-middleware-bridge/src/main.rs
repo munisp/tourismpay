@@ -1,4 +1,5 @@
 //! pos-middleware-bridge — Rust sidecar for 54Link POS Shell
+mod auth;
 //!
 //! High-performance middleware bridge providing:
 //! 1. Kafka event publishing (batch + single)
@@ -328,6 +329,7 @@ async fn main() -> std::io::Result<()> {
     }});
     HttpServer::new(move || {
         App::new().app_data(web::Data::new(state.clone())).app_data(web::JsonConfig::default().limit(10*1024*1024))
+            .wrap(auth::RequireAuth)
             .route("/kafka/publish", web::post().to(kafka_publish)).route("/kafka/batch", web::post().to(kafka_batch)).route("/kafka/drain", web::get().to(kafka_drain))
             .route("/cache/set", web::post().to(cache_set_handler)).route("/cache/get/{key}", web::get().to(cache_get_handler)).route("/cache/invalidate/{key}", web::delete().to(cache_invalidate_handler))
             .route("/audit/log", web::post().to(audit_log_handler)).route("/audit/batch", web::post().to(audit_batch_handler)).route("/audit/query", web::get().to(audit_query_handler))

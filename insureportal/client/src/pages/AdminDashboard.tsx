@@ -1,5 +1,5 @@
 /**
- * Admin Dashboard — InsurePortal (Sprint 89)
+ * Admin Dashboard — TourismPay (Sprint 89)
  *
  * Role-gated admin dashboard with system stats, user management,
  * billing ledger summary, and system health monitoring.

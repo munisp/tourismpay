@@ -35,7 +35,7 @@ export const agentOnboardingWorkflowRouter = router({
       if (!database) return { data: [], total: 0 };
 
       const conditions = [];
-      if (input.currentStep) conditions.push(eq(agentOnboardingProgress.currentStep, input.currentStep));
+      if (input.currentStep) conditions.push(eq(agentOnboardingProgress.currentStep, input.currentStep as any));
 
       const query = database.select().from(agentOnboardingProgress)
         .orderBy(desc(agentOnboardingProgress.id))
@@ -80,7 +80,7 @@ export const agentOnboardingWorkflowRouter = router({
       z.object({
         agentId: z.number(),
         completedStep: z.enum(["profile", "kyc", "training", "float_funding", "terminal", "go_live"]),
-        evidence: z.record(z.string()).optional(),
+        evidence: z.record(z.string(), z.string()).optional(),
       })
     )
     .mutation(async ({ input }) => {

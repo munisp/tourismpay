@@ -1,5 +1,5 @@
 /**
- * InsurePortal Structured Logger
+ * TourismPay Structured Logger
  * Uses pino for JSON-structured logging with request ID correlation.
  * Log level is controlled by LOG_LEVEL env var (default: info in prod, debug in dev).
  *

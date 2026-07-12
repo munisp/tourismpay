@@ -580,7 +580,7 @@ export default function ERPConfigTab() {
               className="text-xs mb-4"
               style={{ color: GRAY, fontFamily: DISP }}
             >
-              Map InsurePortal transaction fields to {selectedErp?.label ?? "ERP"}{" "}
+              Map TourismPay transaction fields to {selectedErp?.label ?? "ERP"}{" "}
               account codes and dimensions.
             </div>
             <div className="grid grid-cols-2 gap-4">

@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -372,7 +373,7 @@ function useRecentPages() {
   const [recents, setRecents] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem(RECENTS_KEY) || "[]");
-    } catch (err) { console.error('[layout] failed to load recents:', err instanceof Error ? err.message : err); return []; }
+    } catch (err) { logger.error('[layout] failed to load recents:', err instanceof Error ? err.message : err); return []; }
   });
 
   const addRecent = useCallback((path: string) => {
@@ -390,7 +391,7 @@ function useFavorites() {
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
-    } catch (err) { console.error('[layout] failed to load favorites:', err instanceof Error ? err.message : err); return []; }
+    } catch (err) { logger.error('[layout] failed to load favorites:', err instanceof Error ? err.message : err); return []; }
   });
 
   const toggleFavorite = useCallback((path: string) => {
@@ -412,7 +413,7 @@ function useCollapsedGroups() {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
       return new Set(JSON.parse(localStorage.getItem(COLLAPSED_GROUPS_KEY) || "[]"));
-    } catch (err) { console.error('[layout] failed to load collapsed groups:', err instanceof Error ? err.message : err); return new Set(); }
+    } catch (err) { logger.error('[layout] failed to load collapsed groups:', err instanceof Error ? err.message : err); return new Set(); }
   });
 
   const toggle = useCallback((label: string) => {
@@ -604,7 +605,7 @@ function UnifiedLayoutContent({ children }: { children: ReactNode }) {
             {!isCollapsed && (
               <div className="flex flex-col min-w-0">
                 <span className="font-bold text-lg tracking-tight truncate">
-                  InsurePortal
+                  TourismPay
                 </span>
                 <span className="text-xs text-muted-foreground">
                   Unified Platform

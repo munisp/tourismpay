@@ -1,4 +1,4 @@
-module github.com/pos54link/middleware/circuit-breaker
+module github.com/postourismpay/middleware/circuit-breaker
 
 go 1.22
 

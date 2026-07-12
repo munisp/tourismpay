@@ -123,7 +123,7 @@ function CommandCenterContent() {
         <div>
           <h1 className="text-2xl font-bold">Executive Command Center</h1>
           <p className="text-sm text-muted-foreground">
-            Real-time operational overview — InsurePortal Network
+            Real-time operational overview — TourismPay Network
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">

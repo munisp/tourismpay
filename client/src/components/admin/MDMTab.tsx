@@ -7,6 +7,7 @@
  * config push, and OTA update triggers.
  */
 
+import { logger } from "@/lib/logger";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -367,7 +368,7 @@ export function MDMTab() {
         });
         setQrDataUrl(url);
       } catch (e) {
-        console.error("QR generation error", e);
+        logger.error("QR generation error", e);
       }
     },
     onError: e => toast.error(`Token generation failed: ${e.message}`),
@@ -920,7 +921,7 @@ export function MDMTab() {
                   <Input
                     value={otaUrl}
                     onChange={e => setOtaUrl(e.target.value)}
-                    placeholder="https://cdn.54link.com/releases/v2.4.1.apk"
+                    placeholder="https://cdn.tourismpay.com/releases/v2.4.1.apk"
                     className="bg-slate-800 border-slate-600"
                   />
                 </div>
@@ -961,7 +962,7 @@ export function MDMTab() {
                   <p className="text-sm text-slate-400">
                     Enter the agent code and (optionally) the device serial
                     number. A 15-minute enrollment QR code will be generated.
-                    Scan it with the 54link-installer on the POS terminal.
+                    Scan it with the tourismpay-installer on the POS terminal.
                   </p>
                   <div className="space-y-2">
                     <Label className="text-slate-300">
@@ -1032,7 +1033,7 @@ export function MDMTab() {
                       Install command for POS terminal:
                     </p>
                     <code className="text-xs text-emerald-300 break-all">
-                      sudo ./54link-installer --enroll-token{" "}
+                      sudo ./tourismpay-installer --enroll-token{" "}
                       {enrollQrData.token}
                     </code>
                     <Button
@@ -1041,7 +1042,7 @@ export function MDMTab() {
                       className="mt-2 w-full text-xs"
                       onClick={() => {
                         navigator.clipboard.writeText(
-                          `sudo ./54link-installer --enroll-token ${enrollQrData.token}`
+                          `sudo ./tourismpay-installer --enroll-token ${enrollQrData.token}`
                         );
                         toast.success("Copied to clipboard");
                       }}
@@ -2157,7 +2158,7 @@ function OtaManagementPanel() {
               <Input
                 value={downloadUrl}
                 onChange={e => setDownloadUrl(e.target.value)}
-                placeholder="https://cdn.54link.ng/firmware/v2.4.1.apk"
+                placeholder="https://cdn.tourismpay.ng/firmware/v2.4.1.apk"
                 className="bg-slate-800 border-slate-700 text-white"
               />
             </div>

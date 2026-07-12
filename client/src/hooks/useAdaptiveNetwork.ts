@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { logger } from "@/lib/logger";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -321,7 +322,7 @@ export function useAdaptiveNetwork(probeIntervalMs = 15000) {
     setStatus(prev => {
       if (prev.tier !== tier) {
         lastTierChange.current = Date.now();
-        console.log(`[Network] Tier changed: ${prev.tier} → ${tier}`);
+        logger.log(`[Network] Tier changed: ${prev.tier} → ${tier}`);
       }
       return newStatus;
     });

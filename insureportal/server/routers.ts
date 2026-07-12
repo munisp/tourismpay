@@ -539,7 +539,7 @@ export const appRouter = router({
   tenantFeeOverrides: tenantFeeOverridesRouter,
   trainingCourses: trainingCoursesRouter,
   trainingEnrollments: trainingEnrollmentsRouter,
-  // InsurePortal feature routers
+  // TourismPay feature routers
   agent: agentRouter,
   transactions: transactionsRouter,
   fraud: fraudRouter,

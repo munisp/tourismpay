@@ -251,7 +251,7 @@ async function startServer() {
               call: (...a: unknown[]) => Promise<number>;
             }
           ).call(...args),
-        prefix: `rl:54link:${prefix}:`,
+        prefix: `rl:tourismpay:${prefix}:`,
       });
     } catch {
       return undefined;
@@ -436,7 +436,7 @@ async function startServer() {
       const sessionJwt = await new SignJWT({
         sub: "dev-admin-001",
         name: "Dev Admin",
-        email: "admin@54link.dev",
+        email: "admin@tourismpay.dev",
         role: "admin",
         accessToken: "dev-access-token",
         refreshToken: "dev-refresh-token",

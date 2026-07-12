@@ -375,7 +375,7 @@ export function LiveChatWidget() {
             <Bot className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-sm font-semibold">InsurePortal AI Support</p>
+            <p className="text-sm font-semibold">TourismPay AI Support</p>
             <p className="text-[10px] opacity-80">Always here to help</p>
           </div>
         </div>

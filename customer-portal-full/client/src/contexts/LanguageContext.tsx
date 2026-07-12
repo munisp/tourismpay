@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from "react";
+import { logger } from "@/lib/logger";
 
 type Language = "en" | "yo" | "ha" | "ig";
 
@@ -282,10 +283,10 @@ const translations: Translations = {
 
   // Onboarding
   "onboarding.welcome": {
-    en: "Welcome to InsurePortal!",
-    yo: "Kaabo si InsurePortal!",
-    ha: "Barka da zuwa InsurePortal!",
-    ig: "Nnọọ na InsurePortal!",
+    en: "Welcome to TourismPay!",
+    yo: "Kaabo si TourismPay!",
+    ha: "Barka da zuwa TourismPay!",
+    ig: "Nnọọ na TourismPay!",
   },
   "onboarding.getStarted": {
     en: "Get Started",
@@ -351,7 +352,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const t = (key: string): string => {
     const translation = translations[key];
     if (!translation) {
-      console.warn(`Translation missing for key: ${key}`);
+      logger.warn(`Translation missing for key: ${key}`);
       return key;
     }
     return translation[language] || translation.en;

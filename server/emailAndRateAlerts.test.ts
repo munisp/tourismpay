@@ -268,7 +268,7 @@ describe("Email + Rate Alert Integration", () => {
       direction: "above",
       triggeredAt: new Date(),
     });
-    emailMsg.to = "agent@54link.io";
+    emailMsg.to = "agent@tourismpay.io";
     const result = await sendEmail(emailMsg);
     expect(result.success).toBe(true);
     expect(result.provider).toBe("console");

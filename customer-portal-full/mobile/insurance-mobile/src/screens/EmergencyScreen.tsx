@@ -3,7 +3,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Linking, Alert } 
 
 export function EmergencyScreen({ navigation }: { navigation: any }) {
   const contacts = [
-    { label: 'InsurePortal Emergency', number: '+234-800-INSURE-1', icon: '🆘' },
+    { label: 'TourismPay Emergency', number: '+234-800-INSURE-1', icon: '🆘' },
     { label: 'NAICOM Complaints', number: '+234-9-4620430', icon: '📞' },
     { label: 'Nigeria Police', number: '199', icon: '👮' },
     { label: 'FRSC (Road Accidents)', number: '122', icon: '🚗' },

@@ -1,4 +1,5 @@
 // TypeScript enabled — Sprint 96 security audit
+import { secureRandom } from "../lib/securityAuditFixes";
 interface WebhookAttempt {
   attemptNumber: number;
   statusCode: number;
@@ -29,7 +30,7 @@ export function createDeliveryRecord(
   maxRetries: number = 5
 ): WebhookDeliveryRecord {
   return {
-    id: `wh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `wh_${Date.now()}_${secureRandom().toString(36).slice(2, 8)}`,
     url,
     eventType,
     payload,
@@ -74,7 +75,7 @@ export function calculateBackoffDelay(
   const base = 1000 * Math.pow(2, attempt);
   const delay = Math.min(base, 300000);
   if (jitter) {
-    return Math.round(delay + delay * 0.25 * (Math.random() * 2 - 1));
+    return Math.round(delay + delay * 0.25 * (secureRandom() * 2 - 1));
   }
   return delay;
 }

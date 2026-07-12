@@ -111,7 +111,7 @@ export default function NotificationPreferences() {
           onClick={() =>
             testNotify.mutate({
               title: "Test Notification",
-              content: "This is a test notification from InsurePortal.",
+              content: "This is a test notification from TourismPay.",
             })
           }
           disabled={testNotify.isPending}

@@ -6,7 +6,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"math/rand"
+	"crypto/rand"
+	"encoding/binary"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -231,7 +232,9 @@ func (p *ReadReplicaPool) GetRandomReplica() *sql.DB {
 		return p.primary
 	}
 
-	idx := rand.Intn(len(p.replicas))
+	var rb [2]byte
+	rand.Read(rb[:])
+	idx := int(binary.BigEndian.Uint16(rb[:])) % len(p.replicas)
 	return p.replicas[idx]
 }
 

@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { Zap } from "lucide-react";
+import { secureRandom } from "@/lib/secureRandom";
 
 // Transaction Velocity — Real-time TPS tracking with circuit breakers
 // Sprint 42: Final Production Features
@@ -40,7 +41,7 @@ export default function TxVelocityMonitor() {
         "active",
         "completed",
       ][i],
-      col4: `${(Math.random() * 100).toFixed(1)}`,
+      col4: `${(secureRandom() * 100).toFixed(1)}`,
       col5: new Date(Date.now() - i * 3600000).toLocaleString(),
     }));
   const [search, setSearch] = useState("");

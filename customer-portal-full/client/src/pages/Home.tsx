@@ -130,7 +130,7 @@ export default function Home() {
       <nav className="container mx-auto px-6 py-6 flex justify-between items-center">
         <div className="flex items-center gap-2 text-white">
           <Shield className="h-8 w-8" />
-          <span className="text-2xl font-bold">InsurePortal</span>
+          <span className="text-2xl font-bold">TourismPay</span>
         </div>
         <div className="flex items-center gap-4">
           <a href="#products" className="text-white hover:text-blue-200 font-medium">
@@ -167,13 +167,13 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Why Choose InsurePortal Banner */}
+        {/* Why Choose TourismPay Banner */}
         <section className="container mx-auto px-6 py-12">
           <Card className="bg-white/10 backdrop-blur-lg border-white/20">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-4 text-white">
                 <Shield className="h-6 w-6" />
-                <h2 className="text-xl font-semibold">Why Choose InsurePortal?</h2>
+                <h2 className="text-xl font-semibold">Why Choose TourismPay?</h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-white">
                 <div className="flex items-center gap-2">
@@ -340,7 +340,7 @@ export default function Home() {
                 </div>
                 <div>
                   <h3 className="text-2xl font-bold text-gray-900">Agricultural Insurance</h3>
-                  <p className="text-sm text-gray-500">Protecting Nigerian farmers and agribusinesses</p>
+                  <p className="text-sm text-gray-500">Protecting tourism operators and hospitality businesses</p>
                 </div>
               </div>
               <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -763,7 +763,7 @@ export default function Home() {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <Shield className="h-6 w-6" />
-                <span className="text-xl font-bold">InsurePortal</span>
+                <span className="text-xl font-bold">TourismPay</span>
               </div>
               <p className="text-blue-200 text-sm">
                 Your trusted insurance management platform
@@ -805,7 +805,7 @@ export default function Home() {
             </div>
           </div>
           <div className="border-t border-white/10 mt-8 pt-8 text-center text-sm text-blue-200">
-            © 2026 InsurePortal. All rights reserved.
+            © 2026 TourismPay. All rights reserved.
           </div>
         </div>
       </footer>

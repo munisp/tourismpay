@@ -393,7 +393,7 @@ export const billingInvoiceRouter = router({
             metadata: {
               tenant_id: String(input.tenantId),
               client_id: input.clientId,
-              platform: "54link",
+              platform: "tourismpay",
             },
           });
         }

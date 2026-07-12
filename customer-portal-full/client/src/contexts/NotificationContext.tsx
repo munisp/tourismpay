@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from "react";
+import { secureRandom } from "@/lib/secureRandom";
+import { logger } from "@/lib/logger";
 
 export interface Notification {
   id: string;
@@ -43,7 +45,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const addNotification = useCallback((notification: Omit<Notification, "id" | "timestamp" | "read">) => {
     const newNotification: Notification = {
       ...notification,
-      id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `notif-${Date.now()}-${secureRandom().toString(36).substr(2, 9)}`,
       timestamp: new Date(),
       read: false,
     };
@@ -63,7 +65,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       ws.onopen = () => {
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
-        console.log("WebSocket connected for notifications");
+        logger.log("WebSocket connected for notifications");
       };
 
       ws.onmessage = (event) => {
@@ -79,7 +81,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             });
           }
         } catch (error) {
-          console.error("Failed to parse WebSocket message:", error);
+          logger.error("Failed to parse WebSocket message:", error);
         }
       };
 
@@ -98,12 +100,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       };
 
       ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
+        logger.error("WebSocket error:", error);
       };
 
       wsRef.current = ws;
     } catch (error) {
-      console.error("Failed to connect WebSocket:", error);
+      logger.error("Failed to connect WebSocket:", error);
     }
   }, [addNotification]);
 

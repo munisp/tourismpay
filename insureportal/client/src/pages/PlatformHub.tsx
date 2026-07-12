@@ -1,8 +1,8 @@
 /**
- * PlatformHub.tsx — Central navigation hub for the InsurePortal Insurance Platform.
+ * PlatformHub.tsx — Central navigation hub for the TourismPay Insurance Platform.
  *
  * Displays all available portals with role-based visibility:
- *   - All agents: InsurePortal, Agent Portal
+ *   - All agents: TourismPay, Agent Portal
  *   - Supervisor / Admin: Management Portal, Supervisor Dashboard
  *   - Admin only: Admin Panel, Super Admin Portal
  *   - All: Customer Portal (for assisted customer onboarding)
@@ -33,7 +33,7 @@ interface PortalCard {
 
 const PORTALS: PortalCard[] = [
   {
-    title: "InsurePortal",
+    title: "TourismPay",
     description:
       "Core insurance operations — policy management, claims processing, renewals, and premium collection.",
     path: "/",
@@ -219,7 +219,7 @@ export default function PlatformHub() {
             <span className="text-2xl">🏦</span>
             <div>
               <h1 className="text-lg font-bold text-foreground leading-tight">
-                InsurePortal
+                TourismPay
               </h1>
               <p className="text-xs text-muted-foreground">
                 Insurance Platform

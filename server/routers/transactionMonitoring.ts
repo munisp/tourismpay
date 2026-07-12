@@ -49,7 +49,7 @@ export const transactionMonitoringRouter = router({
       const [{ total }] = await database.select({ total: count() }).from(transactions);
 
       // Enrich with risk scoring
-      const enriched = results.map((tx) => {
+      const enriched = results.map((tx: typeof results[number]) => {
         const amount = Number(tx.amount);
         let riskLevel: string;
         if (amount > 5000000) riskLevel = "critical";

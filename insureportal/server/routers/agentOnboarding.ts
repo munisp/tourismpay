@@ -308,8 +308,8 @@ export const agentOnboardingRouter = router({
         // Send activation email
         if (agent.email) {
           const { subject, html, text } = buildAlertEmail({
-            title: "Welcome to InsurePortal — Your Account is Active!",
-            message: `Congratulations ${agent.name}! Your InsurePortal agent account (${input.agentCode}) has been fully activated. You can now process transactions on your terminal.`,
+            title: "Welcome to TourismPay — Your Account is Active!",
+            message: `Congratulations ${agent.name}! Your TourismPay agent account (${input.agentCode}) has been fully activated. You can now process transactions on your terminal.`,
             severity: "low",
           });
           enqueueEmail({ to: agent.email, subject, html, text });

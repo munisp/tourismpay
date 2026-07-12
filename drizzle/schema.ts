@@ -1515,13 +1515,13 @@ export const mqttBridgeConfig = pgTable(
     name: varchar("name", { length: 128 }).notNull().default("POS MQTT Bridge"),
     brokerUrl: text("brokerUrl")
       .notNull()
-      .default("mqtt://broker.54link.io:1883"),
+      .default("mqtt://broker.tourismpay.io:1883"),
     port: integer("port").default(1883).notNull(),
     useTls: boolean("useTls").default(false).notNull(),
     username: varchar("username", { length: 128 }).default(""),
     password: text("password").default(""),
     clientId: varchar("clientId", { length: 128 }).default(
-      "54link-fluvio-bridge"
+      "tourismpay-fluvio-bridge"
     ),
     topicMappings: json("topicMappings")
       .$type<
@@ -2125,10 +2125,10 @@ export const simOrchestratorConfig = pgTable(
     probeIntervalMs: integer("probeIntervalMs").notNull().default(30000),
     relayEndpoint: varchar("relayEndpoint", { length: 256 })
       .notNull()
-      .default("https://api.54link.io/api/trpc/simOrchestrator.ingestProbe"),
+      .default("https://api.tourismpay.io/api/trpc/simOrchestrator.ingestProbe"),
     apiKey: varchar("apiKey", { length: 128 })
       .notNull()
-      .default("54link-sim-orchestrator-default-key"),
+      .default("tourismpay-sim-orchestrator-default-key"),
     enabled: boolean("enabled").notNull().default(true),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),

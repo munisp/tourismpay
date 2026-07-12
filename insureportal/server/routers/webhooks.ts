@@ -242,7 +242,7 @@ export const webhooksRouter = router({
         const body = JSON.stringify({
           event: "ping",
           timestamp: new Date().toISOString(),
-          data: { message: "InsurePortal webhook ping test" },
+          data: { message: "TourismPay webhook ping test" },
         });
         const signature = `sha256=${crypto
           .createHmac("sha256", endpoint.secret)
@@ -256,9 +256,9 @@ export const webhooksRouter = router({
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "X-InsurePortal-Signature": signature,
-              "X-InsurePortal-Event": "ping",
-              "User-Agent": "InsurePortal-Webhook/1.0",
+              "X-TourismPay-Signature": signature,
+              "X-TourismPay-Event": "ping",
+              "User-Agent": "TourismPay-Webhook/1.0",
             },
             body,
             signal: controller.signal,

@@ -21,7 +21,7 @@ function createAdminContext(): TrpcContext {
     user: {
       id: 1,
       openId: "admin-user",
-      email: "admin@54link.com",
+      email: "admin@tourismpay.com",
       name: "Admin User",
       loginMethod: "manus",
       role: "admin",
@@ -42,7 +42,7 @@ function createUserContext(): TrpcContext {
     user: {
       id: 2,
       openId: "regular-user",
-      email: "user@54link.com",
+      email: "user@tourismpay.com",
       name: "Regular User",
       loginMethod: "manus",
       role: "user",

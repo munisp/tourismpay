@@ -87,7 +87,7 @@ function SystemSettingsContent() {
   const [saved, setSaved] = useState(false);
 
   // General settings
-  const [platformName, setPlatformName] = useState("InsurePortal");
+  const [platformName, setPlatformName] = useState("TourismPay");
   const [defaultCurrency, setDefaultCurrency] = useState("NGN");
   const [timezone, setTimezone] = useState("Africa/Lagos");
   const [maintenanceMode, setMaintenanceMode] = useState(false);

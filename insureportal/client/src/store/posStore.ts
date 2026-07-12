@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { secureRandom } from "@/lib/secureRandom";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface AgentProfile {
@@ -202,7 +203,7 @@ export const usePosStore = create<PosState>()(
             ...s.offlineQueue,
             {
               ...tx,
-              id: `OFL-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              id: `OFL-${Date.now()}-${secureRandom().toString(36).slice(2, 6)}`,
               createdAt: Date.now(),
               retries: 0,
             },

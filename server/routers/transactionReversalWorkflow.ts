@@ -38,7 +38,7 @@ export const transactionReversalWorkflowRouter = router({
       if (!database) return { data: [], total: 0 };
 
       const conditions = [];
-      if (input.status) conditions.push(eq(reversalRequests.status, input.status));
+      if (input.status) conditions.push(eq(reversalRequests.status, input.status as any));
       if (input.agentId) conditions.push(eq(reversalRequests.agentId, input.agentId));
 
       const query = database.select().from(reversalRequests)

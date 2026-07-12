@@ -9,8 +9,8 @@
  *   02:10 WAT daily — agent metrics snapshot for previous day
  *   02:15 WAT daily — settlement summary snapshot for previous day
  *
- * All uploads go to MinIO buckets (54link-transactions, 54link-fraud-events,
- * 54link-agent-metrics, 54link-settlements) as JSON/Parquet files organized
+ * All uploads go to MinIO buckets (tourismpay-transactions, tourismpay-fraud-events,
+ * tourismpay-agent-metrics, tourismpay-settlements) as JSON/Parquet files organized
  * by YYYY/MM/DD partition keys.
  *
  * Failures are logged but do not crash the server — the lakehouse is a

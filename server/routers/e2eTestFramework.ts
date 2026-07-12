@@ -3,6 +3,7 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { loadTestRuns } from "../../drizzle/schema";
 import { desc, eq, count } from "drizzle-orm";
+import { secureRandom } from "../lib/securityAuditFixes";
 
 /**
  * E2E Test Framework Router
@@ -52,9 +53,9 @@ export const e2eTestFrameworkRouter = router({
   getQualityGateResult: protectedProcedure
     .input(z.object({ runId: z.string() }))
     .query(({ input }) => {
-      const p95 = Math.round(150 + Math.random() * 200);
-      const errorRate = Math.round(Math.random() * 100) / 100;
-      const throughput = Math.round(120 + Math.random() * 100);
+      const p95 = Math.round(150 + secureRandom() * 200);
+      const errorRate = Math.round(secureRandom() * 100) / 100;
+      const throughput = Math.round(120 + secureRandom() * 100);
       const passed = p95 < QUALITY_GATES.p95LatencyMs && errorRate < QUALITY_GATES.errorRatePct && throughput > QUALITY_GATES.throughputRps;
       return {
         runId: input.runId, passed, results: { p95LatencyMs: p95, errorRatePct: errorRate, throughputRps: throughput },

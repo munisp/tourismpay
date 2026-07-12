@@ -1,4 +1,5 @@
 /// Fluvio Producer Sidecar — High-throughput event streaming for
+mod auth;
 /// commission, settlement, dispute, biometric, and KYC events.
 ///
 /// Provides HTTP endpoints that accept domain events and produce them
@@ -506,6 +507,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            .wrap(auth::RequireAuth)
             .wrap(Logger::default())
             .app_data(state.clone())
             // Core endpoints

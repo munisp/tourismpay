@@ -10,9 +10,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	"github.com/54link/tb-commission-sidecar/internal/api"
-	"github.com/54link/tb-commission-sidecar/internal/ledger"
+	"github.com/tourismpay/tb-commission-sidecar/internal/api"
+	"github.com/tourismpay/tb-commission-sidecar/internal/ledger"
 )
 
 func main() {
@@ -22,10 +21,10 @@ func main() {
 	}
 	dbPath := os.Getenv("TB_COMMISSION_DB_PATH")
 	if dbPath == "" {
-		dbPath = "/var/lib/54link/tb-commission.db"
+		dbPath = "/var/lib/tourismpay/tb-commission.db"
 	}
 
-	os.MkdirAll("/var/lib/54link", 0755)
+	os.MkdirAll("/var/lib/tourismpay", 0755)
 
 	log.Printf("[TB-Commission-Sidecar] Starting on :%s (db=%s)", port, dbPath)
 

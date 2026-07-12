@@ -24,7 +24,7 @@ export function BiometricGate({ children }: { children: React.ReactNode }) {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.loadingText}>Loading InsurePortal...</Text>
+        <Text style={styles.loadingText}>Loading TourismPay...</Text>
       </View>
     );
   }

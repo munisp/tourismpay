@@ -33,8 +33,8 @@ export const ussdIntegrationRouter = router({
       return {
         sessionId,
         menu: input.language === "en"
-          ? "Welcome to InsurePortal\n1. Buy Insurance\n2. Make Claim\n3. Check Balance\n4. Agent Services"
-          : "Sannu da zuwa InsurePortal\n1. Sayi Inshorar\n2. Yi Claim\n3. Duba Balance\n4. Sabis Na Agent",
+          ? "Welcome to TourismPay\n1. Buy Insurance\n2. Make Claim\n3. Check Balance\n4. Agent Services"
+          : "Sannu da zuwa TourismPay\n1. Sayi Inshorar\n2. Yi Claim\n3. Duba Balance\n4. Sabis Na Agent",
         timeout: 180,
       };
     }),

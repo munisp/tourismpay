@@ -1,3 +1,4 @@
+import { secureRandom } from "@/lib/secureRandom";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -128,7 +129,7 @@ export default function SystemHealthDashboardPage() {
             {Array.from({ length: 30 }, (_, i) => (
               <div
                 key={i}
-                className={`flex-1 h-8 rounded ${Math.random() > 0.1 ? "bg-green-400" : "bg-red-400"}`}
+                className={`flex-1 h-8 rounded ${secureRandom() > 0.1 ? "bg-green-400" : "bg-red-400"}`}
                 title={`Day ${i + 1}`}
               />
             ))}

@@ -3,19 +3,19 @@
 ===================================
 A single self-contained Go binary that:
   1. Verifies SHA-256 checksums of all embedded service binaries (integrity manifest)
-  2. Extracts three embedded service binaries to /opt/54link/bin/
+  2. Extracts three embedded service binaries to /opt/tourismpay/bin/
   3. Writes systemd unit files for each service
   4. Enables and starts all three services
   5. Runs a health check to confirm everything is live
   6. Prints a clear success/failure summary
 
 Usage:
-  sudo ./54link-installer                                  — install / upgrade
-  sudo ./54link-installer --uninstall                      — stop, disable, and remove all services
-  sudo ./54link-installer --status                         — show service status without changing anything
-  sudo ./54link-installer --verify                         — verify binary integrity only (no install)
-  sudo ./54link-installer --enroll-token <TOKEN>           — complete device enrollment with a one-time token
-  sudo ./54link-installer --enroll-token <TOKEN> --agent-code <CODE> --serial <SERIAL>
+  sudo ./tourismpay-installer                                  — install / upgrade
+  sudo ./tourismpay-installer --uninstall                      — stop, disable, and remove all services
+  sudo ./tourismpay-installer --status                         — show service status without changing anything
+  sudo ./tourismpay-installer --verify                         — verify binary integrity only (no install)
+  sudo ./tourismpay-installer --enroll-token <TOKEN>           — complete device enrollment with a one-time token
+  sudo ./tourismpay-installer --enroll-token <TOKEN> --agent-code <CODE> --serial <SERIAL>
 
 Zero external dependencies required on the POS terminal.
 The installer binary itself is the only file that needs to be transferred.
@@ -24,7 +24,7 @@ Security:
   - All embedded binaries are verified against a SHA-256 manifest before extraction.
   - The manifest is compiled into the binary at build time (tamper-evident).
   - Enrollment tokens are single-use and expire after 15 minutes.
-  - The persistent device token returned by enrollment is stored in /opt/54link/device.token
+  - The persistent device token returned by enrollment is stored in /opt/tourismpay/device.token
     and is passed on every transaction to the 54Link backend for device verification.
 */
 
@@ -56,16 +56,16 @@ import (
 var embedded embed.FS
 
 const (
-	installDir  = "/opt/54link/bin"
+	installDir  = "/opt/tourismpay/bin"
 	systemdDir  = "/etc/systemd/system"
-	dataDir     = "/var/lib/54link"
-	logDir      = "/var/log/54link"
-	tokenFile   = "/opt/54link/device.token"
-	appUser     = "54link"
-	appGroup    = "54link"
+	dataDir     = "/var/lib/tourismpay"
+	logDir      = "/var/log/tourismpay"
+	tokenFile   = "/opt/tourismpay/device.token"
+	appUser     = "tourismpay"
+	appGroup    = "tourismpay"
 
 	// Default API base for enrollment (can be overridden via FIFTYFOURLINK_API_BASE env var)
-	defaultAPIBase = "https://54link.manus.space/api/trpc"
+	defaultAPIBase = "https://tourismpay.manus.space/api/trpc"
 )
 
 // ── Binary Integrity Manifest ─────────────────────────────────────────────────
@@ -97,7 +97,7 @@ type service struct {
 
 var services = []service{
 	{
-		name:        "54link-resilience-agent",
+		name:        "tourismpay-resilience-agent",
 		binary:      "resilience-agent",
 		embeddedSrc: "embedded/resilience-agent",
 		port:        8031,
@@ -106,7 +106,7 @@ var services = []service{
 		description: "54Link Resilience Agent — connection probe, carrier detection, retry engine",
 	},
 	{
-		name:        "54link-offline-queue",
+		name:        "tourismpay-offline-queue",
 		binary:      "offline-queue",
 		embeddedSrc: "embedded/offline-queue",
 		port:        8032,
@@ -118,7 +118,7 @@ var services = []service{
 		description: "54Link Offline Queue — SQLite WAL transaction queue and USSD encoder",
 	},
 	{
-		name:        "54link-analytics-service",
+		name:        "tourismpay-analytics-service",
 		binary:      "analytics-service",
 		embeddedSrc: "embedded/analytics-service",
 		port:        8033,
@@ -144,7 +144,7 @@ func main() {
 		runVerify()
 	case len(args) > 0 && args[0] == "--enroll-token":
 		if len(args) < 2 {
-			fatalf("Usage: sudo ./54link-installer --enroll-token <TOKEN> [--agent-code <CODE>] [--serial <SERIAL>]")
+			fatalf("Usage: sudo ./tourismpay-installer --enroll-token <TOKEN> [--agent-code <CODE>] [--serial <SERIAL>]")
 		}
 		token := args[1]
 		agentCode := flagValue(args[2:], "--agent-code")
@@ -219,18 +219,18 @@ func runInstall() {
 		fmt.Println("╚══════════════════════════════════════════════════════════╝")
 		fmt.Printf("\nServices installed to : %s\n", installDir)
 		fmt.Printf("Data directory        : %s\n", dataDir)
-		fmt.Printf("Logs                  : journalctl -u 54link-*\n\n")
+		fmt.Printf("Logs                  : journalctl -u tourismpay-*\n\n")
 		for _, svc := range services {
 			fmt.Printf("  %-40s  http://localhost:%d\n", svc.name, svc.port)
 		}
 		fmt.Println()
 		fmt.Println("Next step: enroll this device with the 54Link backend:")
-		fmt.Println("  sudo ./54link-installer --enroll-token <TOKEN> --agent-code <CODE> --serial <SERIAL>")
+		fmt.Println("  sudo ./tourismpay-installer --enroll-token <TOKEN> --agent-code <CODE> --serial <SERIAL>")
 		fmt.Println()
 	} else {
 		fmt.Println("╔══════════════════════════════════════════════════════════╗")
 		fmt.Println("║  ⚠️   Installation complete but some services failed     ║")
-		fmt.Println("║      Run: journalctl -u 54link-* -n 50 --no-pager       ║")
+		fmt.Println("║      Run: journalctl -u tourismpay-* -n 50 --no-pager       ║")
 		fmt.Println("╚══════════════════════════════════════════════════════════╝")
 		os.Exit(1)
 	}
@@ -283,7 +283,7 @@ func runStatus() {
 			fmt.Printf("  ✓  Device enrolled  (token: %s…)\n", token[:20])
 		}
 	} else {
-		fmt.Println("  ✗  Device NOT enrolled — run: sudo ./54link-installer --enroll-token <TOKEN>")
+		fmt.Println("  ✗  Device NOT enrolled — run: sudo ./tourismpay-installer --enroll-token <TOKEN>")
 	}
 }
 
@@ -405,7 +405,7 @@ func runEnroll(token, agentCode, serial string) {
 	if err := os.WriteFile(tokenFile, []byte(result.DeviceToken+"\n"), 0600); err != nil {
 		fatalf("failed to write device token: %v", err)
 	}
-	// Restrict ownership to the 54link service user
+	// Restrict ownership to the tourismpay service user
 	_ = run("chown", appUser+":"+appGroup, tokenFile)
 	ok()
 
@@ -633,7 +633,7 @@ func must(err error) {
 
 func requireRoot() {
 	if os.Getuid() != 0 {
-		fatalf("This installer must be run as root: sudo ./54link-installer")
+		fatalf("This installer must be run as root: sudo ./tourismpay-installer")
 	}
 }
 
