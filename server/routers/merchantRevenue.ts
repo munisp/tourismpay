@@ -5,6 +5,8 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
+import { ingestToLakehouse, queryTourismSpendingByCountry } from "../_core/lakehouse";
+import { cacheGet, cacheSet } from "../_core/redis";
 import {
   establishments,
   qrPaymentTokens,

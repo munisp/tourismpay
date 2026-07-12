@@ -242,3 +242,50 @@ async def run_daily_etl(date: Optional[str] = None) -> dict[str, Any]:
 def is_lakehouse_enabled() -> bool:
     """Check if Lakehouse is configured."""
     return bool(LAKEHOUSE_URL) or bool(TRINO_URL)
+
+
+# ─── Ingest Helper (added by audit) ──────────────────────────────────────────
+
+async def ingest_record(table_name: str, record: dict[str, Any]) -> bool:
+    """
+    Ingest a single record into an Iceberg table via Trino INSERT.
+    Creates the table if it does not exist using auto-detected schema.
+    
+    Args:
+        table_name: Iceberg table name (e.g. "payment_events")
+        record: Dictionary of column → value pairs
+        
+    Returns:
+        True on success, False on failure (non-raising).
+    """
+    if not is_lakehouse_enabled():
+        return False
+    
+    try:
+        trino = _get_trino()
+        cursor = trino.cursor()
+        
+        # Ensure table exists
+        cols_ddl = ", ".join(
+            f"{k} VARCHAR" if isinstance(v, str) else
+            f"{k} BIGINT" if isinstance(v, int) else
+            f"{k} DOUBLE" if isinstance(v, float) else
+            f"{k} VARCHAR"
+            for k, v in record.items()
+        )
+        cursor.execute(
+            f"CREATE TABLE IF NOT EXISTS iceberg.tourismpay.{table_name} ({cols_ddl})"
+        )
+        
+        # Build INSERT
+        cols = ", ".join(record.keys())
+        placeholders = ", ".join(["?" for _ in record])
+        values = list(record.values())
+        cursor.execute(
+            f"INSERT INTO iceberg.tourismpay.{table_name} ({cols}) VALUES ({placeholders})",
+            values
+        )
+        return True
+    except Exception as e:
+        print(f"[Lakehouse] ingest_record({table_name}) error: {e}")
+        return False

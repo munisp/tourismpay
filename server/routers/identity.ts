@@ -4,6 +4,8 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
+import { checkPermission } from "../_core/permify";
+import { cacheGet, cacheSet } from "../_core/redis";
 import { didDocuments, verifiableCredentials } from "../../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";

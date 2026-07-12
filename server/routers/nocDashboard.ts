@@ -12,6 +12,8 @@ import { z } from "zod";
 import { adminProcedure, nocProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
+import { queryFraudTrends, ingestToLakehouse } from "../_core/lakehouse";
+import { cacheGet, cacheSet } from "../_core/redis";
 import { requirePermission, RESOURCES, ACTIONS } from "../_core/permify";
 import {
   nocEvents,

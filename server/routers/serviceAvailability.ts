@@ -12,6 +12,7 @@ import { and, between, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure, publicProcedure } from "../_core/trpc";
 import { getDb } from "../db";
+import { cacheGet, cacheSet } from "../_core/redis";
 import { serviceAvailability, merchantProducts, establishments } from "../../drizzle/schema";
 
 // ── Ownership helpers ─────────────────────────────────────────────────────────

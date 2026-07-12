@@ -10,6 +10,8 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
+import { publishEvent, TOPICS } from "../_core/kafka";
+import { cacheGet, cacheSet } from "../_core/redis";
 import {
   touristItineraries,
   touristItineraryItems,

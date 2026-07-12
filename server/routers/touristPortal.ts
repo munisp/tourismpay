@@ -17,6 +17,8 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
+import { cacheGet, cacheSet } from "../_core/redis";
+import { publishEvent, TOPICS } from "../_core/kafka";
 import {
   users,
   touristProfiles,

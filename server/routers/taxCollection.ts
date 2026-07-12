@@ -5,6 +5,9 @@
 import { z } from "zod";
 import { protectedProcedure, adminProcedure, settlementProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
+import { ingestToLakehouse } from "../_core/lakehouse";
+import { publishEvent, TOPICS } from "../_core/kafka";
+import { cacheGet, cacheSet } from "../_core/redis";
 import { TRPCError } from "@trpc/server";
 import { sql } from "drizzle-orm";
 import { publishAuditEvent } from "../_core/kafka";

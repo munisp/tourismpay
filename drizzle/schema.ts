@@ -2752,3 +2752,920 @@ export const merchantSplitPayments = pgTable("merchant_split_payments", {
   status: text("status").notNull().default("pending"),
   createdAt: text("created_at").notNull(),
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MIGRATION 0067: Foreign Tourist Wallet Loading
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const wireTransferOrders = pgTable("wire_transfer_orders", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  status: text("status").notNull().default("pending_collection"),
+  sourceCurrency: text("source_currency").notNull(),
+  sourceAmount: numeric("source_amount", { precision: 20, scale: 2 }).notNull(),
+  targetCurrency: text("target_currency").notNull(),
+  targetAmount: numeric("target_amount", { precision: 20, scale: 2 }).notNull(),
+  wireRail: text("wire_rail").notNull(),
+  collectionRef: text("collection_ref").notNull().unique(),
+  swiftRef: text("swift_ref"),
+  senderName: text("sender_name").notNull(),
+  senderCountry: text("sender_country").notNull(),
+  exchangeRate: numeric("exchange_rate", { precision: 20, scale: 8 }).notNull(),
+  fee: numeric("fee", { precision: 20, scale: 2 }).notNull(),
+  feePercent: numeric("fee_percent", { precision: 5, scale: 2 }).notNull(),
+  travelRuleData: jsonb("travel_rule_data"),
+  kycTier: integer("kyc_tier").notNull().default(1),
+  fraudScore: numeric("fraud_score", { precision: 5, scale: 4 }).default("0"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  settledAt: bigint("settled_at", { mode: "number" }),
+  creditedAt: bigint("credited_at", { mode: "number" }),
+  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+}, (t) => [
+  index("idx_wire_transfer_orders_user_id").on(t.userId),
+  index("idx_wire_transfer_orders_status").on(t.status),
+]);
+
+export const agentsTable = pgTable("agents", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  tier: text("tier").notNull(),
+  location: text("location").notNull(),
+  country: text("country").notNull(),
+  licenseNumber: text("license_number").notNull().unique(),
+  status: text("status").notNull().default("active"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
+export const agentFloatBalances = pgTable("agent_float_balances", {
+  id: text("id").primaryKey(),
+  agentId: text("agent_id").notNull(),
+  currency: text("currency").notNull(),
+  balance: numeric("balance", { precision: 20, scale: 6 }).notNull().default("0"),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+}, (t) => [
+  index("idx_agent_float_agent_id").on(t.agentId),
+]);
+
+export const cashLoadOrders = pgTable("cash_load_orders", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  agentId: text("agent_id").notNull(),
+  cashCurrency: text("cash_currency").notNull(),
+  cashAmount: numeric("cash_amount", { precision: 20, scale: 2 }).notNull(),
+  walletCurrency: text("wallet_currency").notNull(),
+  walletAmount: numeric("wallet_amount", { precision: 20, scale: 6 }).notNull(),
+  exchangeRate: numeric("exchange_rate", { precision: 20, scale: 8 }).notNull(),
+  fee: numeric("fee", { precision: 20, scale: 2 }).notNull(),
+  status: text("status").notNull().default("pending"),
+  kycTier: integer("kyc_tier").notNull().default(1),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  completedAt: bigint("completed_at", { mode: "number" }),
+}, (t) => [
+  index("idx_cash_load_user_id").on(t.userId),
+  index("idx_cash_load_agent_id").on(t.agentId),
+]);
+
+export const partnerQuotes = pgTable("partner_quotes", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  provider: text("provider").notNull(),
+  sourceCurrency: text("source_currency").notNull(),
+  sourceAmount: numeric("source_amount", { precision: 20, scale: 2 }).notNull(),
+  targetCurrency: text("target_currency").notNull(),
+  targetAmount: numeric("target_amount", { precision: 20, scale: 6 }).notNull(),
+  exchangeRate: numeric("exchange_rate", { precision: 20, scale: 8 }).notNull(),
+  fee: numeric("fee", { precision: 20, scale: 2 }).notNull(),
+  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (t) => [
+  index("idx_partner_quotes_user_id").on(t.userId),
+]);
+
+export const partnerTransfers = pgTable("partner_transfers", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  provider: text("provider").notNull(),
+  quoteId: text("quote_id").notNull(),
+  sourceCurrency: text("source_currency").notNull(),
+  sourceAmount: numeric("source_amount", { precision: 20, scale: 2 }).notNull(),
+  targetCurrency: text("target_currency").notNull(),
+  targetAmount: numeric("target_amount", { precision: 20, scale: 6 }).notNull(),
+  status: text("status").notNull().default("pending"),
+  providerRef: text("provider_ref"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  completedAt: bigint("completed_at", { mode: "number" }),
+}, (t) => [
+  index("idx_partner_transfers_user_id").on(t.userId),
+  index("idx_partner_transfers_status").on(t.status),
+]);
+
+export const ussdSessions = pgTable("ussd_sessions", {
+  id: text("id").primaryKey(),
+  phoneNumber: text("phone_number").notNull(),
+  userId: text("user_id"),
+  sessionCode: text("session_code").notNull(),
+  currentMenu: text("current_menu").notNull().default("main"),
+  state: jsonb("state").notNull().default({}),
+  status: text("status").notNull().default("active"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  lastActivityAt: bigint("last_activity_at", { mode: "number" }).notNull(),
+  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+}, (t) => [
+  index("idx_ussd_sessions_phone_number").on(t.phoneNumber),
+  index("idx_ussd_sessions_user_id").on(t.userId),
+]);
+
+export const ussdTransactions = pgTable("ussd_transactions", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  userId: text("user_id").notNull(),
+  type: text("type").notNull(),
+  amount: numeric("amount", { precision: 20, scale: 6 }).notNull(),
+  currency: text("currency").notNull(),
+  status: text("status").notNull().default("pending"),
+  reference: text("reference"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  completedAt: bigint("completed_at", { mode: "number" }),
+}, (t) => [
+  index("idx_ussd_transactions_session_id").on(t.sessionId),
+  index("idx_ussd_transactions_user_id").on(t.userId),
+]);
+
+export const agentKycVerifications = pgTable("agent_kyc_verifications", {
+  id: text("id").primaryKey(),
+  agentId: text("agent_id").notNull(),
+  touristUserId: text("tourist_user_id").notNull(),
+  requestedTier: integer("requested_tier").notNull(),
+  passportNumber: text("passport_number").notNull(),
+  nationality: text("nationality").notNull(),
+  verificationStatus: text("verification_status").notNull().default("pending"),
+  kycScore: numeric("kyc_score", { precision: 5, scale: 4 }),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  completedAt: bigint("completed_at", { mode: "number" }),
+}, (t) => [
+  index("idx_agent_kyc_agent_id").on(t.agentId),
+  index("idx_agent_kyc_tourist_user_id").on(t.touristUserId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MIGRATION 0068: Local Payments
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const billPayments = pgTable("bill_payments", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  transactionId: text("transaction_id").notNull().unique(),
+  providerId: text("provider_id").notNull(),
+  providerName: text("provider_name").notNull(),
+  category: text("category").notNull(),
+  accountNumber: text("account_number").notNull(),
+  amount: numeric("amount", { precision: 18, scale: 6 }).notNull(),
+  fee: numeric("fee", { precision: 18, scale: 6 }).default("0"),
+  totalCharged: numeric("total_charged", { precision: 18, scale: 6 }).notNull(),
+  currency: text("currency").notNull().default("NGN"),
+  status: text("status").notNull().default("pending"),
+  reference: text("reference"),
+  token: text("token"),
+  units: text("units"),
+  customerName: text("customer_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (t) => [
+  index("idx_bill_payments_user_id").on(t.userId),
+  index("idx_bill_payments_status").on(t.status),
+  index("idx_bill_payments_category").on(t.category),
+]);
+
+export const virtualCards = pgTable("virtual_cards", {
+  id: serial("id").primaryKey(),
+  cardId: text("card_id").notNull().unique(),
+  userId: text("user_id").notNull(),
+  cardType: text("card_type").notNull(),
+  maskedPan: text("masked_pan").notNull(),
+  expiryMonth: integer("expiry_month").notNull(),
+  expiryYear: integer("expiry_year").notNull(),
+  currency: text("currency").notNull().default("USD"),
+  balance: numeric("balance", { precision: 18, scale: 6 }).default("0"),
+  spendLimit: numeric("spend_limit", { precision: 18, scale: 6 }).default("50000"),
+  dailyLimit: numeric("daily_limit", { precision: 18, scale: 6 }).default("5000"),
+  dailySpent: numeric("daily_spent", { precision: 18, scale: 6 }).default("0"),
+  status: text("status").notNull().default("active"),
+  label: text("label").default("Travel Card"),
+  isContactless: boolean("is_contactless").default(true),
+  threeDsEnabled: boolean("three_ds_enabled").default(true),
+  allowAtm: boolean("allow_atm").default(false),
+  allowOnline: boolean("allow_online").default(true),
+  allowPos: boolean("allow_pos").default(true),
+  allowInternational: boolean("allow_international").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastUsedAt: timestamp("last_used_at"),
+}, (t) => [
+  index("idx_virtual_cards_user_id").on(t.userId),
+  index("idx_virtual_cards_status").on(t.status),
+]);
+
+export const virtualCardTransactions = pgTable("virtual_card_transactions", {
+  id: serial("id").primaryKey(),
+  cardId: text("card_id").notNull(),
+  userId: text("user_id").notNull(),
+  type: text("type").notNull(),
+  amount: numeric("amount", { precision: 18, scale: 6 }).notNull(),
+  currency: text("currency").notNull(),
+  merchant: text("merchant"),
+  status: text("status").notNull().default("pending"),
+  reference: text("reference"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_vc_transactions_card_id").on(t.cardId),
+  index("idx_vc_transactions_user_id").on(t.userId),
+]);
+
+export const bankTransfersOut = pgTable("bank_transfers_out", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  transactionId: text("transaction_id").notNull().unique(),
+  bankCode: text("bank_code").notNull(),
+  bankName: text("bank_name").notNull(),
+  accountNumber: text("account_number").notNull(),
+  accountName: text("account_name").notNull(),
+  amount: numeric("amount", { precision: 18, scale: 6 }).notNull(),
+  fee: numeric("fee", { precision: 18, scale: 6 }).default("0"),
+  currency: text("currency").notNull().default("NGN"),
+  narration: text("narration"),
+  status: text("status").notNull().default("pending"),
+  reference: text("reference"),
+  sessionId: text("session_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (t) => [
+  index("idx_bank_transfers_user_id").on(t.userId),
+  index("idx_bank_transfers_status").on(t.status),
+]);
+
+export const savedBeneficiaries = pgTable("saved_beneficiaries", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  type: text("type").notNull().default("bank"),
+  bankCode: text("bank_code"),
+  bankName: text("bank_name"),
+  accountNumber: text("account_number"),
+  accountName: text("account_name"),
+  alias: text("alias"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_saved_beneficiaries_user_id").on(t.userId),
+]);
+
+export const paymentLinks = pgTable("payment_links", {
+  id: serial("id").primaryKey(),
+  linkId: text("link_id").notNull().unique(),
+  creatorId: text("creator_id").notNull(),
+  amount: numeric("amount", { precision: 18, scale: 6 }),
+  currency: text("currency").notNull().default("NGN"),
+  description: text("description"),
+  isFixedAmount: boolean("is_fixed_amount").default(false),
+  maxUses: integer("max_uses"),
+  useCount: integer("use_count").default(0),
+  status: text("status").notNull().default("active"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_payment_links_creator_id").on(t.creatorId),
+]);
+
+export const splitBills = pgTable("split_bills", {
+  id: serial("id").primaryKey(),
+  splitId: text("split_id").notNull().unique(),
+  creatorId: text("creator_id").notNull(),
+  title: text("title").notNull(),
+  totalAmount: numeric("total_amount", { precision: 18, scale: 6 }).notNull(),
+  currency: text("currency").notNull().default("NGN"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_split_bills_creator_id").on(t.creatorId),
+]);
+
+export const splitBillParticipants = pgTable("split_bill_participants", {
+  id: serial("id").primaryKey(),
+  splitId: text("split_id").notNull(),
+  userId: text("user_id").notNull(),
+  amount: numeric("amount", { precision: 18, scale: 6 }).notNull(),
+  status: text("status").notNull().default("pending"),
+  paidAt: timestamp("paid_at"),
+}, (t) => [
+  index("idx_split_bill_participants_split_id").on(t.splitId),
+]);
+
+export const moneyRequests = pgTable("money_requests", {
+  id: serial("id").primaryKey(),
+  requestId: text("request_id").notNull().unique(),
+  requesterId: text("requester_id").notNull(),
+  payerId: text("payer_id").notNull(),
+  amount: numeric("amount", { precision: 18, scale: 6 }).notNull(),
+  currency: text("currency").notNull().default("NGN"),
+  note: text("note"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+  paidAt: timestamp("paid_at"),
+}, (t) => [
+  index("idx_money_requests_requester_id").on(t.requesterId),
+  index("idx_money_requests_payer_id").on(t.payerId),
+]);
+
+export const rideBookings = pgTable("ride_bookings", {
+  id: serial("id").primaryKey(),
+  bookingId: text("booking_id").notNull().unique(),
+  userId: text("user_id").notNull(),
+  provider: text("provider").notNull(),
+  pickupAddress: text("pickup_address").notNull(),
+  dropoffAddress: text("dropoff_address").notNull(),
+  estimatedFare: numeric("estimated_fare", { precision: 18, scale: 6 }).notNull(),
+  currency: text("currency").notNull().default("NGN"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_ride_bookings_user_id").on(t.userId),
+]);
+
+export const nfcPaymentTokens = pgTable("nfc_payment_tokens", {
+  id: serial("id").primaryKey(),
+  tokenId: text("token_id").notNull().unique(),
+  userId: text("user_id").notNull(),
+  currency: text("currency").notNull(),
+  maxAmount: numeric("max_amount", { precision: 18, scale: 6 }).notNull(),
+  usedAmount: numeric("used_amount", { precision: 18, scale: 6 }).default("0"),
+  status: text("status").notNull().default("active"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_nfc_payment_tokens_user_id").on(t.userId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MIGRATION 0069: Travel Readiness Gaps
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const bankTravelNotifications = pgTable("bank_travel_notifications", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  bankId: text("bank_id").notNull(),
+  bankName: text("bank_name").notNull(),
+  cardLast4: text("card_last4"),
+  destinationCountry: text("destination_country").notNull(),
+  travelStart: text("travel_start").notNull(),
+  travelEnd: text("travel_end").notNull(),
+  status: text("status").notNull().default("pending"),
+  channel: text("channel").notNull().default("api"),
+  sentAt: bigint("sent_at", { mode: "number" }),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (t) => [
+  index("idx_bank_notify_user").on(t.userId),
+  index("idx_bank_notify_status").on(t.status),
+]);
+
+export const esimOrders = pgTable("esim_orders", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  packageId: text("package_id").notNull(),
+  provider: text("provider").notNull(),
+  country: text("country").notNull(),
+  dataGb: real("data_gb").notNull(),
+  validDays: integer("valid_days").notNull(),
+  priceUsd: real("price_usd").notNull(),
+  qrCodeUrl: text("qr_code_url"),
+  status: text("status").notNull().default("pending"),
+  activatedAt: bigint("activated_at", { mode: "number" }),
+  expiresAt: bigint("expires_at", { mode: "number" }),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (t) => [
+  index("idx_esim_user").on(t.userId),
+]);
+
+export const agentKioskRegistry = pgTable("agent_kiosk_registry", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  type: text("type").notNull().default("agent"),
+  country: text("country").notNull(),
+  city: text("city").notNull(),
+  location: text("location").notNull(),
+  lat: real("lat"),
+  lng: real("lng"),
+  operatingHours: text("operating_hours"),
+  currencies: jsonb("currencies").notNull().default([]),
+  services: jsonb("services").notNull().default([]),
+  status: text("status").notNull().default("active"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (t) => [
+  index("idx_agent_kiosk_country").on(t.country),
+]);
+
+export const currencyCorridors = pgTable("currency_corridors", {
+  id: text("id").primaryKey(),
+  sourceCurrency: text("source_currency").notNull(),
+  targetCurrency: text("target_currency").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  minAmount: numeric("min_amount", { precision: 18, scale: 6 }).notNull().default("1"),
+  maxAmount: numeric("max_amount", { precision: 18, scale: 6 }).notNull().default("100000"),
+  feePercent: numeric("fee_percent", { precision: 5, scale: 4 }).notNull().default("0.5"),
+  flatFee: numeric("flat_fee", { precision: 18, scale: 6 }).notNull().default("0"),
+  settlementRail: text("settlement_rail").notNull().default("swift"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+}, (t) => [
+  index("idx_currency_corridors_pair").on(t.sourceCurrency, t.targetCurrency),
+]);
+
+export const preTravelChecklists = pgTable("pre_travel_checklists", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  destinationCountry: text("destination_country").notNull(),
+  items: jsonb("items").notNull().default([]),
+  completedItems: jsonb("completed_items").notNull().default([]),
+  progress: integer("progress").notNull().default(0),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+}, (t) => [
+  index("idx_pre_travel_checklists_user_id").on(t.userId),
+]);
+
+export const kycFastTrackHistory = pgTable("kyc_fast_track_history", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  previousTier: integer("previous_tier").notNull(),
+  newTier: integer("new_tier").notNull(),
+  method: text("method").notNull(),
+  verificationRef: text("verification_ref"),
+  status: text("status").notNull().default("pending"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  completedAt: bigint("completed_at", { mode: "number" }),
+}, (t) => [
+  index("idx_kyc_fast_track_user_id").on(t.userId),
+]);
+
+export const offlineTokenRenewals = pgTable("offline_token_renewals", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  tokenType: text("token_type").notNull().default("payment"),
+  previousToken: text("previous_token"),
+  newToken: text("new_token").notNull(),
+  maxAmount: numeric("max_amount", { precision: 18, scale: 6 }).notNull(),
+  currency: text("currency").notNull(),
+  validUntil: bigint("valid_until", { mode: "number" }).notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (t) => [
+  index("idx_offline_token_user_id").on(t.userId),
+]);
+
+export const countryRiskCache = pgTable("country_risk_cache", {
+  countryCode: text("country_code").primaryKey(),
+  riskLevel: text("risk_level").notNull().default("low"),
+  sanctionsStatus: text("sanctions_status").notNull().default("none"),
+  travelAdvisory: text("travel_advisory"),
+  lastUpdated: bigint("last_updated", { mode: "number" }).notNull(),
+  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+});
+
+export const travelRiskAssessments = pgTable("travel_risk_assessments", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  destinationCountry: text("destination_country").notNull(),
+  riskScore: numeric("risk_score", { precision: 5, scale: 2 }).notNull(),
+  riskLevel: text("risk_level").notNull(),
+  factors: jsonb("factors").notNull().default([]),
+  recommendations: jsonb("recommendations").notNull().default([]),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (t) => [
+  index("idx_travel_risk_user_id").on(t.userId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MIGRATION 0070: Trip Planner NL Sessions
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const tripPlannerSessions = pgTable("trip_planner_sessions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  sessionType: text("session_type").notNull().default("nl"),
+  destination: text("destination"),
+  budget: numeric("budget", { precision: 18, scale: 2 }),
+  currency: text("currency").notNull().default("USD"),
+  status: text("status").notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("idx_trip_planner_sessions_user_id").on(t.userId),
+]);
+
+export const tripPlannerMessages = pgTable("trip_planner_messages", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_trip_planner_messages_session_id").on(t.sessionId),
+]);
+
+export const tripPlannerRecommendations = pgTable("trip_planner_recommendations", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  type: text("type").notNull(),
+  establishmentId: integer("establishment_id"),
+  name: text("name").notNull(),
+  description: text("description"),
+  estimatedCost: numeric("estimated_cost", { precision: 18, scale: 2 }),
+  currency: text("currency").notNull().default("USD"),
+  score: numeric("score", { precision: 5, scale: 4 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_trip_planner_recs_session_id").on(t.sessionId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MIGRATION 0071: Tipping & Tax Collection
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const tipTransactions = pgTable("tip_transactions", {
+  id: text("id").primaryKey(),
+  payerId: text("payer_id").notNull(),
+  recipientId: text("recipient_id").notNull(),
+  establishmentId: text("establishment_id"),
+  transactionRef: text("transaction_ref"),
+  billAmount: numeric("bill_amount", { precision: 18, scale: 6 }).notNull(),
+  tipAmount: numeric("tip_amount", { precision: 18, scale: 6 }).notNull(),
+  tipType: text("tip_type").notNull().default("percentage"),
+  tipPercentage: numeric("tip_percentage", { precision: 5, scale: 2 }),
+  taxOnTip: boolean("tax_on_tip").default(false),
+  netTip: numeric("net_tip", { precision: 18, scale: 6 }).notNull(),
+  currency: text("currency").notNull(),
+  jurisdictionCode: text("jurisdiction_code").notNull(),
+  distributionType: text("distribution_type").notNull().default("direct"),
+  message: text("message"),
+  status: text("status").notNull().default("completed"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_tip_transactions_payer_id").on(t.payerId),
+  index("idx_tip_transactions_recipient_id").on(t.recipientId),
+]);
+
+export const tipDistributionLog = pgTable("tip_distribution_log", {
+  id: text("id").primaryKey(),
+  tipId: text("tip_id").notNull(),
+  role: text("role").notNull(),
+  amount: numeric("amount", { precision: 18, scale: 6 }).notNull(),
+  percentage: numeric("percentage", { precision: 5, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_tip_distribution_tip_id").on(t.tipId),
+]);
+
+export const tipConfigs = pgTable("tip_configs", {
+  id: text("id").primaryKey(),
+  establishmentId: text("establishment_id").notNull(),
+  jurisdictionCode: text("jurisdiction_code").notNull(),
+  customPercentages: jsonb("custom_percentages").notNull().default([]),
+  distributionType: text("distribution_type").notNull().default("direct"),
+  poolSplitRules: jsonb("pool_split_rules").notNull().default([]),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("idx_tip_configs_establishment_id").on(t.establishmentId),
+]);
+
+export const taxCollections = pgTable("tax_collections", {
+  id: text("id").primaryKey(),
+  taxRecordId: text("tax_record_id").notNull(),
+  transactionId: text("transaction_id").notNull(),
+  jurisdictionCode: text("jurisdiction_code").notNull(),
+  taxType: text("tax_type").notNull(),
+  taxName: text("tax_name").notNull(),
+  rate: numeric("rate", { precision: 5, scale: 4 }).notNull(),
+  taxableBase: numeric("taxable_base", { precision: 18, scale: 6 }).notNull(),
+  amount: numeric("amount", { precision: 18, scale: 6 }).notNull(),
+  currency: text("currency").notNull(),
+  merchantId: text("merchant_id"),
+  category: text("category"),
+  status: text("status").notNull().default("collected"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_tax_collections_transaction_id").on(t.transactionId),
+  index("idx_tax_collections_jurisdiction_code").on(t.jurisdictionCode),
+]);
+
+export const taxRemittanceTracker = pgTable("tax_remittance_tracker", {
+  id: text("id").primaryKey(),
+  jurisdictionCode: text("jurisdiction_code").notNull(),
+  taxType: text("tax_type").notNull(),
+  period: text("period").notNull(),
+  totalCollected: numeric("total_collected", { precision: 18, scale: 6 }).notNull().default("0"),
+  totalRemitted: numeric("total_remitted", { precision: 18, scale: 6 }).notNull().default("0"),
+  status: text("status").notNull().default("pending"),
+  remittedAt: timestamp("remitted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_tax_remittance_jurisdiction_code").on(t.jurisdictionCode),
+]);
+
+export const taxRulesCustom = pgTable("tax_rules_custom", {
+  id: text("id").primaryKey(),
+  jurisdictionCode: text("jurisdiction_code").notNull(),
+  taxType: text("tax_type").notNull(),
+  name: text("name").notNull(),
+  rate: numeric("rate", { precision: 5, scale: 4 }).notNull(),
+  flatAmount: numeric("flat_amount", { precision: 18, scale: 6 }).notNull().default("0"),
+  appliesToCategory: text("applies_to_category").notNull().default("all"),
+  minAmount: numeric("min_amount", { precision: 18, scale: 6 }).notNull().default("0"),
+  maxCap: numeric("max_cap", { precision: 18, scale: 6 }).notNull().default("0"),
+  isCompound: boolean("is_compound").notNull().default(false),
+  priority: integer("priority").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_tax_rules_custom_jurisdiction_code").on(t.jurisdictionCode),
+]);
+
+export const taxReceipts = pgTable("tax_receipts", {
+  id: text("id").primaryKey(),
+  transactionId: text("transaction_id").notNull(),
+  userId: text("user_id").notNull(),
+  merchantId: text("merchant_id"),
+  jurisdictionCode: text("jurisdiction_code").notNull(),
+  totalTax: numeric("total_tax", { precision: 18, scale: 6 }).notNull(),
+  currency: text("currency").notNull(),
+  receiptData: jsonb("receipt_data").notNull().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_tax_receipts_transaction_id").on(t.transactionId),
+  index("idx_tax_receipts_user_id").on(t.userId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MIGRATION 0072: Multi-Recipient Tipping
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const multiTipGroups = pgTable("multi_tip_groups", {
+  id: text("id").primaryKey(),
+  payerId: text("payer_id").notNull(),
+  establishmentId: text("establishment_id"),
+  billAmount: numeric("bill_amount", { precision: 18, scale: 6 }).notNull(),
+  totalTip: numeric("total_tip", { precision: 18, scale: 6 }).notNull(),
+  currency: text("currency").notNull(),
+  jurisdictionCode: text("jurisdiction_code").notNull(),
+  splitMode: text("split_mode").notNull().default("equal"),
+  recipientCount: integer("recipient_count").notNull(),
+  transactionRef: text("transaction_ref"),
+  status: text("status").notNull().default("completed"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_multi_tip_groups_payer_id").on(t.payerId),
+]);
+
+export const multiTipRecipients = pgTable("multi_tip_recipients", {
+  id: text("id").primaryKey(),
+  groupId: text("group_id").notNull(),
+  recipientId: text("recipient_id").notNull(),
+  recipientName: text("recipient_name"),
+  role: text("role"),
+  amount: numeric("amount", { precision: 18, scale: 6 }).notNull(),
+  percentage: numeric("percentage", { precision: 5, scale: 2 }),
+  message: text("message"),
+  receiptRef: text("receipt_ref"),
+  status: text("status").notNull().default("completed"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_multi_tip_recipients_group_id").on(t.groupId),
+  index("idx_multi_tip_recipients_recipient_id").on(t.recipientId),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MIGRATION 0073: GDS Integration
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const gdsBookingTaxes = pgTable("gds_booking_taxes", {
+  id: serial("id").primaryKey(),
+  reservationId: varchar("reservation_id", { length: 64 }).notNull(),
+  propertyId: varchar("property_id", { length: 64 }).notNull(),
+  countryCode: varchar("country_code", { length: 2 }).notNull(),
+  bookingAmount: numeric("booking_amount", { precision: 12, scale: 2 }).notNull(),
+  totalTax: numeric("total_tax", { precision: 12, scale: 2 }).notNull(),
+  grandTotal: numeric("grand_total", { precision: 12, scale: 2 }).notNull(),
+  effectiveRate: numeric("effective_rate", { precision: 5, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).notNull(),
+  taxComponents: jsonb("tax_components").notNull().default([]),
+  remittanceStatus: varchar("remittance_status", { length: 20 }).notNull().default("pending"),
+  remittanceBatchId: varchar("remittance_batch_id", { length: 64 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("idx_gds_booking_taxes_reservation_id").on(t.reservationId),
+]);
+
+export const gdsStaffTips = pgTable("gds_staff_tips", {
+  id: serial("id").primaryKey(),
+  tipGroupId: varchar("tip_group_id", { length: 64 }).notNull().unique(),
+  reservationId: varchar("reservation_id", { length: 64 }).notNull(),
+  propertyId: varchar("property_id", { length: 64 }).notNull(),
+  propertyType: varchar("property_type", { length: 32 }).notNull(),
+  guestId: varchar("guest_id", { length: 64 }).notNull(),
+  totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).notNull(),
+  splitMode: varchar("split_mode", { length: 20 }).notNull().default("equal"),
+  recipientCount: integer("recipient_count").notNull().default(1),
+  recipients: jsonb("recipients").notNull().default([]),
+  status: varchar("status", { length: 20 }).notNull().default("processed"),
+  message: text("message"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("idx_gds_staff_tips_reservation_id").on(t.reservationId),
+]);
+
+export const gdsLoyaltyEarnings = pgTable("gds_loyalty_earnings", {
+  id: serial("id").primaryKey(),
+  bookingId: varchar("booking_id", { length: 64 }).notNull(),
+  guestId: varchar("guest_id", { length: 64 }).notNull(),
+  basePoints: integer("base_points").notNull().default(0),
+  bonusPoints: integer("bonus_points").notNull().default(0),
+  totalPoints: integer("total_points").notNull().default(0),
+  multiplier: numeric("multiplier", { precision: 4, scale: 2 }).notNull().default("1.00"),
+  propertyType: varchar("property_type", { length: 32 }),
+  agentTier: varchar("agent_tier", { length: 20 }),
+  bookingType: varchar("booking_type", { length: 20 }).default("gds"),
+  reason: text("reason"),
+  expiresAt: date("expires_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("idx_gds_loyalty_earnings_booking_id").on(t.bookingId),
+]);
+
+export const gdsItineraryConversions = pgTable("gds_itinerary_conversions", {
+  id: serial("id").primaryKey(),
+  itineraryId: varchar("itinerary_id", { length: 64 }).notNull(),
+  guestId: varchar("guest_id", { length: 64 }).notNull(),
+  reservationIds: jsonb("reservation_ids").notNull().default([]),
+  totalAmount: numeric("total_amount", { precision: 12, scale: 2 }),
+  currency: varchar("currency", { length: 3 }),
+  status: varchar("status", { length: 20 }).notNull().default("converted"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("idx_gds_itinerary_conversions_itinerary_id").on(t.itineraryId),
+]);
+
+export const gdsDemandForecasts = pgTable("gds_demand_forecasts", {
+  id: serial("id").primaryKey(),
+  countryCode: varchar("country_code", { length: 2 }).notNull(),
+  propertyType: varchar("property_type", { length: 32 }),
+  forecastDate: date("forecast_date").notNull(),
+  demandScore: numeric("demand_score", { precision: 5, scale: 2 }).notNull(),
+  occupancyForecast: numeric("occupancy_forecast", { precision: 5, scale: 2 }),
+  priceTrend: varchar("price_trend", { length: 20 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("idx_gds_demand_forecasts_country_code").on(t.countryCode),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MIGRATION 0074: Business Logic Fixes
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const taxRules = pgTable("tax_rules", {
+  id: text("id").primaryKey(),
+  jurisdictionCode: text("jurisdiction_code").notNull(),
+  taxType: text("tax_type").notNull(),
+  name: text("name").notNull(),
+  rate: numeric("rate", { precision: 5, scale: 4 }).notNull(),
+  flatAmount: numeric("flat_amount", { precision: 18, scale: 6 }).notNull().default("0"),
+  appliesToCategory: text("applies_to_category").notNull().default("all"),
+  minAmount: numeric("min_amount", { precision: 18, scale: 6 }).notNull().default("0"),
+  maxCap: numeric("max_cap", { precision: 18, scale: 6 }).notNull().default("0"),
+  isCompound: boolean("is_compound").notNull().default(false),
+  priority: integer("priority").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  authority: text("authority"),
+  remittanceCycle: text("remittance_cycle").notNull().default("monthly"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_tax_rules_jurisdiction_code").on(t.jurisdictionCode),
+  index("idx_tax_rules_is_active").on(t.isActive),
+]);
+
+export const killSwitchSchedules = pgTable("kill_switch_schedules", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  targetScope: text("target_scope").notNull().default("all"),
+  targetIds: jsonb("target_ids").notNull().default([]),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  expiresAt: timestamp("expires_at"),
+  status: text("status").notNull().default("scheduled"),
+  createdBy: text("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  executedAt: timestamp("executed_at"),
+}, (t) => [
+  index("idx_kill_switch_schedules_status").on(t.status),
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MIDDLEWARE OBSERVABILITY TABLES (Migration 0075)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const temporalWorkflowExecutions = pgTable("temporal_workflow_executions", {
+  id: text("id").primaryKey(),
+  workflowId: text("workflow_id").notNull().unique(),
+  workflowType: text("workflow_type").notNull(),
+  taskQueue: text("task_queue").notNull(),
+  status: text("status").notNull().default("running"),
+  input: jsonb("input").notNull().default({}),
+  result: jsonb("result"),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  correlationId: text("correlation_id"),
+}, (t) => [
+  index("idx_temporal_workflow_executions_workflow_id").on(t.workflowId),
+  index("idx_temporal_workflow_executions_status").on(t.status),
+  index("idx_temporal_workflow_executions_workflow_type").on(t.workflowType),
+]);
+
+export const daprSubscriptions = pgTable("dapr_subscriptions", {
+  id: text("id").primaryKey(),
+  pubsubName: text("pubsub_name").notNull(),
+  topic: text("topic").notNull(),
+  route: text("route").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_dapr_subscriptions_topic").on(t.topic),
+]);
+
+export const daprStateEntries = pgTable("dapr_state_entries", {
+  id: text("id").primaryKey(),
+  storeName: text("store_name").notNull(),
+  stateKey: text("state_key").notNull(),
+  stateValue: jsonb("state_value").notNull().default({}),
+  etag: text("etag"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("idx_dapr_state_entries_store_key").on(t.storeName, t.stateKey),
+]);
+
+export const fluvioConsumerOffsets = pgTable("fluvio_consumer_offsets", {
+  id: text("id").primaryKey(),
+  topic: text("topic").notNull(),
+  partition: integer("partition").notNull().default(0),
+  consumerGroup: text("consumer_group").notNull(),
+  offset: bigint("offset", { mode: "number" }).notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("idx_fluvio_consumer_offsets_topic").on(t.topic),
+  uniqueIndex("idx_fluvio_consumer_offsets_unique").on(t.topic, t.partition, t.consumerGroup),
+]);
+
+export const lakehouseEtlRuns = pgTable("lakehouse_etl_runs", {
+  id: text("id").primaryKey(),
+  jobName: text("job_name").notNull(),
+  status: text("status").notNull().default("running"),
+  rowsProcessed: bigint("rows_processed", { mode: "number" }).default(0),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  metadata: jsonb("metadata").default({}),
+}, (t) => [
+  index("idx_lakehouse_etl_runs_job_name").on(t.jobName),
+  index("idx_lakehouse_etl_runs_status").on(t.status),
+]);
+
+export const openappsecWafEvents = pgTable("openappsec_waf_events", {
+  id: text("id").primaryKey(),
+  routeId: text("route_id"),
+  ruleName: text("rule_name").notNull(),
+  severity: text("severity").notNull(),
+  action: text("action").notNull(),
+  requestIp: text("request_ip"),
+  requestPath: text("request_path"),
+  requestBody: jsonb("request_body"),
+  blocked: boolean("blocked").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("idx_openappsec_waf_events_rule_name").on(t.ruleName),
+  index("idx_openappsec_waf_events_severity").on(t.severity),
+  index("idx_openappsec_waf_events_blocked").on(t.blocked),
+]);
+
+export const keycloakSessionTokens = pgTable("keycloak_session_tokens", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  keycloakSessionId: text("keycloak_session_id").notNull().unique(),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastUsedAt: timestamp("last_used_at"),
+}, (t) => [
+  index("idx_keycloak_session_tokens_user_id").on(t.userId),
+  index("idx_keycloak_session_tokens_keycloak_session_id").on(t.keycloakSessionId),
+]);

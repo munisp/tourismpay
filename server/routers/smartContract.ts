@@ -28,6 +28,8 @@
  *   - Pausable circuit breaker for emergencies
  */
 import { z } from "zod";
+import { publishEvent, TOPICS } from "../_core/kafka";
+import { streamPaymentEvent, FLUVIO_TOPICS } from "../_core/fluvio";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb, withTransaction } from "../db";

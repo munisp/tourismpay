@@ -5,6 +5,8 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
+import { publishEvent, TOPICS } from "../_core/kafka";
+import { checkPermission } from "../_core/permify";
 import {
   touristProfiles,
   touristOnboardingState,

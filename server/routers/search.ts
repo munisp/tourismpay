@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cacheGet, cacheSet } from "../_core/redis";
 import { protectedProcedure, router } from "../_core/trpc";
 import { globalSearch } from "../db";
 

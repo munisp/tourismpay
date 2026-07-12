@@ -8,6 +8,8 @@ import { z } from "zod";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { getDb } from "../db";
+import { publishEvent, TOPICS } from "../_core/kafka";
+import { cacheGet, cacheSet } from "../_core/redis";
 import { encryptPII, hashPII } from "../_core/encryption";
 
 const KYC_SERVICE_URL = process.env.KYC_SERVICE_URL || "http://localhost:8082";

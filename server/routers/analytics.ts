@@ -5,6 +5,8 @@
  */
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
+import { cacheGet, cacheSet } from "../_core/redis";
+import { queryLakehouse, ingestToLakehouse } from "../_core/lakehouse";
 import { z } from "zod";
 import { sql, count, sum, desc } from "drizzle-orm";
 import {

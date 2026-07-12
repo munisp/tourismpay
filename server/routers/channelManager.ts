@@ -13,6 +13,8 @@
  *  - Map products to channel-specific room/rate codes
  */
 import { z } from "zod";
+import { publishEvent, TOPICS } from "../_core/kafka";
+import { cacheGet, cacheSet } from "../_core/redis";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { createAuditLog, getDb } from "../db";
