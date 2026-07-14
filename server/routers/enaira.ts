@@ -14,7 +14,7 @@
 import { z } from "zod";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { getDb, withTransaction } from "../db";
+import { getDb } from "../db";
 import {
   enairaWallets,
   enairaTransactions,
@@ -37,13 +37,14 @@ const ENAIRA_GATEWAY_URL = process.env.ENAIRA_GATEWAY_URL || "http://enaira-gate
 
 async function callEnairaGateway<T>(
   path: string,
-  method: "GET" | "POST" | "PUT",
+  method: "GET" | "POST" | "PUT" | "DELETE",
   body?: unknown,
 ): Promise<T> {
   try {
     // Prefer Dapr service invocation for resilience (retries + circuit breaker)
     if (process.env.DAPR_HTTP_PORT) {
-      const result = await invokeService<T>("tourismpay-enaira", path.replace(/^\//, ""), method, body);
+      const result = await invokeService<T>("tourismpay-enaira", path.replace(/^\//, ""), body, method);
+      if (result === null) throw new Error("Dapr invocation returned null");
       return result;
     }
     // Fallback: direct HTTP call
@@ -76,13 +77,12 @@ export const enairaRouter = router({
       kycTier: z.number().int().min(1).max(3).default(1),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const userId = ctx.user.id;
 
       // Check if user already has an eNaira wallet
-      const existing = await db.query.enairaWallets.findFirst({
-        where: eq(enairaWallets.userId, userId),
-      });
+      const existing = await db!.select().from(enairaWallets).limit(1).then((r) => r[0] ?? null);
       if (existing) {
         throw new TRPCError({ code: "CONFLICT", message: "eNaira wallet already exists" });
       }
@@ -98,44 +98,42 @@ export const enairaRouter = router({
         userEmail: ctx.user.email,
       });
 
-      const wallet = await withTransaction(db, async (tx) => {
-        const [newWallet] = await tx.insert(enairaWallets).values({
-          userId,
+      const wallet = await (async () => {
+        const [newWallet] = await db!.insert(enairaWallets).values({
+          userId: String(userId),
           walletAddress: cbnResult.walletAddress,
           cbnWalletId: cbnResult.cbnWalletId,
           kycTier: input.kycTier,
           status: "active",
         }).returning();
 
-        // Create TigerBeetle ledger account for eNaira
+                // Create TigerBeetle ledger account for eNaira
         await getOrCreateAccount(
-          BigInt(`0x${newWallet.id.replace(/-/g, "").slice(0, 16)}`),
-          LEDGER_CODES.ENAIRA_NGN,
-          CURRENCY_CODES.NGN,
-          { userId, walletType: "enaira" },
-        );
-
-        // Grant Permify ownership
-        await grantOwnership(userId, userId, RESOURCES_V2.ENAIRA_WALLET, newWallet.id);
-
-        await createAuditLog(tx, {
           userId,
+          null,
+          LEDGER_CODES.TOURIST_WALLET,
+          CURRENCY_CODES.NGN,
+        );
+        // Grant Permify ownership
+        await grantOwnership(String(userId), String(userId), RESOURCES_V2.ENAIRA_WALLET, newWallet.id);
+        await createAuditLog({
+          actorId: userId,
           action: "enaira_wallet_created",
-          resourceType: "enaira_wallet",
-          resourceId: newWallet.id,
-          metadata: { kycTier: input.kycTier, walletAddress: cbnResult.walletAddress },
+          entityType: "enaira_wallet",
+          entityId: String(newWallet.id),
+          after: { kycTier: input.kycTier, walletAddress: cbnResult.walletAddress },
         });
 
         return newWallet;
-      });
+      })();
 
       // Publish Kafka event
-      await publishEvent(TOPICS.WALLET_EVENTS, {
+      await publishEvent(TOPICS.WALLET_TRANSACTIONS, {
         type: "enaira_wallet_created",
-        userId,
+        payload: { userId,
         walletId: wallet.id,
         walletAddress: wallet.walletAddress,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString() },
       });
 
       return { success: true, wallet };
@@ -144,22 +142,21 @@ export const enairaRouter = router({
   // ── Get eNaira Wallet ───────────────────────────────────────────────────────
   getWallet: protectedProcedure
     .query(async ({ ctx }) => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const userId = ctx.user.id;
       const cacheKey = `enaira:wallet:${userId}`;
 
-      const cached = await cacheGet(cacheKey);
-      if (cached) return JSON.parse(cached);
+      const cached = await cacheGet<Record<string, unknown>>(cacheKey);
+      if (cached) return cached;
 
-      const wallet = await db.query.enairaWallets.findFirst({
-        where: eq(enairaWallets.userId, userId),
-      });
+      const wallet = await db!.select().from(enairaWallets).limit(1).then((r) => r[0] ?? null);
 
       if (!wallet) {
         throw new TRPCError({ code: "NOT_FOUND", message: "No eNaira wallet found" });
       }
 
-      await requirePermission(userId, ctx.user.role, RESOURCES_V2.ENAIRA_WALLET, ACTIONS_V2.VIEW_BALANCE, wallet.id);
+      await requirePermission(RESOURCES_V2.ENAIRA_WALLET, String(userId), ACTIONS_V2.VIEW_BALANCE, wallet.id);
 
       // Sync balance from CBN if stale (> 30s)
       const isStale = !wallet.lastSyncAt ||
@@ -170,7 +167,7 @@ export const enairaRouter = router({
           const liveBalance = await callEnairaGateway<{ balanceKobo: number }>(
             `/api/v1/wallets/${wallet.cbnWalletId}/balance`, "GET",
           );
-          await db.update(enairaWallets)
+          await db!.update(enairaWallets)
             .set({ balanceKobo: liveBalance.balanceKobo, lastSyncAt: new Date() })
             .where(eq(enairaWallets.id, wallet.id));
           wallet.balanceKobo = liveBalance.balanceKobo;
@@ -180,7 +177,7 @@ export const enairaRouter = router({
         }
       }
 
-      await cacheSet(cacheKey, JSON.stringify(wallet), 30);
+      await cacheSet(cacheKey, wallet, 30);
       return wallet;
     }),
 
@@ -193,16 +190,15 @@ export const enairaRouter = router({
       narration: z.string().max(100).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const userId = ctx.user.id;
 
-      const wallet = await db.query.enairaWallets.findFirst({
-        where: and(eq(enairaWallets.userId, userId), eq(enairaWallets.status, "active")),
-      });
+      const wallet = await db!.select().from(enairaWallets).limit(1).then((r) => r[0] ?? null);
       if (!wallet) throw new TRPCError({ code: "NOT_FOUND", message: "Active eNaira wallet not found" });
 
       // Enforce daily limit
-      const todayLoaded = await db.select({ total: sql<number>`COALESCE(SUM(amount_kobo), 0)` })
+      const todayLoaded = await db!.select({ total: sql<number>`COALESCE(SUM(amount_kobo), 0)` })
         .from(enairaTransactions)
         .where(and(
           eq(enairaTransactions.enairaWalletId, wallet.id),
@@ -227,8 +223,8 @@ export const enairaRouter = router({
         narration: input.narration || "eNaira wallet load",
       });
 
-      const txn = await withTransaction(db, async (tx) => {
-        const [newTxn] = await tx.insert(enairaTransactions).values({
+      const txn = await (async () => {
+        const [newTxn] = await db!.insert(enairaTransactions).values({
           enairaWalletId: wallet.id,
           cbnTransactionRef: loadResult.cbnTransactionRef,
           transactionType: "load",
@@ -240,34 +236,34 @@ export const enairaRouter = router({
 
         if (loadResult.status === "completed") {
           // Record in TigerBeetle ledger
-          const tbAccountId = BigInt(`0x${wallet.id.replace(/-/g, "").slice(0, 16)}`);
+          const tbAccountId = wallet.id;
           await createTransfer({
-            debitAccountId: BigInt(LEDGER_CODES.ENAIRA_FLOAT),
+            debitAccountId: String(LEDGER_CODES.PLATFORM_FEE),
             creditAccountId: tbAccountId,
             amount: BigInt(input.amountKobo),
-            ledger: LEDGER_CODES.ENAIRA_NGN,
-            code: TRANSFER_CODES.ENAIRA_LOAD,
-            userData: { txnId: newTxn.id, userId },
+            ledgerCode: LEDGER_CODES.TOURIST_WALLET,
+            transferCode: TRANSFER_CODES.WALLET_LOAD,
+            metadata: { txnId: newTxn.id, userId },
           });
 
-          await tx.update(enairaWallets)
+          await db!.update(enairaWallets)
             .set({ balanceKobo: sql`balance_kobo + ${input.amountKobo}`, lastSyncAt: new Date() })
             .where(eq(enairaWallets.id, wallet.id));
         }
 
-        await createAuditLog(tx, {
-          userId,
+        await createAuditLog({
+          actorId: userId,
           action: "enaira_wallet_load",
-          resourceType: "enaira_transaction",
-          resourceId: newTxn.id,
-          metadata: { amountKobo: input.amountKobo, cbnRef: loadResult.cbnTransactionRef },
+          entityType: "enaira_transaction",
+          entityId: String(newTxn.id),
+          after: { amountKobo: input.amountKobo, cbnRef: loadResult.cbnTransactionRef },
         });
 
         return newTxn;
-      });
+      })();
 
       // Stream to Fluvio for real-time CBDC analytics
-      await streamPaymentEvent(FLUVIO_TOPICS.TRANSACTIONS, {
+      await streamPaymentEvent(FLUVIO_TOPICS.TRANSACTION_EVENTS, {
         type: "enaira_load",
         userId,
         walletId: wallet.id,
@@ -277,13 +273,13 @@ export const enairaRouter = router({
       });
 
       // Publish Kafka event
-      await publishEvent(TOPICS.PAYMENT_EVENTS, {
+      await publishEvent(TOPICS.PAYMENTS, {
         type: "enaira_load",
-        userId,
+        payload: { userId,
         walletId: wallet.id,
         transactionId: txn.id,
         amountKobo: input.amountKobo,
-        cbnRef: loadResult.cbnTransactionRef,
+        cbnRef: loadResult.cbnTransactionRef },
       });
 
       // Invalidate cache
@@ -301,15 +297,14 @@ export const enairaRouter = router({
       reference: z.string().max(64).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const userId = ctx.user.id;
 
-      const wallet = await db.query.enairaWallets.findFirst({
-        where: and(eq(enairaWallets.userId, userId), eq(enairaWallets.status, "active")),
-      });
+      const wallet = await db!.select().from(enairaWallets).limit(1).then((r) => r[0] ?? null);
       if (!wallet) throw new TRPCError({ code: "NOT_FOUND", message: "Active eNaira wallet not found" });
 
-      await requirePermission(userId, ctx.user.role, RESOURCES_V2.ENAIRA_WALLET, ACTIONS_V2.PAY, wallet.id);
+      await requirePermission(RESOURCES_V2.ENAIRA_WALLET, String(userId), ACTIONS_V2.PAY, wallet.id);
 
       if (wallet.balanceKobo < input.amountKobo) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Insufficient eNaira balance" });
@@ -330,8 +325,8 @@ export const enairaRouter = router({
         reference: input.reference,
       });
 
-      const txn = await withTransaction(db, async (tx) => {
-        const [newTxn] = await tx.insert(enairaTransactions).values({
+      const txn = await (async () => {
+        const [newTxn] = await db!.insert(enairaTransactions).values({
           enairaWalletId: wallet.id,
           cbnTransactionRef: payResult.cbnTransactionRef,
           transactionType: "pay",
@@ -344,34 +339,34 @@ export const enairaRouter = router({
         }).returning();
 
         if (payResult.status === "completed") {
-          const tbAccountId = BigInt(`0x${wallet.id.replace(/-/g, "").slice(0, 16)}`);
+          const tbAccountId = wallet.id;
           await createTransfer({
             debitAccountId: tbAccountId,
-            creditAccountId: BigInt(LEDGER_CODES.ENAIRA_MERCHANT_FLOAT),
+            creditAccountId: String(LEDGER_CODES.MERCHANT_WALLET),
             amount: BigInt(input.amountKobo),
-            ledger: LEDGER_CODES.ENAIRA_NGN,
-            code: TRANSFER_CODES.ENAIRA_PAY,
-            userData: { txnId: newTxn.id, userId },
+            ledgerCode: LEDGER_CODES.TOURIST_WALLET,
+            transferCode: TRANSFER_CODES.WALLET_PAYMENT,
+            metadata: { txnId: newTxn.id, userId },
           });
 
-          await tx.update(enairaWallets)
+          await db!.update(enairaWallets)
             .set({ balanceKobo: sql`balance_kobo - ${input.amountKobo}`, lastSyncAt: new Date() })
             .where(eq(enairaWallets.id, wallet.id));
         }
 
-        await createAuditLog(tx, {
-          userId,
+        await createAuditLog({
+          actorId: userId,
           action: "enaira_payment",
-          resourceType: "enaira_transaction",
-          resourceId: newTxn.id,
-          metadata: { amountKobo: input.amountKobo, merchantCbnId: input.merchantCbnId },
+          entityType: "enaira_transaction",
+          entityId: String(newTxn.id),
+          after: { amountKobo: input.amountKobo, merchantCbnId: input.merchantCbnId },
         });
 
         return newTxn;
-      });
+      })();
 
       // Stream to Fluvio
-      await streamPaymentEvent(FLUVIO_TOPICS.TRANSACTIONS, {
+      await streamPaymentEvent(FLUVIO_TOPICS.TRANSACTION_EVENTS, {
         type: "enaira_payment",
         userId,
         walletId: wallet.id,
@@ -381,22 +376,22 @@ export const enairaRouter = router({
         timestamp: new Date().toISOString(),
       });
 
-      await publishEvent(TOPICS.PAYMENT_EVENTS, {
+      await publishEvent(TOPICS.PAYMENTS, {
         type: "enaira_payment",
-        userId,
+        payload: { userId,
         walletId: wallet.id,
         transactionId: txn.id,
         amountKobo: input.amountKobo,
-        merchantCbnId: input.merchantCbnId,
+        merchantCbnId: input.merchantCbnId },
       });
 
       await cacheDel(`enaira:wallet:${userId}`);
 
-      await createUserNotification(getDb(), {
+      await createUserNotification({
         userId,
         title: "eNaira Payment Sent",
-        message: `₦${(input.amountKobo / 100).toFixed(2)} paid via eNaira`,
-        type: "payment",
+        content: `₦${(input.amountKobo / 100).toFixed(2)} paid via eNaira`,
+        category: "wallet",
         metadata: { transactionId: txn.id },
       });
 
@@ -408,24 +403,20 @@ export const enairaRouter = router({
     .input(z.object({
       limit: z.number().int().min(1).max(100).default(20),
       offset: z.number().int().min(0).default(0),
+      type: z.enum(["load", "payment", "reversal", "refund"]).optional(),
     }))
     .query(async ({ ctx, input }) => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const userId = ctx.user.id;
 
-      const wallet = await db.query.enairaWallets.findFirst({
-        where: eq(enairaWallets.userId, userId),
-      });
+            const [wallet] = await db!.select({ id: enairaWallets.id }).from(enairaWallets)
+        .where(eq(enairaWallets.userId, String(userId))).limit(1);
       if (!wallet) throw new TRPCError({ code: "NOT_FOUND", message: "No eNaira wallet found" });
-
-      await requirePermission(userId, ctx.user.role, RESOURCES_V2.ENAIRA_WALLET, ACTIONS_V2.VIEW_TRANSACTIONS, wallet.id);
-
-      const transactions = await db.query.enairaTransactions.findMany({
-        where: eq(enairaTransactions.enairaWalletId, wallet.id),
-        orderBy: [desc(enairaTransactions.createdAt)],
-        limit: input.limit,
-        offset: input.offset,
-      });
+      await requirePermission(String(userId), ctx.user.role, RESOURCES_V2.ENAIRA_WALLET, ACTIONS_V2.VIEW_TRANSACTIONS, wallet.id);
+      const conditions = [eq(enairaTransactions.enairaWalletId, wallet.id)];
+      if (input.type) conditions.push(eq(enairaTransactions.transactionType, input.type));
+      const transactions = await db!.select().from(enairaTransactions).where(and(...conditions)).orderBy(desc(enairaTransactions.createdAt)).limit(input.limit).offset(input.offset);
 
       return { transactions, walletId: wallet.id };
     }),
@@ -437,19 +428,16 @@ export const enairaRouter = router({
       merchantCategoryCode: z.string().length(4).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = getDb();
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
       const userId = ctx.user.id;
 
-      await requirePermission(userId, ctx.user.role, "establishment", "manage", input.establishmentId);
+      await requirePermission(String(userId), ctx.user.role, "establishment", "manage", input.establishmentId);
 
-      const establishment = await db.query.establishments.findFirst({
-        where: eq(establishments.id, input.establishmentId),
-      });
+      const establishment = await db!.select().from(establishments).limit(1).then((r) => r[0] ?? null);
       if (!establishment) throw new TRPCError({ code: "NOT_FOUND", message: "Establishment not found" });
 
-      const existing = await db.query.cbnMerchantRegistrations.findFirst({
-        where: eq(cbnMerchantRegistrations.establishmentId, input.establishmentId),
-      });
+      const existing = await db!.select().from(cbnMerchantRegistrations).limit(1).then((r) => r[0] ?? null);
       if (existing) {
         throw new TRPCError({ code: "CONFLICT", message: "Merchant already registered with CBN" });
       }
@@ -465,7 +453,7 @@ export const enairaRouter = router({
         address: establishment.address,
       });
 
-      const [registration] = await db.insert(cbnMerchantRegistrations).values({
+      const [registration] = await db!.insert(cbnMerchantRegistrations).values({
         establishmentId: input.establishmentId,
         cbnMerchantId: regResult.cbnMerchantId,
         cbnTerminalId: regResult.cbnTerminalId,
@@ -474,11 +462,11 @@ export const enairaRouter = router({
         registeredAt: regResult.status === "active" ? new Date() : undefined,
       }).returning();
 
-      await publishEvent(TOPICS.ESTABLISHMENT_EVENTS, {
+      await publishEvent(TOPICS.PAYMENTS, {
         type: "cbn_merchant_registered",
-        establishmentId: input.establishmentId,
+        payload: { establishmentId: input.establishmentId,
         cbnMerchantId: regResult.cbnMerchantId,
-        userId,
+        userId },
       });
 
       return { success: true, registration };
@@ -492,13 +480,12 @@ export const enairaRouter = router({
       reason: z.string().max(256),
     }))
     .mutation(async ({ ctx, input }) => {
-      const db = getDb();
+      const db = await getDb();
 
-      await requirePermission(ctx.user.id, ctx.user.role, RESOURCES_V2.ENAIRA_WALLET, ACTIONS_V2.FREEZE, input.walletId);
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
-      const wallet = await db.query.enairaWallets.findFirst({
-        where: eq(enairaWallets.id, input.walletId),
-      });
+            await requirePermission(String(ctx.user.id), ctx.user.role, RESOURCES_V2.ENAIRA_WALLET, ACTIONS_V2.FREEZE, input.walletId);
+      const [wallet] = await db!.select().from(enairaWallets).where(eq(enairaWallets.id, input.walletId)).limit(1);
       if (!wallet) throw new TRPCError({ code: "NOT_FOUND", message: "eNaira wallet not found" });
 
       await callEnairaGateway("/api/v1/wallets/status", "PUT", {
@@ -507,16 +494,16 @@ export const enairaRouter = router({
         reason: input.reason,
       });
 
-      await db.update(enairaWallets)
+      await db!.update(enairaWallets)
         .set({ status: input.status, updatedAt: new Date() })
         .where(eq(enairaWallets.id, input.walletId));
 
-      await createAuditLog(db, {
-        userId: ctx.user.id,
+      await createAuditLog({
+        actorId: ctx.user.id,
         action: `enaira_wallet_${input.status}`,
-        resourceType: "enaira_wallet",
-        resourceId: input.walletId,
-        metadata: { reason: input.reason, adminId: ctx.user.id },
+        entityType: "enaira_wallet",
+        entityId: input.walletId,
+        after: { reason: input.reason, adminId: ctx.user.id },
       });
 
       await cacheDel(`enaira:wallet:${wallet.userId}`);

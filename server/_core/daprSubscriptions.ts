@@ -49,32 +49,56 @@ const SUBSCRIPTIONS = [
 // ─── Event Handlers ──────────────────────────────────────────────────────────
 async function handleSettlementCompleted(data: Record<string, unknown>) {
   logger.info(`[Dapr] Settlement completed: ${JSON.stringify(data)}`);
-  await publishEvent(TOPICS.SETTLEMENT_EVENTS, { ...data, source: "dapr" });
+  await publishEvent(TOPICS.SETTLEMENTS, {
+    type: "settlement.completed",
+    payload: data,
+    correlationId: data.correlationId as string | undefined,
+  });
 }
 
 async function handleFraudAlert(data: Record<string, unknown>) {
   logger.warn(`[Dapr] Fraud alert received: ${JSON.stringify(data)}`);
-  await publishEvent(TOPICS.FRAUD_EVENTS, { ...data, source: "dapr" });
+  await publishEvent(TOPICS.FRAUD_ALERTS, {
+    type: "fraud.alert.created",
+    payload: data,
+    correlationId: data.correlationId as string | undefined,
+  });
 }
 
 async function handleKycStatusChanged(data: Record<string, unknown>) {
   logger.info(`[Dapr] KYC status changed: ${JSON.stringify(data)}`);
-  await publishEvent(TOPICS.KYC_EVENTS, { ...data, source: "dapr" });
+  await publishEvent(TOPICS.IDENTITY, {
+    type: "kyc.status.changed",
+    payload: data,
+    correlationId: data.correlationId as string | undefined,
+  });
 }
 
 async function handleEnairaTransactionConfirmed(data: Record<string, unknown>) {
   logger.info(`[Dapr] eNaira transaction confirmed: ${JSON.stringify(data)}`);
-  await publishEvent(TOPICS.PAYMENT_EVENTS, { ...data, type: "enaira_confirmed", source: "dapr" });
+  await publishEvent(TOPICS.PAYMENTS, {
+    type: "enaira.transaction.confirmed",
+    payload: data,
+    correlationId: data.correlationId as string | undefined,
+  });
 }
 
 async function handleTaxRemittanceConfirmed(data: Record<string, unknown>) {
   logger.info(`[Dapr] Tax remittance confirmed: ${JSON.stringify(data)}`);
-  await publishEvent(TOPICS.TAX_EVENTS, { ...data, source: "dapr" });
+  await publishEvent(TOPICS.REMITTANCES, {
+    type: "tax.remittance.confirmed",
+    payload: data,
+    correlationId: data.correlationId as string | undefined,
+  });
 }
 
 async function handleWalletBalanceUpdated(data: Record<string, unknown>) {
   logger.info(`[Dapr] Wallet balance updated: ${JSON.stringify(data)}`);
-  // No-op: balance updates are handled by direct DB writes; this is for audit
+  await publishEvent(TOPICS.WALLET_TRANSACTIONS, {
+    type: "wallet.balance.updated",
+    payload: data,
+    correlationId: data.correlationId as string | undefined,
+  });
 }
 
 const ROUTE_HANDLERS: Record<string, (data: Record<string, unknown>) => Promise<void>> = {

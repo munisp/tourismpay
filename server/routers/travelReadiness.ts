@@ -32,7 +32,7 @@ import { walletBalances } from "../../drizzle/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { publishEvent, TOPICS } from "../_core/kafka";
 import { startFundFlowWorkflow } from "../_core/temporalWorkflows";
-import { tbCreateTransfer } from "../_core/tigerbeetle";
+import { createTransfer as tbCreateTransfer } from "../_core/tigerbeetle";
 import { cacheGet, cacheSet } from "../_core/redis";
 
 // ─── Constants ──────────────────────────────────────────────────────────────

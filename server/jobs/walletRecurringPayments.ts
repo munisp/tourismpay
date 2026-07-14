@@ -170,7 +170,11 @@ export function startWalletRecurringPaymentsJob(intervalMs = 5 * 60 * 1000): voi
     logger.error("[RecurringPayments] Initial run failed:", err)
   );
   jobInterval = setInterval(async () => {
-    await runWalletRecurringPaymentsJob();
+    try {
+      await runWalletRecurringPaymentsJob();
+    } catch (err) {
+      logger.error("[RecurringPayments] Job run failed:", err);
+    }
   }, intervalMs);
 }
 

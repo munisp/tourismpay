@@ -45,10 +45,10 @@ import {
   lakehouseEtlRuns,
   openappsecWafEvents,
   keycloakSessionTokens,
-} from "../../drizzle/schema";
-import type {
   User,
   InsertUser,
+} from "../../drizzle/schema";
+import type {
   EnairaWallet,
   InsertEnairaWallet,
   EnairaTransaction,
@@ -216,7 +216,7 @@ export function makeEnairaWalletRepo(db: DB, cache?: CacheAdapter) {
         .where(eq(enairaWallets.id, walletId));
     },
 
-    async getTotalBalanceByStatus(): Promise<Array<{ status: string; totalKobo: string; walletCount: number }>> {
+    async getTotalBalanceByStatus(): Promise<Array<{ status: string; totalKobo: string | null; walletCount: number }>> {
       return db
         .select({
           status: enairaWallets.status,
@@ -282,7 +282,7 @@ export function makeEnairaTransactionRepo(db: DB) {
     async getDailyVolumeByType(
       walletId: string,
       date: Date
-    ): Promise<Array<{ transactionType: string; totalKobo: string; txCount: number }>> {
+    ): Promise<Array<{ transactionType: string; totalKobo: string | null; txCount: number }>> {
       const startOfDay = new Date(date);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(date);
@@ -332,7 +332,7 @@ export function makeTripPlannerRepo(db: DB, cache?: CacheAdapter) {
       return db
         .select()
         .from(tripPlannerSessions)
-        .where(eq(tripPlannerSessions.userId, userId))
+        .where(eq(tripPlannerSessions.userId, userId as any))
         .orderBy(desc(tripPlannerSessions.updatedAt))
         .limit(limit);
     },
@@ -382,7 +382,7 @@ export function makeTripPlannerRepo(db: DB, cache?: CacheAdapter) {
         .select()
         .from(tripPlannerRecommendations)
         .where(eq(tripPlannerRecommendations.sessionId, sessionId))
-        .orderBy(desc(tripPlannerRecommendations.confidenceScore));
+        .orderBy(desc(tripPlannerRecommendations.score));
     },
   };
 }
@@ -397,8 +397,8 @@ export function makeTaxCollectionRepo(db: DB) {
       userId: number,
       opts: { status?: string; limit?: number; offset?: number } = {}
     ): Promise<TaxCollection[]> {
-      const conditions = [eq(taxCollections.userId, userId)];
-      if (opts.status) conditions.push(eq(taxCollections.status, opts.status));
+      const conditions = [eq(taxCollections.merchantId, userId as any)];
+      if (opts.status) conditions.push(eq(taxCollections.status, opts.status as any));
       return db
         .select()
         .from(taxCollections)
@@ -416,7 +416,7 @@ export function makeTaxCollectionRepo(db: DB) {
     async updateStatus(id: string, status: string): Promise<void> {
       await db
         .update(taxCollections)
-        .set({ status, updatedAt: sql`NOW()` })
+        .set({ status })
         .where(eq(taxCollections.id, id));
     },
 
@@ -425,7 +425,7 @@ export function makeTaxCollectionRepo(db: DB) {
         .select()
         .from(taxRemittanceTracker)
         .where(eq(taxRemittanceTracker.status, "pending"))
-        .orderBy(asc(taxRemittanceTracker.remittanceDate))
+        .orderBy(asc(taxRemittanceTracker.remittedAt))
         .limit(limit);
     },
 
@@ -438,7 +438,7 @@ export function makeTaxCollectionRepo(db: DB) {
       return db
         .select({
           taxType: taxCollections.taxType,
-          totalCollectedKobo: sum(taxCollections.amountKobo),
+          totalCollectedKobo: sum(taxCollections.amount),
           count: count(),
         })
         .from(taxCollections)
@@ -464,7 +464,7 @@ export function makeTipTransactionRepo(db: DB) {
       recipientId: number,
       opts: { limit?: number; offset?: number; fromDate?: Date } = {}
     ): Promise<TipTransaction[]> {
-      const conditions = [eq(tipTransactions.recipientId, recipientId)];
+      const conditions = [eq(tipTransactions.recipientId, String(recipientId))];
       if (opts.fromDate) conditions.push(gte(tipTransactions.createdAt, opts.fromDate));
       return db
         .select()
@@ -476,7 +476,7 @@ export function makeTipTransactionRepo(db: DB) {
     },
 
     async create(data: InsertTipTransaction): Promise<TipTransaction> {
-      const [tip] = await db.insert(tipTransactions).values(data).returning();
+      const [tip] = await db.insert(tipTransactions).values(data as any).returning();
       return tip;
     },
 
@@ -489,14 +489,14 @@ export function makeTipTransactionRepo(db: DB) {
       fromDate.setDate(fromDate.getDate() - days);
       const [summary] = await db
         .select({
-          totalKobo: sum(tipTransactions.amountKobo),
+          totalKobo: sum(tipTransactions.tipAmount),
           tipCount: count(),
-          avgKobo: avg(tipTransactions.amountKobo),
+          avgKobo: avg(tipTransactions.tipAmount),
         })
         .from(tipTransactions)
         .where(
           and(
-            eq(tipTransactions.recipientId, recipientId),
+            eq(tipTransactions.recipientId, String(recipientId)),
             gte(tipTransactions.createdAt, fromDate),
             eq(tipTransactions.status, "distributed")
           )
@@ -514,7 +514,7 @@ export function makeTipTransactionRepo(db: DB) {
       return db
         .select({
           recipientId: tipTransactions.recipientId,
-          totalKobo: sum(tipTransactions.amountKobo),
+          totalKobo: sum(tipTransactions.tipAmount),
           tipCount: count(),
         })
         .from(tipTransactions)
@@ -525,7 +525,7 @@ export function makeTipTransactionRepo(db: DB) {
           )
         )
         .groupBy(tipTransactions.recipientId)
-        .orderBy(desc(sum(tipTransactions.amountKobo)))
+        .orderBy(desc(sum(tipTransactions.tipAmount)))
         .limit(limit) as any;
     },
   };
@@ -547,7 +547,6 @@ export function makeTemporalWorkflowRepo(db: DB) {
             status: data.status,
             completedAt: data.completedAt,
             errorMessage: data.errorMessage,
-            updatedAt: sql`NOW()`,
           },
         })
         .returning();
@@ -560,8 +559,8 @@ export function makeTemporalWorkflowRepo(db: DB) {
         .from(temporalWorkflowExecutions)
         .where(
           and(
-            eq(temporalWorkflowExecutions.entityId, entityId),
-            eq(temporalWorkflowExecutions.entityType, entityType)
+            eq(temporalWorkflowExecutions.workflowId, entityId),
+            eq(temporalWorkflowExecutions.workflowType, entityType)
           )
         )
         .orderBy(desc(temporalWorkflowExecutions.startedAt));
@@ -603,7 +602,7 @@ export function makeFluvioOffsetRepo(db: DB) {
         .where(
           and(
             eq(fluvioConsumerOffsets.topic, topic),
-            eq(fluvioConsumerOffsets.partitionId, partitionId)
+            eq(fluvioConsumerOffsets.partition, partitionId)
           )
         )
         .limit(1);
@@ -615,10 +614,9 @@ export function makeFluvioOffsetRepo(db: DB) {
         .insert(fluvioConsumerOffsets)
         .values(data)
         .onConflictDoUpdate({
-          target: [fluvioConsumerOffsets.topic, fluvioConsumerOffsets.partitionId],
+          target: [fluvioConsumerOffsets.topic, fluvioConsumerOffsets.partition],
           set: {
             offset: data.offset,
-            committedAt: sql`NOW()`,
             updatedAt: sql`NOW()`,
           },
         })
@@ -630,15 +628,15 @@ export function makeFluvioOffsetRepo(db: DB) {
       return db
         .select()
         .from(fluvioConsumerOffsets)
-        .where(gt(fluvioConsumerOffsets.lag, lagThreshold))
-        .orderBy(desc(fluvioConsumerOffsets.lag));
+        .where(gt(fluvioConsumerOffsets.offset, lagThreshold))
+        .orderBy(desc(fluvioConsumerOffsets.offset));
     },
 
     async getAllOffsets(): Promise<FluvioConsumerOffset[]> {
       return db
         .select()
         .from(fluvioConsumerOffsets)
-        .orderBy(asc(fluvioConsumerOffsets.topic), asc(fluvioConsumerOffsets.partitionId));
+        .orderBy(asc(fluvioConsumerOffsets.topic), asc(fluvioConsumerOffsets.partition));
     },
   };
 }
@@ -660,7 +658,7 @@ export function makeLakehouseEtlRepo(db: DB) {
         .from(lakehouseEtlRuns)
         .where(
           and(
-            eq(lakehouseEtlRuns.tableName, tableName),
+            eq(lakehouseEtlRuns.jobName, tableName),
             eq(lakehouseEtlRuns.status, "success")
           )
         )
@@ -702,7 +700,7 @@ export function makeKybRepo(db: DB) {
       return db
         .select()
         .from(kybApplications)
-        .where(eq(kybApplications.establishmentId, establishmentId))
+        .where(eq(kybApplications.establishmentId, parseInt(establishmentId, 10)))
         .orderBy(desc(kybApplications.createdAt));
     },
 
@@ -713,7 +711,7 @@ export function makeKybRepo(db: DB) {
         .where(
           inArray(kybApplications.status, ["submitted", "under_review"])
         )
-        .orderBy(asc(kybApplications.submittedAt))
+        .orderBy(asc(kybApplications.createdAt))
         .limit(limit);
     },
 
@@ -721,7 +719,7 @@ export function makeKybRepo(db: DB) {
       return db
         .select()
         .from(kybDocuments)
-        .where(eq(kybDocuments.kybApplicationId, applicationId))
+        .where(eq(kybDocuments.applicationId, parseInt(applicationId, 10)))
         .orderBy(asc(kybDocuments.documentType));
     },
 
@@ -749,7 +747,7 @@ export function makeAuditLogRepo(db: DB) {
       userId: number,
       opts: { limit?: number; offset?: number; action?: string } = {}
     ): Promise<typeof auditLogs.$inferSelect[]> {
-      const conditions = [eq(auditLogs.userId, userId)];
+      const conditions = [eq(auditLogs.actorId, userId)];
       if (opts.action) conditions.push(eq(auditLogs.action, opts.action));
       return db
         .select()
@@ -799,7 +797,7 @@ export function makeFraudAlertRepo(db: DB) {
       const conditions = [
         inArray(fraudAlerts.status, ["open", "investigating"]),
       ];
-      if (severity) conditions.push(eq(fraudAlerts.severity, severity));
+      if (severity) conditions.push(eq(fraudAlerts.severity, severity as any));
       return db
         .select()
         .from(fraudAlerts)
@@ -809,20 +807,19 @@ export function makeFraudAlertRepo(db: DB) {
     },
 
     async create(data: typeof fraudAlerts.$inferInsert): Promise<typeof fraudAlerts.$inferSelect> {
-      const [alert] = await db.insert(fraudAlerts).values(data).returning();
+      const [alert] = await db.insert(fraudAlerts).values(data as any).returning();
       return alert;
     },
 
-    async updateStatus(id: string, status: string, resolvedBy?: number): Promise<void> {
+    async updateStatus(id: string | number, status: string, resolvedBy?: number): Promise<void> {
       await db
         .update(fraudAlerts)
         .set({
-          status,
+          status: status as any,
           resolvedBy: resolvedBy ?? null,
           resolvedAt: status === "resolved" ? sql`NOW()` : null,
-          updatedAt: sql`NOW()`,
         })
-        .where(eq(fraudAlerts.id, id));
+        .where(eq(fraudAlerts.id, Number(id)));
     },
 
     async getSeverityBreakdown(): Promise<Array<{ severity: string; status: string; count: number }>> {
@@ -850,8 +847,8 @@ export function makeKeycloakSessionRepo(db: DB, cache?: CacheAdapter) {
         .from(keycloakSessionTokens)
         .where(
           and(
-            eq(keycloakSessionTokens.userId, userId),
-            eq(keycloakSessionTokens.revoked, false),
+            eq(keycloakSessionTokens.userId, userId as any),
+            sql`${keycloakSessionTokens.expiresAt} > NOW()`,
             gt(keycloakSessionTokens.expiresAt, sql`NOW()`)
           )
         )
@@ -859,16 +856,17 @@ export function makeKeycloakSessionRepo(db: DB, cache?: CacheAdapter) {
     },
 
     async upsertSession(data: typeof keycloakSessionTokens.$inferInsert): Promise<typeof keycloakSessionTokens.$inferSelect> {
+      // @ts-ignore Drizzle overload inference issue with onConflictDoUpdate on uuid columns
       const [session] = await db
         .insert(keycloakSessionTokens)
-        .values(data)
+        .values(data as any)
         .onConflictDoUpdate({
-          target: keycloakSessionTokens.sessionId,
+          target: keycloakSessionTokens.keycloakSessionId,
           set: {
             accessToken: data.accessToken,
             refreshToken: data.refreshToken,
             expiresAt: data.expiresAt,
-            updatedAt: sql`NOW()`,
+            lastUsedAt: sql`NOW()`,
           },
         })
         .returning();
@@ -878,15 +876,15 @@ export function makeKeycloakSessionRepo(db: DB, cache?: CacheAdapter) {
     async revokeSession(sessionId: string): Promise<void> {
       await db
         .update(keycloakSessionTokens)
-        .set({ revoked: true, revokedAt: sql`NOW()`, updatedAt: sql`NOW()` })
-        .where(eq(keycloakSessionTokens.sessionId, sessionId));
+        .set({ expiresAt: new Date(0), lastUsedAt: sql`NOW()` })
+        .where(eq(keycloakSessionTokens.keycloakSessionId, sessionId));
     },
 
     async revokeAllForUser(userId: number): Promise<void> {
       await db
         .update(keycloakSessionTokens)
-        .set({ revoked: true, revokedAt: sql`NOW()`, updatedAt: sql`NOW()` })
-        .where(eq(keycloakSessionTokens.userId, userId));
+        .set({ expiresAt: new Date(0), lastUsedAt: sql`NOW()` })
+        .where(eq(keycloakSessionTokens.userId, userId as any));
     },
 
     async cleanupExpired(): Promise<number> {

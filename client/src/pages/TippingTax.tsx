@@ -398,7 +398,7 @@ export default function TippingTaxPage() {
         )}
 
         {activeTab === "remittance" && (
-<TaxRemittanceDashboard jurisdiction={jurisdiction} />)
+          <TaxRemittanceDashboard jurisdiction={jurisdiction} />
         )}
       </div>
     </div>

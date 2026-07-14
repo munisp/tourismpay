@@ -114,10 +114,8 @@ export {
   serviceHealthAlerts,
 } from "./schema";
 
-import {
-  relations,
-  pgEnum,
-} from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+import { pgEnum } from "drizzle-orm/pg-core";
 
 import {
   users,
@@ -219,6 +217,9 @@ import {
   taxRules,
   partnerQuotes as _pq,
   temporalWorkflowExecutions as _twe,
+  dataExportRequests,
+  dataErasureRequests,
+  tipConfigs,
 } from "./schema";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -527,7 +528,7 @@ export const fluvioOffsetStatusEnum = pgEnum("fluvio_offset_status", [
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Users → all owned entities */
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many }: { many: any }) => ({
   walletBalances: many(walletBalances),
   walletTransactions: many(walletTransactions),
   loyaltyAccounts: many(loyaltyAccounts),
@@ -556,33 +557,33 @@ export const usersRelations = relations(users, ({ many }) => ({
 }));
 
 /** KYB Applications → documents */
-export const kybApplicationsRelations = relations(kybApplications, ({ many, one }) => ({
+export const kybApplicationsRelations = relations(kybApplications, ({ many, one }: { many: any; one: any }) => ({
   documents: many(kybDocuments),
   bisInvestigations: many(bisInvestigations),
 }));
 
-export const kybDocumentsRelations = relations(kybDocuments, ({ one }) => ({
+export const kybDocumentsRelations = relations(kybDocuments, ({ one }: { one: any }) => ({
   application: one(kybApplications, {
-    fields: [kybDocuments.kybApplicationId],
+    fields: [kybDocuments.applicationId],
     references: [kybApplications.id],
   }),
 }));
 
 /** BIS Investigations → directors */
-export const bisInvestigationsRelations = relations(bisInvestigations, ({ many }) => ({
+export const bisInvestigationsRelations = relations(bisInvestigations, ({ many }: { many: any }) => ({
   directors: many(bisDirectors),
   reportExports: many(bisReportExports),
 }));
 
-export const bisDirectorsRelations = relations(bisDirectors, ({ one }) => ({
+export const bisDirectorsRelations = relations(bisDirectors, ({ one }: { one: any }) => ({
   investigation: one(bisInvestigations, {
-    fields: [bisDirectors.investigationId],
+    fields: [bisDirectors.entityInvestigationId],
     references: [bisInvestigations.id],
   }),
 }));
 
 /** eNaira Wallets → transactions and merchant registrations */
-export const enairaWalletsRelations = relations(enairaWallets, ({ one, many }) => ({
+export const enairaWalletsRelations = relations(enairaWallets, ({ one, many }: { one: any; many: any }) => ({
   user: one(users, {
     fields: [enairaWallets.userId],
     references: [users.id],
@@ -590,7 +591,7 @@ export const enairaWalletsRelations = relations(enairaWallets, ({ one, many }) =
   transactions: many(enairaTransactions),
 }));
 
-export const enairaTransactionsRelations = relations(enairaTransactions, ({ one }) => ({
+export const enairaTransactionsRelations = relations(enairaTransactions, ({ one }: { one: any }) => ({
   wallet: one(enairaWallets, {
     fields: [enairaTransactions.enairaWalletId],
     references: [enairaWallets.id],
@@ -598,7 +599,7 @@ export const enairaTransactionsRelations = relations(enairaTransactions, ({ one 
 }));
 
 /** Loyalty Accounts → transactions and rewards */
-export const loyaltyAccountsRelations = relations(loyaltyAccounts, ({ one, many }) => ({
+export const loyaltyAccountsRelations = relations(loyaltyAccounts, ({ one, many }: { one: any; many: any }) => ({
   user: one(users, {
     fields: [loyaltyAccounts.userId],
     references: [users.id],
@@ -607,15 +608,15 @@ export const loyaltyAccountsRelations = relations(loyaltyAccounts, ({ one, many 
   rewards: many(loyaltyRewards),
 }));
 
-export const loyaltyTransactionsRelations = relations(loyaltyTransactions, ({ one }) => ({
+export const loyaltyTransactionsRelations = relations(loyaltyTransactions, ({ one }: { one: any }) => ({
   account: one(loyaltyAccounts, {
-    fields: [loyaltyTransactions.loyaltyAccountId],
+    fields: [loyaltyTransactions.userId],
     references: [loyaltyAccounts.id],
   }),
 }));
 
 /** Virtual Cards → transactions */
-export const virtualCardsRelations = relations(virtualCards, ({ one, many }) => ({
+export const virtualCardsRelations = relations(virtualCards, ({ one, many }: { one: any; many: any }) => ({
   user: one(users, {
     fields: [virtualCards.userId],
     references: [users.id],
@@ -623,15 +624,15 @@ export const virtualCardsRelations = relations(virtualCards, ({ one, many }) => 
   transactions: many(virtualCardTransactions),
 }));
 
-export const virtualCardTransactionsRelations = relations(virtualCardTransactions, ({ one }) => ({
+export const virtualCardTransactionsRelations = relations(virtualCardTransactions, ({ one }: { one: any }) => ({
   card: one(virtualCards, {
-    fields: [virtualCardTransactions.virtualCardId],
+    fields: [virtualCardTransactions.cardId],
     references: [virtualCards.id],
   }),
 }));
 
 /** Trip Planner Sessions → messages and recommendations */
-export const tripPlannerSessionsRelations = relations(tripPlannerSessions, ({ one, many }) => ({
+export const tripPlannerSessionsRelations = relations(tripPlannerSessions, ({ one, many }: { one: any; many: any }) => ({
   user: one(users, {
     fields: [tripPlannerSessions.userId],
     references: [users.id],
@@ -640,14 +641,14 @@ export const tripPlannerSessionsRelations = relations(tripPlannerSessions, ({ on
   recommendations: many(tripPlannerRecommendations),
 }));
 
-export const tripPlannerMessagesRelations = relations(tripPlannerMessages, ({ one }) => ({
+export const tripPlannerMessagesRelations = relations(tripPlannerMessages, ({ one }: { one: any }) => ({
   session: one(tripPlannerSessions, {
     fields: [tripPlannerMessages.sessionId],
     references: [tripPlannerSessions.id],
   }),
 }));
 
-export const tripPlannerRecommendationsRelations = relations(tripPlannerRecommendations, ({ one }) => ({
+export const tripPlannerRecommendationsRelations = relations(tripPlannerRecommendations, ({ one }: { one: any }) => ({
   session: one(tripPlannerSessions, {
     fields: [tripPlannerRecommendations.sessionId],
     references: [tripPlannerSessions.id],
@@ -655,7 +656,7 @@ export const tripPlannerRecommendationsRelations = relations(tripPlannerRecommen
 }));
 
 /** Split Bills → participants */
-export const splitBillsRelations = relations(splitBills, ({ one, many }) => ({
+export const splitBillsRelations = relations(splitBills, ({ one, many }: { one: any; many: any }) => ({
   creator: one(users, {
     fields: [splitBills.creatorId],
     references: [users.id],
@@ -663,19 +664,19 @@ export const splitBillsRelations = relations(splitBills, ({ one, many }) => ({
   participants: many(splitBillParticipants),
 }));
 
-export const splitBillParticipantsRelations = relations(splitBillParticipants, ({ one }) => ({
+export const splitBillParticipantsRelations = relations(splitBillParticipants, ({ one }: { one: any }) => ({
   splitBill: one(splitBills, {
-    fields: [splitBillParticipants.splitBillId],
+    fields: [splitBillParticipants.splitId],
     references: [splitBills.id],
   }),
 }));
 
 /** Multi-tip groups → recipients */
-export const multiTipGroupsRelations = relations(multiTipGroups, ({ many }) => ({
+export const multiTipGroupsRelations = relations(multiTipGroups, ({ many }: { many: any }) => ({
   recipients: many(multiTipRecipients),
 }));
 
-export const multiTipRecipientsRelations = relations(multiTipRecipients, ({ one }) => ({
+export const multiTipRecipientsRelations = relations(multiTipRecipients, ({ one }: { one: any }) => ({
   group: one(multiTipGroups, {
     fields: [multiTipRecipients.groupId],
     references: [multiTipGroups.id],
@@ -683,21 +684,21 @@ export const multiTipRecipientsRelations = relations(multiTipRecipients, ({ one 
 }));
 
 /** Tax Collections → receipts */
-export const taxCollectionsRelations = relations(taxCollections, ({ many }) => ({
+export const taxCollectionsRelations = relations(taxCollections, ({ many }: { many: any }) => ({
   receipts: many(taxReceipts),
 }));
 
-export const taxReceiptsRelations = relations(taxReceipts, ({ one }) => ({
+export const taxReceiptsRelations = relations(taxReceipts, ({ one }: { one: any }) => ({
   taxCollection: one(taxCollections, {
-    fields: [taxReceipts.taxCollectionId],
+    fields: [taxReceipts.transactionId],
     references: [taxCollections.id],
   }),
 }));
 
 /** Agents → float balances, KYC, cash loads, kiosk registries */
-export const agentsRelations = relations(agentsTable, ({ one, many }) => ({
+export const agentsRelations = relations(agentsTable, ({ one, many }: { one: any; many: any }) => ({
   user: one(users, {
-    fields: [agentsTable.userId],
+    fields: [agentsTable.id],
     references: [users.id],
   }),
   floatBalances: many(agentFloatBalances),
@@ -707,11 +708,11 @@ export const agentsRelations = relations(agentsTable, ({ one, many }) => ({
 }));
 
 /** USSD Sessions → transactions */
-export const ussdSessionsRelations = relations(ussdSessions, ({ many }) => ({
+export const ussdSessionsRelations = relations(ussdSessions, ({ many }: { many: any }) => ({
   transactions: many(ussdTransactions),
 }));
 
-export const ussdTransactionsRelations = relations(ussdTransactions, ({ one }) => ({
+export const ussdTransactionsRelations = relations(ussdTransactions, ({ one }: { one: any }) => ({
   session: one(ussdSessions, {
     fields: [ussdTransactions.sessionId],
     references: [ussdSessions.id],
@@ -719,9 +720,9 @@ export const ussdTransactionsRelations = relations(ussdTransactions, ({ one }) =
 }));
 
 /** Temporal Workflow Executions — self-referential parent/child */
-export const temporalWorkflowExecutionsRelations = relations(temporalWorkflowExecutions, ({ one, many }) => ({
+export const temporalWorkflowExecutionsRelations = relations(temporalWorkflowExecutions, ({ one, many }: { one: any; many: any }) => ({
   parent: one(temporalWorkflowExecutions, {
-    fields: [temporalWorkflowExecutions.parentWorkflowId],
+    fields: [temporalWorkflowExecutions.correlationId],
     references: [temporalWorkflowExecutions.id],
     relationName: "parent_child",
   }),
@@ -731,7 +732,7 @@ export const temporalWorkflowExecutionsRelations = relations(temporalWorkflowExe
 }));
 
 /** Insurance Policies → claims */
-export const insurancePoliciesRelations = relations(insurancePolicies, ({ one, many }) => ({
+export const insurancePoliciesRelations = relations(insurancePolicies, ({ one, many }: { one: any; many: any }) => ({
   user: one(users, {
     fields: [insurancePolicies.userId],
     references: [users.id],
@@ -739,7 +740,7 @@ export const insurancePoliciesRelations = relations(insurancePolicies, ({ one, m
   claims: many(insuranceClaims),
 }));
 
-export const insuranceClaimsRelations = relations(insuranceClaims, ({ one }) => ({
+export const insuranceClaimsRelations = relations(insuranceClaims, ({ one }: { one: any }) => ({
   policy: one(insurancePolicies, {
     fields: [insuranceClaims.policyId],
     references: [insurancePolicies.id],
@@ -747,14 +748,14 @@ export const insuranceClaimsRelations = relations(insuranceClaims, ({ one }) => 
 }));
 
 /** User Notifications → preferences */
-export const userNotificationsRelations = relations(userNotifications, ({ one }) => ({
+export const userNotificationsRelations = relations(userNotifications, ({ one }: { one: any }) => ({
   user: one(users, {
     fields: [userNotifications.userId],
     references: [users.id],
   }),
 }));
 
-export const notificationPreferencesRelations = relations(notificationPreferences, ({ one }) => ({
+export const notificationPreferencesRelations = relations(notificationPreferences, ({ one }: { one: any }) => ({
   user: one(users, {
     fields: [notificationPreferences.userId],
     references: [users.id],
@@ -762,22 +763,22 @@ export const notificationPreferencesRelations = relations(notificationPreference
 }));
 
 /** Audit Logs → user */
-export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+export const auditLogsRelations = relations(auditLogs, ({ one }: { one: any }) => ({
   user: one(users, {
-    fields: [auditLogs.userId],
+    fields: [auditLogs.actorId],
     references: [users.id],
   }),
 }));
 
 /** Biometric Enrollments → DID Documents */
-export const biometricEnrollmentsRelations = relations(biometricEnrollments, ({ one }) => ({
+export const biometricEnrollmentsRelations = relations(biometricEnrollments, ({ one }: { one: any }) => ({
   user: one(users, {
     fields: [biometricEnrollments.userId],
     references: [users.id],
   }),
 }));
 
-export const didDocumentsRelations = relations(didDocuments, ({ one, many }) => ({
+export const didDocumentsRelations = relations(didDocuments, ({ one, many }: { one: any; many: any }) => ({
   user: one(users, {
     fields: [didDocuments.userId],
     references: [users.id],
@@ -785,27 +786,27 @@ export const didDocumentsRelations = relations(didDocuments, ({ one, many }) => 
   verifiableCredentials: many(verifiableCredentials),
 }));
 
-export const verifiableCredentialsRelations = relations(verifiableCredentials, ({ one }) => ({
+export const verifiableCredentialsRelations = relations(verifiableCredentials, ({ one }: { one: any }) => ({
   didDocument: one(didDocuments, {
-    fields: [verifiableCredentials.didDocumentId],
+    fields: [verifiableCredentials.userId],
     references: [didDocuments.id],
   }),
 }));
 
 /** Tip Transactions → distribution log */
-export const tipTransactionsRelations = relations(tipTransactions, ({ many }) => ({
+export const tipTransactionsRelations = relations(tipTransactions, ({ many }: { many: any }) => ({
   distributions: many(tipDistributionLog),
 }));
 
-export const tipDistributionLogRelations = relations(tipDistributionLog, ({ one }) => ({
+export const tipDistributionLogRelations = relations(tipDistributionLog, ({ one }: { one: any }) => ({
   tipTransaction: one(tipTransactions, {
-    fields: [tipDistributionLog.tipTransactionId],
+    fields: [tipDistributionLog.tipId],
     references: [tipTransactions.id],
   }),
 }));
 
 /** Keycloak Session Tokens → user */
-export const keycloakSessionTokensRelations = relations(keycloakSessionTokens, ({ one }) => ({
+export const keycloakSessionTokensRelations = relations(keycloakSessionTokens, ({ one }: { one: any }) => ({
   user: one(users, {
     fields: [keycloakSessionTokens.userId],
     references: [users.id],

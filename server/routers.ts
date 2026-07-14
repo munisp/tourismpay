@@ -70,6 +70,9 @@ import { mobileMerchantRouter, mobileTouristRouter, mobilePaymentSwitchRouter, m
 import { fundFlowRouter } from "./routers/fundFlow";
 import { taxRemittanceRouter } from "./routers/taxRemittance";
 import { enairaRouter } from "./routers/enaira";
+import { killSwitchRouter } from "./routers/killSwitch";
+import { webhooksRouter } from "./routers/webhooks";
+import { corridorRateLimitRouter } from "./routers/corridorRateLimit";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -91,7 +94,7 @@ import {
   psNotificationRouter,
   accountRecoveryRouter,
   psAdminRouter,
-} from "./routers/psRouters";)
+} from "./routers/psRouters";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -290,7 +293,31 @@ export const appRouter = router({
   bookings: mobileBookingsRouter,
 taxRemittance: taxRemittanceRouter,
   // ─── eNaira / CBDC-NG Gateway ─────────────────────────────────────────────
-  enaira: enairaRouter,)
+  enaira: enairaRouter,
+  // ─── Previously unregistered routers ──────────────────────────────────────
+  killSwitch: killSwitchRouter,
+  webhooks: webhooksRouter,
+  corridorRateLimit: corridorRateLimitRouter,
+  notificationPreferences: notificationPreferencesRouter,
+  // ─── psRouters ────────────────────────────────────────────────────────────
+  rateAlerts: rateAlertsRouter,
+  twoFactor: twoFactorRouter,
+  trustedDevice: trustedDeviceRouter,
+  accountActivity: accountActivityRouter,
+  apiKeys: apiKeysRouter,
+  notificationChannels: notificationChannelsRouter,
+  reminderEmails: reminderEmailsRouter,
+  ocrCorrection: ocrCorrectionRouter,
+  integration: integrationRouter,
+  testingCertification: testingCertificationRouter,
+  technicalOnboarding: technicalOnboardingRouter,
+  apiKeyEnhancements: apiKeyEnhancementsRouter,
+  productionGoLive: productionGoLiveRouter,
+  remittance: remittanceRouter,
+  psNotificationPreferences: psNotificationPreferencesRouter,
+  psNotification: psNotificationRouter,
+  accountRecovery: accountRecoveryRouter,
+  psAdmin: psAdminRouter,
 });
 
 

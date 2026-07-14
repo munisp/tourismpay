@@ -322,9 +322,13 @@ export function startBisAutoAdvanceJob(intervalMs = 60_000): void {
   }
   logger.info(`[BIS Job] Starting auto-advance job (interval: ${intervalMs / 1000}s)`);
   jobInterval = setInterval(async () => {
-    const result = await runBisAutoAdvanceCycle();
-    if (result.advanced > 0 || result.completed > 0) {
-      logger.info(`[BIS Job] Cycle complete — advanced: ${result.advanced}, completed: ${result.completed}, errors: ${result.errors}`);
+    try {
+      const result = await runBisAutoAdvanceCycle();
+      if (result.advanced > 0 || result.completed > 0) {
+        logger.info(`[BIS Job] Cycle complete — advanced: ${result.advanced}, completed: ${result.completed}, errors: ${result.errors}`);
+      }
+    } catch (err) {
+      logger.error("[BIS Job] Interval run failed:", err);
     }
   }, intervalMs);
 }

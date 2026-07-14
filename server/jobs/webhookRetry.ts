@@ -70,7 +70,11 @@ export function startWebhookRetryJob(intervalMs = 60_000): void {
   );
 
   jobInterval = setInterval(async () => {
-    await runWebhookRetryJob();
+    try {
+      await runWebhookRetryJob();
+    } catch (err) {
+      logger.error("[Job] runWebhookRetryJob failed:", err);
+    }
   }, intervalMs);
 }
 

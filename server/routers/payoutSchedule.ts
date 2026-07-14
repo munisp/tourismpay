@@ -5,7 +5,7 @@
  */
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
-import { startSettlementWorkflow } from "../_core/temporalWorkflows";
+import { settlementWorkflow as startSettlementWorkflow } from "../_core/temporalWorkflows";
 import { publishEvent, TOPICS } from "../_core/kafka";
 import { z } from "zod";
 import { eq } from "drizzle-orm";

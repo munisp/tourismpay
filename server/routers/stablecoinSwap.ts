@@ -16,7 +16,7 @@
  * Compliance: BIS auto-flag for high-value, velocity checks.
  */
 import { z } from "zod";
-import { tbCreateTransfer } from "../_core/tigerbeetle";
+import { createTransfer as tbCreateTransfer } from "../_core/tigerbeetle";
 import { streamPaymentEvent, FLUVIO_TOPICS } from "../_core/fluvio";
 import { publishEvent, TOPICS } from "../_core/kafka";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
@@ -35,7 +35,7 @@ import { createAuditLog, createUserNotification } from "../db";
 import { cacheGet, cacheSet } from "../_core/redis";
 import { checkAndAutoFlag } from "./bisIntegration";
 import crypto from "crypto";
-import { publishEvent, TOPICS } from "../_core/kafka";
+
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 

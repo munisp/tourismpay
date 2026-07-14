@@ -7,7 +7,7 @@ import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { streamPaymentEvent, FLUVIO_TOPICS } from "../_core/fluvio";
-import { tbCreateTransfer } from "../_core/tigerbeetle";
+import { createTransfer as tbCreateTransfer } from "../_core/tigerbeetle";
 import { publishEvent, TOPICS } from "../_core/kafka";
 import { walletBalances, walletTransactions, meshTransactions } from "../../drizzle/schema";
 import { eq, and, desc } from "drizzle-orm";

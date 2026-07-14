@@ -34,8 +34,8 @@
  *   - LP-funded insurance fund (2% of fees) for depeg events
  */
 import { z } from "zod";
-import { daprInvokeService } from "../_core/dapr";
-import { tbCreateTransfer } from "../_core/tigerbeetle";
+import { invokeService as daprInvokeService } from "../_core/dapr";
+import { createTransfer as tbCreateTransfer } from "../_core/tigerbeetle";
 import { publishEvent, TOPICS } from "../_core/kafka";
 import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";

@@ -10,7 +10,7 @@ import {
   updateBisInvestigationStatus,
 } from "../db";
 import { getDb } from "../db";
-import { startFraudInvestigationWorkflow } from "../_core/temporalWorkflows";
+import { fraudInvestigationWorkflow as startFraudInvestigationWorkflow } from "../_core/temporalWorkflows";
 import { publishEvent, TOPICS } from "../_core/kafka";
 import { checkPermission } from "../_core/permify";
 import { bisTimeline, bisInvestigations, bisDirectors, users, bisInvestigationNotes, bisExportSchedules, fraudAlerts, psSettlements, establishments } from "../../drizzle/schema";

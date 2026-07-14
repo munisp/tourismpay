@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { publishEvent, TOPICS } from "../_core/kafka";
 import { streamPaymentEvent, FLUVIO_TOPICS } from "../_core/fluvio";
-import { tbCreateTransfer } from "../_core/tigerbeetle";
+import { createTransfer as tbCreateTransfer } from "../_core/tigerbeetle";
 import { router, publicProcedure, protectedProcedure } from "../_core/trpc";
 import { getEstablishments, getTourismEvents, getDashboardStats, getDb } from "../db";
 import { walletTransactions, establishments as establishmentsTable } from "../../drizzle/schema";
