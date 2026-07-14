@@ -10,8 +10,7 @@ import { z } from "zod";
 import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../_core/trpc";
-import { getDb } from "../db";
-import { drizzle } from "drizzle-orm/postgres-js";
+import { getDb, type DrizzleDb } from "../db";
 import {
   psWebhooks,
   psWebhookDeliveries,
@@ -23,12 +22,10 @@ import {
   attemptDelivery,
 } from "../webhookEngine";
 
-type DbInstance = NonNullable<ReturnType<typeof drizzle>>;
-
-async function requireDb(): Promise<DbInstance> {
+async function requireDb(): Promise<DrizzleDb> {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
-  return db as DbInstance;
+  return db;
 }
 
 // ─── Supported webhook events ─────────────────────────────────────────────────

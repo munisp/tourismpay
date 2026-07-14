@@ -1,6 +1,27 @@
 import { eq, desc, and, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
+import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import * as schema from "../drizzle/schema";
+import * as schemaImprovements from "../drizzle/schema-improvements";
+import { ENV } from "./_core/env";
+import { logger } from "./_core/logger";
+
+// Merged full schema for relational query API (db.query.*)
+export const fullSchema = { ...schema, ...schemaImprovements };
+export type FullSchema = typeof fullSchema;
+export type DrizzleDb = PostgresJsDatabase<FullSchema>;
+
+/**
+ * Custom Drizzle logger that routes query logs through the app logger.
+ * Skipped in test environments to keep test output clean.
+ */
+class AppQueryLogger {
+  logQuery(query: string, params: unknown[]): void {
+    const preview = query.length > 120 ? query.slice(0, 120) + "..." : query;
+    logger.debug("[DB query]", preview, { paramCount: params.length });
+  }
+}
+
 import {
   InsertUser,
   users,
@@ -27,26 +48,42 @@ import {
   type InsertBisReportExport,
   type InsertUserNotification,
 } from "../drizzle/schema";
-import { ENV } from "./_core/env";
-import { logger } from "./_core/logger";
 
-let _db: ReturnType<typeof drizzle> | null = null;
+let _db: DrizzleDb | null = null;
 let _client: ReturnType<typeof postgres> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
-export async function getDb() {
+/** Build a configured postgres.js connection pool. */
+function buildClient(dbUrl: string): ReturnType<typeof postgres> {
+  const sslRequired =
+    dbUrl.includes("sslmode=require") ||
+    dbUrl.includes("ssl=true") ||
+    (!dbUrl.includes("localhost") && !dbUrl.includes("127.0.0.1"));
+  const poolSize = parseInt(process.env.DB_POOL_SIZE || "20", 10);
+  return postgres(dbUrl, {
+    max: poolSize,
+    idle_timeout: 30,
+    connect_timeout: 10,
+    ssl: sslRequired ? { rejectUnauthorized: false } : false,
+  });
+}
+
+/**
+ * Lazily create the drizzle instance so local tooling can run without a DB.
+ *
+ * Improvements over the previous version:
+ *  - Passes `schema: fullSchema` to enable the relational query API (db.query.*)
+ *  - Passes `logger: AppQueryLogger` for query observability in non-test envs
+ *  - Passes `casing: 'snake_case'` to align JS camelCase fields with DB columns
+ */
+export async function getDb(): Promise<DrizzleDb | null> {
   if (!_db && ENV.databaseUrl) {
     try {
-      const dbUrl = ENV.databaseUrl;
-      const sslRequired = dbUrl.includes("sslmode=require") || dbUrl.includes("ssl=true") || (!dbUrl.includes("localhost") && !dbUrl.includes("127.0.0.1"));
-      const poolSize = parseInt(process.env.DB_POOL_SIZE || "20", 10);
-      _client = postgres(dbUrl, {
-        max: poolSize,
-        idle_timeout: 30,
-        connect_timeout: 10,
-        ssl: sslRequired ? { rejectUnauthorized: false } : false,
-      });
-      _db = drizzle(_client);
+      _client = buildClient(ENV.databaseUrl);
+      _db = drizzle(_client, {
+        schema: fullSchema,
+        logger: process.env.NODE_ENV !== "test" ? new AppQueryLogger() : false,
+        casing: "snake_case",
+      }) as unknown as DrizzleDb;
     } catch (error) {
       logger.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -59,16 +96,12 @@ export async function getDb() {
 export function getRawClient() {
   // Ensure getDb() has been called at least once to initialise _client
   if (!_client && ENV.databaseUrl) {
-    const dbUrl = ENV.databaseUrl;
-    const sslRequired = dbUrl.includes("sslmode=require") || dbUrl.includes("ssl=true") || (!dbUrl.includes("localhost") && !dbUrl.includes("127.0.0.1"));
-    const poolSize = parseInt(process.env.DB_POOL_SIZE || "20", 10);
-    _client = postgres(dbUrl, {
-      max: poolSize,
-      idle_timeout: 30,
-      connect_timeout: 10,
-      ssl: sslRequired ? { rejectUnauthorized: false } : false,
-    });
-    _db = drizzle(_client);
+    _client = buildClient(ENV.databaseUrl);
+    _db = drizzle(_client, {
+      schema: fullSchema,
+      logger: process.env.NODE_ENV !== "test" ? new AppQueryLogger() : false,
+      casing: "snake_case",
+    }) as unknown as DrizzleDb;
   }
   return _client;
 }

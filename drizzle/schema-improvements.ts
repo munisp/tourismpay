@@ -818,3 +818,505 @@ export const keycloakSessionTokensRelations = relations(keycloakSessionTokens, (
 /** OpenAppSec WAF Events — standalone security log */
 /** APISIX Route Registry — standalone config table */
 /** Dapr Sidecar Health — standalone health table */
+
+// ─── Additional imports for missing relations ─────────────────────────────────
+import {
+  establishments,
+  serviceHealthHistory,
+  bisTimeline,
+  scheduledPayments,
+  loyaltyPartners,
+  walletRecurringPayments,
+  loyaltyReferrals,
+  bisInvestigationNotes,
+  bisExportSchedules,
+  remittances,
+  psParticipants,
+  psSettlements,
+  nocEvents,
+  psKillSwitchState,
+  psFraudRules,
+  psLedgerEntries,
+  psKillSwitches,
+  psKillSwitchHistory,
+  psWebhooks,
+  psWebhookDeliveries,
+  psCorridorRateLimits,
+  psCorridorRateLimitUsage,
+  trustedDevices,
+  loginHistory,
+  rateAlerts,
+  psApiKeys,
+  psTwoFactorSettings,
+  psNotificationChannels,
+  psReminderEmails,
+  psAccountRecovery,
+  bisAutoFlagConfig,
+  bisAutoFlags,
+  bisKillSwitchActivations,
+  nocAlertThresholds,
+  touristProfiles,
+  qrPaymentTokens,
+  touristOnboardingState,
+  rolePermissions,
+  pushSubscriptions,
+  merchantPayoutSchedules,
+  touristTripSummaries,
+  merchantProducts,
+  staffInvites,
+  qrPaymentReceipts,
+  exchangeRateOverrides,
+  touristBookings,
+  touristReviews,
+  reviewSentimentCache,
+  reviewSentimentHistory,
+  touristDeals,
+  touristItineraries,
+  touristBudgets,
+  touristConciergeSessions,
+  touristTopups,
+  touristDealRedemptions,
+  touristDealWishlists,
+  touristItineraryItems,
+  itineraryCollaborators,
+  itineraryChangelog,
+  establishmentScoreSnapshots,
+  serviceAvailability,
+  kycVerificationRecords,
+  channelConnections,
+  stablecoinOnrampOrders,
+  stablecoinOfframpRequests,
+  stablecoinLimitOrders,
+  stablecoinYieldPositions,
+  lpApplications,
+  lpProviders,
+  lpPositions,
+  lpRewards,
+  lpPoolSnapshots,
+  lpWithdrawals,
+  lpRebalanceEvents,
+  smartContractDeployments,
+  smartContractEvents,
+} from "./schema";;
+
+// ─── Establishments ───────────────────────────────────────────────────────────
+export const establishmentsRelations = relations(establishments, ({ many }: { many: any }) => ({
+  kybApplications: many(kybApplications),
+  kybDocuments: many(kybDocuments),
+  bisInvestigations: many(bisInvestigations),
+  scoreSnapshots: many(establishmentScoreSnapshots),
+  channelConnections: many(channelConnections),
+  serviceAvailability: many(serviceAvailability),
+  qrPaymentReceipts: many(qrPaymentReceipts),
+  touristDealRedemptions: many(touristDealRedemptions),
+  touristItineraryItems: many(touristItineraryItems),
+}));
+
+// ─── Wallet ───────────────────────────────────────────────────────────────────
+export const walletBalancesRelations = relations(walletBalances, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [walletBalances.userId], references: [users.id] }),
+}));
+export const walletTransactionsRelations = relations(walletTransactions, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [walletTransactions.userId], references: [users.id] }),
+}));
+export const walletBalanceAlertsRelations = relations(walletBalanceAlerts, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [walletBalanceAlerts.userId], references: [users.id] }),
+}));
+export const walletSpendingLimitsRelations = relations(walletSpendingLimits, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [walletSpendingLimits.userId], references: [users.id] }),
+}));
+export const walletRecurringPaymentsRelations = relations(walletRecurringPayments, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [walletRecurringPayments.userId], references: [users.id] }),
+}));
+export const scheduledPaymentsRelations = relations(scheduledPayments, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [scheduledPayments.userId], references: [users.id] }),
+}));
+
+// ─── Fraud & Security ─────────────────────────────────────────────────────────
+export const fraudAlertsRelations = relations(fraudAlerts, ({ one }: { one: any }) => ({
+  establishment: one(establishments, { fields: [fraudAlerts.establishmentId], references: [establishments.id] }),
+}));
+/** socAlerts — standalone security log (no direct FK to users) */
+export const trustedDevicesRelations = relations(trustedDevices, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [trustedDevices.userId], references: [users.id] }),
+}));
+export const loginHistoryRelations = relations(loginHistory, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [loginHistory.userId], references: [users.id] }),
+}));
+export const pinLockoutHistoryRelations = relations(pinLockoutHistory, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [pinLockoutHistory.userId], references: [users.id] }),
+}));
+
+// ─── BIS ─────────────────────────────────────────────────────────────────────
+export const bisTimelineRelations = relations(bisTimeline, ({ one }: { one: any }) => ({
+  investigation: one(bisInvestigations, { fields: [bisTimeline.investigationId], references: [bisInvestigations.id] }),
+}));
+export const bisInvestigationNotesRelations = relations(bisInvestigationNotes, ({ one }: { one: any }) => ({
+  investigation: one(bisInvestigations, { fields: [bisInvestigationNotes.investigationId], references: [bisInvestigations.id] }),
+  author: one(users, { fields: [bisInvestigationNotes.authorId], references: [users.id] }),
+}));
+export const bisExportSchedulesRelations = relations(bisExportSchedules, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [bisExportSchedules.userId], references: [users.id] }),
+}));
+export const bisAutoFlagConfigRelations = relations(bisAutoFlagConfig, ({ many }: { many: any }) => ({
+  flags: many(bisAutoFlags),
+}));
+export const bisAutoFlagsRelations = relations(bisAutoFlags, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [bisAutoFlags.userId], references: [users.id] }),
+  investigation: one(bisInvestigations, { fields: [bisAutoFlags.bisInvestigationId], references: [bisInvestigations.id] }),
+}));
+export const bisKillSwitchActivationsRelations = relations(bisKillSwitchActivations, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [bisKillSwitchActivations.activatedBy], references: [users.id] }),
+}));
+
+// ─── Loyalty ─────────────────────────────────────────────────────────────────
+/** loyaltyRewards — standalone (no direct FK accountId column, uses userId) */
+export const loyaltyPartnersRelations = relations(loyaltyPartners, ({ many }: { many: any }) => ({
+  referrals: many(loyaltyReferrals),
+}));
+export const loyaltyReferralsRelations = relations(loyaltyReferrals, ({ one }: { one: any }) => ({
+  referrer: one(users, { fields: [loyaltyReferrals.referrerId], references: [users.id] }),
+  referee: one(users, { fields: [loyaltyReferrals.refereeId], references: [users.id] }),
+}));
+
+// ─── Finance & Carbon ─────────────────────────────────────────────────────────
+export const financeRequestsRelations = relations(financeRequests, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [financeRequests.userId], references: [users.id] }),
+}));
+export const carbonOffsetsRelations = relations(carbonOffsets, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [carbonOffsets.userId], references: [users.id] }),
+}));
+export const meshTransactionsRelations = relations(meshTransactions, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [meshTransactions.userId], references: [users.id] }),
+}));
+
+// ─── Service Health ───────────────────────────────────────────────────────────
+export const serviceHealthAlertsRelations = relations(serviceHealthAlerts, ({ many }: { many: any }) => ({
+  history: many(serviceHealthHistory),
+}));
+export const serviceHealthHistoryRelations = relations(serviceHealthHistory, ({ one }: { one: any }) => ({
+  /** serviceHealthHistory — no direct FK to serviceHealthAlerts (uses serviceName) */
+}));
+
+// ─── Tourism Events ───────────────────────────────────────────────────────────
+/** tourismEvents — standalone (no createdBy FK column) */
+
+// ─── Remittances & PaymentSwitch ─────────────────────────────────────────────
+export const remittancesRelations = relations(remittances, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [remittances.userId], references: [users.id] }),
+}));
+export const psParticipantsRelations = relations(psParticipants, ({ many }: { many: any }) => ({
+  settlements: many(psSettlements),
+  ledgerEntries: many(psLedgerEntries),
+}));
+export const psSettlementsRelations = relations(psSettlements, ({ one }: { one: any }) => ({
+  participant: one(psParticipants, { fields: [psSettlements.participantId], references: [psParticipants.id] }),
+}));
+export const psLedgerEntriesRelations = relations(psLedgerEntries, ({ one }: { one: any }) => ({
+  participant: one(psParticipants, { fields: [psLedgerEntries.participantId], references: [psParticipants.id] }),
+}));
+export const nocEventsRelations = relations(nocEvents, ({ one }: { one: any }) => ({
+  /** nocEvents — resolvedBy is not a FK column (uses resolvedAt timestamp) */
+}));
+export const nocAlertThresholdsRelations = relations(nocAlertThresholds, ({ one }: { one: any }) => ({
+  updatedByUser: one(users, { fields: [nocAlertThresholds.updatedBy], references: [users.id] }),
+}));
+export const psKillSwitchStateRelations = relations(psKillSwitchState, ({ many }: { many: any }) => ({
+  killSwitches: many(psKillSwitches),
+}));
+export const psFraudRulesRelations = relations(psFraudRules, ({ one }: { one: any }) => ({
+  creator: one(users, { fields: [psFraudRules.createdBy], references: [users.id] }),
+}));
+export const psKillSwitchesRelations = relations(psKillSwitches, ({ many }: { many: any }) => ({
+  history: many(psKillSwitchHistory),
+}));
+export const psKillSwitchHistoryRelations = relations(psKillSwitchHistory, ({ one }: { one: any }) => ({
+  actor: one(users, { fields: [psKillSwitchHistory.actorId], references: [users.id] }),
+}));
+export const psWebhooksRelations = relations(psWebhooks, ({ many }: { many: any }) => ({
+  deliveries: many(psWebhookDeliveries),
+}));
+export const psWebhookDeliveriesRelations = relations(psWebhookDeliveries, ({ one }: { one: any }) => ({
+  webhook: one(psWebhooks, { fields: [psWebhookDeliveries.webhookId], references: [psWebhooks.id] }),
+}));
+export const psCorridorRateLimitsRelations = relations(psCorridorRateLimits, ({ many }: { many: any }) => ({
+  usage: many(psCorridorRateLimitUsage),
+}));
+export const psCorridorRateLimitUsageRelations = relations(psCorridorRateLimitUsage, ({ one }: { one: any }) => ({
+  limit: one(psCorridorRateLimits, { fields: [psCorridorRateLimitUsage.corridor], references: [psCorridorRateLimits.corridor] }),
+}));
+
+// ─── User Auth & Preferences ──────────────────────────────────────────────────
+export const rateAlertsRelations = relations(rateAlerts, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [rateAlerts.userId], references: [users.id] }),
+}));
+export const psApiKeysRelations = relations(psApiKeys, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [psApiKeys.userId], references: [users.id] }),
+}));
+export const psTwoFactorSettingsRelations = relations(psTwoFactorSettings, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [psTwoFactorSettings.userId], references: [users.id] }),
+}));
+export const psNotificationChannelsRelations = relations(psNotificationChannels, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [psNotificationChannels.userId], references: [users.id] }),
+}));
+export const psReminderEmailsRelations = relations(psReminderEmails, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [psReminderEmails.userId], references: [users.id] }),
+}));
+export const psAccountRecoveryRelations = relations(psAccountRecovery, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [psAccountRecovery.userId], references: [users.id] }),
+}));
+export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [pushSubscriptions.userId], references: [users.id] }),
+}));
+export const rolePermissionsRelations = relations(rolePermissions, ({ one }: { one: any }) => ({
+  /** rolePermissions — grantedBy is stored as 'granted' boolean, not a FK */
+}));
+
+// ─── Tourist ─────────────────────────────────────────────────────────────────
+export const touristProfilesRelations = relations(touristProfiles, ({ one, many }: { one: any; many: any }) => ({
+  user: one(users, { fields: [touristProfiles.userId], references: [users.id] }),
+  bookings: many(touristBookings),
+  reviews: many(touristReviews),
+  itineraries: many(touristItineraries),
+  dealRedemptions: many(touristDealRedemptions),
+  tripSummaries: many(touristTripSummaries),
+}));
+export const touristOnboardingStateRelations = relations(touristOnboardingState, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [touristOnboardingState.userId], references: [users.id] }),
+}));
+export const touristTripSummariesRelations = relations(touristTripSummaries, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [touristTripSummaries.userId], references: [users.id] }),
+}));
+export const touristBookingsRelations = relations(touristBookings, ({ one, many }: { one: any; many: any }) => ({
+  user: one(users, { fields: [touristBookings.userId], references: [users.id] }),
+  product: one(merchantProducts, { fields: [touristBookings.productId], references: [merchantProducts.id] }),
+  reviews: many(touristReviews),
+  itineraryItems: many(touristItineraryItems),
+}));
+export const touristReviewsRelations = relations(touristReviews, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [touristReviews.userId], references: [users.id] }),
+  booking: one(touristBookings, { fields: [touristReviews.bookingId], references: [touristBookings.id] }),
+  establishment: one(establishments, { fields: [touristReviews.establishmentId], references: [establishments.id] }),
+}));
+export const reviewSentimentCacheRelations = relations(reviewSentimentCache, ({ one }: { one: any }) => ({
+  establishment: one(establishments, { fields: [reviewSentimentCache.establishmentId], references: [establishments.id] }),
+}));
+export const reviewSentimentHistoryRelations = relations(reviewSentimentHistory, ({ one }: { one: any }) => ({
+  establishment: one(establishments, { fields: [reviewSentimentHistory.establishmentId], references: [establishments.id] }),
+}));
+export const touristDealsRelations = relations(touristDeals, ({ one, many }: { one: any; many: any }) => ({
+  establishment: one(establishments, { fields: [touristDeals.establishmentId], references: [establishments.id] }),
+  redemptions: many(touristDealRedemptions),
+  wishlists: many(touristDealWishlists),
+}));
+export const touristItinerariesRelations = relations(touristItineraries, ({ one, many }: { one: any; many: any }) => ({
+  user: one(users, { fields: [touristItineraries.userId], references: [users.id] }),
+  items: many(touristItineraryItems),
+  collaborators: many(itineraryCollaborators),
+  changelog: many(itineraryChangelog),
+}));
+export const touristBudgetsRelations = relations(touristBudgets, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [touristBudgets.userId], references: [users.id] }),
+}));
+export const touristConciergeSessionsRelations = relations(touristConciergeSessions, ({ one, many }: { one: any; many: any }) => ({
+  user: one(users, { fields: [touristConciergeSessions.userId], references: [users.id] }),
+  messages: many(tripPlannerMessages),
+}));
+export const touristTopupsRelations = relations(touristTopups, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [touristTopups.userId], references: [users.id] }),
+}));
+export const touristDealRedemptionsRelations = relations(touristDealRedemptions, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [touristDealRedemptions.userId], references: [users.id] }),
+  deal: one(touristDeals, { fields: [touristDealRedemptions.dealId], references: [touristDeals.id] }),
+  establishment: one(establishments, { fields: [touristDealRedemptions.establishmentId], references: [establishments.id] }),
+}));
+export const touristDealWishlistsRelations = relations(touristDealWishlists, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [touristDealWishlists.userId], references: [users.id] }),
+  deal: one(touristDeals, { fields: [touristDealWishlists.dealId], references: [touristDeals.id] }),
+}));
+export const touristItineraryItemsRelations = relations(touristItineraryItems, ({ one }: { one: any }) => ({
+  itinerary: one(touristItineraries, { fields: [touristItineraryItems.itineraryId], references: [touristItineraries.id] }),
+  establishment: one(establishments, { fields: [touristItineraryItems.establishmentId], references: [establishments.id] }),
+  booking: one(touristBookings, { fields: [touristItineraryItems.bookingId], references: [touristBookings.id] }),
+  deal: one(touristDeals, { fields: [touristItineraryItems.dealId], references: [touristDeals.id] }),
+}));
+export const itineraryCollaboratorsRelations = relations(itineraryCollaborators, ({ one }: { one: any }) => ({
+  itinerary: one(touristItineraries, { fields: [itineraryCollaborators.itineraryId], references: [touristItineraries.id] }),
+  user: one(users, { fields: [itineraryCollaborators.userId], references: [users.id] }),
+}));
+export const itineraryChangelogRelations = relations(itineraryChangelog, ({ one }: { one: any }) => ({
+  itinerary: one(touristItineraries, { fields: [itineraryChangelog.itineraryId], references: [touristItineraries.id] }),
+  user: one(users, { fields: [itineraryChangelog.userId], references: [users.id] }),
+}));
+
+// ─── QR Payments ─────────────────────────────────────────────────────────────
+export const qrPaymentTokensRelations = relations(qrPaymentTokens, ({ one, many }: { one: any; many: any }) => ({
+  establishment: one(establishments, { fields: [qrPaymentTokens.establishmentId], references: [establishments.id] }),
+  paidByUser: one(users, { fields: [qrPaymentTokens.paidByUserId], references: [users.id] }),
+  receipts: many(qrPaymentReceipts),
+}));
+export const qrPaymentReceiptsRelations = relations(qrPaymentReceipts, ({ one }: { one: any }) => ({
+  token: one(qrPaymentTokens, { fields: [qrPaymentReceipts.token], references: [qrPaymentTokens.token] }),
+  tourist: one(users, { fields: [qrPaymentReceipts.touristUserId], references: [users.id] }),
+  establishment: one(establishments, { fields: [qrPaymentReceipts.establishmentId], references: [establishments.id] }),
+}));
+
+// ─── Merchant & Staff ─────────────────────────────────────────────────────────
+export const merchantProductsRelations = relations(merchantProducts, ({ one, many }: { one: any; many: any }) => ({
+  establishment: one(establishments, { fields: [merchantProducts.establishmentId], references: [establishments.id] }),
+  bookings: many(touristBookings),
+}));
+export const merchantPayoutSchedulesRelations = relations(merchantPayoutSchedules, ({ one }: { one: any }) => ({
+  merchant: one(users, { fields: [merchantPayoutSchedules.merchantId], references: [users.id] }),
+}));
+export const staffInvitesRelations = relations(staffInvites, ({ one }: { one: any }) => ({
+  inviter: one(users, { fields: [staffInvites.inviterUserId], references: [users.id] }),
+  acceptedBy: one(users, { fields: [staffInvites.acceptedByUserId], references: [users.id] }),
+  establishment: one(establishments, { fields: [staffInvites.establishmentId], references: [establishments.id] }),
+}));
+
+// ─── Establishment Score & Channel ────────────────────────────────────────────
+export const establishmentScoreSnapshotsRelations = relations(establishmentScoreSnapshots, ({ one }: { one: any }) => ({
+  establishment: one(establishments, { fields: [establishmentScoreSnapshots.establishmentId], references: [establishments.id] }),
+}));
+export const serviceAvailabilityRelations = relations(serviceAvailability, ({ one }: { one: any }) => ({
+  establishment: one(establishments, { fields: [serviceAvailability.establishmentId], references: [establishments.id] }),
+}));
+export const channelConnectionsRelations = relations(channelConnections, ({ one }: { one: any }) => ({
+  establishment: one(establishments, { fields: [channelConnections.establishmentId], references: [establishments.id] }),
+}));
+export const exchangeRateOverridesRelations = relations(exchangeRateOverrides, ({ one }: { one: any }) => ({
+  creator: one(users, { fields: [exchangeRateOverrides.createdByUserId], references: [users.id] }),
+}));
+
+// ─── KYC ─────────────────────────────────────────────────────────────────────
+export const kycVerificationRecordsRelations = relations(kycVerificationRecords, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [kycVerificationRecords.userId], references: [users.id] }),
+}));
+
+// ─── Stablecoin & LP ─────────────────────────────────────────────────────────
+export const stablecoinOnrampOrdersRelations = relations(stablecoinOnrampOrders, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [stablecoinOnrampOrders.userId], references: [users.id] }),
+}));
+export const stablecoinOfframpRequestsRelations = relations(stablecoinOfframpRequests, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [stablecoinOfframpRequests.userId], references: [users.id] }),
+}));
+export const stablecoinLimitOrdersRelations = relations(stablecoinLimitOrders, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [stablecoinLimitOrders.userId], references: [users.id] }),
+}));
+export const stablecoinYieldPositionsRelations = relations(stablecoinYieldPositions, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [stablecoinYieldPositions.userId], references: [users.id] }),
+}));
+export const lpApplicationsRelations = relations(lpApplications, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [lpApplications.userId], references: [users.id] }),
+}));
+export const lpProvidersRelations = relations(lpProviders, ({ many }: { many: any }) => ({
+  applications: many(lpApplications),
+  positions: many(lpPositions),
+  rewards: many(lpRewards),
+  poolSnapshots: many(lpPoolSnapshots),
+  withdrawals: many(lpWithdrawals),
+  rebalanceEvents: many(lpRebalanceEvents),
+}));
+export const lpPositionsRelations = relations(lpPositions, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [lpPositions.userId], references: [users.id] }),
+}));
+/** lpRewards — uses lpId/poolId (no direct FK to lpProviders) */
+/** lpPoolSnapshots — uses poolId (no direct FK to lpProviders) */
+export const lpWithdrawalsRelations = relations(lpWithdrawals, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [lpWithdrawals.userId], references: [users.id] }),
+}));
+/** lpRebalanceEvents — uses fromPool/toPool text fields, no direct FK */
+
+// ─── Smart Contracts ─────────────────────────────────────────────────────────
+export const smartContractDeploymentsRelations = relations(smartContractDeployments, ({ many }: { many: any }) => ({
+  events: many(smartContractEvents),
+}));
+/** smartContractEvents — contractName is a text field, not a FK */
+
+// ─── Agent Network ────────────────────────────────────────────────────────────
+export const cashLoadOrdersRelations = relations(cashLoadOrders, ({ one }: { one: any }) => ({
+  agent: one(agentsTable, { fields: [cashLoadOrders.agentId], references: [agentsTable.id] }),
+  user: one(users, { fields: [cashLoadOrders.userId], references: [users.id] }),
+}));
+export const agentKycVerificationsRelations = relations(agentKycVerifications, ({ one }: { one: any }) => ({
+  agent: one(agentsTable, { fields: [agentKycVerifications.agentId], references: [agentsTable.id] }),
+  tourist: one(users, { fields: [agentKycVerifications.touristUserId], references: [users.id] }),
+}));
+
+// ─── Transfers & Payments ─────────────────────────────────────────────────────
+export const bankTransfersOutRelations = relations(bankTransfersOut, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [bankTransfersOut.userId], references: [users.id] }),
+}));
+export const savedBeneficiariesRelations = relations(savedBeneficiaries, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [savedBeneficiaries.userId], references: [users.id] }),
+}));
+export const paymentLinksRelations = relations(paymentLinks, ({ one }: { one: any }) => ({
+  creator: one(users, { fields: [paymentLinks.creatorId], references: [users.id] }),
+}));
+export const moneyRequestsRelations = relations(moneyRequests, ({ one }: { one: any }) => ({
+  requester: one(users, { fields: [moneyRequests.requesterId], references: [users.id] }),
+  payer: one(users, { fields: [moneyRequests.payerId], references: [users.id] }),
+}));
+export const rideBookingsRelations = relations(rideBookings, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [rideBookings.userId], references: [users.id] }),
+}));
+export const nfcPaymentTokensRelations = relations(nfcPaymentTokens, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [nfcPaymentTokens.userId], references: [users.id] }),
+}));
+export const bankTravelNotificationsRelations = relations(bankTravelNotifications, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [bankTravelNotifications.userId], references: [users.id] }),
+}));
+export const esimOrdersRelations = relations(esimOrders, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [esimOrders.userId], references: [users.id] }),
+}));
+export const currencyCorridorsRelations = relations(currencyCorridors, ({ many }: { many: any }) => ({
+  rateLimits: many(psCorridorRateLimits),
+}));
+export const preTravelChecklistsRelations = relations(preTravelChecklists, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [preTravelChecklists.userId], references: [users.id] }),
+}));
+export const kycFastTrackHistoryRelations = relations(kycFastTrackHistory, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [kycFastTrackHistory.userId], references: [users.id] }),
+}));
+export const offlineTokenRenewalsRelations = relations(offlineTokenRenewals, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [offlineTokenRenewals.userId], references: [users.id] }),
+}));
+export const countryRiskCacheRelations = relations(countryRiskCache, ({ many }: { many: any }) => ({
+  travelRiskAssessments: many(travelRiskAssessments),
+}));
+export const travelRiskAssessmentsRelations = relations(travelRiskAssessments, ({ one }: { one: any }) => ({
+  user: one(users, { fields: [travelRiskAssessments.userId], references: [users.id] }),
+}));
+
+// ─── Tax & GDS ────────────────────────────────────────────────────────────────
+export const tipConfigsRelations = relations(tipConfigs, ({ one }: { one: any }) => ({
+  establishment: one(establishments, { fields: [tipConfigs.establishmentId], references: [establishments.id] }),
+}));
+/** taxRemittanceTracker — standalone (no direct FK to establishments, uses jurisdictionCode) */
+/** taxRulesCustom — standalone (no direct FK to establishments, uses jurisdictionCode) */
+/** gdsBookingTaxes — uses reservationId (external GDS reference, no direct FK) */
+/** gdsStaffTips — uses tipGroupId (external GDS reference, no direct FK) */
+export const gdsLoyaltyEarningsRelations = relations(gdsLoyaltyEarnings, ({ one }: { one: any }) => ({
+  booking: one(touristBookings, { fields: [gdsLoyaltyEarnings.bookingId], references: [touristBookings.id] }),
+}));
+export const gdsItineraryConversionsRelations = relations(gdsItineraryConversions, ({ one }: { one: any }) => ({
+  itinerary: one(touristItineraries, { fields: [gdsItineraryConversions.itineraryId], references: [touristItineraries.id] }),
+}));
+/** gdsDemandForecasts — uses countryCode (no direct FK to establishments) */
+export const taxRulesRelations = relations(taxRules, ({ many }: { many: any }) => ({
+  taxRulesCustom: many(taxRulesCustom),
+}));
+
+// ─── Kill Switch Schedules ────────────────────────────────────────────────────
+export const killSwitchSchedulesRelations = relations(killSwitchSchedules, ({ one }: { one: any }) => ({
+  creator: one(users, { fields: [killSwitchSchedules.createdBy], references: [users.id] }),
+}));
+
+// ─── Dapr & Infrastructure ────────────────────────────────────────────────────
+export const daprSubscriptionsRelations = relations(daprSubscriptions, ({ many }: { many: any }) => ({
+  stateEntries: many(daprStateEntries),
+}));
+export const daprStateEntriesRelations = relations(daprStateEntries, ({ one }: { one: any }) => ({
+  /** daprStateEntries — no direct FK to daprSubscriptions (uses storeName/stateKey) */
+}));
