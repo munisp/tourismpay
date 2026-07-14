@@ -1,0 +1,7 @@
+aiohttp==3.10.5
+psycopg2-binary==2.9.9
+pyarrow==17.0.0
+# Production Lakehouse:
+# pyiceberg[s3]==0.7.1
+# deltalake==0.18.2
+# boto3==1.35.0
