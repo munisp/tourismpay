@@ -379,3 +379,7 @@ export async function grantOwnership(
     },
   ]);
 }
+
+// ─── Compatibility Aliases ────────────────────────────────────────────────────
+/** @deprecated Use checkPermission instead */
+export const permifyCheck = checkPermission;

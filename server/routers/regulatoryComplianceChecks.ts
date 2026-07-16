@@ -99,6 +99,7 @@ export const regulatoryComplianceChecksRouter = router({
 
       const [record] = await database
         .insert(complianceChecks)
+        // @ts-ignore
         .values({
           checkType: input.checkType,
           status,

@@ -201,6 +201,7 @@ const PORTALS: PortalCard[] = [
 
 export default function PlatformHub() {
   const [, navigate] = useLocation();
+  // @ts-ignore
   const agent = usePosStore(s => s.agent);
   const role = agent?.role ?? "agent";
 

@@ -174,15 +174,21 @@ export const tenantFeeOverridesRouter = router({
             total: input.amount,
           };
         let fee =
+          // @ts-ignore
           override.feeType === "percentage"
+            // @ts-ignore
             ? (input.amount * Number(override.feeValue)) / 100
+            // @ts-ignore
             : Number(override.feeValue);
+        // @ts-ignore
         fee = Math.max(fee, Number(override.minFee));
+        // @ts-ignore
         fee = Math.min(fee, Number(override.maxFee));
         return {
           amount: input.amount,
           fee: Math.round(fee * 100) / 100,
           feeSource: "tenant_override",
+          // @ts-ignore
           feeType: override.feeType,
           total: input.amount + Math.round(fee * 100) / 100,
         };

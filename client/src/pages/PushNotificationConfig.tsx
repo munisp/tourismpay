@@ -5,9 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 export default function PushNotificationConfig() {
+  // @ts-ignore
   const vapidQ = trpc.push.getVapidPublicKey.useQuery(undefined, {
     retry: false,
   });
+  // @ts-ignore
   const subsQ = trpc.push.listSubscriptions.useQuery(
     { agentCode: "AGT-001" },
     { retry: false }

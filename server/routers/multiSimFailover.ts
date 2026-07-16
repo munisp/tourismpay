@@ -77,6 +77,7 @@ export const multiSimFailoverRouter = router({
         if (!session) throw new TRPCError({ code: "UNAUTHORIZED" });
 
         await writeAuditLog({
+          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "SIM_FAILOVER_TRIGGERED",
@@ -136,6 +137,7 @@ export const multiSimFailoverRouter = router({
           .where(eq(posTerminals.id, input.terminalId));
 
         await writeAuditLog({
+          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "SIM_CONFIG_UPDATED",

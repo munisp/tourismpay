@@ -107,6 +107,7 @@ export const agentSuspensionLogRouter = router({
             : "warn";
         const [row] = await db
           .insert(agentSuspensionLog)
+          // @ts-ignore
           .values({
             agentId: input.agentId,
             action,
@@ -160,6 +161,7 @@ export const agentSuspensionLogRouter = router({
           });
         const [row] = await db
           .insert(agentSuspensionLog)
+          // @ts-ignore
           .values({
             agentId: input.agentId,
             action: "suspend",
@@ -201,6 +203,7 @@ export const agentSuspensionLogRouter = router({
           });
         const [row] = await db
           .insert(agentSuspensionLog)
+          // @ts-ignore
           .values({
             agentId: input.agentId,
             action: "reactivate",

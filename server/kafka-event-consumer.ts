@@ -345,7 +345,9 @@ eventHandlers.set("settlement.completed", async event => {
     `SELECT agent_id, amount FROM settlements WHERE settlement_id = $1`,
     [settlementId]
   );
+  // @ts-ignore
   if (result.rows && result.rows.length > 0) {
+    // @ts-ignore
     const { agent_id, amount } = result.rows[0] as { agent_id: string; amount: number };
     await db.execute(
       `INSERT INTO notification_queue (recipient_id, channel, template, payload, status, created_at)

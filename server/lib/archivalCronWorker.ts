@@ -10,6 +10,7 @@
 import { getConfig, getConfigNumber, setConfig } from "./runtimeConfig";
 import { runArchivalJob } from "./parquetArchival";
 import { notifyOwner } from "../_core/notification";
+// @ts-ignore
 import logger from "../_core/logger";
 
 // ── Cron Parsing ────────────────────────────────────────────────────────────

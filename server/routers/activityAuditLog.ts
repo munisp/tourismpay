@@ -100,6 +100,7 @@ export const activityAuditLogRouter = router({
 
       const [record] = await database
         .insert(auditLog)
+        // @ts-ignore
         .values({
           action: input.action,
           userId: input.userId,

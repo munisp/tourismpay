@@ -16,6 +16,7 @@ import {
   tbRecordCommissionCredit,
   streamCommissionEvent,
 } from "../middleware/commissionMiddleware";
+// @ts-ignore
 import logger from "../_core/logger";
 
 export const commissionClawbackRouter = router({

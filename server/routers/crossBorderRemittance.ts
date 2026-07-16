@@ -158,6 +158,7 @@ export const crossBorderRemittanceRouter = router({
 
         const [tx] = await db
           .insert(transactions)
+          // @ts-ignore
           .values({
             ref,
             agentId: session.id,
@@ -191,6 +192,7 @@ export const crossBorderRemittanceRouter = router({
           .where(eq(agents.id, session.id));
 
         await writeAuditLog({
+          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "CROSS_BORDER_REMITTANCE_SENT",

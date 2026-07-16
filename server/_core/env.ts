@@ -39,4 +39,12 @@ export const ENV = {
   smtpUser: process.env.SMTP_USER ?? "",
   smtpPass: process.env.SMTP_PASS ?? "",
   smtpFrom: process.env.SMTP_FROM ?? "noreply@tourismpay.com",
+  // TigerBeetle sidecar URL (for TB client)
+  tbSidecarUrl: process.env.TB_SIDECAR_URL ?? "http://tigerbeetle-sidecar:3000",
+  // Termii SMS API key
+  termiiApiKey: process.env.TERMII_API_KEY ?? "",
+  termiiBaseUrl: process.env.TERMII_BASE_URL ?? "https://api.ng.termii.com",
+  // Temporal service address
+  temporalAddress: process.env.TEMPORAL_ADDRESS ?? "localhost:7233",
+  temporalNamespace: process.env.TEMPORAL_NAMESPACE ?? "default",
 };

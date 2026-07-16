@@ -7,6 +7,7 @@
  *   import { loadVaultSecrets } from "./_core/vault";
  *   await loadVaultSecrets(); // call once at startup before any other init
  */
+// @ts-ignore
 import logger from "./logger";
 
 const VAULT_ADDR = process.env.VAULT_ADDR ?? "http://localhost:8200";

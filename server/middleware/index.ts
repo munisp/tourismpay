@@ -211,6 +211,7 @@ export function registerHealthEndpoints(app: Express) {
 
     // DB check
     try {
+      // @ts-ignore
       const { getPool } = await import("../db");
       const pool = await getPool();
       if (pool) {
@@ -255,6 +256,7 @@ export function registerGracefulShutdown(server: any) {
 
     // Close DB pool
     try {
+      // @ts-ignore
       const { getPool } = await import("../db");
       const pool = await getPool();
       if (pool) await pool.end();

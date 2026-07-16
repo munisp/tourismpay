@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 
 export default function AgentPortal() {
+  // @ts-ignore
   const agent = usePosStore(s => s.agent);
   const [, navigate] = useLocation();
   const [tab, setTab] = useState("wallet");

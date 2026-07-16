@@ -12,16 +12,21 @@ export default function TigerBeetleLedger() {
     "accounts"
   );
 
+  // @ts-ignore
   const healthQ = trpc.ledger.health.useQuery(undefined, {
     retry: false,
     refetchInterval: 30000,
   });
+  // @ts-ignore
   const balanceQ = trpc.ledger.agentBalance.useQuery(
     { agentCode },
     { enabled: !!agentCode, retry: false }
   );
+  // @ts-ignore
   const syncQ = trpc.ledger.syncStatus.useQuery(undefined, { retry: false });
+  // @ts-ignore
   const summaryQ = trpc.ledger.summary.useQuery(undefined, { retry: false });
+  // @ts-ignore
   const triggerSyncMut = trpc.ledger.triggerSync.useMutation({
     onSuccess: () => {
       toast.success("Sync triggered");

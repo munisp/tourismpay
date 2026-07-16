@@ -8,6 +8,7 @@
  *
  * All methods are async and handle Redis failures gracefully.
  */
+// @ts-ignore
 import logger from "../_core/logger";
 
 let redisAvailable = false;

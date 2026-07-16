@@ -55,6 +55,7 @@ export const featureFlagsRouter = router({
           .update(tenantFeatureToggles)
           .set({ enabled: input.enabled })
           .where(eq(tenantFeatureToggles.id, input.id));
+        // @ts-ignore
         await db.insert(auditLog).values({
           action: input.enabled
             ? "feature_flag_enabled"

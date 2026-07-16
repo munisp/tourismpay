@@ -44,6 +44,7 @@ export default function AgentPerformance() {
   const [search, setSearch] = useState("");
   const limit = 20;
 
+  // @ts-ignore
   const { data, isLoading } = trpc.analytics.agentLeaderboard.useQuery({
     days,
     sortBy,

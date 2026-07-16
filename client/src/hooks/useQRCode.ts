@@ -282,6 +282,7 @@ export function useQRScanner(onScan: (result: QRScanResult) => void) {
       const msg = e instanceof Error ? e.message : "Camera access denied";
       setError(msg);
       setCameraAvailable(false);
+      // @ts-ignore
       logger.error("[QRScanner]", e);
     }
   }, [onScan, stopScanning]);

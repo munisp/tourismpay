@@ -114,6 +114,7 @@ export const documentManagementRouter = router({
           .update(kycDocuments)
           .set({ status: input.verified ? "verified" : "rejected" })
           .where(eq(kycDocuments.id, input.id));
+        // @ts-ignore
         await db.insert(auditLog).values({
           action: input.verified ? "document_verified" : "document_rejected",
           resource: "kyc_documents",

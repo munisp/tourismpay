@@ -164,6 +164,7 @@ export const observabilityAlertsRouter = router({
           .update(observabilityAlerts)
           .set({
             status: "acknowledged",
+            // @ts-ignore
             acknowledgedBy: input.acknowledgedBy,
             acknowledgedAt: new Date(),
           })

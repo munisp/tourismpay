@@ -50,6 +50,7 @@ import {
   Gauge,
   Histogram,
   collectDefaultMetrics,
+// @ts-ignore
 } from "prom-client";
 
 // ── Shared registry ───────────────────────────────────────────────────────────

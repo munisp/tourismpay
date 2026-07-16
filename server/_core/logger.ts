@@ -82,3 +82,14 @@ export const logger = {
   warn: (...args: unknown[]) => emit("warn", ...args),
   error: (...args: unknown[]) => emit("error", ...args),
 };
+
+// ─── Compatibility Aliases ────────────────────────────────────────────────────
+/** Express-compatible request logging middleware */
+export function requestLoggingMiddleware(
+  req: { method?: string; url?: string },
+  _res: unknown,
+  next: () => void
+) {
+  logger.info(`${req.method ?? "?"} ${req.url ?? "?"}`);
+  next();
+}

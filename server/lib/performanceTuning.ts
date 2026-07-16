@@ -5,6 +5,7 @@
  * and request metrics for P99 response times
  */
 import { cacheGet, cacheSet } from "../redisClient";
+// @ts-ignore
 import logger from "../_core/logger";
 
 // ── 1. In-Memory LRU Cache for Hot Queries ────────────────────────────────────

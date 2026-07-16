@@ -60,6 +60,7 @@ export const posDisputeRouter = router({
 
         const [dispute] = await db
           .insert(disputes)
+          // @ts-ignore
           .values({
             ref: `DSP-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
             agentId: session.id,
@@ -77,6 +78,7 @@ export const posDisputeRouter = router({
           .returning();
 
         await writeAuditLog({
+          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "POS_DISPUTE_FILED",

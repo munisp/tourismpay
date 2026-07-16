@@ -82,6 +82,7 @@ export const agentTrainingAcademyRouter = router({
         if (!db) throw new Error("DB not available");
         const [enrollment] = await db
           .insert(trainingEnrollments)
+          // @ts-ignore
           .values({
             agentId: input.agentId,
             courseId: input.courseId,

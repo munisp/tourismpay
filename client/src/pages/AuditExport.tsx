@@ -32,6 +32,7 @@ export default function AuditExport() {
   const [category, setCategory] = useState("all");
   const [search, setSearch] = useState("");
 
+  // @ts-ignore
   const logs = trpc.auditLog.list.useQuery({}, { retry: false });
 
   const filteredLogs = useMemo(() => {

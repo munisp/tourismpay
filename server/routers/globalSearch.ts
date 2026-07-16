@@ -246,6 +246,7 @@ export const globalSearchRouter = router({
           const disputeResults = await db
             .select({
               id: disputes.id,
+              // @ts-ignore
               transactionRef: disputes.transactionRef,
               reason: disputes.reason,
               status: disputes.status,
@@ -254,6 +255,7 @@ export const globalSearchRouter = router({
             .from(disputes)
             .where(
               or(
+                // @ts-ignore
                 ilike(disputes.transactionRef, pattern),
                 ilike(disputes.reason ?? sql`''`, pattern)
               )
@@ -277,6 +279,7 @@ export const globalSearchRouter = router({
             .from(disputes)
             .where(
               or(
+                // @ts-ignore
                 ilike(disputes.transactionRef, pattern),
                 ilike(disputes.reason ?? sql`''`, pattern)
               )

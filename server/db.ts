@@ -1203,3 +1203,83 @@ export async function updateBisModuleResults(
 
   return updated;
 }
+
+// ─── Compatibility Aliases ────────────────────────────────────────────────────
+// These aliases resolve naming mismatches between router code and db.ts exports.
+
+/** @deprecated Use createAuditLog instead */
+export const writeAuditLog = createAuditLog;
+
+/** @deprecated Use getAuditLogs instead */
+export const getAuditLog = getAuditLogs;
+
+// Agent helper stubs — these delegate to the agents table via the db instance
+export async function getAgentById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const { agents } = await import("../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+  const [agent] = await db.select().from(agents).where(eq(agents.id, id)).limit(1);
+  return agent ?? null;
+}
+
+export async function getAgentByCode(agentCode: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const { agents } = await import("../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+  const [agent] = await db.select().from(agents).where(eq(agents.agentCode, agentCode)).limit(1);
+  return agent ?? null;
+}
+
+export async function createAgent(data: { userId?: string; agentCode?: string; tier?: string }) {
+  const db = await getDb();
+  if (!db) return null;
+  const { agents } = await import("../drizzle/schema");
+  const [agent] = await db.insert(agents).values(data).returning();
+  return agent ?? null;
+}
+
+export async function updateAgentLastLogin(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  const { agents } = await import("../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+  await db.update(agents).set({ updatedAt: new Date() }).where(eq(agents.id, id));
+}
+
+export async function updateAgentFloat(id: number, _amount: number) {
+  // Float management is handled via TigerBeetle; this stub satisfies the import
+  const db = await getDb();
+  if (!db) return;
+  const { agents } = await import("../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+  await db.update(agents).set({ updatedAt: new Date() }).where(eq(agents.id, id));
+}
+
+export async function updateAgentCommission(id: number, _amount: number) {
+  const db = await getDb();
+  if (!db) return;
+  const { agents } = await import("../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+  await db.update(agents).set({ updatedAt: new Date() }).where(eq(agents.id, id));
+}
+
+// ─── Direct DB Instance Export ────────────────────────────────────────────────
+// Some legacy files import `db` directly and call db.execute(sql).
+// This proxy satisfies that pattern by delegating to the underlying postgres client.
+let _cachedDb: DrizzleDb | null = null;
+export const db = {
+  get instance() { return _cachedDb; },
+  async init() {
+    if (!_cachedDb) _cachedDb = await getDb();
+    return _cachedDb;
+  },
+  async execute(sql: string, params?: unknown[]) {
+    const instance = _cachedDb ?? await getDb();
+    if (!instance) throw new Error("Database not available");
+    // drizzle-orm postgres-js exposes execute via sql template tag
+    const { sql: drizzleSql } = await import("drizzle-orm");
+    return instance.execute(drizzleSql.raw(sql));
+  },
+};

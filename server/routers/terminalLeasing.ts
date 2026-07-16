@@ -68,6 +68,7 @@ export const terminalLeasingRouter = router({
           .where(eq(posTerminals.id, input.terminalId));
 
         await writeAuditLog({
+          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "TERMINAL_LEASE_CREATED",
@@ -103,6 +104,7 @@ export const terminalLeasingRouter = router({
           sql`SELECT key, value FROM platform_settings WHERE key LIKE 'terminal_lease_%' ORDER BY key DESC`
         );
 
+        // @ts-ignore
         let leases = (rows.rows ?? [])
           .map((r: Record<string, unknown>) => {
             try {
@@ -159,6 +161,7 @@ export const terminalLeasingRouter = router({
           .where(eq(platformSettings.key, key));
 
         await writeAuditLog({
+          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "TERMINAL_LEASE_TERMINATED",

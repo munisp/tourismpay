@@ -31,6 +31,7 @@ export default function WebhookDeliveryViewer() {
   const [search, setSearch] = useState("");
   const [selectedDelivery, setSelectedDelivery] = useState<any>(null);
 
+  // @ts-ignore
   const deliveries = trpc.webhooks.deliveries.useQuery(
     { endpointId: 1, page: 1, limit: 50 },
     { retry: false }

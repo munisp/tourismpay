@@ -75,6 +75,7 @@ export const merchantOnboardingPortalRouter = router({
           .update(merchants)
           .set({ status: "active" })
           .where(eq(merchants.id, input.id));
+        // @ts-ignore
         await db.insert(auditLog).values({
           action: "merchant_approved",
           resource: "merchants",
@@ -101,6 +102,7 @@ export const merchantOnboardingPortalRouter = router({
           .update(merchants)
           .set({ status: "suspended" })
           .where(eq(merchants.id, input.id));
+        // @ts-ignore
         await db.insert(auditLog).values({
           action: "merchant_rejected",
           resource: "merchants",

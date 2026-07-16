@@ -13,6 +13,10 @@ export default defineConfig({
   schema: [
     "./drizzle/schema.ts",
     "./drizzle/schema-improvements.ts",
+    "./drizzle/schema-additions.ts",
+    "./drizzle/schema-extended.ts",
+    "./drizzle/schema-constraints.ts",
+    "./drizzle/schema-platform.ts",
     "./drizzle/views.ts",
   ],
   out: "./drizzle",

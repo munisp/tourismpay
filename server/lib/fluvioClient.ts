@@ -55,9 +55,13 @@ export interface FluvioClientStatus {
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 
+// @ts-ignore
 const FLUVIO_ENDPOINT = ENV.fluvioEndpoint;
+// @ts-ignore
 const FLUVIO_API_KEY = ENV.fluvioApiKey;
+// @ts-ignore
 const PLATFORM_BASE_URL = ENV.platformBaseUrl; // APISix proxy fallback
+// @ts-ignore
 const PLATFORM_API_KEY = ENV.platformApiKey;
 
 /** Well-known topics this POS Shell produces to or consumes from */

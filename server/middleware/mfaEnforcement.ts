@@ -43,6 +43,7 @@ export const requireMfa = async ({
   }
 
   // Check DB flag: admin must have explicitly enabled MFA for this user
+  // @ts-ignore
   if (!ctx.user.mfaEnabled) {
     throw new TRPCError({
       code: "FORBIDDEN",

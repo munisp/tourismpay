@@ -66,6 +66,7 @@ export const chargebackManagementRouter = router({
           ? await db
               .select()
               .from(transactions)
+              // @ts-ignore
               .where(eq(transactions.id, dispute.transactionId))
               .limit(1)
           : [null];
@@ -136,6 +137,7 @@ export const chargebackManagementRouter = router({
           .update(disputes)
           .set({ status: "resolved", resolution: input.resolution })
           .where(eq(disputes.id, input.id));
+        // @ts-ignore
         await db.insert(auditLog).values({
           action: "chargeback_resolved",
           resource: "disputes",

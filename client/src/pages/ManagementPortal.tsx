@@ -74,6 +74,7 @@ const fmt = (n: number | string) =>
   });
 
 export default function ManagementPortal() {
+  // @ts-ignore
   const agent = usePosStore(s => s.agent);
   const [, navigate] = useLocation();
   const [tab, setTab] = useState<Tab>("dashboard");

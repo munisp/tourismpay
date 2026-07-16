@@ -332,6 +332,10 @@ export const apiKeys = pgTable(
     metadata: jsonb("metadata"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     revokedAt: timestamp("revoked_at"),
+    status: varchar("status", { length: 50 }).default("active"),
+    description: text("description"),
+    rateLimit: integer("rate_limit").default(1000),
+    tenantId: integer("tenant_id"),
   },
   (t) => ({
     keyHashIdx: uniqueIndex("api_keys_hash_idx").on(t.keyHash),
@@ -599,6 +603,11 @@ export const merchantSettlements = pgTable(
     settledAt: timestamp("settled_at"),
     metadata: jsonb("metadata"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
+  
+    grossAmount: numeric("gross_amount", { precision: 20, scale: 8 }).default("0"),
+    period: varchar("period", { length: 50 }),
+    periodStart: timestamp("period_start"),
+    periodEnd: timestamp("period_end"),
   },
   (t) => ({
     batchIdIdx: index("merchant_settlements_batch_id_idx").on(t.batchId),
@@ -980,10 +989,17 @@ export const posTerminals = pgTable(
     status: varchar("status", { length: 20 }).notNull().default("active"),
     lastSeenAt: timestamp("last_seen_at"),
     location: varchar("location", { length: 200 }),
+    agentId: integer("agent_id"),
+    groupId: integer("group_id"),
     metadata: jsonb("metadata"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  },
+  
+  appVersion: varchar("app_version", { length: 50 }),
+  configJson: jsonb("config_json"),
+  deletedAt: timestamp("deleted_at"),
+  simIccid: varchar("sim_iccid", { length: 100 }),
+},
   (t) => ({
     establishmentIdIdx: index("pos_terminals_establishment_id_idx").on(t.establishmentId),
     terminalIdIdx: uniqueIndex("pos_terminals_terminal_id_idx").on(t.terminalId),

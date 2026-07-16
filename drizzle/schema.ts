@@ -111,6 +111,20 @@ export const users = pgTable("users", {
   theme: varchar("theme", { length: 16 }).default("dark"),
   preferredLanguage: varchar("preferred_language", { length: 8 }).default("en"),
   preferredCurrency: varchar("preferred_currency", { length: 8 }).default("USDC"),
+  // Extended profile fields
+  keycloakSub: varchar("keycloak_sub", { length: 255 }),
+  agentCode: varchar("agent_code", { length: 50 }),
+  merchantCode: varchar("merchant_code", { length: 50 }),
+  phone: varchar("phone", { length: 30 }),
+  stripeCustomerId: varchar("stripe_customer_id", { length: 255 }),
+  stripeSubscriptionId: varchar("stripe_subscription_id", { length: 255 }),
+  refreshToken: varchar("refresh_token", { length: 1024 }),
+  deletedAt: timestamp("deleted_at"),
+  kycStatus: varchar("kyc_status", { length: 50 }).default("pending"),
+  isActive: boolean("is_active").default(true),
+  tenantId: integer("tenant_id"),
+  preferredAgentId: integer("preferred_agent_id"),
+  notes: text("notes"),
 });
 
 export type User = typeof users.$inferSelect;
@@ -2794,6 +2808,13 @@ export const agentsTable = pgTable("agents", {
   licenseNumber: text("license_number").notNull().unique(),
   status: text("status").notNull().default("active"),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
+
+  commissionSplitOverride: numeric("commission_split_override", { precision: 5, scale: 4 }),
+  creditRating: varchar("credit_rating", { length: 10 }),
+  creditScore: integer("credit_score").default(0),
+  hierarchyLevel: integer("hierarchy_level").default(1),
+  hierarchyRole: varchar("hierarchy_role", { length: 50 }),
+  parentAgentId: integer("parent_agent_id"),
 });
 
 export const agentFloatBalances = pgTable("agent_float_balances", {
@@ -3759,3 +3780,12 @@ export const daprSidecarHealth = pgTable("dapr_sidecar_health", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// ─── Re-exports from schema sub-files ────────────────────────────────────────
+// These allow server code to import everything from "drizzle/schema"
+export * from "./schema-improvements";
+export * from "./schema-additions";
+// @ts-ignore
+export * from "./schema-extended";
+export * from "./schema-constraints";
+export * from "./schema-platform";

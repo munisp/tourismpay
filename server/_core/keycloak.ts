@@ -190,3 +190,62 @@ export async function getOIDCConfig(): Promise<Record<string, unknown> | null> {
 export function isKeycloakEnabled(): boolean {
   return !!process.env.KEYCLOAK_URL;
 }
+
+// ─── Compatibility Aliases ────────────────────────────────────────────────────
+/** @deprecated Use validateKeycloakToken instead */
+export const verifyKeycloakToken = validateKeycloakToken;
+
+/** @deprecated Use mapKeycloakRoleToAppRole instead */
+export const mapKeycloakRoleToPlatformRole = mapKeycloakRoleToAppRole;
+
+export const keycloakConfig = {
+  realm: process.env.KEYCLOAK_REALM ?? "tourismpay",
+  authServerUrl: process.env.KEYCLOAK_URL ?? "http://localhost:8080",
+  clientId: process.env.KEYCLOAK_CLIENT_ID ?? "tourismpay-app",
+  clientSecret: process.env.KEYCLOAK_CLIENT_SECRET ?? "",
+};
+
+export async function buildAuthorizationUrl(redirectUri: string, state?: string): Promise<string> {
+  const cfg = await getOIDCConfig();
+  const base = (cfg?.authorization_endpoint as string) ?? `${keycloakConfig.authServerUrl}/realms/${keycloakConfig.realm}/protocol/openid-connect/auth`;
+  const params = new URLSearchParams({
+    client_id: keycloakConfig.clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid profile email",
+    ...(state ? { state } : {}),
+  });
+  return `${base}?${params.toString()}`;
+}
+
+export async function buildLogoutUrl(redirectUri: string): Promise<string> {
+  const cfg = await getOIDCConfig();
+  const base = (cfg?.end_session_endpoint as string) ?? `${keycloakConfig.authServerUrl}/realms/${keycloakConfig.realm}/protocol/openid-connect/logout`;
+  const params = new URLSearchParams({ redirect_uri: redirectUri });
+  return `${base}?${params.toString()}`;
+}
+
+export async function exchangeCodeForTokens(code: string, redirectUri: string): Promise<Record<string, unknown> | null> {
+  try {
+    const tokenUrl = `${keycloakConfig.authServerUrl}/realms/${keycloakConfig.realm}/protocol/openid-connect/token`;
+    const resp = await fetch(tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: keycloakConfig.clientId,
+        client_secret: keycloakConfig.clientSecret,
+        code,
+        redirect_uri: redirectUri,
+      }),
+    });
+    if (!resp.ok) return null;
+    return resp.json() as Promise<Record<string, unknown>>;
+  } catch {
+    return null;
+  }
+}
+
+export async function requestLoggingMiddleware(req: unknown, _res: unknown, next: () => void) {
+  next();
+}

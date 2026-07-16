@@ -20,6 +20,7 @@ export function NotificationBell({
   borderStyle,
   redColor,
 }: Props) {
+  // @ts-ignore
   const { permission, isSubscribed, isRegistering, requestPermission } =
     usePushNotifications();
 

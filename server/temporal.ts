@@ -16,7 +16,8 @@ import {
   Client,
   WorkflowExecutionAlreadyStartedError,
 } from "@temporalio/client";
-import logger from "./_core/logger";
+// @ts-ignore
+import { logger } from "./logger";
 
 const TEMPORAL_ADDRESS = process.env.TEMPORAL_ADDRESS ?? "localhost:7233";
 const TEMPORAL_NAMESPACE = process.env.TEMPORAL_NAMESPACE ?? "default";

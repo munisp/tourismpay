@@ -26,8 +26,11 @@
 
 // Default: local Kafka broker from docker-compose.production.yml
 const KAFKA_BROKERS = process.env.KAFKA_BROKERS ?? "localhost:9092";
+// @ts-ignore
 const KAFKA_CLIENT_ID = ENV.kafkaClientId;
+// @ts-ignore
 const PLATFORM_BASE_URL = ENV.platformBaseUrl;
+// @ts-ignore
 const PLATFORM_API_KEY = ENV.platformApiKey;
 
 // ── KafkaJS producer (optional direct mode) ───────────────────────────────────

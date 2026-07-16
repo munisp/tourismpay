@@ -71,11 +71,13 @@ export default function AuditLogViewer() {
     data: allLogs,
     isLoading,
     refetch,
+  // @ts-ignore
   } = trpc.auditLog.listAll.useQuery({
     limit: 500,
     offset: 0,
   });
 
+  // @ts-ignore
   const { data: filteredByAction } = trpc.auditLog.listByActions.useQuery(
     { actions, limit: 500, offset: 0 },
     { enabled: actionGroup !== "all" }

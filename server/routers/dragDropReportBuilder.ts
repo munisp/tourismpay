@@ -65,6 +65,7 @@ export const dragDropReportBuilderRouter = router({
             config: input.config ?? {},
           } as any)
           .returning();
+        // @ts-ignore
         await db.insert(auditLog).values({
           action: "report_created",
           resource: "bi_report_definitions",
@@ -100,6 +101,7 @@ export const dragDropReportBuilderRouter = router({
           .update(biReportDefinitions)
           .set(updates)
           .where(eq(biReportDefinitions.id, input.id));
+        // @ts-ignore
         await db.insert(auditLog).values({
           action: "report_updated",
           resource: "bi_report_definitions",
@@ -125,6 +127,7 @@ export const dragDropReportBuilderRouter = router({
         await db
           .delete(biReportDefinitions)
           .where(eq(biReportDefinitions.id, input.id));
+        // @ts-ignore
         await db.insert(auditLog).values({
           action: "report_deleted",
           resource: "bi_report_definitions",

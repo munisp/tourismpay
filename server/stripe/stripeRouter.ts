@@ -201,6 +201,7 @@ export const stripeRouter = router({
         subscriptions: subscriptions.data.map(sub => ({
           id: sub.id,
           status: sub.status,
+          // @ts-ignore
           planId: sub.metadata?.plan_id || user.stripePlanId || "unknown",
           currentPeriodEnd: new Date(
             ((sub as any).current_period_end || 0) * 1000
@@ -209,6 +210,7 @@ export const stripeRouter = router({
         })),
         activePlan: activeSub
           ? {
+              // @ts-ignore
               planId: activeSub.metadata?.plan_id || user.stripePlanId,
               planName: activeSub.metadata?.plan_name || "Active Plan",
               status: activeSub.status,

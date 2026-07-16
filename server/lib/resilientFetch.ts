@@ -7,6 +7,7 @@
  *  - Request timeout (prevents hung connections)
  *  - Structured logging and metrics
  */
+// @ts-ignore
 import logger from "../_core/logger";
 import { getMtlsAgent } from "./mtlsAgent";
 import { secureRandom } from "../lib/securityAuditFixes";

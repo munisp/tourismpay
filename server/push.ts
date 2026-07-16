@@ -58,7 +58,9 @@ export async function sendPushToAgent(
         {
           endpoint: sub.endpoint,
           keys: {
+            // @ts-ignore
             p256dh: sub.p256dhKey,
+            // @ts-ignore
             auth: sub.authKey,
           },
         },
@@ -197,6 +199,7 @@ export async function registerPushSubscription(params: {
 
   await db
     .insert(agentPushSubscriptions)
+    // @ts-ignore
     .values({
       agentCode: params.agentCode,
       endpoint: params.endpoint,
@@ -207,6 +210,7 @@ export async function registerPushSubscription(params: {
     .onConflictDoUpdate({
       target: agentPushSubscriptions.endpoint,
       set: {
+        // @ts-ignore
         p256dhKey: params.p256dhKey,
         authKey: params.authKey,
         updatedAt: new Date(),

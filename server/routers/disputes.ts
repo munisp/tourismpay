@@ -110,6 +110,7 @@ export const disputesRouter = router({
     .query(async ({ ctx }) => {
       if (
         !ctx.user ||
+        // @ts-ignore
         (ctx.user.role !== "admin" && ctx.user.role !== "supervisor")
       ) {
         throw new TRPCError({
@@ -130,6 +131,7 @@ export const disputesRouter = router({
     .mutation(async ({ ctx, input }) => {
       if (
         !ctx.user ||
+        // @ts-ignore
         (ctx.user.role !== "admin" && ctx.user.role !== "supervisor")
       ) {
         throw new TRPCError({

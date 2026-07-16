@@ -24,6 +24,7 @@ import {
 } from "../../drizzle/schema";
 import { lt, sql, count } from "drizzle-orm";
 import { getConfigNumber } from "./runtimeConfig";
+// @ts-ignore
 import logger from "../_core/logger";
 import { createGzip } from "zlib";
 import { Readable, pipeline } from "stream";

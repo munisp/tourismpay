@@ -188,6 +188,7 @@ export const generalLedgerRouter = router({
           if (!accountMap.has(key))
             accountMap.set(key, {
               code: row.accountCode,
+              // @ts-ignore
               name: row.accountName,
               debits: 0,
               credits: 0,
