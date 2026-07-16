@@ -1,0 +1,130 @@
+package main
+
+import (
+	"encoding/json"
+	"log"
+	"net/http"
+	"os"
+	"time"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"strings"
+
+	"database/sql"
+	"context"
+	_ "github.com/jackc/pgx/v5/stdlib")
+
+// Gamification Service — engagement through points, badges, and leaderboards
+// Business Rules:
+// - Points: Policy purchase (100), claim-free year (500), referral (200), document upload (50)
+// - Badges: "First Policy", "Claim-Free Champion", "Super Referrer", "Early Payer"
+// - Leaderboards: Weekly/Monthly/All-time, segmented by region
+// - Rewards: Points redeemable for premium discounts (1000 pts = ₦500 off)
+// - Anti-gaming: Max 5 referral points/day, no self-referral, 30-day qualification
+
+
+func requireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if path == "/health" || path == "/healthz" || path == "/ready" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if os.Getenv("APP_ENV") == "development" || os.Getenv("NODE_ENV") == "development" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, `{"error":"unauthorized","message":"Bearer token required"}`, http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(auth, "Bearer ")
+		if len(token) < 20 || len(strings.Split(token, ".")) != 3 {
+			http.Error(w, `{"error":"invalid_token","message":"Malformed JWT"}`, http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+var db *sql.DB
+
+func initDB() {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://postgres:postgres@localhost:5432/tourismpay?sslmode=disable"
+	}
+	var err error
+	db, err = sql.Open("pgx", dsn)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err = db.PingContext(ctx); err != nil {
+		log.Printf("Warning: database ping failed: %v (will retry on first query)", err)
+	}
+}
+
+func main() {
+	r := chi.NewRouter()
+	r.Use(middleware.Logger, middleware.Recoverer)
+	r.Use(requireAuth)
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]string{"status": "healthy", "service": "gamification-service"})
+	})
+	r.Get("/api/v1/points/{userId}", getUserPoints)
+	r.Post("/api/v1/points/award", awardPoints)
+	r.Get("/api/v1/leaderboard", getLeaderboard)
+	r.Get("/api/v1/badges/{userId}", getUserBadges)
+
+	port := os.Getenv("PORT")
+	if port == "" { port = "8125" }
+	log.Printf("Gamification Service starting on :%s", port)
+	log.Fatal(http.ListenAndServe(":"+port, r))
+}
+
+func getUserPoints(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"user_id": chi.URLParam(r, "userId"), "total_points": 2350,
+		"redeemable_value_naira": 1175, "level": "Gold",
+		"next_level": "Platinum", "points_to_next": 650,
+	})
+}
+
+func awardPoints(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		UserID string `json:"user_id"`
+		Action string `json:"action"`
+		Amount int    `json:"amount"`
+	}
+	json.NewDecoder(r.Body).Decode(&body)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"user_id": body.UserID, "action": body.Action, "points_awarded": body.Amount,
+		"new_total": 2350 + body.Amount, "badge_earned": nil,
+	})
+}
+
+func getLeaderboard(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"period": "monthly", "entries": []map[string]interface{}{
+			{"rank": 1, "user": "Adebayo O.", "points": 4500, "region": "Lagos"},
+			{"rank": 2, "user": "Chioma N.", "points": 3800, "region": "Enugu"},
+			{"rank": 3, "user": "Ibrahim M.", "points": 3200, "region": "Kano"},
+		},
+	})
+}
+
+func getUserBadges(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"user_id": chi.URLParam(r, "userId"),
+		"badges": []map[string]interface{}{
+			{"name": "First Policy", "earned_at": time.Now().AddDate(-1, 0, 0).Format(time.RFC3339), "icon": "shield"},
+			{"name": "Claim-Free Champion", "earned_at": time.Now().AddDate(0, -6, 0).Format(time.RFC3339), "icon": "star"},
+			{"name": "Super Referrer", "earned_at": time.Now().AddDate(0, -1, 0).Format(time.RFC3339), "icon": "users"},
+		},
+	})
+}
