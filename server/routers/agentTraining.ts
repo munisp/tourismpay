@@ -98,7 +98,6 @@ export const agentTrainingRouter = router({
         const db = (await getDb())!;
         const [enrollment] = await db
           .insert(trainingEnrollments)
-          // @ts-ignore
           .values({
             agentId: input.agentId,
             courseId: input.courseId,
@@ -106,7 +105,6 @@ export const agentTrainingRouter = router({
             progress: 0,
           })
           .returning();
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "training_enrollment",
           resource: "training_enrollments",
@@ -137,10 +135,8 @@ export const agentTrainingRouter = router({
         const status = input.progress >= 100 ? "completed" : "in_progress";
         await db
           .update(trainingEnrollments)
-          // @ts-ignore
           .set({ progress: input.progress, status })
           .where(eq(trainingEnrollments.id, input.enrollmentId));
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "training_progress_update",
           resource: "training_enrollments",

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { secureRandom } from "@/lib/secureRandom";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";

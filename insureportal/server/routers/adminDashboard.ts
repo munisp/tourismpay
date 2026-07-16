@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Admin Dashboard Router — TourismPay (Sprint 89)
  *

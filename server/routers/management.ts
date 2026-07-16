@@ -33,7 +33,6 @@ import crypto from "crypto";
 
 // ── Guard: supervisor or admin only ──────────────────────────────────────────
 const mgmtProcedure = protectedProcedure.use(({ ctx, next }) => {
-  // @ts-ignore
   if (ctx.user.role !== "admin" && ctx.user.role !== "supervisor") {
     throw new TRPCError({
       code: "FORBIDDEN",
@@ -400,7 +399,6 @@ export const managementRouter = router({
           if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
           const [req] = await db
             .insert(reversalRequests)
-            // @ts-ignore
             .values({
               transactionId: input.transactionId,
               agentId: input.agentId,
@@ -482,7 +480,6 @@ export const managementRouter = router({
             .update(kycSessions)
             .set({
               status: input.status,
-              // @ts-ignore
               rejectionReason: input.note,
               updatedAt: new Date(),
             })
@@ -573,7 +570,6 @@ export const managementRouter = router({
           const { id, ...data } = input;
           const [rule] = await db
             .update(commissionRules)
-            // @ts-ignore
             .set({ ...data, updatedAt: new Date() })
             .where(eq(commissionRules.id, id))
             .returning();
@@ -737,7 +733,6 @@ export const managementRouter = router({
           const [t] = await db
             .update(posTerminals)
             .set({
-              // @ts-ignore
               lastCommand: input.command,
               lastCommandAt: new Date(),
               updatedAt: new Date(),
@@ -890,7 +885,6 @@ export const managementRouter = router({
             await db
               .update(posTerminals)
               .set({
-                // @ts-ignore
                 lastCommand: input.command,
                 lastCommandAt: new Date(),
                 updatedAt: new Date(),
@@ -921,7 +915,6 @@ export const managementRouter = router({
             .select()
             .from(serviceRecords)
             .where(where)
-            // @ts-ignore
             .orderBy(desc(serviceRecords.serviceDate))
             .limit(100);
         } catch (error) {
@@ -1308,7 +1301,6 @@ export const managementRouter = router({
           if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
           const [p] = await db
             .update(multiSimProfiles)
-            // @ts-ignore
             .set({ status: input.status, updatedAt: new Date() })
             .where(eq(multiSimProfiles.id, input.id))
             .returning();
@@ -1374,7 +1366,6 @@ export const managementRouter = router({
             .update(reversalRequests)
             .set({
               status: "approved",
-              // @ts-ignore
               reviewedBy: ctx.user.id,
               reviewedAt: new Date(),
               reviewNote: input.note,
@@ -1402,7 +1393,6 @@ export const managementRouter = router({
             .update(reversalRequests)
             .set({
               status: "rejected",
-              // @ts-ignore
               reviewedBy: ctx.user.id,
               reviewedAt: new Date(),
               reviewNote: input.note,
@@ -1581,7 +1571,6 @@ export const managementRouter = router({
           if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
           const [ad] = await db
             .update(storefrontAds)
-            // @ts-ignore
             .set({ status: input.status, updatedAt: new Date() })
             .where(eq(storefrontAds.id, input.id))
             .returning();
@@ -1778,7 +1767,6 @@ export const managementRouter = router({
           const [row] = await db
             .insert(emailQueue)
             .values({
-              // @ts-ignore
               toAddress: input.toAddress,
               toName: input.toName,
               subject: input.subject,
@@ -1807,7 +1795,6 @@ export const managementRouter = router({
           if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
           const [row] = await db
             .update(emailQueue)
-            // @ts-ignore
             .set({ status: "queued", errorMessage: null })
             .where(eq(emailQueue.id, input.id))
             .returning();

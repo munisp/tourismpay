@@ -13,7 +13,6 @@ import {
   Worker,
   Runtime,
   DefaultLogger,
-// @ts-ignore
 } from "@temporalio/worker";
 import * as activities from "./temporal-activities";
 
@@ -33,7 +32,6 @@ export async function startTemporalWorker(): Promise<void> {
 async function run() {
   // Set up Temporal runtime with structured logging
   Runtime.install({
-    // @ts-ignore
     logger: new DefaultLogger("INFO", ({ level, message, meta }) => {
       console.log(
         JSON.stringify({

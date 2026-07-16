@@ -47,8 +47,6 @@ export async function writeEnhancedAuditLog(
       changeDetails.changes = changes;
       changeDetails.changedFields = Object.keys(changes);
     }
-
-    // @ts-ignore
     await db.insert(auditLog).values({
       agentId: entry.agentId,
       agentCode: entry.agentCode,

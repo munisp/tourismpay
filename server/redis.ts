@@ -10,7 +10,6 @@
  *   probe:latest:{terminalId}  → latest connectivity reading (TTL 60s)
  */
 import Redis from "ioredis";
-// @ts-ignore
 import logger from "./_core/logger";
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * GeofencingTab.tsx
  * Admin Panel tab for managing geofence zones, assigning agents to zones,

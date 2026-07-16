@@ -87,8 +87,6 @@ export function SystemConfigTab() {
       }
     );
   };
-
-  // @ts-ignore
   const entries: ConfigEntry[] = (data?.entries ?? []) as ConfigEntry[];
 
   return (

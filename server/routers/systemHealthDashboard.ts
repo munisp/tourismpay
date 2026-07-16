@@ -28,9 +28,7 @@ export const systemHealthDashboardRouter = router({
     // Group by service, take latest check per service
     const serviceMap = new Map<string, any>();
     for (const check of checks) {
-      // @ts-ignore
       if (!serviceMap.has(check.serviceName)) {
-        // @ts-ignore
         serviceMap.set(check.serviceName, check);
       }
     }
@@ -85,7 +83,6 @@ export const systemHealthDashboardRouter = router({
 
       const [record] = await database
         .insert(platform_health_checks)
-        // @ts-ignore
         .values({
           serviceName: input.serviceName,
           checkType: input.checkType,

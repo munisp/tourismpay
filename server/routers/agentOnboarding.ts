@@ -43,7 +43,6 @@ export const agentOnboardingRouter = router({
           // Auto-create progress record
           const [created] = await db
             .insert(agentOnboardingProgress)
-            // @ts-ignore
             .values({
               agentId: agent.id,
               agentCode: input.agentCode,
@@ -104,7 +103,6 @@ export const agentOnboardingRouter = router({
           .update(agentOnboardingProgress)
           .set({
             profileComplete: true,
-            // @ts-ignore
             currentStep: "kyc",
             updatedAt: new Date(),
           })
@@ -112,7 +110,6 @@ export const agentOnboardingRouter = router({
           .returning();
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: agent.id,
           agentCode: input.agentCode,
           action: "onboarding_profile_complete",
@@ -170,7 +167,6 @@ export const agentOnboardingRouter = router({
           .update(agentOnboardingProgress)
           .set({
             kycComplete: true,
-            // @ts-ignore
             currentStep: "float",
             updatedAt: new Date(),
           })
@@ -215,7 +211,6 @@ export const agentOnboardingRouter = router({
           .update(agentOnboardingProgress)
           .set({
             floatFunded: true,
-            // @ts-ignore
             currentStep: "terminal",
             updatedAt: new Date(),
           })
@@ -261,7 +256,6 @@ export const agentOnboardingRouter = router({
           .update(agentOnboardingProgress)
           .set({
             terminalAssigned: true,
-            // @ts-ignore
             currentStep: "training",
             updatedAt: new Date(),
           })
@@ -304,7 +298,6 @@ export const agentOnboardingRouter = router({
           .update(agentOnboardingProgress)
           .set({
             trainingComplete: true,
-            // @ts-ignore
             currentStep: "activated",
             activatedAt: new Date(),
             updatedAt: new Date(),
@@ -323,7 +316,6 @@ export const agentOnboardingRouter = router({
         }
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: agent.id,
           agentCode: input.agentCode,
           action: "agent_activated_via_onboarding",
@@ -367,7 +359,6 @@ export const agentOnboardingRouter = router({
         if (!db || (db as any)._isNoop) return { items: [], total: 0 };
         const offset = (input.page - 1) * input.limit;
         const where = input.step
-          // @ts-ignore
           ? eq(agentOnboardingProgress.currentStep, input.step)
           : undefined;
         const [items, [{ c: total }]] = await Promise.all([
@@ -400,7 +391,6 @@ export const agentOnboardingRouter = router({
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
         await db
           .update(agentOnboardingProgress)
-          // @ts-ignore
           .set({ notes: input.note, updatedAt: new Date() })
           .where(eq(agentOnboardingProgress.agentCode, input.agentCode));
         return { success: true };
@@ -498,23 +488,18 @@ export const agentOnboardingRouter = router({
           {
             stepNumber: 1,
             name: "profile",
-            // @ts-ignore
             complete: progress.profileComplete,
           },
-          // @ts-ignore
           { stepNumber: 2, name: "kyc", complete: progress.kycComplete },
-          // @ts-ignore
           { stepNumber: 3, name: "float", complete: progress.floatFunded },
           {
             stepNumber: 4,
             name: "terminal",
-            // @ts-ignore
             complete: progress.terminalAssigned,
           },
           {
             stepNumber: 5,
             name: "training",
-            // @ts-ignore
             complete: progress.trainingComplete,
           },
         ];
@@ -527,9 +512,7 @@ export const agentOnboardingRouter = router({
             : idx === currentIdx
               ? "in_progress"
               : "pending",
-          // @ts-ignore
           notes: idx === currentIdx ? (progress.notes ?? undefined) : undefined,
-          // @ts-ignore
           completedAt: s.complete ? progress.updatedAt : undefined,
         }));
         return { progress, steps };
@@ -599,15 +582,10 @@ export const agentOnboardingRouter = router({
           number,
           Partial<typeof agentOnboardingProgress.$inferInsert>
         > = {
-          // @ts-ignore
           1: { profileComplete: true, currentStep: "kyc" },
-          // @ts-ignore
           2: { kycComplete: true, currentStep: "float" },
-          // @ts-ignore
           3: { floatFunded: true, currentStep: "terminal" },
-          // @ts-ignore
           4: { terminalAssigned: true, currentStep: "training" },
-          // @ts-ignore
           5: { trainingComplete: true, activatedAt: new Date() },
         };
         const update = stepFields[input.stepNumber];
@@ -616,9 +594,7 @@ export const agentOnboardingRouter = router({
             code: "BAD_REQUEST",
             message: "Invalid step number",
           });
-        // @ts-ignore
         if (input.notes) update.notes = input.notes;
-        // @ts-ignore
         update.updatedAt = new Date();
         const [updated] = await db
           .update(agentOnboardingProgress)
@@ -661,7 +637,6 @@ export const agentOnboardingRouter = router({
           });
         const [record] = await db
           .insert(agentOnboardingProgress)
-          // @ts-ignore
           .values({
             agentId: agent.id,
             agentCode: agent.agentCode,

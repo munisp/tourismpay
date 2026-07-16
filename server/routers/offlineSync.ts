@@ -80,7 +80,6 @@ export const offlineSyncRouter = router({
             const ref = `OFL-${crypto.randomUUID().slice(0, 12).toUpperCase()}`;
             const [inserted] = await db
               .insert(transactions)
-              // @ts-ignore
               .values({
                 ref,
                 idempotencyKey,
@@ -144,7 +143,6 @@ export const offlineSyncRouter = router({
         const failed = results.filter(r => r.status === "failed").length;
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "OFFLINE_SYNC_BATCH",
@@ -205,7 +203,6 @@ export const offlineSyncRouter = router({
           .groupBy(transactions.status);
 
         const counts: Record<string, number> = {};
-        // @ts-ignore
         for (const r of rows) counts[r.status] = r.cnt;
 
         return {
@@ -288,7 +285,6 @@ export const offlineSyncRouter = router({
 
         const updated = await db
           .update(transactions)
-          // @ts-ignore
           .set({ status: "pending", failureReason: null })
           .where(
             and(
@@ -300,7 +296,6 @@ export const offlineSyncRouter = router({
           .returning({ id: transactions.id });
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "OFFLINE_SYNC_RETRY",

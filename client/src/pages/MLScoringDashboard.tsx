@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { secureRandom } from "@/lib/secureRandom";
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";

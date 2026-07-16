@@ -88,7 +88,6 @@ export function tenantScopeMiddleware({
   }
 
   // Resolve tenant from user mapping
-  // @ts-ignore
   const tenantId = getUserTenantId(ctx.user.keycloakSub) || "tenant-default";
   const tenant = tenantRegistry.get(tenantId);
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Admin Dashboard Router — 54Link POS Shell (Sprint 89)
  *

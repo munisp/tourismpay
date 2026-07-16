@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * UserGuide — Comprehensive multi-section user guide for the 54Link POS Shell
  *

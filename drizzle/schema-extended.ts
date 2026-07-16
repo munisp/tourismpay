@@ -80,6 +80,12 @@ export const agents = pgTable("agents", {
   bankCode: varchar("bank_code", { length: 20 }),
   nin: varchar("nin", { length: 20 }),
   bvn: varchar("bvn", { length: 20 }),
+
+  floatFunded: boolean("float_funded").default(False),
+  notes: text("notes"),
+  profileComplete: boolean("profile_complete").default(False),
+  terminalAssigned: boolean("terminal_assigned").default(False),
+  trainingComplete: boolean("training_complete").default(False),
 });
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;
@@ -357,6 +363,8 @@ export const auditLog = pgTable("audit_log", {
   performedBy: integer("performed_by"),
   tenantId: integer("tenant_id"),
   sessionId: varchar("session_id", { length: 100 }),
+
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 export type AuditLog = typeof auditLog.$inferSelect;
 
@@ -587,6 +595,18 @@ export const otpTokens = pgTable("otp_tokens", {
   agentId: integer("agent_id"),
 
   used: boolean("used").default(false),
+
+  updatedAt: timestamp("updated_at").defaultNow(),
+  status: varchar("status", { length: 20 }).default("active"),
+  verifiedAt: timestamp("verified_at"),
+  verifiedBy: integer("verified_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  revokedReason: text("revoked_reason"),
+  score: numeric("score", { precision: 5, scale: 4 }),
+  livenessScore: numeric("liveness_score", { precision: 5, scale: 4 }),
+  progress: integer("progress").default(0),
+  rejectionReason: text("rejection_reason"),
+  fulfilledAt: timestamp("fulfilled_at"),
 });
 
 // ─── Chat & Communication ─────────────────────────────────────────────────────
@@ -805,6 +825,16 @@ export const disputes = pgTable("disputes", {
   priority: varchar("priority", { length: 20 }).default("medium"),
   slaDeadlineAt: timestamp("sla_deadline_at"),
   type: varchar("type", { length: 50 }),
+
+  amount: numeric("amount", { precision: 18, scale: 2 }),
+  assignedTo: integer("assigned_to"),
+  createdBy: integer("created_by"),
+  description: text("description"),
+  ref: varchar("ref", { length: 100 }),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  resolutionNote: text("resolution_note"),
+  resolvedBy: integer("resolved_by"),
+  erpDocName: varchar("erp_doc_name", { length: 200 }),
 });
 
 export const disputeEvidence = pgTable("dispute_evidence", {
@@ -1432,6 +1462,19 @@ export const transactions = pgTable("transactions", {
   idempotencyKey: varchar("idempotency_key", { length: 255 }),
 
   ref: varchar("ref", { length: 100 }),
+
+  terminalId: varchar("terminal_id", { length: 100 }),
+  retryCount: integer("retry_count").default(0),
+  reversedAt: timestamp("reversed_at"),
+  reversalRef: varchar("reversal_ref", { length: 100 }),
+  disputeId: integer("dispute_id"),
+  processorRef: varchar("processor_ref", { length: 200 }),
+  switchRef: varchar("switch_ref", { length: 200 }),
+  tigerBeetleId: bigint("tiger_beetle_id", { mode: "bigint" }),
+  latitude: numeric("latitude", { precision: 10, scale: 7 }),
+  longitude: numeric("longitude", { precision: 10, scale: 7 }),
+  deviceFingerprint: varchar("device_fingerprint", { length: 200 }),
+  riskLevel: varchar("risk_level", { length: 20 }),
 });
 
 // ─── Shareable Links & Misc ───────────────────────────────────────────────────

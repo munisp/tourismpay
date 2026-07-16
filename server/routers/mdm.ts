@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * MDM Router — Mobile Device Management for 54Link POS terminals
  *

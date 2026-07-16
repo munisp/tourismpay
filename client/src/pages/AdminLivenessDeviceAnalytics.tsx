@@ -22,16 +22,12 @@ export default function AdminLivenessDeviceAnalytics() {
   const [maxSuccessRate, setMaxSuccessRate] = useState(0.5);
 
   // Fetch data from KYC router
-  // @ts-ignore
   const deviceHistories = trpc.kyc.adminDeviceHistories.useQuery();
-  // @ts-ignore
   const problematicDevices = trpc.kyc.adminProblematicDevices.useQuery({
     minAttempts,
     maxSuccessRate,
   });
-  // @ts-ignore
   const cooldowns = trpc.kyc.adminGetCooldowns.useQuery();
-  // @ts-ignore
   const clearCooldownMutation = trpc.kyc.adminClearCooldown.useMutation({
     onSuccess: () => {
       toast.success("Cooldown cleared successfully");
@@ -45,19 +41,16 @@ export default function AdminLivenessDeviceAnalytics() {
     const devices = deviceHistories.data?.devices || [];
     const totalDevices = devices.length;
     const totalAttempts = devices.reduce(
-      // @ts-ignore
       (sum, d) => sum + (d.attempts?.length || 0),
       0
     );
     const avgSuccessRate =
       totalDevices > 0
-        // @ts-ignore
         ? devices.reduce((sum, d) => sum + (d.successRate || 0), 0) /
           totalDevices
         : 0;
     const problematicCount = (problematicDevices.data?.devices || []).length;
     const activeLockouts = (cooldowns.data?.cooldowns || []).filter(
-      // @ts-ignore
       c => c.lockedUntil
     ).length;
 

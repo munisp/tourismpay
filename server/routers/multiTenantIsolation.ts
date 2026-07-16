@@ -102,7 +102,6 @@ export const multiTenantIsolationRouter = router({
           .update(tenants)
           .set({ status: "suspended" })
           .where(eq(tenants.id, input.id));
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "tenant_suspended",
           resource: "tenants",

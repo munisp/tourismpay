@@ -31,7 +31,6 @@ export const faceEnrollmentRouter = router({
         // Deactivate previous enrollments of the same type
         await db
           .update(faceEnrollments)
-          // @ts-ignore
           .set({ isActive: false, updatedAt: new Date() })
           .where(
             and(
@@ -44,7 +43,6 @@ export const faceEnrollmentRouter = router({
         // Insert new enrollment
         const [enrollment] = await db
           .insert(faceEnrollments)
-          // @ts-ignore
           .values({
             userId: ctx.user.id,
             enrollmentType: input.enrollmentType,
@@ -65,7 +63,6 @@ export const faceEnrollmentRouter = router({
 
         // Audit event
         await db.insert(biometricAuditEvents).values({
-          // @ts-ignore
           sessionId: `enroll_${enrollment.id}_${Date.now()}`,
           userId: ctx.user.id,
           eventType: "enrollment",
@@ -122,7 +119,6 @@ export const faceEnrollmentRouter = router({
 
         if (!enrollment) {
           await db.insert(biometricAuditEvents).values({
-            // @ts-ignore
             sessionId: `verify_${ctx.user.id}_${Date.now()}`,
             userId: ctx.user.id,
             eventType: "verification",
@@ -138,7 +134,6 @@ export const faceEnrollmentRouter = router({
         }
 
         // Cosine similarity
-        // @ts-ignore
         const enrolled: number[] = JSON.parse(enrollment.embeddingVector);
         const probe = input.probeEmbedding;
         let dotProduct = 0,
@@ -154,7 +149,6 @@ export const faceEnrollmentRouter = router({
         const processingTimeMs = Date.now() - startTime;
 
         await db.insert(biometricAuditEvents).values({
-          // @ts-ignore
           sessionId: `verify_${ctx.user.id}_${Date.now()}`,
           userId: ctx.user.id,
           eventType: "verification",
@@ -272,7 +266,6 @@ export const faceEnrollmentRouter = router({
           .set({
             isActive: false,
             revokedAt: new Date(),
-            // @ts-ignore
             revokedReason: input.reason,
             updatedAt: new Date(),
           })
@@ -286,7 +279,6 @@ export const faceEnrollmentRouter = router({
 
         if (updated) {
           await db.insert(biometricAuditEvents).values({
-            // @ts-ignore
             sessionId: `revoke_${input.enrollmentId}_${Date.now()}`,
             userId: ctx.user.id,
             eventType: "enrollment",

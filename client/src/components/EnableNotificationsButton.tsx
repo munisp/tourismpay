@@ -30,7 +30,6 @@ export function EnableNotificationsButton() {
   const [status, setStatus] = useState<
     "idle" | "loading" | "subscribed" | "denied" | "unsupported"
   >("idle");
-  // @ts-ignore
   const agent = usePosStore(s => s.agent);
 
   const { data: vapidData } = trpc.push.vapidPublicKey.useQuery(undefined, {
@@ -106,7 +105,6 @@ export function EnableNotificationsButton() {
 
       const subJson = subscription.toJSON();
       await subscribeMutation.mutateAsync({
-        // @ts-ignore
         subscription: {
           endpoint: subJson.endpoint!,
           keys: {
@@ -119,7 +117,6 @@ export function EnableNotificationsButton() {
         userAgent: navigator.userAgent,
       });
     } catch (err) {
-      // @ts-ignore
       logger.error("Push subscription error:", err);
       toast.error("Failed to subscribe to push notifications");
       setStatus("idle");
@@ -134,12 +131,10 @@ export function EnableNotificationsButton() {
         await sub.unsubscribe();
         await unsubscribeMutation.mutateAsync({
           endpoint: sub.endpoint,
-          // @ts-ignore
           agentCode: (agent as any)?.agentCode ?? "",
         });
       }
     } catch (err) {
-      // @ts-ignore
       logger.error("Push unsubscribe error:", err);
     }
   };

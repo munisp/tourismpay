@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * F13: Rate Limiting & Throttling Engine
  * Per-endpoint rate limits, sliding window, burst allowance, IP/agent throttling

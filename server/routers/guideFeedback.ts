@@ -58,7 +58,6 @@ export const guideFeedbackRouter = router({
       const db = await getDb();
       if (!db || !input) return { success: true };
       await db.insert(guideFeedback).values({
-        // @ts-ignore
         guideId: input.guideId ?? "general",
         rating: input.rating ?? 5,
         comment: input.comment,

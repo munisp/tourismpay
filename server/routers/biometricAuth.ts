@@ -277,7 +277,6 @@ export const biometricAuthRouter = router({
             await dbInst
               .update(kycSessions)
               .set({
-                // @ts-ignore
                 livenessScore: String(result.liveness?.confidence ?? 0),
                 livenessPassed: result.liveness?.result === "real",
                 livenessMethod: result.liveness?.source ?? "biometric_service",

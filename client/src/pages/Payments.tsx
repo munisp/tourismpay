@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Payments Page — 54Link POS Shell
  *
@@ -42,29 +41,20 @@ export default function Payments() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const status = params.get("status");
   const sessionId = params.get("session_id");
-
-  // @ts-ignore
   const { data: plansData } = trpc.stripe.getPlans.useQuery();
   const { data: historyData, refetch: refetchHistory } =
-    // @ts-ignore
     trpc.stripe.getPaymentHistory.useQuery();
   const { data: subData, refetch: refetchSubs } =
-    // @ts-ignore
     trpc.stripe.getSubscriptionStatus.useQuery();
-  // @ts-ignore
   const { data: sessionData } = trpc.stripe.getCheckoutSession.useQuery(
     { sessionId: sessionId || "" },
     { enabled: !!sessionId }
   );
 
   const createSubCheckout =
-    // @ts-ignore
     trpc.stripe.createSubscriptionCheckout.useMutation();
-  // @ts-ignore
   const createOneTimeCheckout = trpc.stripe.createOneTimeCheckout.useMutation();
-  // @ts-ignore
   const cancelSubscription = trpc.stripe.cancelSubscription.useMutation();
-  // @ts-ignore
   const createPortalSession = trpc.stripe.createPortalSession.useMutation();
 
   // Show toast on successful payment
@@ -220,8 +210,6 @@ export default function Payments() {
         {subData?.subscriptions && subData.subscriptions.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-sm font-semibold">Your Subscriptions</h3>
-            // @ts-ignore
-            // @ts-ignore
             {subData.subscriptions.map(sub => (
               <div
                 key={sub.id}
@@ -275,8 +263,6 @@ export default function Payments() {
         <div>
           <h2 className="text-lg font-semibold mb-4">Subscription Plans</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            // @ts-ignore
-            // @ts-ignore
             {plansData?.plans.map(plan => {
               const Icon = planIcons[plan.id] || Zap;
               const isPopular = plan.id === "standard";
@@ -337,8 +323,6 @@ export default function Payments() {
                   </div>
 
                   <ul className="space-y-2 mb-6 flex-1">
-                    // @ts-ignore
-                    // @ts-ignore
                     {plan.features.map((feature, i) => (
                       <li key={i} className="flex items-start gap-2 text-xs">
                         <Check className="h-3.5 w-3.5 text-green-500 mt-0.5 flex-shrink-0" />
@@ -381,8 +365,6 @@ export default function Payments() {
         <div>
           <h2 className="text-lg font-semibold mb-4">One-Time Services</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            // @ts-ignore
-            // @ts-ignore
             {plansData?.oneTimeProducts.map(product => (
               <div
                 key={product.id}
@@ -451,8 +433,6 @@ export default function Payments() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  // @ts-ignore
-                  // @ts-ignore
                   {historyData.payments.map(payment => (
                     <tr key={payment.id} className="hover:bg-muted/20">
                       <td className="px-4 py-3 text-xs">

@@ -109,7 +109,6 @@ export const mobileMoneyRouter = router({
           .where(eq(agents.id, session.id));
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "MOBILE_MONEY_SENT",
@@ -198,7 +197,6 @@ export const mobileMoneyRouter = router({
           .where(eq(agents.id, session.id));
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "MOBILE_MONEY_CASHOUT",
@@ -269,7 +267,6 @@ export const mobileMoneyRouter = router({
           .where(eq(agents.id, session.id));
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "MOBILE_MONEY_CASHIN",

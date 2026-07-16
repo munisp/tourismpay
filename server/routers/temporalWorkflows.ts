@@ -95,7 +95,6 @@ export const temporalWorkflowsRouter = router({
             input: input.input ?? {},
           } as any)
           .returning();
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "workflow_started",
           resource: "workflow_instances",
@@ -130,7 +129,6 @@ export const temporalWorkflowsRouter = router({
           .update(workflowInstances)
           .set({ status: "cancelled" })
           .where(eq(workflowInstances.id, input.id));
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "workflow_cancelled",
           resource: "workflow_instances",

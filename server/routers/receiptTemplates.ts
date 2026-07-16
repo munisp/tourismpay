@@ -71,7 +71,6 @@ export const receiptTemplatesRouter = router({
         };
       const [item] = await db
         .insert(receiptTemplates)
-        // @ts-ignore
         .values({
           name: input.name,
           bodyTemplate: input.content,
@@ -81,11 +80,8 @@ export const receiptTemplatesRouter = router({
       return {
         id: item.id,
         name: item.name,
-        // @ts-ignore
         content: item.bodyTemplate,
-        // @ts-ignore
         type: item.channel,
-        // @ts-ignore
         createdAt: item.createdAt.toISOString(),
       };
     }),

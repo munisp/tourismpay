@@ -89,13 +89,9 @@ export function LiveChatWidget() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [location] = useLocation();
-
-  // @ts-ignore
   const createSession = trpc.aiChat.createSession.useMutation();
   const sendMessage = trpc.aiChat.sendMessage.useMutation();
-  // @ts-ignore
   const escalate = trpc.aiChat.escalate.useMutation();
-  // @ts-ignore
   const closeSession = trpc.aiChat.closeSession.useMutation();
 
   // Get current page context
@@ -148,15 +144,11 @@ export function LiveChatWidget() {
 
       try {
         const result = await sendMessage.mutateAsync({
-          // @ts-ignore
           sessionId,
           content: text,
           context: currentContext,
         });
-
-        // @ts-ignore
         if (result.error) {
-          // @ts-ignore
           toast.error(result.error);
           return;
         }
@@ -165,9 +157,7 @@ export function LiveChatWidget() {
         setMessages(prev => {
           const filtered = prev.filter(m => m.id !== tempUserMsg.id);
           const updated = [...filtered];
-          // @ts-ignore
           if (result.userMessage) updated.push(result.userMessage);
-          // @ts-ignore
           if (result.aiMessage) updated.push(result.aiMessage);
           return updated;
         });

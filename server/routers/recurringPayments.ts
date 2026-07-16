@@ -62,7 +62,6 @@ export const recurringPaymentsRouter = router({
           });
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "RECURRING_PAYMENT_CREATED",
@@ -98,8 +97,6 @@ export const recurringPaymentsRouter = router({
       const rows = await db.execute(
         sql`SELECT key, value FROM platform_settings WHERE key LIKE ${"recurring_schedule_" + session.id + "_%"} ORDER BY key`
       );
-
-      // @ts-ignore
       const schedules = (rows.rows ?? [])
         .map((r: Record<string, unknown>) => {
           try {
@@ -154,7 +151,6 @@ export const recurringPaymentsRouter = router({
           .where(eq(platformSettings.key, key));
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "RECURRING_PAYMENT_CANCELLED",

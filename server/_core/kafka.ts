@@ -87,7 +87,6 @@ async function ensureProducer(): Promise<Producer | null> {
     });
     await producer.connect();
     producerReady = true;
-    // @ts-ignore
     producer.on("producer.disconnect", () => { producerReady = false; });
     logger.info("[Kafka] Producer connected");
     return producer;
@@ -148,7 +147,6 @@ export async function publishEvent(topic: TopicName, event: DomainEvent): Promis
     };
     await p.send({
       topic,
-      // @ts-ignore
       messages: [message],
       compression: CompressionTypes.GZIP,
     });
@@ -179,11 +177,8 @@ export async function publishToDLQ(
           failedAt: new Date().toISOString(),
         }),
         headers: {
-          // @ts-ignore
           "content-type": Buffer.from("application/json"),
-          // @ts-ignore
           "x-original-topic": Buffer.from(originalTopic),
-          // @ts-ignore
           "x-error": Buffer.from(error.slice(0, 500)),
         },
       }],

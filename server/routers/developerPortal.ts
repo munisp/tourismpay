@@ -437,7 +437,6 @@ export const developerPortalRouter = router({
         const secret = crypto.randomBytes(32).toString("hex");
         const [row] = await db
           .insert(webhookSecrets)
-          // @ts-ignore
           .values({
             integrationName: input.integrationName,
             secret,

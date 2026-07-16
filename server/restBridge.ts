@@ -392,7 +392,6 @@ router.post("/transactions/:id/reverse", requireAdmin, async (req, res) => {
     if (!db) return err(res, "DB unavailable");
     const [row] = await db
       .insert(reversalRequests)
-      // @ts-ignore
       .values({
         transactionId: String(req.params.id),
         agentId: req.body.agentId ?? 1,
@@ -1252,7 +1251,6 @@ router.post("/fluvio/produce", requireAdmin, async (req, res) => {
 router.get("/fluvio/test-connection", requireAdmin, async (_req, res) => {
   try {
     const { ENV } = await import("./_core/env.js");
-    // @ts-ignore
     const endpoint = ENV.fluvioEndpoint;
     if (!endpoint) {
       return ok(res, {
@@ -1266,7 +1264,6 @@ router.get("/fluvio/test-connection", requireAdmin, async (_req, res) => {
     }
     const start = Date.now();
     const axiosLib = (await import("axios")).default;
-    // @ts-ignore
     const apiKey = ENV.fluvioApiKey;
     const { data } = await axiosLib.get(`${endpoint}/topics`, {
       headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},

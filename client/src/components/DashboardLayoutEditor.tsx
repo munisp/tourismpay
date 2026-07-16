@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * DashboardLayoutEditor — Drag-and-drop grid layout for analytics dashboard
  */

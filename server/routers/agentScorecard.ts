@@ -146,7 +146,6 @@ export const agentScorecardRouter = router({
     .mutation(async ({ input }) => {
       try {
         const db = (await getDb())!;
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "scorecard_refresh",
           resource: "agent_scores",

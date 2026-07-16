@@ -73,7 +73,6 @@ export const floatManagementRouter = router({
 
       const [request] = await database
         .insert(floatTopUpRequests)
-        // @ts-ignore
         .values({
           agentId: input.agentId,
           requestedAmount: input.amount.toString(),
@@ -119,7 +118,6 @@ export const floatManagementRouter = router({
         .update(floatTopUpRequests)
         .set({
           status: input.decision,
-          // @ts-ignore
           approvedBy: input.note ?? null,
         })
         .where(eq(floatTopUpRequests.id, input.id));

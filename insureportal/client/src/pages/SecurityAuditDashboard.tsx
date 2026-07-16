@@ -1,4 +1,3 @@
-// @ts-nocheck
 // SecurityAuditDashboard — Sprint 76
 // PBAC evaluation, vulnerability scanning, DDoS status, file integrity, backups
 import { useState } from "react";

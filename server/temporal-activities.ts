@@ -70,8 +70,6 @@ export async function fetchUnsettledTransactions(input: {
       and(eq(transactions.status, "success"), isNull(transactions.deletedAt))
     )
     .limit(10000);
-
-  // @ts-ignore
   return rows.map((r: typeof transactions.$inferSelect) => ({
     id: r.id,
     agentId: r.agentId,
@@ -304,7 +302,6 @@ export async function createBillingConfig(input: {
   const _db = await getDbInstance();
   const [config] = await _db
     .insert(tenantBillingConfig)
-    // @ts-ignore
     .values({
       tenantId: input.tenantId,
       billingModel: input.billingModel,
@@ -326,7 +323,6 @@ export async function createTigerBeetleAccounts(input: {
   const _db = await getDbInstance();
   await _db
     .update(tenantBillingConfig)
-    // @ts-ignore
     .set({ tigerBeetleAccountId: accountId })
     .where(eq(tenantBillingConfig.tenantId, input.tenantId));
   return {
@@ -353,7 +349,6 @@ export async function provisionKafkaTopics(input: {
   const _db = await getDbInstance();
   await _db
     .update(tenantBillingConfig)
-    // @ts-ignore
     .set({ kafkaTopicPrefix: topicPrefix })
     .where(eq(tenantBillingConfig.tenantId, input.tenantId));
   return { topicPrefix, topics };
@@ -364,7 +359,6 @@ export async function assignBillingRoles(input: {
   provisionedBy: number;
 }): Promise<{ role: string; assignedTo: number }> {
   const _db = await getDbInstance();
-  // @ts-ignore
   await _db.insert(billingRoleAssignments).values({
     userId: input.provisionedBy,
     tenantId: input.tenantId,
@@ -393,7 +387,6 @@ export async function activateBilling(input: {
   await _db
     .update(tenantBillingConfig)
     .set({
-      // @ts-ignore
       status: "active",
       lastModifiedAt: new Date(),
       lastModifiedBy: input.provisionedBy,
@@ -419,14 +412,12 @@ export async function rollbackBillingStep(input: {
     case "create_tigerbeetle_accounts":
       await _db
         .update(tenantBillingConfig)
-        // @ts-ignore
         .set({ tigerBeetleAccountId: null })
         .where(eq(tenantBillingConfig.tenantId, input.tenantId));
       break;
     case "provision_kafka_topics":
       await _db
         .update(tenantBillingConfig)
-        // @ts-ignore
         .set({ kafkaTopicPrefix: null })
         .where(eq(tenantBillingConfig.tenantId, input.tenantId));
       break;
@@ -438,7 +429,6 @@ export async function rollbackBillingStep(input: {
     case "activate_billing":
       await _db
         .update(tenantBillingConfig)
-        // @ts-ignore
         .set({ status: "provisioning" })
         .where(eq(tenantBillingConfig.tenantId, input.tenantId));
       break;

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Billing Dashboard Page — Sprint 80
  * Real-time billing metrics, revenue splits, reconciliation status,

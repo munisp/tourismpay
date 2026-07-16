@@ -1,15 +1,14 @@
-// @ts-nocheck
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 
 export default function Customer360Page() {
-  const { data, isLoading } = trpc.customer360.dashboard.useQuery();
+  const { data, isLoading } = trpc.customer.dashboard.useQuery();
   const [selectedId, setSelectedId] = useState("");
-  const { data: profile } = trpc.customer360.getProfile.useQuery(
+  const { data: profile } = trpc.customer.getProfile.useQuery(
     { customerId: selectedId || "cust-1001" },
     { enabled: true }
   );
-  const sentiment = trpc.customer360.analyzeSentiment.useMutation();
+  const sentiment = trpc.customer.analyzeSentiment.useMutation();
 
   if (isLoading)
     return <div className="p-8 text-center">Loading customer 360...</div>;

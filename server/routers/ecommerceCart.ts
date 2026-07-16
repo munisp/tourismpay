@@ -50,7 +50,6 @@ export const ecommerceCartRouter = router({
 
       const subTotal = items.reduce(
         (sum: number, item: EcommerceCartItem) =>
-          // @ts-ignore
           sum + parseFloat(item.unitPrice) * item.quantity,
         0
       );
@@ -61,15 +60,11 @@ export const ecommerceCartRouter = router({
         items,
         subTotal,
         itemCount: items.reduce(
-          // @ts-ignore
           (sum: number, i: EcommerceCartItem) => sum + i.quantity,
           0
         ),
-        // @ts-ignore
         couponCode: cart.couponCode,
-        // @ts-ignore
         discountAmount: parseFloat(cart.discountAmount),
-        // @ts-ignore
         currency: cart.currency,
       };
     }),
@@ -98,7 +93,6 @@ export const ecommerceCartRouter = router({
         .limit(1);
 
       if (inv) {
-        // @ts-ignore
         const available = inv.quantity - inv.reserved;
         if (available < input.quantity) {
           throw new Error(
@@ -136,11 +130,9 @@ export const ecommerceCartRouter = router({
       if (existing) {
         await database
           .update(ecommerceCartItems)
-          // @ts-ignore
           .set({ quantity: existing.quantity + input.quantity })
           .where(eq(ecommerceCartItems.id, existing.id));
       } else {
-        // @ts-ignore
         await database.insert(ecommerceCartItems).values({
           cartId: cart.id,
           productId: input.productId,
@@ -296,7 +288,6 @@ export const ecommerceCartRouter = router({
       if (!cart) {
         [cart] = await database
           .insert(ecommerceCarts)
-          // @ts-ignore
           .values({
             customerId: input.customerId,
             offlineCreated: true,
@@ -312,7 +303,6 @@ export const ecommerceCartRouter = router({
         .where(eq(ecommerceCartItems.cartId, cart.id));
 
       const existingMap = new Map<string, EcommerceCartItem>(
-        // @ts-ignore
         existingItems.map((i: EcommerceCartItem) => [i.sku, i])
       );
 
@@ -326,11 +316,9 @@ export const ecommerceCartRouter = router({
               newQty = offlineItem.quantity;
               break;
             case "sum_quantities":
-              // @ts-ignore
               newQty = existing.quantity + offlineItem.quantity;
               break;
             case "max_quantity":
-              // @ts-ignore
               newQty = Math.max(existing.quantity, offlineItem.quantity);
               break;
             case "prefer_online":
@@ -345,7 +333,6 @@ export const ecommerceCartRouter = router({
               .where(eq(ecommerceCartItems.id, existing.id));
           }
         } else {
-          // @ts-ignore
           await database.insert(ecommerceCartItems).values({
             cartId: cart.id,
             productId: offlineItem.productId,

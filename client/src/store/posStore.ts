@@ -1,6 +1,4 @@
-// @ts-ignore
 import { create } from "zustand";
-// @ts-ignore
 import { persist, createJSONStorage } from "zustand/middleware";
 import { secureRandom } from "@/lib/secureRandom";
 
@@ -114,12 +112,10 @@ interface PosState {
 
 export const usePosStore = create<PosState>()(
   persist(
-    // @ts-ignore
     (set, get) => ({
       // Session
       agent: null,
       isLoggedIn: false,
-      // @ts-ignore
       setAgent: agent => set({ agent, isLoggedIn: !!agent }),
       logout: () =>
         set({
@@ -131,9 +127,7 @@ export const usePosStore = create<PosState>()(
         }),
 
       // Float
-      // @ts-ignore
       updateFloat: delta =>
-        // @ts-ignore
         set(s =>
           s.agent
             ? {
@@ -144,9 +138,7 @@ export const usePosStore = create<PosState>()(
               }
             : {}
         ),
-      // @ts-ignore
       updateCommission: delta =>
-        // @ts-ignore
         set(s =>
           s.agent
             ? {
@@ -157,9 +149,7 @@ export const usePosStore = create<PosState>()(
               }
             : {}
         ),
-      // @ts-ignore
       updateLoyaltyPoints: delta =>
-        // @ts-ignore
         set(s =>
           s.agent
             ? {
@@ -173,19 +163,14 @@ export const usePosStore = create<PosState>()(
 
       // Transactions
       recentTxs: [],
-      // @ts-ignore
       addTx: tx =>
-        // @ts-ignore
         set(s => ({ recentTxs: [tx, ...s.recentTxs].slice(0, 100) })),
-      // @ts-ignore
       setRecentTxs: txs => set({ recentTxs: txs }),
 
       // Fraud
       fraudEvents: [],
       unreadFraudCount: 0,
-      // @ts-ignore
       addFraudEvent: event =>
-        // @ts-ignore
         set(s => ({
           fraudEvents: [event, ...s.fraudEvents].slice(0, 200),
           unreadFraudCount: s.unreadFraudCount + 1,
@@ -196,11 +181,8 @@ export const usePosStore = create<PosState>()(
       activeChatSession: null,
       chatMessages: [],
       unreadChatCount: 0,
-      // @ts-ignore
       setActiveChatSession: ref => set({ activeChatSession: ref }),
-      // @ts-ignore
       addChatMessage: msg =>
-        // @ts-ignore
         set(s => ({
           chatMessages: [...s.chatMessages, msg],
           unreadChatCount:
@@ -208,18 +190,14 @@ export const usePosStore = create<PosState>()(
               ? s.unreadChatCount + 1
               : s.unreadChatCount,
         })),
-      // @ts-ignore
       setChatMessages: msgs => set({ chatMessages: msgs }),
       clearChatCount: () => set({ unreadChatCount: 0 }),
 
       // Network
       isOnline: true,
-      // @ts-ignore
       setOnline: online => set({ isOnline: online }),
       offlineQueue: [],
-      // @ts-ignore
       enqueueOfflineTx: tx =>
-        // @ts-ignore
         set(s => ({
           offlineQueue: [
             ...s.offlineQueue,
@@ -231,16 +209,13 @@ export const usePosStore = create<PosState>()(
             },
           ],
         })),
-      // @ts-ignore
       dequeueOfflineTx: id =>
-        // @ts-ignore
         set(s => ({ offlineQueue: s.offlineQueue.filter(t => t.id !== id) })),
       clearOfflineQueue: () => set({ offlineQueue: [] }),
     }),
     {
       name: "postourismpay-store",
       storage: createJSONStorage(() => localStorage),
-      // @ts-ignore
       partialize: state => ({
         agent: state.agent,
         isLoggedIn: state.isLoggedIn,

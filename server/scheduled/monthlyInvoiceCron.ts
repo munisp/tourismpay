@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Monthly Invoice Cron Handler — 54Link POS Shell
  *

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // TypeScript enabled — Sprint 96 security audit
 import { Server as SocketIOServer } from "socket.io";
 import type { Server as HttpServer } from "http";

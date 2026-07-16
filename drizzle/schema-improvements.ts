@@ -23,11 +23,8 @@ export {
   loyaltyRewards,
   loyaltyBalances,
   loyaltyConversions,
-  // @ts-ignore
   insurancePolicies,
-  // @ts-ignore
   insuranceClaims,
-  // @ts-ignore
   dataExportRequests,
   dataErasureRequests,
   tourismPassesTable,
@@ -46,7 +43,6 @@ export {
   ussdSessions,
   ussdTransactions,
   agentKycVerifications,
-  // @ts-ignore
   billPayments,
   virtualCards,
   virtualCardTransactions,
@@ -89,16 +85,11 @@ export {
   temporalWorkflowExecutions,
   daprSubscriptions,
   daprStateEntries,
-  // @ts-ignore
   fluvioConsumerOffsets,
-  // @ts-ignore
   lakehouseEtlRuns,
-  // @ts-ignore
   openappsecWafEvents,
   keycloakSessionTokens,
-  // @ts-ignore
   enairaWallets,
-  // @ts-ignore
   enairaTransactions,
   cbnMerchantRegistrations,
   apisixRouteRegistry,
@@ -109,7 +100,6 @@ export {
   fraudAlerts,
   socAlerts,
   tourismEvents,
-  // @ts-ignore
   kybDocuments,
   bisReportExports,
   userNotifications,

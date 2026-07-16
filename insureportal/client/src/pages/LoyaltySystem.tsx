@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * TourismPay — Agent Loyalty Points System
  * Design: Bloomberg Terminal dark — near-black bg, gold/amber primary for rewards

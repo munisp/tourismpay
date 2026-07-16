@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Sprint 87: Full domain logic — score calculation, percentile ranking, trend analysis
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";

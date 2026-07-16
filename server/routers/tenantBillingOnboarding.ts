@@ -130,7 +130,6 @@ async function executeBillingProvisioning(params: {
       await db()
     )
       .insert(billingProvisioningHistory)
-      // @ts-ignore
       .values({
         tenantId,
         step,
@@ -163,7 +162,6 @@ async function executeBillingProvisioning(params: {
             await db()
           )
             .insert(tenantBillingConfig)
-            // @ts-ignore
             .values({
               tenantId,
               billingModel,
@@ -195,7 +193,6 @@ async function executeBillingProvisioning(params: {
           // Update billing config with TB account ID
           await (await db())
             .update(tenantBillingConfig)
-            // @ts-ignore
             .set({ tigerBeetleAccountId: accountId })
             .where(eq(tenantBillingConfig.tenantId, tenantId));
           break;
@@ -213,14 +210,12 @@ async function executeBillingProvisioning(params: {
           };
           await (await db())
             .update(tenantBillingConfig)
-            // @ts-ignore
             .set({ kafkaTopicPrefix: topicPrefix })
             .where(eq(tenantBillingConfig.tenantId, tenantId));
           break;
         }
         case "assign_billing_roles": {
           // Auto-assign billing_admin role to the provisioner
-          // @ts-ignore
           await (await db()).insert(billingRoleAssignments).values({
             userId: provisionedBy,
             tenantId,
@@ -249,7 +244,6 @@ async function executeBillingProvisioning(params: {
           )
             .update(tenantBillingConfig)
             .set({
-              // @ts-ignore
               status: "active",
               lastModifiedAt: new Date(),
               lastModifiedBy: provisionedBy,
@@ -263,7 +257,6 @@ async function executeBillingProvisioning(params: {
       // Mark step as completed
       await (await db())
         .update(billingProvisioningHistory)
-        // @ts-ignore
         .set({ status: "completed", details, completedAt: new Date() })
         .where(eq(billingProvisioningHistory.id, historyEntry.id));
 
@@ -272,7 +265,6 @@ async function executeBillingProvisioning(params: {
       const errMsg = (error as Error).message;
       await (await db())
         .update(billingProvisioningHistory)
-        // @ts-ignore
         .set({ status: "failed", error: errMsg, completedAt: new Date() })
         .where(eq(billingProvisioningHistory.id, historyEntry.id));
 
@@ -501,7 +493,6 @@ export const tenantBillingOnboardingRouter = router({
             tenantId: input.tenantId,
           },
           action:
-            // @ts-ignore
             input.billingModel && input.billingModel !== existing.billingModel
               ? "billing_model_changed"
               : "config_updated",
@@ -577,7 +568,6 @@ export const tenantBillingOnboardingRouter = router({
           await db()
         )
           .update(billingProvisioningHistory)
-          // @ts-ignore
           .set({ status: "retrying" })
           .where(
             and(
@@ -624,7 +614,6 @@ export const tenantBillingOnboardingRouter = router({
         )
           .update(tenantBillingConfig)
           .set({
-            // @ts-ignore
             status: "inactive",
             lastModifiedAt: new Date(),
             lastModifiedBy: ctx.user.id,
@@ -640,7 +629,6 @@ export const tenantBillingOnboardingRouter = router({
           action: "config_deleted",
           resourceType: "tenant_billing_config",
           resourceId: String(existing.id),
-          // @ts-ignore
           beforeState: { status: existing.status },
           afterState: { status: "inactive", reason: input.reason },
         });

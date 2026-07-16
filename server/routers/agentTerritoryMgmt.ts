@@ -65,7 +65,6 @@ export const agentTerritoryMgmtRouter = router({
         await db
           .insert(agentGeofenceZones)
           .values({ agentId: input.agentId, zoneId: input.zoneId });
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "territory_agent_assigned",
           resource: "geofence_zones",
@@ -96,7 +95,6 @@ export const agentTerritoryMgmtRouter = router({
               eq(agentGeofenceZones.zoneId, input.zoneId)
             )
           );
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "territory_agent_unassigned",
           resource: "geofence_zones",

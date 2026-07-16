@@ -114,7 +114,6 @@ export const chatRouter = router({
         .update(chatSessions)
         .set({ status: "resolved" })
         .where(eq(chatSessions.id, input.id));
-      // @ts-ignore
       await db.insert(auditLog).values({
         action: "chat_session_closed",
         resource: "chat_sessions",

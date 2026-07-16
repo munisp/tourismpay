@@ -44,10 +44,7 @@ export default function ApiKeyManagement() {
     permissions: "read",
   });
   const [revealedKeys, setRevealedKeys] = useState<Set<number>>(new Set());
-
-  // @ts-ignore
   const apiKeys = trpc.devPortal.listKeys.useQuery(undefined, { retry: false });
-  // @ts-ignore
   const createKey = trpc.devPortal.createKey.useMutation({
     onSuccess: () => {
       toast.success("API key created");
@@ -57,7 +54,6 @@ export default function ApiKeyManagement() {
     },
     onError: (e: any) => toast.error("Failed: " + e.message),
   });
-  // @ts-ignore
   const revokeKey = trpc.devPortal.revokeKey.useMutation({
     onSuccess: () => {
       toast.success("API key revoked");

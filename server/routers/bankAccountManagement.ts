@@ -199,7 +199,6 @@ export const bankAccountManagementRouter = router({
         const db = (await getDb())!;
         await db
           .update(agentBankAccounts)
-          // @ts-ignore
           .set({ verified: true })
           .where(eq(agentBankAccounts.id, input.id));
         return { success: true, message: "Account verified" };

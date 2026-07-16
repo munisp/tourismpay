@@ -20,25 +20,15 @@ import { getMtlsAgent } from "../lib/mtlsAgent.js";
 // ─── Service base URLs ────────────────────────────────────────────────────────
 
 export const PLATFORM_URLS = {
-  // @ts-ignore
   kyc: ENV.PLATFORM_KYC_URL ?? "https://kyc.tourismpay.io",
-  // @ts-ignore
   videoKyc: ENV.PLATFORM_VIDEO_KYC_URL ?? "https://videokyc.tourismpay.io",
-  // @ts-ignore
   fraud: ENV.PLATFORM_FRAUD_URL ?? "https://fraud.tourismpay.io",
-  // @ts-ignore
   settlement: ENV.PLATFORM_SETTLEMENT_URL ?? "https://settlement.tourismpay.io",
-  // @ts-ignore
   geofencing: ENV.PLATFORM_GEOFENCING_URL ?? "https://geofencing.tourismpay.io",
-  // @ts-ignore
   loyalty: ENV.PLATFORM_LOYALTY_URL ?? "https://loyalty.tourismpay.io",
-  // @ts-ignore
   float: ENV.PLATFORM_FLOAT_URL ?? "https://float.tourismpay.io",
-  // @ts-ignore
   dispute: ENV.PLATFORM_DISPUTE_URL ?? "https://disputes.tourismpay.io",
-  // @ts-ignore
   analytics: ENV.PLATFORM_ANALYTICS_URL ?? "https://analytics.tourismpay.io",
-  // @ts-ignore
   notification: ENV.PLATFORM_NOTIFICATION_URL ?? "https://notify.tourismpay.io",
 } as const;
 

@@ -108,21 +108,18 @@ export default function AnalyticsDashboard() {
 
   // ── tRPC queries ──────────────────────────────────────────────────────────
   const { data: throughputData, isLoading: loadingThroughput } =
-    // @ts-ignore
     trpc.analytics.getMqttThroughput.useQuery(
       { minutes: mqttMinutes },
       { refetchInterval: 30_000 }
     );
 
   const { data: erpStats, isLoading: loadingErp } =
-    // @ts-ignore
     trpc.analytics.getErpSyncStats.useQuery(
       { hours: erpHours },
       { refetchInterval: 30_000 }
     );
 
   const { data: liveStats, isLoading: loadingLive } =
-    // @ts-ignore
     trpc.analytics.getLiveStats.useQuery(undefined, {
       refetchInterval: 15_000,
     });
@@ -132,7 +129,6 @@ export default function AnalyticsDashboard() {
 
   const { data: sentSeries } = trpc.analytics.timeSeries.useQuery(
     {
-      // @ts-ignore
       metricName: "mqtt.messages.sent",
       fromMs: sentFromMs,
       toMs: Date.now(),
@@ -142,7 +138,6 @@ export default function AnalyticsDashboard() {
 
   const { data: bufferedSeries } = trpc.analytics.timeSeries.useQuery(
     {
-      // @ts-ignore
       metricName: "mqtt.messages.buffered",
       fromMs: bufferedFromMs,
       toMs: Date.now(),
@@ -154,10 +149,8 @@ export default function AnalyticsDashboard() {
   const combinedSeries = (() => {
     const sentMap = new Map<number, number>();
     const bufferedMap = new Map<number, number>();
-    // @ts-ignore
     for (const p of sentSeries?.series ?? [])
       sentMap.set(new Date(p.bucket).getTime(), p.value);
-    // @ts-ignore
     for (const p of bufferedSeries?.series ?? [])
       bufferedMap.set(new Date(p.bucket).getTime(), p.value);
     const allBuckets = Array.from(
@@ -504,22 +497,18 @@ export default function AnalyticsDashboard() {
 function ErpTrendChart({ hours }: { hours: number; refreshKey: number }) {
   const [fromMs] = useState(() => Date.now() - hours * 60 * 60 * 1000);
   const { data: syncedSeries } = trpc.analytics.timeSeries.useQuery(
-    // @ts-ignore
     { metricName: "erp.sync.synced", fromMs, toMs: Date.now() },
     { refetchInterval: 30_000 }
   );
   const { data: failedSeries } = trpc.analytics.timeSeries.useQuery(
-    // @ts-ignore
     { metricName: "erp.sync.failed", fromMs, toMs: Date.now() },
     { refetchInterval: 30_000 }
   );
   const combined = (() => {
     const sm = new Map<number, number>();
     const fm = new Map<number, number>();
-    // @ts-ignore
     for (const p of syncedSeries?.series ?? [])
       sm.set(new Date(p.bucket).getTime(), p.value);
-    // @ts-ignore
     for (const p of failedSeries?.series ?? [])
       fm.set(new Date(p.bucket).getTime(), p.value);
     const all = Array.from(

@@ -77,7 +77,6 @@ export const platformProxyRouter = router({
             .insert(systemConfig)
             .values({ key, value: JSON.stringify(merged) });
         }
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "proxy_config_updated",
           resource: "platform_proxy",

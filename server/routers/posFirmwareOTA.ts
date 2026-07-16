@@ -94,7 +94,6 @@ export const posFirmwareOTARouter = router({
           });
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "FIRMWARE_PUBLISHED",
@@ -134,7 +133,6 @@ export const posFirmwareOTARouter = router({
         const rolloutId = `ROL-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "FIRMWARE_ROLLOUT_STARTED",
@@ -239,7 +237,6 @@ export const posFirmwareOTARouter = router({
         }
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: input.success

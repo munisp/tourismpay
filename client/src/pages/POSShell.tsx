@@ -1,4 +1,3 @@
-// @ts-nocheck
 // SECURITY: SQL template literals in this file are for display/mock purposes only. All actual DB queries use parameterized Drizzle ORM.
 /**
  * 54Link POS — Bloomberg Terminal meets Modern Fintech (Dark Professional)
@@ -6507,7 +6506,7 @@ function MyLimitsScreen({ onBack }: { onBack: () => void }) {
 
 // 18. Audit Log ─────────────────────────────────────────────────────────────────
 function AuditLogScreen({ onBack }: { onBack: () => void }) {
-  const { data: logs, isLoading } = trpc.auditLog.list.useQuery(
+  const { data: logs, isLoading } = trpc.auditLogs.list.useQuery(
     { limit: 50, offset: 0 },
     { refetchInterval: 30_000 }
   );

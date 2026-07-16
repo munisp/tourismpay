@@ -5,14 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 export default function AgentManagementDashboard() {
-  // @ts-ignore
   const agentsQ = trpc.agentMgmt.listAll.useQuery(undefined, { retry: false });
-  // @ts-ignore
   const topUpQ = trpc.agentMgmt.listTopUpRequests.useQuery(
     { status: "pending" },
     { retry: false }
   );
-  // @ts-ignore
   const setActiveMut = trpc.agentMgmt.setActive.useMutation({
     onSuccess: () => {
       toast.success("Agent status updated");

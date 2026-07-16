@@ -23,7 +23,6 @@ const rules: EnvRule[] = [
   // Critical — server cannot function without these
   {
     name: "POSTGRES_URL",
-    // @ts-ignore
     value: ENV.postgresUrl,
     required: true,
     description: "PostgreSQL connection string",
@@ -39,7 +38,6 @@ const rules: EnvRule[] = [
   // Important — features degrade without these
   {
     name: "REDIS_URL",
-    // @ts-ignore
     value: ENV.redisUrl,
     required: false,
     description: "Redis connection URL",
@@ -47,14 +45,12 @@ const rules: EnvRule[] = [
   },
   {
     name: "KEYCLOAK_URL",
-    // @ts-ignore
     value: ENV.keycloakUrl,
     required: false,
     description: "Keycloak OIDC URL",
   },
   {
     name: "KEYCLOAK_CLIENT_SECRET",
-    // @ts-ignore
     value: ENV.keycloakClientSecret,
     required: false,
     description: "Keycloak client secret",
@@ -62,7 +58,6 @@ const rules: EnvRule[] = [
   },
   {
     name: "PLATFORM_API_KEY",
-    // @ts-ignore
     value: ENV.platformApiKey,
     required: false,
     description: "Platform API key",
@@ -70,7 +65,6 @@ const rules: EnvRule[] = [
   },
   {
     name: "INTERNAL_API_KEY",
-    // @ts-ignore
     value: ENV.internalApiKey,
     required: false,
     description: "Internal service-to-service key",
@@ -78,7 +72,6 @@ const rules: EnvRule[] = [
   },
   {
     name: "CRON_SECRET",
-    // @ts-ignore
     value: ENV.cronSecret,
     required: false,
     description: "Cron/scheduler shared secret",
@@ -88,7 +81,6 @@ const rules: EnvRule[] = [
   // Kafka
   {
     name: "KAFKA_BROKERS",
-    // @ts-ignore
     value: ENV.kafkaBrokers,
     required: false,
     description: "Kafka broker addresses",
@@ -105,7 +97,6 @@ const rules: EnvRule[] = [
   // Observability
   {
     name: "OTEL_EXPORTER_OTLP_ENDPOINT",
-    // @ts-ignore
     value: ENV.otelEndpoint,
     required: false,
     description: "OpenTelemetry collector endpoint",
@@ -156,7 +147,6 @@ export function validateEnv(): void {
   if (missing.length > 0) {
     const msg = `[env-validation] ${missing.length} required environment variable(s) missing:\n${missing.join("\n")}`;
     if (isProduction) {
-      // @ts-ignore
       logger.fatal({ missing }, msg);
       process.exit(1);
     } else {

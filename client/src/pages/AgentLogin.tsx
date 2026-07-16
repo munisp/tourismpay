@@ -28,8 +28,6 @@ export default function AgentLogin() {
   const [resetNewPinConfirm, setResetNewPinConfirm] = useState("");
   const [resetAgentCode, setResetAgentCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-
-  // @ts-ignore
   const setAgent = usePosStore(s => s.setAgent);
 
   // ── Login ──────────────────────────────────────────────────────────────────

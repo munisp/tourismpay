@@ -124,7 +124,6 @@ export const trainingCoursesRouter = router({
           .insert(trainingCourses)
           .values({
             ...input,
-            // @ts-ignore
             createdBy: ctx.user?.id,
             isActive: true,
             version: 1,

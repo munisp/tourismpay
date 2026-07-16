@@ -433,3 +433,7 @@ export function getSupportedLocales(): { code: Locale; name: string; nativeName:
     { code: "ar", name: "Arabic", nativeName: "العربية" },
   ];
 }
+
+export function getAvailableLocales(): string[] {
+  return ['en', 'fr', 'ha', 'yo', 'ig', 'pt', 'ar'];
+}

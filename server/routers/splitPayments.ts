@@ -67,7 +67,6 @@ export const splitPaymentsRouter = router({
 
           const [tx] = await db
             .insert(transactions)
-            // @ts-ignore
             .values({
               ref,
               agentId: session.id,
@@ -102,7 +101,6 @@ export const splitPaymentsRouter = router({
           .where(eq(agents.id, session.id));
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "SPLIT_PAYMENT_CREATED",
@@ -146,8 +144,6 @@ export const splitPaymentsRouter = router({
               WHERE action = 'SPLIT_PAYMENT_CREATED' AND "agentId" = ${session.id}
               ORDER BY "createdAt" DESC LIMIT ${input.limit}`
         );
-
-        // @ts-ignore
         return { splits: rows.rows ?? [] };
       } catch (error) {
         if (error instanceof TRPCError) throw error;

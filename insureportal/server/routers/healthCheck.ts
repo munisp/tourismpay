@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { z } from "zod";
 import { router, publicProcedure } from "../_core/trpc";
 import { getDb } from "../db";

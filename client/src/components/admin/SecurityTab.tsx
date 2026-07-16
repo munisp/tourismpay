@@ -141,7 +141,6 @@ function SecurityAuditSection() {
   const PAGE_SIZE = 20;
 
   const { data, isLoading, refetch } =
-    // @ts-ignore
     trpc.transactions.getSecurityAuditLog.useQuery(
       {
         severity,
@@ -154,7 +153,6 @@ function SecurityAuditSection() {
 
   // CSV export — only fires when csvEnabled=true
   const { isFetching: csvFetching } =
-    // @ts-ignore
     trpc.transactions.exportSecurityAuditCsv.useQuery(
       {
         severity: severity === "ALL" ? "ALL" : (severity.toLowerCase() as any),
@@ -177,30 +175,23 @@ function SecurityAuditSection() {
         onError: (e: any) => toast.error(`Export failed: ${e.message}`),
       } as any
     );
-
-  // @ts-ignore
   const snoozeAlert = trpc.transactions.snoozeAlert.useMutation({
     onSuccess: () => {
       toast.success("Alert snoozed for 15 min");
-      // @ts-ignore
       utils.transactions.getSecurityAuditLog.invalidate();
     },
     onError: (e: any) => toast.error(e.message),
   });
-  // @ts-ignore
   const escalateAlert = trpc.transactions.escalateAlert.useMutation({
     onSuccess: () => {
       toast.success("Alert escalated to supervisor");
-      // @ts-ignore
       utils.transactions.getSecurityAuditLog.invalidate();
     },
     onError: (e: any) => toast.error(e.message),
   });
-  // @ts-ignore
   const markReviewed = trpc.transactions.markAlertReviewed.useMutation({
     onSuccess: () => {
       toast.success("Alert marked as reviewed");
-      // @ts-ignore
       utils.transactions.getSecurityAuditLog.invalidate();
     },
     onError: (e: any) => toast.error(`Failed: ${e.message}`),
@@ -566,22 +557,17 @@ function SecurityAuditSection() {
 function PendingReversalsSection() {
   const utils = trpc.useUtils();
   const { data: pending, isLoading } =
-    // @ts-ignore
     trpc.transactions.pendingReversals.useQuery();
-  // @ts-ignore
   const approve = trpc.transactions.approveReversal.useMutation({
     onSuccess: () => {
       toast.success("Reversal approved — transaction reversed");
-      // @ts-ignore
       utils.transactions.pendingReversals.invalidate();
     },
     onError: (e: any) => toast.error(`Approval failed: ${e.message}`),
   });
-  // @ts-ignore
   const reject = trpc.transactions.rejectReversal.useMutation({
     onSuccess: () => {
       toast.success("Reversal request rejected");
-      // @ts-ignore
       utils.transactions.pendingReversals.invalidate();
     },
     onError: (e: any) => toast.error(`Rejection failed: ${e.message}`),
@@ -766,13 +752,10 @@ function PendingReversalsSection() {
 function VelocityLimitsSection() {
   const utils = trpc.useUtils();
   const { data: limits, isLoading } =
-    // @ts-ignore
     trpc.transactions.getVelocityLimits.useQuery();
-  // @ts-ignore
   const update = trpc.transactions.updateVelocityLimit.useMutation({
     onSuccess: () => {
       toast.success("Velocity limit updated");
-      // @ts-ignore
       utils.transactions.getVelocityLimits.invalidate();
     },
     onError: (e: any) => toast.error(`Update failed: ${e.message}`),
@@ -960,13 +943,10 @@ function VelocityLimitsSection() {
 function PlatformSettingsSection() {
   const utils = trpc.useUtils();
   const { data: settings, isLoading } =
-    // @ts-ignore
     trpc.transactions.getPlatformSettings.useQuery();
-  // @ts-ignore
   const update = trpc.transactions.updatePlatformSetting.useMutation({
     onSuccess: () => {
       toast.success("Setting updated");
-      // @ts-ignore
       utils.transactions.getPlatformSettings.invalidate();
     },
     onError: (e: any) => toast.error(`Update failed: ${e.message}`),

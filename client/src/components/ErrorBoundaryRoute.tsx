@@ -23,7 +23,6 @@ export class ErrorBoundaryRoute extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // @ts-ignore
     logger.error("[ErrorBoundaryRoute]", error, info.componentStack);
   }
 

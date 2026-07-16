@@ -46,7 +46,6 @@ export const fraudMlScoringEngineRouter = router({
         const [score] = await db
           .select()
           .from(fraudMlScores)
-          // @ts-ignore
           .where(eq(fraudMlScores.transactionId, input.transactionId))
           .limit(1);
         return score ?? null;

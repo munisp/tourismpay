@@ -141,7 +141,6 @@ export const agentOnboardingWizardRouter = router({
           .update(agents)
           .set({ isActive: true })
           .where(eq(agents.id, input.agentId));
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "agent_onboarding_approved",
           resource: "agents",

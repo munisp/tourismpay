@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Sprint 92 — Ransomware & Security Alert Dashboard
  *

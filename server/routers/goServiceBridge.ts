@@ -170,7 +170,6 @@ export const goServiceBridgeRouter = router({
     .mutation(async ({ input }) => {
       try {
         const db = (await getDb())!;
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "go_service_restarted",
           resource: "go_service_bridge",

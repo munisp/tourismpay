@@ -1,4 +1,3 @@
-// @ts-nocheck
 // SECURITY: SQL template literals in this file are for display/mock purposes only. All actual DB queries use parameterized Drizzle ORM.
 /**
  * MDM Device Management Tab — Admin Panel
@@ -190,7 +189,7 @@ function StatusIcon({ status }: { status: string }) {
 function TerminalEventsLog() {
   const [page, setPage] = useState(0);
   const limit = 20;
-  const { data, isLoading, refetch } = trpc.auditLog.listByActions.useQuery({
+  const { data, isLoading, refetch } = trpc.auditLogs.listByActions.useQuery({
     actions: ["TERMINAL_DISABLED", "TERMINAL_ENABLED"],
     limit,
     offset: page * limit,

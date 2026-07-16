@@ -17,7 +17,6 @@ import { logger } from "@/lib/logger";
 
 export function useOfflineSync() {
   const { isOnline, offlineQueue, dequeueOfflineTx } = usePosStore();
-  // @ts-ignore
   const createTx = trpc.transactions.create.useMutation();
   const dequeue = trpc.resilience.dequeueOffline.useMutation();
   const requeue = trpc.resilience.enqueueOffline.useMutation();
@@ -31,7 +30,6 @@ export function useOfflineSync() {
   // ── Sync Zustand in-memory queue ──────────────────────────────────────────
   const syncZustandQueue = useCallback(async () => {
     if (!isOnline || offlineQueue.length === 0) return;
-    // @ts-ignore
     logger.log(
       `[OfflineSync] Syncing ${offlineQueue.length} in-memory queued transactions...`
     );
@@ -52,7 +50,6 @@ export function useOfflineSync() {
           `Offline transaction synced: ₦${tx.amount.toLocaleString()} ${tx.type}`
         );
       } catch (err) {
-        // @ts-ignore
         logger.error(`[OfflineSync] Failed to sync ${tx.id}:`, err);
       }
     }
@@ -102,7 +99,6 @@ export function useOfflineSync() {
           failed++;
           logger.error(
             `[OfflineSync] createTx failed for rustQueueId=${item.id}, re-enqueueing:`,
-            // @ts-ignore
             createErr
           );
           try {
@@ -113,14 +109,12 @@ export function useOfflineSync() {
               customerPhone: item.customer_phone ?? "",
               channel: item.channel ?? "Offline",
             });
-            // @ts-ignore
             logger.log(
               `[OfflineSync] Re-enqueued ${item.id} to Rust queue after createTx failure`
             );
           } catch (requeueErr) {
             logger.error(
               `[OfflineSync] Re-enqueue also failed for ${item.id}:`,
-              // @ts-ignore
               requeueErr
             );
           }
@@ -132,7 +126,6 @@ export function useOfflineSync() {
     }
 
     if (synced > 0 || failed > 0) {
-      // @ts-ignore
       await utils.transactions.list.invalidate();
       await utils.resilience.queueCount.invalidate();
 
@@ -193,7 +186,6 @@ export function useOfflineSync() {
 
     if (wasOfflinePrev && isNowOnline) {
       // POS-level reconnect detected — drain both queues
-      // @ts-ignore
       logger.log(
         "[OfflineSync] POS probe reconnect detected — triggering auto-sync"
       );

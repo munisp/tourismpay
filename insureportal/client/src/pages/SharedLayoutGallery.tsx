@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * SharedLayoutGallery — Browse, import, and fork team-shared dashboard layouts
  */

@@ -120,7 +120,6 @@ async function upsertUserFromKeycloak(session: SessionPayload) {
     .limit(1);
 
   if (existing.length === 0) {
-    // @ts-ignore
     await db.insert(users).values({
       keycloakSub: session.sub,
       name: session.name || null,
@@ -135,7 +134,6 @@ async function upsertUserFromKeycloak(session: SessionPayload) {
       .set({
         name: session.name || null,
         email: session.email || null,
-        // @ts-ignore
         role: session.role,
         lastSignedIn: new Date(),
         updatedAt: new Date(),
@@ -169,10 +167,7 @@ export function registerKeycloakAuthRoutes(app: Express): void {
     // Store state and returnTo in short-lived cookies
     res.cookie(STATE_COOKIE, state, stateCookieOptions(req));
     res.cookie(RETURN_PATH_COOKIE, returnTo, stateCookieOptions(req));
-
-    // @ts-ignore
     const authUrl = buildAuthorizationUrl({ redirectUri, state });
-    // @ts-ignore
     res.redirect(authUrl);
   });
 
@@ -207,29 +202,19 @@ export function registerKeycloakAuthRoutes(app: Express): void {
 
     try {
       const redirectUri = `${req.protocol}://${req.get("host")}/api/auth/callback`;
-      // @ts-ignore
       const tokens = await exchangeCodeForTokens({ code, redirectUri });
 
       // Verify the access token (validates signature, issuer, expiry)
-      // @ts-ignore
       const payload = await verifyKeycloakToken(tokens.access_token);
-      // @ts-ignore
       const role = mapKeycloakRoleToPlatformRole(payload);
 
       const session: SessionPayload = {
-        // @ts-ignore
         sub: payload.sub,
-        // @ts-ignore
         name: payload.name ?? payload.preferred_username ?? "",
-        // @ts-ignore
         email: payload.email ?? "",
-        // @ts-ignore
         role,
-        // @ts-ignore
         accessToken: tokens.access_token,
-        // @ts-ignore
         refreshToken: tokens.refresh_token ?? "",
-        // @ts-ignore
         idToken: tokens.id_token ?? "",
       };
 
@@ -272,13 +257,10 @@ export function registerKeycloakAuthRoutes(app: Express): void {
     res.clearCookie(KC_SESSION_COOKIE, { path: "/" });
 
     const postLogoutUri = `${req.protocol}://${req.get("host")}/`;
-    // @ts-ignore
     const logoutUrl = buildLogoutUrl({
       idTokenHint,
       postLogoutRedirectUri: postLogoutUri,
     });
-
-    // @ts-ignore
     res.redirect(logoutUrl);
   });
 

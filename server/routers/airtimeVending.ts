@@ -200,7 +200,6 @@ export const airtimeVendingRouter = router({
           .where(eq(agents.id, session.id));
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "AIRTIME_VENDED",
@@ -305,7 +304,6 @@ export const airtimeVendingRouter = router({
           .where(eq(agents.id, session.id));
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "DATA_VENDED",

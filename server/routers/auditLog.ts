@@ -20,7 +20,6 @@ export const auditLogRouter = router({
             code: "UNAUTHORIZED",
             message: "Agent session required",
           });
-        // @ts-ignore
         return getAuditLog(session.id, input.limit, input.offset);
       } catch (error) {
         if (error instanceof TRPCError) throw error;
@@ -42,7 +41,6 @@ export const auditLogRouter = router({
     )
     .query(async ({ input }) => {
       try {
-        // @ts-ignore
         return getAuditLog(undefined, input.limit, input.offset);
       } catch (error) {
         if (error instanceof TRPCError) throw error;

@@ -62,7 +62,6 @@ export const pushNotificationsRouter = router({
           await db
             .update(agentPushSubscriptions)
             .set({
-              // @ts-ignore
               p256dhKey: input.subscription.keys.p256dh,
               authKey: input.subscription.keys.auth,
               userAgent: input.userAgent ?? null,
@@ -71,8 +70,6 @@ export const pushNotificationsRouter = router({
             .where(eq(agentPushSubscriptions.id, existing[0].id));
           return { success: true, action: "updated" as const };
         }
-
-        // @ts-ignore
         await db.insert(agentPushSubscriptions).values({
           agentCode: input.agentCode,
           endpoint: input.subscription.endpoint,

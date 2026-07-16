@@ -12,8 +12,6 @@
  * - Dashboard subscribes to channel for real-time progress updates
  * - Events include: batch_id, processed, total, rate, ETA, errors
  */
-
-// @ts-ignore
 import logger from "../_core/logger";
 import { getConfigNumber } from "./runtimeConfig";
 

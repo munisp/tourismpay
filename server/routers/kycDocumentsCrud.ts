@@ -155,7 +155,6 @@ export const kycDocumentsRouter = router({
           });
         const [row] = await db
           .insert(kycDocuments)
-          // @ts-ignore
           .values({
             agentId: input.agentId,
             docType: input.docType,
@@ -198,7 +197,6 @@ export const kycDocumentsRouter = router({
           .update(kycDocuments)
           .set({
             status: "verified",
-            // @ts-ignore
             verifiedBy: input.verifiedBy,
             verifiedAt: new Date(),
           })
@@ -244,7 +242,6 @@ export const kycDocumentsRouter = router({
           .update(kycDocuments)
           .set({
             status: "rejected",
-            // @ts-ignore
             verifiedBy: input.verifiedBy,
             verifiedAt: new Date(),
             rejectionReason: input.rejectionReason,

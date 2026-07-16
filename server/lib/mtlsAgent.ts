@@ -23,10 +23,7 @@ import https from "https";
 import fs from "fs";
 import path from "path";
 import { ENV } from "../_core/env";
-
-// @ts-ignore
 const CERT_DIR = ENV.mtlsCertDir;
-// @ts-ignore
 const MTLS_ENABLED = ENV.mtlsEnabled;
 
 let _agent: https.Agent | null | undefined = undefined; // undefined = not yet initialised

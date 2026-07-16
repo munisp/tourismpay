@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Sprint 87: P&L calculation engine, period comparison, variance analysis
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";

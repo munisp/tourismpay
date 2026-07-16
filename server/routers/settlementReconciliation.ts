@@ -118,7 +118,6 @@ export const settlementReconciliationRouter = router({
             .where(
               and(
                 eq(
-                  // @ts-ignore
                   settlementReconciliation.settlementDate,
                   input.settlementDate
                 ),
@@ -146,7 +145,6 @@ export const settlementReconciliationRouter = router({
             [record] = await db
               .insert(settlementReconciliation)
               .values({
-                // @ts-ignore
                 settlementDate: input.settlementDate,
                 agentCode: String(settlement.merchantId),
                 expectedAmount: String(txTotal),
@@ -161,7 +159,6 @@ export const settlementReconciliationRouter = router({
 
         await writeAuditLog({
           action: "settlement_reconciliation_run",
-          // @ts-ignore
           resource: "settlement_reconciliation",
           resourceId: input.settlementDate,
           status: "success",
@@ -212,7 +209,6 @@ export const settlementReconciliationRouter = router({
           .update(settlementReconciliation)
           .set({
             status: "resolved",
-            // @ts-ignore
             resolutionNote: input.resolution,
             resolvedBy: ctx.user.id,
             resolvedAt: new Date(),

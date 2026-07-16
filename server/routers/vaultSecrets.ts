@@ -37,7 +37,6 @@ export const vaultSecretsRouter = router({
     .mutation(async ({ input }) => {
       const database = await getDb();
       if (database) {
-        // @ts-ignore
         await database.insert(auditLog).values({ action: `secret_rotated:${input.name}`, userId: 1, details: input.reason });
       }
       return { name: input.name, status: "rotated", newExpiry: new Date(Date.now() + 30 * 86400000).toISOString(), rotatedAt: new Date().toISOString() };

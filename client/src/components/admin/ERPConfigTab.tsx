@@ -165,30 +165,18 @@ export default function ERPConfigTab() {
   // ── Populate form from server data ─────────────────────────────────────────
   useEffect(() => {
     if (!configData) return;
-    // @ts-ignore
     setErpType(configData.erpType ?? "odoo");
-    // @ts-ignore
     setName(configData.name ?? "Default ERP");
-    // @ts-ignore
     setBaseUrl(configData.baseUrl ?? "");
     setApiKey(""); // never pre-fill API key from server (masked)
-    // @ts-ignore
     setUsername(configData.username ?? "");
-    // @ts-ignore
     setDatabase(configData.database ?? "");
-    // @ts-ignore
     setSyncEnabled(configData.syncEnabled ?? false);
-    // @ts-ignore
     setSyncInterval(configData.syncIntervalMinutes ?? 60);
-    // @ts-ignore
     setSyncTx(configData.syncTransactions ?? true);
-    // @ts-ignore
     setSyncAgents(configData.syncAgents ?? false);
-    // @ts-ignore
     setSyncInventory(configData.syncInventory ?? false);
-    // @ts-ignore
     const fm = (configData.fieldMappings as Record<string, string>) ?? {};
-    // @ts-ignore
     setMappings({ ...DEFAULT_MAPPINGS[configData.erpType ?? "odoo"], ...fm });
   }, [configData]);
 
@@ -255,12 +243,9 @@ export default function ERPConfigTab() {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const selectedErp = ERP_TYPES.find(e => e.value === erpType);
-  // @ts-ignore
   const lastSyncAt = configData?.lastSyncAt
-    // @ts-ignore
     ? new Date(configData.lastSyncAt).toLocaleString()
     : "Never";
-  // @ts-ignore
   const lastSyncStatus = configData?.lastSyncStatus ?? "never";
 
   const statusColor = (s: string) => {
@@ -1037,7 +1022,6 @@ export default function ERPConfigTab() {
                 </thead>
                 <tbody>
                   {syncLog.rows.map(
-                    // @ts-ignore
                     (row: {
                       id: number;
                       entityType: string;

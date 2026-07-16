@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * SIM Orchestrator tRPC Router
  *

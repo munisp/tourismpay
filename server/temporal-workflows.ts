@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * 54Link POS — Temporal Workflow Definitions
  * These run inside the Temporal sandbox (no direct I/O).

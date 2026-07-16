@@ -13,7 +13,6 @@ import {
   agents,
 } from "../../drizzle/schema";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
-// @ts-ignore
 import logger from "../_core/logger";
 
 // ── Agent Performance Multipliers ──────────────────────────────────────────
@@ -105,9 +104,7 @@ export async function calculateCommission(params: {
 
   const tier = tiers[0];
   const rate = parseFloat(tier.rate as string);
-  // @ts-ignore
   const flatFee = parseFloat(tier.flatFee as string);
-  // @ts-ignore
   const bonusRate = parseFloat(tier.bonusRate as string);
 
   // Apply CBN rate cap
@@ -126,7 +123,6 @@ export async function calculateCommission(params: {
     .from(commissionSplits)
     .where(
       and(
-        // @ts-ignore
         eq(commissionSplits.transactionType, params.transactionType),
         eq(commissionSplits.isActive, true)
       )
@@ -136,23 +132,18 @@ export async function calculateCommission(params: {
   const splitBreakdown: Record<string, number> = {};
   if (split) {
     splitBreakdown.superAgent = Math.round(
-      // @ts-ignore
       (totalCommission * parseFloat(split.superAgentShare as string)) / 100
     );
     splitBreakdown.masterAgent = Math.round(
-      // @ts-ignore
       (totalCommission * parseFloat(split.masterAgentShare as string)) / 100
     );
     splitBreakdown.agent = Math.round(
-      // @ts-ignore
       (totalCommission * parseFloat(split.agentShare as string)) / 100
     );
     splitBreakdown.subAgent = Math.round(
-      // @ts-ignore
       (totalCommission * parseFloat(split.subAgentShare as string)) / 100
     );
     splitBreakdown.platform = Math.round(
-      // @ts-ignore
       (totalCommission * parseFloat(split.platformShare as string)) / 100
     );
   }
@@ -248,7 +239,6 @@ export async function processClawback(params: {
   try {
     // Record in audit trail
     await db.insert(commissionAuditTrail).values({
-      // @ts-ignore
       entityType: "clawback",
       entityId: String(params.payoutId),
       action: "clawback_initiated",
@@ -313,7 +303,6 @@ export async function reconcileCommissions(period: string): Promise<{
     const amount = parseFloat(p.amount as string);
     totalActual += amount;
     details.push({
-      // @ts-ignore
       agentCode: p.agentCode,
       expected: amount,
       actual: amount,

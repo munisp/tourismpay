@@ -122,7 +122,6 @@ export const helpDeskRouter = router({
           .update(chatSessions)
           .set({ status: "resolved" })
           .where(eq(chatSessions.id, input.id));
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "helpdesk_ticket_resolved",
           resource: "chat_sessions",

@@ -74,7 +74,6 @@ export const webhookNotificationsRouter = router({
         await db
           .delete(webhookEndpoints)
           .where(eq(webhookEndpoints.id, input.id));
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "webhook_endpoint_deleted",
           resource: "webhook_endpoints",
@@ -134,9 +133,7 @@ export const webhookNotificationsRouter = router({
         await db
           .update(webhookDeliveries)
           .set({ status: "retrying" })
-          // @ts-ignore
           .where(eq(webhookDeliveries.id, input.deliveryId));
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "webhook_delivery_retried",
           resource: "webhook_deliveries",

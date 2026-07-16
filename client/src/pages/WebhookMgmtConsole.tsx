@@ -5,7 +5,6 @@ import { Webhook } from "lucide-react";
 
 export default function WebhookMgmtConsole() {
   const [search, setSearch] = useState("");
-  // @ts-ignore
   const statsQuery = trpc.webhooks.list.useQuery();
   const stats = statsQuery.data;
 

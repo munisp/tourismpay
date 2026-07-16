@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * CustomerPortal.tsx
  *
@@ -159,7 +158,6 @@ export default function CustomerPortal() {
   const profile = profileQuery.data;
   const balance = balanceQuery.data;
   const initials = profile
-    // @ts-ignore
     ? `${profile.firstName?.[0] ?? ""}${profile.lastName?.[0] ?? ""}`.toUpperCase()
     : "CU";
 
@@ -198,8 +196,6 @@ export default function CustomerPortal() {
             </Avatar>
             <div>
               <p className="font-bold">
-                // @ts-ignore
-                // @ts-ignore
                 {profile.firstName} {profile.lastName}
               </p>
               <p className="text-xs opacity-80">{profile.phone}</p>
@@ -207,8 +203,6 @@ export default function CustomerPortal() {
                 variant="secondary"
                 className="text-xs mt-1 bg-white/20 text-white border-0"
               >
-                // @ts-ignore
-                // @ts-ignore
                 KYC Level {profile.kycLevel}
               </Badge>
             </div>
@@ -515,14 +509,12 @@ export default function CustomerPortal() {
                       {[
                         {
                           label: "Full Name",
-                          // @ts-ignore
                           value: `${profile.firstName} ${profile.lastName}`,
                         },
                         { label: "Phone", value: profile.phone },
                         { label: "Email", value: profile.email ?? "Not set" },
                         {
                           label: "KYC Level",
-                          // @ts-ignore
                           value: `Level ${profile.kycLevel}`,
                         },
                         { label: "Account Status", value: profile.status },
@@ -544,7 +536,6 @@ export default function CustomerPortal() {
                       className="w-full text-xs gap-1"
                       onClick={() => {
                         setProfileForm({
-                          // @ts-ignore
                           firstName: profile.firstName ?? "",
                           lastName: profile.lastName ?? "",
                           email: profile.email ?? "",
@@ -808,8 +799,6 @@ export default function CustomerPortal() {
                           {(kycQ.data as any)?.status ?? "Not started"}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          // @ts-ignore
-                          // @ts-ignore
                           KYC Level: {profile?.kycLevel ?? "0"}
                         </p>
                       </div>

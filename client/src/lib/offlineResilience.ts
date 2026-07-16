@@ -310,13 +310,11 @@ export function startAutoSync(intervalMs: number = 30000) {
 
   // Sync immediately on coming online
   window.addEventListener("online", () => {
-    // @ts-ignore
     logger.log("[Offline] Network restored — triggering sync");
     syncPendingTransactions();
   });
 
   window.addEventListener("offline", () => {
-    // @ts-ignore
     logger.log("[Offline] Network lost — queuing transactions locally");
   });
 

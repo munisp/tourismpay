@@ -83,7 +83,6 @@ export const voiceCommandPosRouter = router({
         const intent = detectedIntent ? INTENT_MAP[detectedIntent] : null;
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "VOICE_COMMAND_PROCESSED",
@@ -212,7 +211,6 @@ export const voiceCommandPosRouter = router({
         }
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "VOICE_TX_EXECUTED",

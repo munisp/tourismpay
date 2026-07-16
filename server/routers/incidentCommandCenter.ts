@@ -112,7 +112,6 @@ export const incidentCommandCenterRouter = router({
             resolvedAt: new Date(),
           })
           .where(eq(platform_incidents.id, input.id));
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "incident_resolved",
           resource: "platform_incidents",

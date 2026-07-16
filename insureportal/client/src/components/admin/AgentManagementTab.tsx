@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * AgentManagementTab — Admin Panel tab for viewing and managing all agents.
  * Supports: role promotion, suspend/activate, float balance view.

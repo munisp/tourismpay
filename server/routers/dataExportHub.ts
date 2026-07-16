@@ -82,7 +82,6 @@ export const dataExportHubRouter = router({
             filters: input.filters ?? {},
           } as any)
           .returning();
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "data_export_created",
           resource: "data_export_jobs",
@@ -113,7 +112,6 @@ export const dataExportHubRouter = router({
           .update(data_export_jobs)
           .set({ status: "cancelled" })
           .where(eq(data_export_jobs.id, input.id));
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "data_export_cancelled",
           resource: "data_export_jobs",

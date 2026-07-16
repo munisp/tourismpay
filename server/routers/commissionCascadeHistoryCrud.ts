@@ -34,7 +34,6 @@ export const commissionCascadeHistoryRouter = router({
           );
         if (input.transactionRef)
           conditions.push(
-            // @ts-ignore
             eq(commissionCascadeHistory.transactionRef, input.transactionRef)
           );
         const rows = await db
@@ -93,7 +92,6 @@ export const commissionCascadeHistoryRouter = router({
           .select()
           .from(commissionCascadeHistory)
           .where(
-            // @ts-ignore
             eq(commissionCascadeHistory.transactionRef, input.transactionRef)
           )
           .orderBy(commissionCascadeHistory.recipientHierarchyLevel)
@@ -158,7 +156,6 @@ export const commissionCascadeHistoryRouter = router({
           .select()
           .from(commissionCascadeHistory)
           .where(
-            // @ts-ignore
             eq(commissionCascadeHistory.transactionRef, input.transactionRef)
           )
           .limit(100);

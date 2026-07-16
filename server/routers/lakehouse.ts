@@ -37,7 +37,6 @@ import {
 } from "../../drizzle/schema";
 import { writeAuditLog } from "../db";
 import { sql, gte, lte, and, eq, desc } from "drizzle-orm";
-// @ts-ignore
 import logger from "../_core/logger";
 
 // ── Python lakehouse-service proxy ────────────────────────────────────────────
@@ -831,7 +830,6 @@ export const lakehouseRouter = router({
           })) as { jobId?: string; status?: string };
           await writeAuditLog({
             action: "ETL_TRIGGER",
-            // @ts-ignore
             resource: "lakehouse",
             resourceId: jobId,
             status: "success",
@@ -850,7 +848,6 @@ export const lakehouseRouter = router({
         } catch {
           await writeAuditLog({
             action: "ETL_TRIGGER",
-            // @ts-ignore
             resource: "lakehouse",
             resourceId: jobId,
             status: "warning",

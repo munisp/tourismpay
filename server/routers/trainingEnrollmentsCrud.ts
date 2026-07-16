@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Sprint 87: Enrollment lifecycle, progress tracking, certification issuance
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";

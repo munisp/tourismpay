@@ -196,7 +196,6 @@ export const reconciliationEngineRouter = router({
             .update(settlementReconciliation)
             .set({
               status: "resolved",
-              // @ts-ignore
               resolutionNote: `Auto-resolved: discrepancy ₦${discrepancy.toFixed(2)} within tolerance ₦${input.toleranceNgn}`,
             })
             .where(eq(settlementReconciliation.id, item.id));
@@ -207,7 +206,6 @@ export const reconciliationEngineRouter = router({
             .update(settlementReconciliation)
             .set({
               status: "escalated",
-              // @ts-ignore
               resolutionNote: `Auto-escalated: discrepancy ₦${discrepancy.toFixed(2)} exceeds ₦10,000 threshold`,
             })
             .where(eq(settlementReconciliation.id, item.id));
@@ -256,7 +254,6 @@ export const reconciliationEngineRouter = router({
         .update(settlementReconciliation)
         .set({
           status: "resolved",
-          // @ts-ignore
           resolutionNote: `[${input.resolution.toUpperCase()}] ${input.note}`,
         })
         .where(eq(settlementReconciliation.id, input.id));

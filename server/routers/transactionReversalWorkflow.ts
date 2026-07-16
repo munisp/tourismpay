@@ -86,7 +86,6 @@ export const transactionReversalWorkflowRouter = router({
 
       const [reversal] = await database
         .insert(reversalRequests)
-        // @ts-ignore
         .values({
           transactionId: input.transactionId,
           agentId: input.agentId,
@@ -136,7 +135,6 @@ export const transactionReversalWorkflowRouter = router({
         .update(reversalRequests)
         .set({
           status: input.decision,
-          // @ts-ignore
           reviewNote: input.reviewNote ?? null,
           reviewedAt: new Date(),
         })
@@ -177,7 +175,6 @@ export const transactionReversalWorkflowRouter = router({
         .update(reversalRequests)
         .set({
           status: "completed",
-          // @ts-ignore
           tbReversalId,
         })
         .where(eq(reversalRequests.id, input.id));

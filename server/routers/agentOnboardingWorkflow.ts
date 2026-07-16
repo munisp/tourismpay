@@ -97,7 +97,6 @@ export const agentOnboardingWorkflowRouter = router({
 
       // Validate step order
       const stepOrder = ["profile", "kyc", "training", "float_funding", "terminal", "go_live"];
-      // @ts-ignore
       const currentIdx = stepOrder.indexOf(progress.currentStep);
       const completedIdx = stepOrder.indexOf(input.completedStep);
 
@@ -155,7 +154,6 @@ export const agentOnboardingWorkflowRouter = router({
 
       const [record] = await database
         .insert(agentOnboardingProgress)
-        // @ts-ignore
         .values({
           agentId: input.agentId,
           agentCode: input.agentCode,

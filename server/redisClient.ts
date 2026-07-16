@@ -18,12 +18,8 @@
  * Fail-open: all methods return null / false on error so callers can
  * continue without Redis (e.g., fall back to DB for session data).
  */
-
-// @ts-ignore
 const REDIS_URL = ENV.redisUrl;
-// @ts-ignore
 const PLATFORM_BASE_URL = ENV.platformBaseUrl;
-// @ts-ignore
 const PLATFORM_API_KEY = ENV.platformApiKey;
 
 // ── Direct ioredis client (optional) ─────────────────────────────────────────

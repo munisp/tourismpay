@@ -48,7 +48,6 @@ export const realtimeNotificationsRouter = router({
         await db
           .update(notification_logs)
           .set({ status: "read" })
-          // @ts-ignore
           .where(eq(notification_logs.id, input.id));
         return { success: true };
       } catch (error) {
@@ -83,7 +82,6 @@ export const realtimeNotificationsRouter = router({
         const [notif] = await db
           .insert(notification_logs)
           .values({
-            // @ts-ignore
             recipientId: input.userId ? String(input.userId) : "system",
             recipientType: input.userId ? "user" : "system",
             subject: input.title,

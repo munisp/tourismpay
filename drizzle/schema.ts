@@ -3785,7 +3785,9 @@ export const daprSidecarHealth = pgTable("dapr_sidecar_health", {
 // These allow server code to import everything from "drizzle/schema"
 export * from "./schema-improvements";
 export * from "./schema-additions";
-// @ts-ignore
 export * from "./schema-extended";
 export * from "./schema-constraints";
 export * from "./schema-platform";
+
+// Missing tables (added to resolve TS errors)
+export * from './schema-missing';

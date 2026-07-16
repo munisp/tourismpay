@@ -1,4 +1,3 @@
-// @ts-nocheck
 // UssdAnalyticsDashboard — Sprint 77
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";

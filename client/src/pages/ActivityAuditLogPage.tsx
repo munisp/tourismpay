@@ -5,7 +5,6 @@ import { trpc } from "@/lib/trpc";
  */
 // @ts-ignore Sprint 85 — Sprint 85: pre-existing type mismatch from router/page interface
 import { DashboardLayout } from "@/components/DashboardLayout";
-// @ts-ignore
 import { PageErrorBoundary } from "@/components/ErrorBoundary";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useState, useMemo } from "react";

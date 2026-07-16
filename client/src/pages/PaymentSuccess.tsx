@@ -13,8 +13,6 @@ import { Link } from "wouter";
 export default function PaymentSuccess() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const sessionId = params.get("session_id");
-
-  // @ts-ignore
   const { data: session, isLoading } = trpc.stripe.getCheckoutSession.useQuery(
     { sessionId: sessionId || "" },
     { enabled: !!sessionId }

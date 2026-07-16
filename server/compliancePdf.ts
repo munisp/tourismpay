@@ -4,7 +4,6 @@
  * Generates a weekly security compliance report PDF using pdfkit,
  * uploads it to S3, and returns the public URL + S3 key.
  */
-// @ts-ignore
 import PDFDocument from "pdfkit";
 
 export interface ComplianceReportData {

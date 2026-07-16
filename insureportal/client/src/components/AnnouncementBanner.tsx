@@ -97,29 +97,23 @@ function AnnouncementBar({
   // ── Fetch reactions & comments from tRPC ──
   const { data: reactionsData, isLoading: reactionsLoading } =
     trpc.announcementReactions.getReactions.useQuery(
-      // @ts-ignore
       { announcementId: ann.id },
       { refetchInterval: 30_000 }
     );
 
   // ── React mutation with optimistic update ──
   const reactMutation = trpc.announcementReactions.react.useMutation({
-    // @ts-ignore
     onMutate: async ({ emoji }) => {
-      // @ts-ignore
       await utils.announcementReactions.getReactions.cancel({
         announcementId: ann.id,
       });
-      // @ts-ignore
       const prev = utils.announcementReactions.getReactions.getData({
         announcementId: ann.id,
       });
       if (prev) {
-        // @ts-ignore
         const reactionEntry = prev.reactions[emoji];
         const userReacted =
           reactionEntry?.users?.includes(CURRENT_USER_ID) ?? false;
-        // @ts-ignore
         const updatedReactions = { ...prev.reactions };
         updatedReactions[emoji] = {
           count: userReacted
@@ -132,7 +126,6 @@ function AnnouncementBar({
             : [...(reactionEntry?.users ?? []), CURRENT_USER_ID],
         };
         utils.announcementReactions.getReactions.setData(
-          // @ts-ignore
           { announcementId: ann.id },
           { ...prev, reactions: updatedReactions }
         );
@@ -142,14 +135,12 @@ function AnnouncementBar({
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) {
         utils.announcementReactions.getReactions.setData(
-          // @ts-ignore
           { announcementId: ann.id },
           ctx.prev
         );
       }
     },
     onSettled: () => {
-      // @ts-ignore
       utils.announcementReactions.getReactions.invalidate({
         announcementId: ann.id,
       });
@@ -160,7 +151,6 @@ function AnnouncementBar({
   const addCommentMutation = trpc.announcementReactions.addComment.useMutation({
     onSuccess: () => {
       setCommentText("");
-      // @ts-ignore
       utils.announcementReactions.getReactions.invalidate({
         announcementId: ann.id,
       });
@@ -169,10 +159,8 @@ function AnnouncementBar({
 
   // ── Delete comment mutation ──
   const deleteCommentMutation =
-    // @ts-ignore
     trpc.announcementReactions.deleteComment.useMutation({
       onSuccess: () => {
-        // @ts-ignore
         utils.announcementReactions.getReactions.invalidate({
           announcementId: ann.id,
         });
@@ -182,7 +170,6 @@ function AnnouncementBar({
   // ── Derived state ──
   const reactions = useMemo(() => {
     return REACTION_EMOJIS.map(r => {
-      // @ts-ignore
       const data = reactionsData?.reactions?.[r.label];
       return {
         emoji: r.emoji,
@@ -192,10 +179,7 @@ function AnnouncementBar({
       };
     });
   }, [reactionsData]);
-
-  // @ts-ignore
   const comments = reactionsData?.comments ?? [];
-  // @ts-ignore
   const totalComments = reactionsData?.totalComments ?? 0;
 
   const style = TYPE_STYLES[ann.type] || TYPE_STYLES.info;
@@ -203,7 +187,6 @@ function AnnouncementBar({
   const handleReaction = useCallback(
     (label: string) => {
       reactMutation.mutate({
-        // @ts-ignore
         announcementId: ann.id,
         userId: CURRENT_USER_ID,
         emoji: label as any,
@@ -215,7 +198,6 @@ function AnnouncementBar({
   const handleComment = useCallback(() => {
     if (!commentText.trim()) return;
     addCommentMutation.mutate({
-      // @ts-ignore
       announcementId: ann.id,
       userId: CURRENT_USER_ID,
       userName: CURRENT_USER_NAME,
@@ -395,14 +377,12 @@ export default function AnnouncementBanner() {
 
   // Fetch active pinned announcements from broadcast router
   const { data: announcements } = trpc.broadcast.list.useQuery(
-    // @ts-ignore
     { pinnedOnly: true, limit: 10 },
     { refetchInterval: 60_000 }
   );
 
   // Map broadcast router fields to banner's expected shape
   const visibleAnnouncements = useMemo(() => {
-    // @ts-ignore
     return (announcements?.announcements ?? [])
       .filter((a: any) => a.pinned && !dismissed.has(a.id))
       .map((a: any) => ({

@@ -178,7 +178,6 @@ export const customerOnboardingPipelineRouter = router({
                   AND verification_status = 'approved'
                   LIMIT 1`
             );
-            // @ts-ignore
             if (!kybResult.rows || kybResult.rows.length === 0) {
               throw new TRPCError({
                 code: "PRECONDITION_FAILED",
@@ -190,7 +189,6 @@ export const customerOnboardingPipelineRouter = router({
         }
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: 0,
           agentCode: "system",
           action: "customer_onboarding_stage_advanced",

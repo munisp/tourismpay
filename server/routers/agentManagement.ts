@@ -36,7 +36,6 @@ async function requireAdmin(req: any) {
     .where(eq(agents.id, session.id))
     .limit(1);
   const agent = result[0];
-  // @ts-ignore
   if (!agent || agent.role !== "admin") {
     throw new TRPCError({
       code: "FORBIDDEN",
@@ -113,11 +112,9 @@ export const agentManagementRouter = router({
           });
         await db
           .update(agents)
-          // @ts-ignore
           .set({ role: input.role })
           .where(eq(agents.id, input.agentId));
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "AGENT_ROLE_CHANGED",
@@ -165,7 +162,6 @@ export const agentManagementRouter = router({
           .set({ isActive: input.isActive })
           .where(eq(agents.id, input.agentId));
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: input.isActive ? "AGENT_ACTIVATED" : "AGENT_SUSPENDED",
@@ -273,7 +269,6 @@ export const agentManagementRouter = router({
         await withTransaction(async tx => {
           // Credit agent float (updates agents.floatBalance)
           await tx
-            // @ts-ignore
             .update(require("../../drizzle/schema").agents)
             .set({
               floatBalance: require("drizzle-orm")
@@ -288,7 +283,6 @@ export const agentManagementRouter = router({
             );
           // Update request status
           await tx
-            // @ts-ignore
             .update(floatTopUpRequests)
             .set({
               status: "approved",
@@ -299,7 +293,6 @@ export const agentManagementRouter = router({
             .where(eq(floatTopUpRequests.id, input.requestId));
         });
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "FLOAT_TOPUP_APPROVED",
@@ -342,7 +335,6 @@ export const agentManagementRouter = router({
             const targetAgent = agentRows[0];
             if (targetAgent) {
               await notifyFloatApproval({
-                // @ts-ignore
                 agentCode: targetAgent.agentCode,
                 amount: Number(req.requestedAmount),
                 newBalance:
@@ -404,14 +396,12 @@ export const agentManagementRouter = router({
           .update(floatTopUpRequests)
           .set({
             status: "rejected",
-            // @ts-ignore
             approvedBy: session.agentCode,
             notes: input.reason,
             updatedAt: new Date(),
           })
           .where(eq(floatTopUpRequests.id, input.requestId));
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "FLOAT_TOPUP_REJECTED",
@@ -466,7 +456,6 @@ export const agentManagementRouter = router({
             message: "You already have a pending top-up request",
           });
         }
-        // @ts-ignore
         await db.insert(floatTopUpRequests).values({
           agentId: session.id,
           requestedAmount: String(input.amount),
@@ -476,7 +465,6 @@ export const agentManagementRouter = router({
           updatedAt: new Date(),
         });
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "FLOAT_TOPUP_REQUESTED",

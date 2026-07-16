@@ -14,8 +14,6 @@
  * 3. eBPF-compatible metric export format
  * 4. Structured logging with trace context
  */
-
-// @ts-ignore
 import logger from "../_core/logger";
 import { secureRandom } from "../lib/securityAuditFixes";
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
@@ -101,18 +100,13 @@ export default function TenantBillingPortalPage() {
               Current Plan
             </h3>
             <p className="text-2xl font-bold mt-2 capitalize">
-              // @ts-ignore
-              // @ts-ignore
               {config?.billingModel?.replace("_", " ") || "Not Configured"}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               Status:{" "}
               <span
-                // @ts-ignore
                 className={`font-medium ${config?.status === "active" ? "text-green-500" : "text-yellow-500"}`}
               >
-                // @ts-ignore
-                // @ts-ignore
                 {config?.status || "Pending"}
               </span>
             </p>
@@ -122,14 +116,10 @@ export default function TenantBillingPortalPage() {
               Currency
             </h3>
             <p className="text-2xl font-bold mt-2">
-              // @ts-ignore
-              // @ts-ignore
               {config?.currency || "NGN"}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
               TigerBeetle:{" "}
-              // @ts-ignore
-              // @ts-ignore
               {config?.tigerBeetleAccountId ? "Connected" : "Pending"}
             </p>
           </div>
@@ -138,13 +128,9 @@ export default function TenantBillingPortalPage() {
               Kafka Topics
             </h3>
             <p className="text-2xl font-bold mt-2">
-              // @ts-ignore
-              // @ts-ignore
               {config?.kafkaTopicPrefix ? "Active" : "Pending"}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              // @ts-ignore
-              // @ts-ignore
               {config?.kafkaTopicPrefix || "Not provisioned yet"}
             </p>
           </div>
@@ -165,27 +151,19 @@ export default function TenantBillingPortalPage() {
                   <div className="flex justify-between">
                     <span>Billing Model:</span>
                     <span className="font-medium capitalize">
-                      // @ts-ignore
-                      // @ts-ignore
                       {config.billingModel?.replace("_", " ")}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Auto Renew:</span>
                     <span className="font-medium">
-                      // @ts-ignore
-                      // @ts-ignore
                       {config.autoRenew ? "Yes" : "No"}
                     </span>
                   </div>
-                  // @ts-ignore
-                  // @ts-ignore
                   {config.contractEndDate && (
                     <div className="flex justify-between">
                       <span>Contract End:</span>
                       <span className="font-medium">
-                        // @ts-ignore
-                        // @ts-ignore
                         {new Date(config.contractEndDate).toLocaleDateString()}
                       </span>
                     </div>
@@ -196,23 +174,17 @@ export default function TenantBillingPortalPage() {
                 <h4 className="text-sm font-medium text-muted-foreground mb-2">
                   Revenue Share Config
                 </h4>
-                // @ts-ignore
-                // @ts-ignore
                 {config.revenueShareConfig ? (
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span>Client Split:</span>
                       <span className="font-medium">
-                        // @ts-ignore
-                        // @ts-ignore
                         {(config.revenueShareConfig as any)?.startSplitPct}%
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span>Scale Split:</span>
                       <span className="font-medium">
-                        // @ts-ignore
-                        // @ts-ignore
                         {(config.revenueShareConfig as any)?.scaleSplitPct}%
                       </span>
                     </div>

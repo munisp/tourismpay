@@ -67,7 +67,6 @@ export const savingsProductsRouter = router({
             ref,
           })
           .returning();
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "savings_deposit",
           resource: "savings_transactions",
@@ -119,7 +118,6 @@ export const savingsProductsRouter = router({
             ref,
           })
           .returning();
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "savings_withdrawal",
           resource: "savings_transactions",

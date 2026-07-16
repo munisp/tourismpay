@@ -229,7 +229,6 @@ export function useOfflineTransactionQueue(
         totalAmount: amounts.reduce((sum, a) => sum + a, 0),
       });
     } catch (err) {
-      // @ts-ignore
       logger.error("[OfflineQueue] Failed to refresh:", err);
     }
   }, []);
@@ -363,7 +362,6 @@ export function useOfflineTransactionQueue(
       await refreshQueue();
       return result;
     } catch (err) {
-      // @ts-ignore
       logger.error("[OfflineQueue] Sync failed:", err);
       // Mark syncing items as failed
       const syncing = await dbGetByStatus("syncing");

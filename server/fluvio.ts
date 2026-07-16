@@ -9,7 +9,6 @@
  *   Kafka tx.created → Fluvio SmartModule (velocity + anomaly check) → fraud.alert topic
  *   Node.js consumer → DB insert + push notification
  */
-// @ts-ignore
 import logger from "./_core/logger";
 
 // Default: local Fluvio HTTP gateway (docker-compose.production.yml fluvio-http-gateway service on port 9090)

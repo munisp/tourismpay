@@ -96,7 +96,6 @@ export const analyticsDashboardRouter = router({
             config: input.config ?? {},
           } as any)
           .returning();
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "dashboard_created",
           resource: "analytics_dashboards",
@@ -132,7 +131,6 @@ export const analyticsDashboardRouter = router({
           .update(analyticsDashboards)
           .set(updates)
           .where(eq(analyticsDashboards.id, input.id));
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "dashboard_updated",
           resource: "analytics_dashboards",
@@ -158,7 +156,6 @@ export const analyticsDashboardRouter = router({
         await db
           .delete(analyticsDashboards)
           .where(eq(analyticsDashboards.id, input.id));
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "dashboard_deleted",
           resource: "analytics_dashboards",

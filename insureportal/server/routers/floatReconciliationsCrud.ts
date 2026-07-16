@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Sprint 87: Full domain logic — auto-matching, variance detection, exception handling
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";

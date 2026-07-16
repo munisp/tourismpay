@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Export router — streams transaction history as CSV.
  * Admin-only: requires agent.role === 'admin'.

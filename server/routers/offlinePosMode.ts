@@ -125,7 +125,6 @@ export const offlinePosModeRouter = router({
         const sessionId = `OFS-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "OFFLINE_SESSION_STARTED",
@@ -174,7 +173,6 @@ export const offlinePosModeRouter = router({
           });
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "OFFLINE_SESSION_ENDED",
@@ -233,7 +231,6 @@ export const offlinePosModeRouter = router({
           });
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "OFFLINE_CONFIG_UPDATED",
@@ -267,11 +264,9 @@ export const offlinePosModeRouter = router({
     );
 
     const totalStarted = Number(
-      // @ts-ignore
       (startedRows.rows?.[0] as Record<string, unknown>)?.total ?? 0
     );
     const totalEnded = Number(
-      // @ts-ignore
       (endedRows.rows?.[0] as Record<string, unknown>)?.total ?? 0
     );
 

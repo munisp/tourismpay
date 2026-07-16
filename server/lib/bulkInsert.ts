@@ -15,7 +15,6 @@
 
 import { getDb } from "../db";
 import { sql } from "drizzle-orm";
-// @ts-ignore
 import logger from "../_core/logger";
 
 // ── Types ────────────────────────────────────────────────────────────────────

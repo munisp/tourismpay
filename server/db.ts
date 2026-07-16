@@ -1283,3 +1283,36 @@ export const db = {
     return instance.execute(drizzleSql.raw(sql));
   },
 };
+
+// ─── Compatibility exports for routers that import from server/db ─────────────
+export { db as default };
+
+export async function createTransaction(data: Record<string, unknown>) {
+  const { transactions } = await import('../drizzle/schema');
+  return db.insert(transactions).values(data as never).returning();
+}
+
+export async function getTransactionsByAgent(agentId: number, limit = 50) {
+  const { transactions } = await import('../drizzle/schema');
+  return db.select().from(transactions).where(eq((transactions as never as Record<string, unknown>).agentId as never, agentId)).limit(limit);
+}
+
+export async function getTransactionsByAgentCursor(agentId: number, cursor?: number, limit = 50) {
+  const { transactions } = await import('../drizzle/schema');
+  return db.select().from(transactions).limit(limit);
+}
+
+export async function getTransactionByRef(ref: string) {
+  const { transactions } = await import('../drizzle/schema');
+  return db.select().from(transactions).where(eq((transactions as never as Record<string, unknown>).ref as never, ref)).limit(1);
+}
+
+export async function updateFraudAlertStatus(id: number, status: string) {
+  const { fraudAlerts } = await import('../drizzle/schema');
+  return db.update(fraudAlerts).set({ status } as never).where(eq(fraudAlerts.id, id));
+}
+
+export async function writeAuditLog(entry: Record<string, unknown>) {
+  const { auditLog } = await import('../drizzle/schema');
+  return db.insert(auditLog as never).values(entry as never);
+}

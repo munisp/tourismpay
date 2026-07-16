@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * cbnReporting.ts — tRPC router for CBN regulatory reporting
  *

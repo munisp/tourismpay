@@ -30,8 +30,6 @@ const STATUS_COLORS: Record<string, string> = {
 export default function DisputeNotifications() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-
-  // @ts-ignore
   const listQuery = trpc.disputeNotifications.listNotifications.useQuery({
     page,
     limit: 20,

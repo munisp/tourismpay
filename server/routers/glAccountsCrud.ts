@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Sprint 87: Chart of accounts hierarchy, balance validation
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Admin Support Inbox — 54Link POS Shell
  * Bloomberg Terminal dark theme with electric blue accents.
@@ -248,7 +247,6 @@ export default function AdminSupportInbox() {
   // ── Filter sessions ─────────────────────────────────────────────────────
   // @ts-ignore Sprint 85 — Sprint 85: pre-existing type mismatch from router/page interface
   const filteredSessions = (sessionsQuery.data?.sessions ?? []).filter(
-    // @ts-ignore
     (s: ChatSession) => {
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
@@ -391,7 +389,6 @@ export default function AdminSupportInbox() {
               ) : (
                 <div className="divide-y divide-border">
                   // @ts-ignore Sprint 85
-                  // @ts-ignore
                   {filteredSessions.map((session: ChatSession) => {
                     const statusCfg =
                       STATUS_CONFIG[session.status] ?? STATUS_CONFIG.open;
@@ -522,7 +519,6 @@ export default function AdminSupportInbox() {
                 <ScrollArea className="flex-1 p-4">
                   <div className="space-y-3">
                     // @ts-ignore Sprint 85
-                    // @ts-ignore
                     {(messagesQuery.data ?? []).map((msg: ChatMessage) => {
                       const isSupport = msg.senderType === "support";
                       const isSystem = msg.senderType === "system";

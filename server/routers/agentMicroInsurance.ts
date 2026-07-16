@@ -94,7 +94,6 @@ export const agentMicroInsuranceRouter = router({
         const db = await getDb();
         if (!db) throw new Error("DB not available");
         const premium = Math.floor(input.coverageAmount * 0.003);
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "insurance_policy_created",
           resource: "insurance",
@@ -138,7 +137,6 @@ export const agentMicroInsuranceRouter = router({
       try {
         const db = await getDb();
         if (!db) throw new Error("DB not available");
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "insurance_claim_filed",
           resource: "insurance",

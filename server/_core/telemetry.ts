@@ -14,19 +14,13 @@
  *  - OTEL_SERVICE_NAME             defaults to "pos-shell"
  *  - OTEL_SERVICE_VERSION          defaults to "1.0.0"
  */
-
-// @ts-ignore
 import { NodeSDK } from "@opentelemetry/sdk-node";
-// @ts-ignore
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-// @ts-ignore
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
-// @ts-ignore
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
   ATTR_SERVICE_NAME,
   ATTR_SERVICE_VERSION,
-// @ts-ignore
 } from "@opentelemetry/semantic-conventions";
 
 const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
@@ -56,7 +50,6 @@ if (!endpoint) {
   console.log(`[OTel] Tracing initialised → ${endpoint}`);
 
   process.on("SIGTERM", () => {
-    // @ts-ignore
     sdk.shutdown().catch(err => console.error("[OTel] Shutdown error:", err));
   });
 }

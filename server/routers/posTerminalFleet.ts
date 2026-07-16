@@ -153,7 +153,6 @@ export const posTerminalFleetRouter = router({
 
         const [terminal] = await db
           .insert(posTerminals)
-          // @ts-ignore
           .values({
             serialNumber: input.serialNumber,
             model: input.model,
@@ -166,7 +165,6 @@ export const posTerminalFleetRouter = router({
           .returning();
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "TERMINAL_PROVISIONED",
@@ -225,7 +223,6 @@ export const posTerminalFleetRouter = router({
           });
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "TERMINAL_ASSIGNED",
@@ -314,7 +311,6 @@ export const posTerminalFleetRouter = router({
         await db
           .update(posTerminals)
           .set({
-            // @ts-ignore
             lastCommand: input.command,
             lastCommandAt: new Date(),
             updatedAt: new Date(),
@@ -322,7 +318,6 @@ export const posTerminalFleetRouter = router({
           .where(eq(posTerminals.id, input.terminalId));
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "TERMINAL_COMMAND_SENT",
@@ -368,7 +363,6 @@ export const posTerminalFleetRouter = router({
           .where(eq(posTerminals.id, input.terminalId));
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "TERMINAL_DECOMMISSIONED",
@@ -452,7 +446,6 @@ export const posTerminalFleetRouter = router({
 
         const [group] = await db
           .insert(terminalGroups)
-          // @ts-ignore
           .values({
             name: input.name,
             description: input.description ?? null,
@@ -461,7 +454,6 @@ export const posTerminalFleetRouter = router({
           .returning();
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: "TERMINAL_GROUP_CREATED",

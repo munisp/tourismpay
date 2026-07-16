@@ -227,6 +227,473 @@ import { whiteLabelApprovalRouter } from "./routers/whiteLabelApproval";
 import { whiteLabelBrandingRouter } from "./routers/whiteLabelBranding";
 import { whiteLabelOnboardingRouter } from "./routers/whiteLabelOnboarding";
 import { workflowEngineRouter } from "./routers/workflowEngine";
+import { accentColorRouter } from './routers/accentColor';
+import { accountOpeningRouter } from './routers/accountOpening';
+import { activeRouter } from './routers/active';
+import { adminClearCooldownRouter } from './routers/adminClearCooldown';
+import { adminDeviceHistoriesRouter } from './routers/adminDeviceHistories';
+import { adminGetCooldownsRouter } from './routers/adminGetCooldowns';
+import { adminProblematicDevicesRouter } from './routers/adminProblematicDevices';
+import { advancedBiReportingRouter } from './routers/advancedBiReporting';
+import { advancedNotificationsRouter } from './routers/advancedNotifications';
+import { agentBalanceRouter } from './routers/agentBalance';
+import { agentBankAccountsRouter } from './routers/agentBankAccountsCrud';
+import { agentBenchmarkingRouter } from './routers/agentBenchmarking';
+import { agentClusterAnalyticsRouter } from './routers/agentClusterAnalytics';
+import { agentDeviceFingerprintRouter } from './routers/agentDeviceFingerprint';
+import { agentFloatForecastingRouter } from './routers/agentFloatForecasting';
+import { agentFloatInsuranceClaimsRouter } from './routers/agentFloatInsuranceClaims';
+import { agentFloatTransferRouter } from './routers/agentFloatTransfer';
+import { agentHierarchyTerritoryRouter } from './routers/agentHierarchyTerritory';
+import { agentKycRouter } from './routers/agentKyc';
+import { agentKycDocVaultRouter } from './routers/agentKycDocVault';
+import { agentLeaderboardRouter } from './routers/agentLeaderboard';
+import { agentLoanOriginationRouter } from './routers/agentLoanOrigination';
+import { agentLoanOrigination2Router } from './routers/agentLoanOrigination2';
+import { agentManagementRouter } from './routers/agentManagement';
+import { agentMgmtRouter } from './routers/agentMgmt';
+import { agentNetworkTopologyRouter } from './routers/agentNetworkTopology';
+import { agentOnboardingWorkflowRouter } from './routers/agentOnboardingWorkflow';
+import { agentPerformanceAnalyticsRouter } from './routers/agentPerformanceAnalytics';
+import { agentPerformanceIncentivesRouter } from './routers/agentPerformanceIncentives';
+import { agentPerformanceScorecardRouter } from './routers/agentPerformanceScorecard';
+import { agentPerformanceScoresRouter } from './routers/agentPerformanceScoresCrud';
+import { agentRevenueAttributionRouter } from './routers/agentRevenueAttribution';
+import { agentScorecardRouter } from './routers/agentScorecard';
+import { agentSuspensionLogRouter } from './routers/agentSuspensionLogCrud';
+import { agentSuspensionWorkflowRouter } from './routers/agentSuspensionWorkflow';
+import { agentTerritoryHeatmapRouter } from './routers/agentTerritoryHeatmap';
+import { agentTerritoryOptimizerRouter } from './routers/agentTerritoryOptimizer';
+import { agentTrainingAcademyRouter } from './routers/agentTrainingAcademy';
+import { agentTrainingGamificationRouter } from './routers/agentTrainingGamification';
+import { agentTrainingPortalRouter } from './routers/agentTrainingPortal';
+import { aiMessageRouter } from './routers/aiMessage';
+import { aiMonitoringRouter } from './routers/aiMonitoring';
+import { airtimeVendingRouter } from './routers/airtimeVending';
+import { alertNotificationsRouter } from './routers/alertNotifications';
+import { amlScreeningRouter } from './routers/amlScreening';
+import { analyticsDashboardRouter } from './routers/analyticsDashboard';
+import { analyticsDashboardsRouter } from './routers/analyticsDashboardsCrud';
+import { announcementsRouter } from './routers/announcements';
+import { apacheAirflowRouter } from './routers/apacheAirflow';
+import { apacheNifiRouter } from './routers/apacheNifi';
+import { apiGatewayRouter } from './routers/apiGateway';
+import { apiKeyManagementRouter } from './routers/apiKeyManagement';
+import { apiRateLimiterDashRouter } from './routers/apiRateLimiterDash';
+import { appVersionRouter } from './routers/appVersion';
+import { archivalAdminRouter } from './routers/archivalAdmin';
+import { artRobustnessRouter } from './routers/artRobustness';
+import { auditExportRouter } from './routers/auditExport';
+import { auditLogRouter } from './routers/auditLog';
+import { auditTrailRouter } from './routers/auditTrail';
+import { auditTrailExportRouter } from './routers/auditTrailExport';
+import { autoReconciliationEngineRouter } from './routers/autoReconciliationEngine';
+import { autoRenewRouter } from './routers/autoRenew';
+import { automatedComplianceCheckerRouter } from './routers/automatedComplianceChecker';
+import { avgScoreRouter } from './routers/avgScore';
+import { backgroundColorRouter } from './routers/backgroundColor';
+import { baseUrlRouter } from './routers/baseUrl';
+import { biReportDefinitionsRouter } from './routers/biReportDefinitionsCrud';
+import { billPaymentsRouter } from './routers/billPayments';
+import { billingAuditRouter } from './routers/billingAudit';
+import { billingLifecycleRouter } from './routers/billingLifecycle';
+import { billingModelRouter } from './routers/billingModel';
+import { billingProductionRouter } from './routers/billingProduction';
+import { billingRbacRouter } from './routers/billingRbac';
+import { billingRevenuePeriodsRouter } from './routers/billingRevenuePeriodsCrud';
+import { biometricAuditDashboardRouter } from './routers/biometricAuditDashboard';
+import { biometricAuthRouter } from './routers/biometricAuth';
+import { brandNameRouter } from './routers/brandName';
+import { bulkDisbursementEngineRouter } from './routers/bulkDisbursementEngine';
+import { bulkNotifRouter } from './routers/bulkNotif';
+import { bulkOperationsRouter } from './routers/bulkOperations';
+import { bulkOpsRouter } from './routers/bulkOps';
+import { bulkPaymentProcessorRouter } from './routers/bulkPaymentProcessor';
+import { bulkRoleImportRouter } from './routers/bulkRoleImport';
+import { bulkTransactionProcessorRouter } from './routers/bulkTransactionProcessor';
+import { cacheRouter } from './routers/cache';
+import { capacityPlanningRouter } from './routers/capacityPlanning';
+import { cardBinLookupRouter } from './routers/cardBinLookup';
+import { cardRequestRouter } from './routers/cardRequest';
+import { carrierCostRouter } from './routers/carrierCost';
+import { carrierLivePricingRouter } from './routers/carrierLivePricing';
+import { cbnMetricsRouter } from './routers/cbnMetrics';
+import { certificatesActiveRouter } from './routers/certificatesActive';
+import { changelogRouter } from './routers/changelog';
+import { checkRegistrationStatusRouter } from './routers/checkRegistrationStatus';
+import { claimChallengeRouter } from './routers/claimChallenge';
+import { clientIdRouter } from './routers/clientId';
+import { closeSessionRouter } from './routers/closeSession';
+import { cocoIndexPipelineRouter } from './routers/cocoIndexPipeline';
+import { commentsRouter } from './routers/comments';
+import { commissionCalculatorRouter } from './routers/commissionCalculator';
+import { commissionClawbackRouter } from './routers/commissionClawback';
+import { commissionEngineRouter } from './routers/commissionEngine';
+import { completedRouter } from './routers/completed';
+import { complianceAutomationRouter } from './routers/complianceAutomation';
+import { complianceCertManagerRouter } from './routers/complianceCertManager';
+import { complianceChatbotRouter } from './routers/complianceChatbot';
+import { complianceRateRouter } from './routers/complianceRate';
+import { complianceReportingRouter } from './routers/complianceReporting';
+import { configManagementRouter } from './routers/configManagement';
+import { contractEndDateRouter } from './routers/contractEndDate';
+import { createRuleRouter } from './routers/createRule';
+import { crossBorderRemittanceRouter } from './routers/crossBorderRemittance';
+import { crossBorderRemittanceHubRouter } from './routers/crossBorderRemittanceHub';
+import { currencyRouter } from './routers/currency';
+import { currencyHedgingRouter } from './routers/currencyHedging';
+import { customer360Router } from './routers/customer360';
+import { customerDatabaseRouter } from './routers/customerDatabase';
+import { customerDisputePortalRouter } from './routers/customerDisputePortal';
+import { customerFeedbackNpsRouter } from './routers/customerFeedbackNps';
+import { customerJourneyAnalyticsRouter } from './routers/customerJourneyAnalytics';
+import { customer_journey_eventsRouter } from './routers/customerJourneyEventsCrud';
+import { customerJourneyMapperRouter } from './routers/customerJourneyMapper';
+import { customerOnboardingPipelineRouter } from './routers/customerOnboardingPipeline';
+import { customerSurveysRouter } from './routers/customerSurveys';
+import { dailyPnlReportRouter } from './routers/dailyPnlReport';
+import { dashboardLayoutRouter } from './routers/dashboardLayout';
+import { dataConsentRecordsRouter } from './routers/dataConsentRecordsCrud';
+import { dataExportRouter } from './routers/dataExport';
+import { dataExportHubRouter } from './routers/dataExportHub';
+import { dataExportImportRouter } from './routers/dataExportImport';
+import { dataExportRouter } from './routers/dataExportRouter';
+import { dataQualityRouter } from './routers/dataQuality';
+import { dataRetentionPolicyRouter } from './routers/dataRetentionPolicy';
+import { dataThresholdAlertsRouter } from './routers/dataThresholdAlerts';
+import { databaseRouter } from './routers/database';
+import { databaseVisualizationRouter } from './routers/databaseVisualization';
+import { dbSchemaPushRouter } from './routers/dbSchemaPush';
+import { dbtIntegrationRouter } from './routers/dbtIntegration';
+import { deepfaceRouter } from './routers/deepface';
+import { deleteCommentRouter } from './routers/deleteComment';
+import { deleteRuleRouter } from './routers/deleteRule';
+import { devPortalRouter } from './routers/devPortal';
+import { developerPortalRouter } from './routers/developerPortal';
+import { deviceFleetManagerRouter } from './routers/deviceFleetManager';
+import { disputeAnalyticsRouter } from './routers/disputeAnalytics';
+import { disputeNotificationsRouter } from './routers/disputeNotifications';
+import { disputeRefundRouter } from './routers/disputeRefund';
+import { disputesRouter } from './routers/disputes';
+import { dragDropReportBuilderRouter } from './routers/dragDropReportBuilder';
+import { dynamicFeeCalculatorRouter } from './routers/dynamicFeeCalculator';
+import { dynamicQrPaymentRouter } from './routers/dynamicQrPayment';
+import { e2eTestFrameworkRouter } from './routers/e2eTestFramework';
+import { ecommerceCartRouter } from './routers/ecommerceCart';
+import { ecommerceCatalogRouter } from './routers/ecommerceCatalog';
+import { ecommerceOrdersRouter } from './routers/ecommerceOrders';
+import { emailDeliveryLogRouter } from './routers/emailDeliveryLogCrud';
+import { emailNotificationsRouter } from './routers/emailNotifications';
+import { emojiRouter } from './routers/emoji';
+import { enabledRouter } from './routers/enabled';
+import { encryptedFieldsRouter } from './routers/encryptedFieldsCrud';
+import { eodReconciliationRouter } from './routers/eodReconciliation';
+import { erpTypeRouter } from './routers/erpType';
+import { errorRouter } from './routers/error';
+import { escalateRouter } from './routers/escalate';
+import { escalationChainsRouter } from './routers/escalationChains';
+import { eventDrivenArchRouter } from './routers/eventDrivenArch';
+import { executiveCommandCenterRouter } from './routers/executiveCommandCenter';
+import { expiringIn30DaysRouter } from './routers/expiringIn30Days';
+import { exportRouter } from './routers/export';
+import { faceEnrollmentRouter } from './routers/faceEnrollment';
+import { failedRouter } from './routers/failed';
+import { falkordbGraphRouter } from './routers/falkordbGraph';
+import { featureFlagsRouter } from './routers/featureFlags';
+import { fieldMappingsRouter } from './routers/fieldMappings';
+import { financialReportingSuiteRouter } from './routers/financialReportingSuite';
+import { firmwareVersionRouter } from './routers/firmwareVersion';
+import { firstNameRouter } from './routers/firstName';
+import { floatManagementRouter } from './routers/floatManagement';
+import { floatReconciliationRouter } from './routers/floatReconciliation';
+import { floatReconciliationsRouter } from './routers/floatReconciliationsCrud';
+import { fontFamilyRouter } from './routers/fontFamily';
+import { fraudRouter } from './routers/fraud';
+import { fraudMlScoringEngineRouter } from './routers/fraudMlScoringEngine';
+import { fraudRealtimeVizRouter } from './routers/fraudRealtimeViz';
+import { fraudReportRouter } from './routers/fraudReport';
+import { fraudReportGeneratorRouter } from './routers/fraudReportGenerator';
+import { fxRatesRouter } from './routers/fxRates';
+import { gatewayHealthMonitorRouter } from './routers/gatewayHealthMonitor';
+import { geoFenceDedicatedRouter } from './routers/geoFenceDedicated';
+import { geoFencesRouter } from './routers/geoFencesCrud';
+import { geoFencingRouter } from './routers/geoFencing';
+import { geoFencingDedicatedRouter } from './routers/geoFencingDedicated';
+import { geofencingRouter } from './routers/geofencing';
+import { getCheckerStatusRouter } from './routers/getCheckerStatus';
+import { getDashboardRouter } from './routers/getDashboard';
+import { getErpSyncStatsRouter } from './routers/getErpSyncStats';
+import { getHistoryRouter } from './routers/getHistory';
+import { getLastRunRouter } from './routers/getLastRun';
+import { getLiveStatsRouter } from './routers/getLiveStats';
+import { getMqttThroughputRouter } from './routers/getMqttThroughput';
+import { getOutstandingRouter } from './routers/getOutstanding';
+import { getProfileRouter } from './routers/getProfile';
+import { getRankingsRouter } from './routers/getRankings';
+import { getRecommendationRouter } from './routers/getRecommendation';
+import { getSettlementsRouter } from './routers/getSettlements';
+import { getStatsRouter } from './routers/getStats';
+import { getSwitchStatsRouter } from './routers/getSwitchStats';
+import { getTransactionsRouter } from './routers/getTransactions';
+import { gl_accountsRouter } from './routers/glAccountsCrud';
+import { gl_journal_entriesRouter } from './routers/glJournalEntriesCrud';
+import { globalSearchRouter } from './routers/globalSearch';
+import { goServiceBridgeRouter } from './routers/goServiceBridge';
+import { healthRouter } from './routers/health';
+import { healthCheckRouter } from './routers/healthCheck';
+import { healthMonitorRouter } from './routers/healthMonitor';
+import { healthyRouter } from './routers/healthy';
+import { helpDeskRouter } from './routers/helpDesk';
+import { hourlyStatsRouter } from './routers/hourlyStats';
+import { inProgressRouter } from './routers/inProgress';
+import { incidentManagementRouter } from './routers/incidentManagement';
+import { incidentPlaybookRouter } from './routers/incidentPlaybook';
+import { insuranceProductsRouter } from './routers/insuranceProducts';
+import { integrationMarketplaceRouter } from './routers/integrationMarketplace';
+import { intelligentRoutingEngineRouter } from './routers/intelligentRoutingEngine';
+import { ipAddressRouter } from './routers/ipAddress';
+import { isLiveRouter } from './routers/isLive';
+import { isRegisteringRouter } from './routers/isRegistering';
+import { itemsRouter } from './routers/items';
+import { kafkaRouter } from './routers/kafka';
+import { kafkaConsumerRouter } from './routers/kafkaConsumer';
+import { kafkaTopicPrefixRouter } from './routers/kafkaTopicPrefix';
+import { keepAliveSecondsRouter } from './routers/keepAliveSeconds';
+import { kycDocumentsRouter } from './routers/kycDocumentsCrud';
+import { kycEnforcementRouter } from './routers/kycEnforcement';
+import { kycLevelRouter } from './routers/kycLevel';
+import { lakehouseAiIntegrationRouter } from './routers/lakehouseAiIntegration';
+import { lastSyncAtRouter } from './routers/lastSyncAt';
+import { lastSyncStatusRouter } from './routers/lastSyncStatus';
+import { lastTestStatusRouter } from './routers/lastTestStatus';
+import { lengthRouter } from './routers/length';
+import { listAccountsRouter } from './routers/listAccounts';
+import { listAllRouter } from './routers/listAll';
+import { listRulesRouter } from './routers/listRules';
+import { listSessionsRouter } from './routers/listSessions';
+import { listSubscriptionsRouter } from './routers/listSubscriptions';
+import { liveBillingDashboardRouter } from './routers/liveBillingDashboard';
+import { loadTestMetricsRouter } from './routers/loadTestMetrics';
+import { loanDisbursementRouter } from './routers/loanDisbursement';
+import { marketplaceRouter } from './routers/marketplace';
+import { mccManagerRouter } from './routers/mccManager';
+import { merchantRouter } from './routers/merchant';
+import { merchantAcquirerGatewayRouter } from './routers/merchantAcquirerGateway';
+import { merchantKycOnboardingRouter } from './routers/merchantKycOnboarding';
+import { merchantPaymentsRouter } from './routers/merchantPayments';
+import { merchantRiskScoringRouter } from './routers/merchantRiskScoring';
+import { merchantSettlementDashboardRouter } from './routers/merchantSettlementDashboard';
+import { mfaManagerRouter } from './routers/mfaManager';
+import { mlScoringRouter } from './routers/mlScoring';
+import { mlScoringServiceRouter } from './routers/mlScoringService';
+import { mobileMoneyRouter } from './routers/mobileMoney';
+import { modelRouter } from './routers/model';
+import { multiChannelNotificationHubRouter } from './routers/multiChannelNotificationHub';
+import { multiCurrencyExchangeRouter } from './routers/multiCurrencyExchange';
+import { multiSimFailoverRouter } from './routers/multiSimFailover';
+import { multiTenancyRouter } from './routers/multiTenancy';
+import { multiTenantIsolationRouter } from './routers/multiTenantIsolation';
+import { nameRouter } from './routers/name';
+import { networkQualityHeatmapRouter } from './routers/networkQualityHeatmap';
+import { networkResilienceRouter } from './routers/networkResilience';
+import { networkStatusDashboardRouter } from './routers/networkStatusDashboard';
+import { networkTelemetryRouter } from './routers/networkTelemetry';
+import { networkTrendsRouter } from './routers/networkTrends';
+import { notifAnalyticsRouter } from './routers/notifAnalytics';
+import { notifTemplatesRouter } from './routers/notifTemplates';
+import { notificationCenterRouter } from './routers/notificationCenter';
+import { notification_channelsRouter } from './routers/notificationChannelsCrud';
+import { notificationInboxRouter } from './routers/notificationInbox';
+import { notification_logsRouter } from './routers/notificationLogsCrud';
+import { notificationOrchestratorRouter } from './routers/notificationOrchestrator';
+import { observabilityAlertsRouter } from './routers/observabilityAlertsCrud';
+import { offlineQueueRouter } from './routers/offlineQueue';
+import { offlineSyncRouter } from './routers/offlineSync';
+import { ollamaLLMRouter } from './routers/ollamaLLM';
+import { openTelemetryRouter } from './routers/openTelemetry';
+import { operationalCommandBridgeRouter } from './routers/operationalCommandBridge';
+import { operationalRunbookRouter } from './routers/operationalRunbook';
+import { orderNumberRouter } from './routers/orderNumber';
+import { osVersionRouter } from './routers/osVersion';
+import { overdueRouter } from './routers/overdue';
+import { passwordRouter } from './routers/password';
+import { paymentDisputeArbitrationRouter } from './routers/paymentDisputeArbitration';
+import { paymentGatewayRouterRouter } from './routers/paymentGatewayRouter';
+import { paymentNotificationSystemRouter } from './routers/paymentNotificationSystem';
+import { paymentReconciliationRouter } from './routers/paymentReconciliation';
+import { paymentSwitchRouter } from './routers/paymentSwitch';
+import { paymentTokenVaultRouter } from './routers/paymentTokenVault';
+import { pbacManagementRouter } from './routers/pbacManagement';
+import { pensionCollectionRouter } from './routers/pensionCollection';
+import { performanceProfilerRouter } from './routers/performanceProfiler';
+import { permissionRouter } from './routers/permission';
+import { pingRouter } from './routers/ping';
+import { pinnedRouter } from './routers/pinned';
+import { pipelineMonitoringRouter } from './routers/pipelineMonitoring';
+import { platformRouter } from './routers/platform';
+import { platformCapacityPlannerRouter } from './routers/platformCapacityPlanner';
+import { platformConfigCenterRouter } from './routers/platformConfigCenter';
+import { platformCostAllocatorRouter } from './routers/platformCostAllocator';
+import { platformHealthRouter } from './routers/platformHealth';
+import { platformHealthDashRouter } from './routers/platformHealthDash';
+import { platformHealthMonitorRouter } from './routers/platformHealthMonitor';
+import { platformHealthScorecardRouter } from './routers/platformHealthScorecard';
+import { platformMetricsExporterRouter } from './routers/platformMetricsExporter';
+import { platformMigrationToolkitRouter } from './routers/platformMigrationToolkit';
+import { platformProxyRouter } from './routers/platformProxy';
+import { platformRevenueOptimizerRouter } from './routers/platformRevenueOptimizer';
+import { platformSlaMonitorRouter } from './routers/platformSlaMonitor';
+import { pnlReportRouter } from './routers/pnlReport';
+import { pnlReportsRouter } from './routers/pnlReportsCrud';
+import { portRouter } from './routers/port';
+import { posDisputeRouter } from './routers/posDispute';
+import { predictiveAgentChurnRouter } from './routers/predictiveAgentChurn';
+import { primaryColorRouter } from './routers/primaryColor';
+import { probeIntervalMsRouter } from './routers/probeIntervalMs';
+import { productionFeaturesRouter } from './routers/productionFeatures';
+import { profileRouter } from './routers/profile';
+import { promotionsRouter } from './routers/promotions';
+import { pushNotificationsRouter } from './routers/pushNotifications';
+import { qdrantVectorSearchRouter } from './routers/qdrantVectorSearch';
+import { quietHoursRouter } from './routers/quietHours';
+import { raiseDisputeRouter } from './routers/raiseDispute';
+import { ransomwareAlertsRouter } from './routers/ransomwareAlerts';
+import { rateAlertsRouter } from './routers/rateAlerts';
+import { rateLimitDashboardRouter } from './routers/rateLimitDashboard';
+import { reactionsRouter } from './routers/reactions';
+import { realtimePnlDashboardRouter } from './routers/realtimePnlDashboard';
+import { realtime_tx_alertsRouter } from './routers/realtimeTxAlertsCrud';
+import { realtimeTxMonitorRouter } from './routers/realtimeTxMonitor';
+import { rearmRouter } from './routers/rearm';
+import { receiptTemplatesRouter } from './routers/receiptTemplates';
+import { reconciliationEngineRouter } from './routers/reconciliationEngine';
+import { recordSwitchRouter } from './routers/recordSwitch';
+import { recurringPaymentsRouter } from './routers/recurringPayments';
+import { redeemRewardRouter } from './routers/redeemReward';
+import { referralProgramRouter } from './routers/referralProgram';
+import { referralProgramDedicatedRouter } from './routers/referralProgramDedicated';
+import { registerRouter } from './routers/register';
+import { regulatoryComplianceRouter } from './routers/regulatoryCompliance';
+import { regulatoryComplianceChecksRouter } from './routers/regulatoryComplianceChecks';
+import { regulatoryReportGeneratorRouter } from './routers/regulatoryReportGenerator';
+import { regulatorySandboxTesterRouter } from './routers/regulatorySandboxTester';
+import { relayEndpointRouter } from './routers/relayEndpoint';
+import { remittanceRouter } from './routers/remittance';
+import { reportTemplateRouter } from './routers/reportTemplate';
+import { reportTemplateDesignerRouter } from './routers/reportTemplateDesigner';
+import { requestPermissionRouter } from './routers/requestPermission';
+import { resilienceHardeningRouter } from './routers/resilienceHardening';
+import { retryFailedRouter } from './routers/retryFailed';
+import { retryQueueRouter } from './routers/retryQueue';
+import { revenueLeakageDetectorRouter } from './routers/revenueLeakageDetector';
+import { revenueReconciliationRouter } from './routers/revenueReconciliation';
+import { revenueShareConfigRouter } from './routers/revenueShareConfig';
+import { reversalApprovalRouter } from './routers/reversalApproval';
+import { runCheckRouter } from './routers/runCheck';
+import { runNowRouter } from './routers/runNow';
+import { runningRouter } from './routers/running';
+import { runtimeConfigAdminRouter } from './routers/runtimeConfigAdmin';
+import { savingsProductsRouter } from './routers/savingsProducts';
+import { scheduledReportsRouter } from './routers/scheduledReports';
+import { secondaryColorRouter } from './routers/secondaryColor';
+import { secretRouter } from './routers/secret';
+import { securityAuditRouter } from './routers/securityAudit';
+import { securityHardeningRouter } from './routers/securityHardening';
+import { seedDefaultRulesRouter } from './routers/seedDefaultRules';
+import { serialNumberRouter } from './routers/serialNumber';
+import { seriesRouter } from './routers/series';
+import { serviceHealthRouter } from './routers/serviceHealth';
+import { serviceMeshRouter } from './routers/serviceMesh';
+import { sessionRouter } from './routers/session';
+import { sessionMgmtRouter } from './routers/sessionMgmt';
+import { sessionRefRouter } from './routers/sessionRef';
+import { settlementBatchProcessorRouter } from './routers/settlementBatchProcessor';
+import { settlementReconciliationRouter } from './routers/settlementReconciliation';
+import { sharedLayoutsRouter } from './routers/sharedLayouts';
+import { skillCreatorIntegrationRouter } from './routers/skillCreatorIntegration';
+import { slaManagementRouter } from './routers/slaManagement';
+import { smartContractPaymentRouter } from './routers/smartContractPayment';
+import { smsNotificationsRouter } from './routers/smsNotifications';
+import { smsReceiptRouter } from './routers/smsReceipt';
+import { sourceRouter } from './routers/source';
+import { splitPaymentsRouter } from './routers/splitPayments';
+import { bulkNotifRouter } from './routers/sprint15Features';
+import { sprint23Router } from './routers/sprint23';
+import { sprint23Router } from './routers/sprint23Router';
+import { startRouter } from './routers/start';
+import { startLivenessRouter } from './routers/startLiveness';
+import { statsRouter } from './routers/stats';
+import { statusRouter } from './routers/status';
+import { stripeRouter } from './routers/stripe';
+import { submitLivenessFrameRouter } from './routers/submitLivenessFrame';
+import { summaryRouter } from './routers/summary';
+import { superAdminRouter } from './routers/superAdmin';
+import { supplyChainRouter } from './routers/supplyChain';
+import { supportAgentNameRouter } from './routers/supportAgentName';
+import { syncAgentsRouter } from './routers/syncAgents';
+import { syncEnabledRouter } from './routers/syncEnabled';
+import { syncIntervalMinutesRouter } from './routers/syncIntervalMinutes';
+import { syncInventoryRouter } from './routers/syncInventory';
+import { syncStatusRouter } from './routers/syncStatus';
+import { syncTransactionsRouter } from './routers/syncTransactions';
+import { systemConfigManagerRouter } from './routers/systemConfigManager';
+import { systemHealthDashboardRouter } from './routers/systemHealthDashboard';
+import { systemHealthMonitorRouter } from './routers/systemHealthMonitor';
+import { taglineRouter } from './routers/tagline';
+import { tenantAdminRouter } from './routers/tenantAdmin';
+import { tenantBrandingRouter } from './routers/tenantBrandingCrud';
+import { tenantFeatureToggleRouter } from './routers/tenantFeatureToggle';
+import { tenantFeeOverridesRouter } from './routers/tenantFeeOverridesCrud';
+import { terminalIdRouter } from './routers/terminalId';
+import { terminalLeasingRouter } from './routers/terminalLeasing';
+import { terminatedRouter } from './routers/terminated';
+import { textColorRouter } from './routers/textColor';
+import { thresholdAlertsRouter } from './routers/thresholdAlerts';
+import { tigerBeetleRouter } from './routers/tigerBeetle';
+import { tigerBeetleAccountIdRouter } from './routers/tigerBeetleAccountId';
+import { toggleRouter } from './routers/toggle';
+import { toggleRuleRouter } from './routers/toggleRule';
+import { topicMappingsRouter } from './routers/topicMappings';
+import { totalRouter } from './routers/total';
+import { totalCommentsRouter } from './routers/totalComments';
+import { totalTrainingsRouter } from './routers/totalTrainings';
+import { trainingCertificationRouter } from './routers/trainingCertification';
+import { trainingCoursesRouter } from './routers/trainingCoursesCrud';
+import { trainingEnrollmentsRouter } from './routers/trainingEnrollmentsCrud';
+import { transactionDisputeResolutionRouter } from './routers/transactionDisputeResolution';
+import { transactionFeeCalcRouter } from './routers/transactionFeeCalc';
+import { transactionGraphAnalyzerRouter } from './routers/transactionGraphAnalyzer';
+import { transactionLimitsEngineRouter } from './routers/transactionLimitsEngine';
+import { transactionReversalManagerRouter } from './routers/transactionReversalManager';
+import { transactionReversalWorkflowRouter } from './routers/transactionReversalWorkflow';
+import { transactionVelocityMonitorRouter } from './routers/transactionVelocityMonitor';
+import { transactionsRouter } from './routers/transactions';
+import { triggerSyncRouter } from './routers/triggerSync';
+import { txMonitorRouter } from './routers/txMonitor';
+import { txVelocityMonitorRouter } from './routers/txVelocityMonitor';
+import { typesRouter } from './routers/types';
+import { unreadRouter } from './routers/unread';
+import { updateRuleRouter } from './routers/updateRule';
+import { updateStatusRouter } from './routers/updateStatus';
+import { useTlsRouter } from './routers/useTls';
+import { userMessageRouter } from './routers/userMessage';
+import { userNotifPreferencesRouter } from './routers/userNotifPreferences';
+import { usernameRouter } from './routers/username';
+import { ussdAnalyticsRouter } from './routers/ussdAnalytics';
+import { ussdGatewayRouter } from './routers/ussdGateway';
+import { ussdIntegrationRouter } from './routers/ussdIntegration';
+import { ussdReceiptRouter } from './routers/ussdReceipt';
+import { vaultRouter } from './routers/vault';
+import { verifyDocumentRouter } from './routers/verifyDocument';
+import { webhookDeliverySystemRouter } from './routers/webhookDeliverySystem';
+import { webhookManagementRouter } from './routers/webhookManagement';
+import { webhookNotifRouter } from './routers/webhookNotif';
+import { webhookNotificationsRouter } from './routers/webhookNotifications';
+import { websocketServiceRouter } from './routers/websocketService';
+import { weeklyReportsRouter } from './routers/weeklyReports';
+import { whatsappChannelRouter } from './routers/whatsappChannel';
+import { workflowAutomationRouter } from './routers/workflowAutomation';
+import { workflowsRouter } from './routers/workflows';
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -626,6 +1093,473 @@ adminDashboard: adminDashboardRouter,
   whiteLabelBranding: whiteLabelBrandingRouter,
   whiteLabelOnboarding: whiteLabelOnboardingRouter,
   workflowEngine: workflowEngineRouter,
+  accentColor: accentColorRouter,
+  accountOpening: accountOpeningRouter,
+  active: activeRouter,
+  adminClearCooldown: adminClearCooldownRouter,
+  adminDeviceHistories: adminDeviceHistoriesRouter,
+  adminGetCooldowns: adminGetCooldownsRouter,
+  adminProblematicDevices: adminProblematicDevicesRouter,
+  advancedBiReporting: advancedBiReportingRouter,
+  advancedNotifications: advancedNotificationsRouter,
+  agentBalance: agentBalanceRouter,
+  agentBankAccountsCrud: agentBankAccountsRouter,
+  agentBenchmarking: agentBenchmarkingRouter,
+  agentClusterAnalytics: agentClusterAnalyticsRouter,
+  agentDeviceFingerprint: agentDeviceFingerprintRouter,
+  agentFloatForecasting: agentFloatForecastingRouter,
+  agentFloatInsuranceClaims: agentFloatInsuranceClaimsRouter,
+  agentFloatTransfer: agentFloatTransferRouter,
+  agentHierarchyTerritory: agentHierarchyTerritoryRouter,
+  agentKyc: agentKycRouter,
+  agentKycDocVault: agentKycDocVaultRouter,
+  agentLeaderboard: agentLeaderboardRouter,
+  agentLoanOrigination: agentLoanOriginationRouter,
+  agentLoanOrigination2: agentLoanOrigination2Router,
+  agentManagement: agentManagementRouter,
+  agentMgmt: agentMgmtRouter,
+  agentNetworkTopology: agentNetworkTopologyRouter,
+  agentOnboardingWorkflow: agentOnboardingWorkflowRouter,
+  agentPerformanceAnalytics: agentPerformanceAnalyticsRouter,
+  agentPerformanceIncentives: agentPerformanceIncentivesRouter,
+  agentPerformanceScorecard: agentPerformanceScorecardRouter,
+  agentPerformanceScoresCrud: agentPerformanceScoresRouter,
+  agentRevenueAttribution: agentRevenueAttributionRouter,
+  agentScorecard: agentScorecardRouter,
+  agentSuspensionLogCrud: agentSuspensionLogRouter,
+  agentSuspensionWorkflow: agentSuspensionWorkflowRouter,
+  agentTerritoryHeatmap: agentTerritoryHeatmapRouter,
+  agentTerritoryOptimizer: agentTerritoryOptimizerRouter,
+  agentTrainingAcademy: agentTrainingAcademyRouter,
+  agentTrainingGamification: agentTrainingGamificationRouter,
+  agentTrainingPortal: agentTrainingPortalRouter,
+  aiMessage: aiMessageRouter,
+  aiMonitoring: aiMonitoringRouter,
+  airtimeVending: airtimeVendingRouter,
+  alertNotifications: alertNotificationsRouter,
+  amlScreening: amlScreeningRouter,
+  analyticsDashboard: analyticsDashboardRouter,
+  analyticsDashboardsCrud: analyticsDashboardsRouter,
+  announcements: announcementsRouter,
+  apacheAirflow: apacheAirflowRouter,
+  apacheNifi: apacheNifiRouter,
+  apiGateway: apiGatewayRouter,
+  apiKeyManagement: apiKeyManagementRouter,
+  apiRateLimiterDash: apiRateLimiterDashRouter,
+  appVersion: appVersionRouter,
+  archivalAdmin: archivalAdminRouter,
+  artRobustness: artRobustnessRouter,
+  auditExport: auditExportRouter,
+  auditLog: auditLogRouter,
+  auditTrail: auditTrailRouter,
+  auditTrailExport: auditTrailExportRouter,
+  autoReconciliationEngine: autoReconciliationEngineRouter,
+  autoRenew: autoRenewRouter,
+  automatedComplianceChecker: automatedComplianceCheckerRouter,
+  avgScore: avgScoreRouter,
+  backgroundColor: backgroundColorRouter,
+  baseUrl: baseUrlRouter,
+  biReportDefinitionsCrud: biReportDefinitionsRouter,
+  billPayments: billPaymentsRouter,
+  billingAudit: billingAuditRouter,
+  billingLifecycle: billingLifecycleRouter,
+  billingModel: billingModelRouter,
+  billingProduction: billingProductionRouter,
+  billingRbac: billingRbacRouter,
+  billingRevenuePeriodsCrud: billingRevenuePeriodsRouter,
+  biometricAuditDashboard: biometricAuditDashboardRouter,
+  biometricAuth: biometricAuthRouter,
+  brandName: brandNameRouter,
+  bulkDisbursementEngine: bulkDisbursementEngineRouter,
+  bulkNotif: bulkNotifRouter,
+  bulkOperations: bulkOperationsRouter,
+  bulkOps: bulkOpsRouter,
+  bulkPaymentProcessor: bulkPaymentProcessorRouter,
+  bulkRoleImport: bulkRoleImportRouter,
+  bulkTransactionProcessor: bulkTransactionProcessorRouter,
+  cache: cacheRouter,
+  capacityPlanning: capacityPlanningRouter,
+  cardBinLookup: cardBinLookupRouter,
+  cardRequest: cardRequestRouter,
+  carrierCost: carrierCostRouter,
+  carrierLivePricing: carrierLivePricingRouter,
+  cbnMetrics: cbnMetricsRouter,
+  certificatesActive: certificatesActiveRouter,
+  changelog: changelogRouter,
+  checkRegistrationStatus: checkRegistrationStatusRouter,
+  claimChallenge: claimChallengeRouter,
+  clientId: clientIdRouter,
+  closeSession: closeSessionRouter,
+  cocoIndexPipeline: cocoIndexPipelineRouter,
+  comments: commentsRouter,
+  commissionCalculator: commissionCalculatorRouter,
+  commissionClawback: commissionClawbackRouter,
+  commissionEngine: commissionEngineRouter,
+  completed: completedRouter,
+  complianceAutomation: complianceAutomationRouter,
+  complianceCertManager: complianceCertManagerRouter,
+  complianceChatbot: complianceChatbotRouter,
+  complianceRate: complianceRateRouter,
+  complianceReporting: complianceReportingRouter,
+  configManagement: configManagementRouter,
+  contractEndDate: contractEndDateRouter,
+  createRule: createRuleRouter,
+  crossBorderRemittance: crossBorderRemittanceRouter,
+  crossBorderRemittanceHub: crossBorderRemittanceHubRouter,
+  currency: currencyRouter,
+  currencyHedging: currencyHedgingRouter,
+  customer360: customer360Router,
+  customerDatabase: customerDatabaseRouter,
+  customerDisputePortal: customerDisputePortalRouter,
+  customerFeedbackNps: customerFeedbackNpsRouter,
+  customerJourneyAnalytics: customerJourneyAnalyticsRouter,
+  customerJourneyEventsCrud: customer_journey_eventsRouter,
+  customerJourneyMapper: customerJourneyMapperRouter,
+  customerOnboardingPipeline: customerOnboardingPipelineRouter,
+  customerSurveys: customerSurveysRouter,
+  dailyPnlReport: dailyPnlReportRouter,
+  dashboardLayout: dashboardLayoutRouter,
+  dataConsentRecordsCrud: dataConsentRecordsRouter,
+  dataExport: dataExportRouter,
+  dataExportHub: dataExportHubRouter,
+  dataExportImport: dataExportImportRouter,
+  dataExportRouter: dataExportRouter,
+  dataQuality: dataQualityRouter,
+  dataRetentionPolicy: dataRetentionPolicyRouter,
+  dataThresholdAlerts: dataThresholdAlertsRouter,
+  database: databaseRouter,
+  databaseVisualization: databaseVisualizationRouter,
+  dbSchemaPush: dbSchemaPushRouter,
+  dbtIntegration: dbtIntegrationRouter,
+  deepface: deepfaceRouter,
+  deleteComment: deleteCommentRouter,
+  deleteRule: deleteRuleRouter,
+  devPortal: devPortalRouter,
+  developerPortal: developerPortalRouter,
+  deviceFleetManager: deviceFleetManagerRouter,
+  disputeAnalytics: disputeAnalyticsRouter,
+  disputeNotifications: disputeNotificationsRouter,
+  disputeRefund: disputeRefundRouter,
+  disputes: disputesRouter,
+  dragDropReportBuilder: dragDropReportBuilderRouter,
+  dynamicFeeCalculator: dynamicFeeCalculatorRouter,
+  dynamicQrPayment: dynamicQrPaymentRouter,
+  e2eTestFramework: e2eTestFrameworkRouter,
+  ecommerceCart: ecommerceCartRouter,
+  ecommerceCatalog: ecommerceCatalogRouter,
+  ecommerceOrders: ecommerceOrdersRouter,
+  emailDeliveryLogCrud: emailDeliveryLogRouter,
+  emailNotifications: emailNotificationsRouter,
+  emoji: emojiRouter,
+  enabled: enabledRouter,
+  encryptedFieldsCrud: encryptedFieldsRouter,
+  eodReconciliation: eodReconciliationRouter,
+  erpType: erpTypeRouter,
+  error: errorRouter,
+  escalate: escalateRouter,
+  escalationChains: escalationChainsRouter,
+  eventDrivenArch: eventDrivenArchRouter,
+  executiveCommandCenter: executiveCommandCenterRouter,
+  expiringIn30Days: expiringIn30DaysRouter,
+  export: exportRouter,
+  faceEnrollment: faceEnrollmentRouter,
+  failed: failedRouter,
+  falkordbGraph: falkordbGraphRouter,
+  featureFlags: featureFlagsRouter,
+  fieldMappings: fieldMappingsRouter,
+  financialReportingSuite: financialReportingSuiteRouter,
+  firmwareVersion: firmwareVersionRouter,
+  firstName: firstNameRouter,
+  floatManagement: floatManagementRouter,
+  floatReconciliation: floatReconciliationRouter,
+  floatReconciliationsCrud: floatReconciliationsRouter,
+  fontFamily: fontFamilyRouter,
+  fraud: fraudRouter,
+  fraudMlScoringEngine: fraudMlScoringEngineRouter,
+  fraudRealtimeViz: fraudRealtimeVizRouter,
+  fraudReport: fraudReportRouter,
+  fraudReportGenerator: fraudReportGeneratorRouter,
+  fxRates: fxRatesRouter,
+  gatewayHealthMonitor: gatewayHealthMonitorRouter,
+  geoFenceDedicated: geoFenceDedicatedRouter,
+  geoFencesCrud: geoFencesRouter,
+  geoFencing: geoFencingRouter,
+  geoFencingDedicated: geoFencingDedicatedRouter,
+  geofencing: geofencingRouter,
+  getCheckerStatus: getCheckerStatusRouter,
+  getDashboard: getDashboardRouter,
+  getErpSyncStats: getErpSyncStatsRouter,
+  getHistory: getHistoryRouter,
+  getLastRun: getLastRunRouter,
+  getLiveStats: getLiveStatsRouter,
+  getMqttThroughput: getMqttThroughputRouter,
+  getOutstanding: getOutstandingRouter,
+  getProfile: getProfileRouter,
+  getRankings: getRankingsRouter,
+  getRecommendation: getRecommendationRouter,
+  getSettlements: getSettlementsRouter,
+  getStats: getStatsRouter,
+  getSwitchStats: getSwitchStatsRouter,
+  getTransactions: getTransactionsRouter,
+  glAccountsCrud: gl_accountsRouter,
+  glJournalEntriesCrud: gl_journal_entriesRouter,
+  globalSearch: globalSearchRouter,
+  goServiceBridge: goServiceBridgeRouter,
+  health: healthRouter,
+  healthCheck: healthCheckRouter,
+  healthMonitor: healthMonitorRouter,
+  healthy: healthyRouter,
+  helpDesk: helpDeskRouter,
+  hourlyStats: hourlyStatsRouter,
+  inProgress: inProgressRouter,
+  incidentManagement: incidentManagementRouter,
+  incidentPlaybook: incidentPlaybookRouter,
+  insuranceProducts: insuranceProductsRouter,
+  integrationMarketplace: integrationMarketplaceRouter,
+  intelligentRoutingEngine: intelligentRoutingEngineRouter,
+  ipAddress: ipAddressRouter,
+  isLive: isLiveRouter,
+  isRegistering: isRegisteringRouter,
+  items: itemsRouter,
+  kafka: kafkaRouter,
+  kafkaConsumer: kafkaConsumerRouter,
+  kafkaTopicPrefix: kafkaTopicPrefixRouter,
+  keepAliveSeconds: keepAliveSecondsRouter,
+  kycDocumentsCrud: kycDocumentsRouter,
+  kycEnforcement: kycEnforcementRouter,
+  kycLevel: kycLevelRouter,
+  lakehouseAiIntegration: lakehouseAiIntegrationRouter,
+  lastSyncAt: lastSyncAtRouter,
+  lastSyncStatus: lastSyncStatusRouter,
+  lastTestStatus: lastTestStatusRouter,
+  length: lengthRouter,
+  listAccounts: listAccountsRouter,
+  listAll: listAllRouter,
+  listRules: listRulesRouter,
+  listSessions: listSessionsRouter,
+  listSubscriptions: listSubscriptionsRouter,
+  liveBillingDashboard: liveBillingDashboardRouter,
+  loadTestMetrics: loadTestMetricsRouter,
+  loanDisbursement: loanDisbursementRouter,
+  marketplace: marketplaceRouter,
+  mccManager: mccManagerRouter,
+  merchant: merchantRouter,
+  merchantAcquirerGateway: merchantAcquirerGatewayRouter,
+  merchantKycOnboarding: merchantKycOnboardingRouter,
+  merchantPayments: merchantPaymentsRouter,
+  merchantRiskScoring: merchantRiskScoringRouter,
+  merchantSettlementDashboard: merchantSettlementDashboardRouter,
+  mfaManager: mfaManagerRouter,
+  mlScoring: mlScoringRouter,
+  mlScoringService: mlScoringServiceRouter,
+  mobileMoney: mobileMoneyRouter,
+  model: modelRouter,
+  multiChannelNotificationHub: multiChannelNotificationHubRouter,
+  multiCurrencyExchange: multiCurrencyExchangeRouter,
+  multiSimFailover: multiSimFailoverRouter,
+  multiTenancy: multiTenancyRouter,
+  multiTenantIsolation: multiTenantIsolationRouter,
+  name: nameRouter,
+  networkQualityHeatmap: networkQualityHeatmapRouter,
+  networkResilience: networkResilienceRouter,
+  networkStatusDashboard: networkStatusDashboardRouter,
+  networkTelemetry: networkTelemetryRouter,
+  networkTrends: networkTrendsRouter,
+  notifAnalytics: notifAnalyticsRouter,
+  notifTemplates: notifTemplatesRouter,
+  notificationCenter: notificationCenterRouter,
+  notificationChannelsCrud: notification_channelsRouter,
+  notificationInbox: notificationInboxRouter,
+  notificationLogsCrud: notification_logsRouter,
+  notificationOrchestrator: notificationOrchestratorRouter,
+  observabilityAlertsCrud: observabilityAlertsRouter,
+  offlineQueue: offlineQueueRouter,
+  offlineSync: offlineSyncRouter,
+  ollamaLLM: ollamaLLMRouter,
+  openTelemetry: openTelemetryRouter,
+  operationalCommandBridge: operationalCommandBridgeRouter,
+  operationalRunbook: operationalRunbookRouter,
+  orderNumber: orderNumberRouter,
+  osVersion: osVersionRouter,
+  overdue: overdueRouter,
+  password: passwordRouter,
+  paymentDisputeArbitration: paymentDisputeArbitrationRouter,
+  paymentGatewayRouter: paymentGatewayRouterRouter,
+  paymentNotificationSystem: paymentNotificationSystemRouter,
+  paymentReconciliation: paymentReconciliationRouter,
+  paymentSwitch: paymentSwitchRouter,
+  paymentTokenVault: paymentTokenVaultRouter,
+  pbacManagement: pbacManagementRouter,
+  pensionCollection: pensionCollectionRouter,
+  performanceProfiler: performanceProfilerRouter,
+  permission: permissionRouter,
+  ping: pingRouter,
+  pinned: pinnedRouter,
+  pipelineMonitoring: pipelineMonitoringRouter,
+  platform: platformRouter,
+  platformCapacityPlanner: platformCapacityPlannerRouter,
+  platformConfigCenter: platformConfigCenterRouter,
+  platformCostAllocator: platformCostAllocatorRouter,
+  platformHealth: platformHealthRouter,
+  platformHealthDash: platformHealthDashRouter,
+  platformHealthMonitor: platformHealthMonitorRouter,
+  platformHealthScorecard: platformHealthScorecardRouter,
+  platformMetricsExporter: platformMetricsExporterRouter,
+  platformMigrationToolkit: platformMigrationToolkitRouter,
+  platformProxy: platformProxyRouter,
+  platformRevenueOptimizer: platformRevenueOptimizerRouter,
+  platformSlaMonitor: platformSlaMonitorRouter,
+  pnlReport: pnlReportRouter,
+  pnlReportsCrud: pnlReportsRouter,
+  port: portRouter,
+  posDispute: posDisputeRouter,
+  predictiveAgentChurn: predictiveAgentChurnRouter,
+  primaryColor: primaryColorRouter,
+  probeIntervalMs: probeIntervalMsRouter,
+  productionFeatures: productionFeaturesRouter,
+  profile: profileRouter,
+  promotions: promotionsRouter,
+  pushNotifications: pushNotificationsRouter,
+  qdrantVectorSearch: qdrantVectorSearchRouter,
+  quietHours: quietHoursRouter,
+  raiseDispute: raiseDisputeRouter,
+  ransomwareAlerts: ransomwareAlertsRouter,
+  rateAlerts: rateAlertsRouter,
+  rateLimitDashboard: rateLimitDashboardRouter,
+  reactions: reactionsRouter,
+  realtimePnlDashboard: realtimePnlDashboardRouter,
+  realtimeTxAlertsCrud: realtime_tx_alertsRouter,
+  realtimeTxMonitor: realtimeTxMonitorRouter,
+  rearm: rearmRouter,
+  receiptTemplates: receiptTemplatesRouter,
+  reconciliationEngine: reconciliationEngineRouter,
+  recordSwitch: recordSwitchRouter,
+  recurringPayments: recurringPaymentsRouter,
+  redeemReward: redeemRewardRouter,
+  referralProgram: referralProgramRouter,
+  referralProgramDedicated: referralProgramDedicatedRouter,
+  register: registerRouter,
+  regulatoryCompliance: regulatoryComplianceRouter,
+  regulatoryComplianceChecks: regulatoryComplianceChecksRouter,
+  regulatoryReportGenerator: regulatoryReportGeneratorRouter,
+  regulatorySandboxTester: regulatorySandboxTesterRouter,
+  relayEndpoint: relayEndpointRouter,
+  remittance: remittanceRouter,
+  reportTemplate: reportTemplateRouter,
+  reportTemplateDesigner: reportTemplateDesignerRouter,
+  requestPermission: requestPermissionRouter,
+  resilienceHardening: resilienceHardeningRouter,
+  retryFailed: retryFailedRouter,
+  retryQueue: retryQueueRouter,
+  revenueLeakageDetector: revenueLeakageDetectorRouter,
+  revenueReconciliation: revenueReconciliationRouter,
+  revenueShareConfig: revenueShareConfigRouter,
+  reversalApproval: reversalApprovalRouter,
+  runCheck: runCheckRouter,
+  runNow: runNowRouter,
+  running: runningRouter,
+  runtimeConfigAdmin: runtimeConfigAdminRouter,
+  savingsProducts: savingsProductsRouter,
+  scheduledReports: scheduledReportsRouter,
+  secondaryColor: secondaryColorRouter,
+  secret: secretRouter,
+  securityAudit: securityAuditRouter,
+  securityHardening: securityHardeningRouter,
+  seedDefaultRules: seedDefaultRulesRouter,
+  serialNumber: serialNumberRouter,
+  series: seriesRouter,
+  serviceHealth: serviceHealthRouter,
+  serviceMesh: serviceMeshRouter,
+  session: sessionRouter,
+  sessionMgmt: sessionMgmtRouter,
+  sessionRef: sessionRefRouter,
+  settlementBatchProcessor: settlementBatchProcessorRouter,
+  settlementReconciliation: settlementReconciliationRouter,
+  sharedLayouts: sharedLayoutsRouter,
+  skillCreatorIntegration: skillCreatorIntegrationRouter,
+  slaManagement: slaManagementRouter,
+  smartContractPayment: smartContractPaymentRouter,
+  smsNotifications: smsNotificationsRouter,
+  smsReceipt: smsReceiptRouter,
+  source: sourceRouter,
+  splitPayments: splitPaymentsRouter,
+  sprint15Features: bulkNotifRouter,
+  sprint23: sprint23Router,
+  sprint23Router: sprint23Router,
+  start: startRouter,
+  startLiveness: startLivenessRouter,
+  stats: statsRouter,
+  status: statusRouter,
+  stripe: stripeRouter,
+  submitLivenessFrame: submitLivenessFrameRouter,
+  summary: summaryRouter,
+  superAdmin: superAdminRouter,
+  supplyChain: supplyChainRouter,
+  supportAgentName: supportAgentNameRouter,
+  syncAgents: syncAgentsRouter,
+  syncEnabled: syncEnabledRouter,
+  syncIntervalMinutes: syncIntervalMinutesRouter,
+  syncInventory: syncInventoryRouter,
+  syncStatus: syncStatusRouter,
+  syncTransactions: syncTransactionsRouter,
+  systemConfigManager: systemConfigManagerRouter,
+  systemHealthDashboard: systemHealthDashboardRouter,
+  systemHealthMonitor: systemHealthMonitorRouter,
+  tagline: taglineRouter,
+  tenantAdmin: tenantAdminRouter,
+  tenantBrandingCrud: tenantBrandingRouter,
+  tenantFeatureToggle: tenantFeatureToggleRouter,
+  tenantFeeOverridesCrud: tenantFeeOverridesRouter,
+  terminalId: terminalIdRouter,
+  terminalLeasing: terminalLeasingRouter,
+  terminated: terminatedRouter,
+  textColor: textColorRouter,
+  thresholdAlerts: thresholdAlertsRouter,
+  tigerBeetle: tigerBeetleRouter,
+  tigerBeetleAccountId: tigerBeetleAccountIdRouter,
+  toggle: toggleRouter,
+  toggleRule: toggleRuleRouter,
+  topicMappings: topicMappingsRouter,
+  total: totalRouter,
+  totalComments: totalCommentsRouter,
+  totalTrainings: totalTrainingsRouter,
+  trainingCertification: trainingCertificationRouter,
+  trainingCoursesCrud: trainingCoursesRouter,
+  trainingEnrollmentsCrud: trainingEnrollmentsRouter,
+  transactionDisputeResolution: transactionDisputeResolutionRouter,
+  transactionFeeCalc: transactionFeeCalcRouter,
+  transactionGraphAnalyzer: transactionGraphAnalyzerRouter,
+  transactionLimitsEngine: transactionLimitsEngineRouter,
+  transactionReversalManager: transactionReversalManagerRouter,
+  transactionReversalWorkflow: transactionReversalWorkflowRouter,
+  transactionVelocityMonitor: transactionVelocityMonitorRouter,
+  transactions: transactionsRouter,
+  triggerSync: triggerSyncRouter,
+  txMonitor: txMonitorRouter,
+  txVelocityMonitor: txVelocityMonitorRouter,
+  types: typesRouter,
+  unread: unreadRouter,
+  updateRule: updateRuleRouter,
+  updateStatus: updateStatusRouter,
+  useTls: useTlsRouter,
+  userMessage: userMessageRouter,
+  userNotifPreferences: userNotifPreferencesRouter,
+  username: usernameRouter,
+  ussdAnalytics: ussdAnalyticsRouter,
+  ussdGateway: ussdGatewayRouter,
+  ussdIntegration: ussdIntegrationRouter,
+  ussdReceipt: ussdReceiptRouter,
+  vault: vaultRouter,
+  verifyDocument: verifyDocumentRouter,
+  webhookDeliverySystem: webhookDeliverySystemRouter,
+  webhookManagement: webhookManagementRouter,
+  webhookNotif: webhookNotifRouter,
+  webhookNotifications: webhookNotificationsRouter,
+  websocketService: websocketServiceRouter,
+  weeklyReports: weeklyReportsRouter,
+  whatsappChannel: whatsappChannelRouter,
+  workflowAutomation: workflowAutomationRouter,
+  workflows: workflowsRouter,
 });
 
 

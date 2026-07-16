@@ -91,7 +91,6 @@ export const dataExportRouter = router({
         await db
           .delete(data_export_jobs)
           .where(eq(data_export_jobs.id, input.id));
-        // @ts-ignore
         await db.insert(auditLog).values({
           action: "export_deleted",
           resource: "data_export_jobs",

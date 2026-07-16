@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Sprint 87: Full domain logic — account verification, duplicate detection, primary account management
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";

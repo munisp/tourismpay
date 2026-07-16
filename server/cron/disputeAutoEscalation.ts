@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { getDb } from "../db";
 import { disputes } from "../../drizzle/schema";
 import { eq, and, lt, isNull } from "drizzle-orm";

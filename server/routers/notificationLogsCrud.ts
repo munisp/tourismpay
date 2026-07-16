@@ -23,7 +23,6 @@ export const notification_logsRouter = router({
         if (input.status)
           conditions.push(eq(notification_logs.status, input.status));
         if (input.channelId)
-          // @ts-ignore
           conditions.push(eq(notification_logs.channelId, input.channelId));
         const rows = await db
           .select()
@@ -55,7 +54,6 @@ export const notification_logsRouter = router({
         const [row] = await db
           .select()
           .from(notification_logs)
-          // @ts-ignore
           .where(eq(notification_logs.id, input.id))
           .limit(100);
         if (!row)
@@ -104,7 +102,6 @@ export const notification_logsRouter = router({
         const db = (await getDb())!;
         await db
           .delete(notification_logs)
-          // @ts-ignore
           .where(eq(notification_logs.id, input.id));
         return { success: true };
       } catch (error) {

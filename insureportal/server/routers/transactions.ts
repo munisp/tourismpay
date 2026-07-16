@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * transactions router — all transaction operations for the TourismPay platform.
  *

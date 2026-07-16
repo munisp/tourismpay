@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * AdminPanel — 54Link Supervisor / Back-Office Dashboard
  * Route: /admin  (protected — requires agent.role === "admin" OR Manus OAuth admin role)
@@ -119,9 +118,7 @@ function KpiCard({
 
 // ─── Fraud Feed Tab ───────────────────────────────────────────────────────────
 function FraudFeedTab() {
-  // @ts-ignore
   const fraudEvents = usePosStore(s => s.fraudEvents);
-  // @ts-ignore
   const updateStatus = trpc.fraud.updateStatus.useMutation({
     onSuccess: () => toast.success("Status updated"),
     onError: (e: any) => toast.error(e.message),
@@ -270,7 +267,6 @@ function FraudFeedTab() {
 function AuditLogTab() {
   const [page, setPage] = useState(0);
   const limit = 20;
-  // @ts-ignore
   const { data, isLoading } = trpc.auditLogs.listAll.useQuery({
     limit,
     offset: page * limit,
@@ -462,8 +458,6 @@ function AnalyticsTab() {
     () => new Date().toISOString().split("T")[0]
   );
   const [exporting, setExporting] = useState(false);
-
-  // @ts-ignore
   const { refetch: fetchCsv } = trpc.export.transactionsCsv.useQuery(
     { from: fromDate, to: toDate },
     { enabled: false }
@@ -494,7 +488,6 @@ function AnalyticsTab() {
   };
 
   // Live chart data from server
-  // @ts-ignore
   const { data: adminHourlyData } = trpc.transactions.adminHourlyStats.useQuery(
     undefined,
     {
@@ -514,8 +507,6 @@ function AnalyticsTab() {
     adminHourlyData && adminHourlyData.length > 0
       ? adminHourlyData
       : fallbackVolume;
-
-  // @ts-ignore
   const { data: statsByTypeRaw } = trpc.transactions.statsByType.useQuery(
     undefined,
     {
@@ -525,7 +516,6 @@ function AnalyticsTab() {
   );
   const [paInput] = useState(() => ({ startDate: fromDate, endDate: toDate }));
   const { data: platformAnalyticsData } =
-    // @ts-ignore
     trpc.transactions.platformAnalytics.useQuery(paInput, {
       refetchInterval: 300_000,
       retry: false,
@@ -546,7 +536,6 @@ function AnalyticsTab() {
   };
   const txTypeData =
     statsByTypeRaw && statsByTypeRaw.length > 0
-      // @ts-ignore
       ? statsByTypeRaw.map((d, i) => ({
           name: d.type,
           value: d.percentage,
@@ -793,8 +782,6 @@ function AnalyticsTab() {
                   dataKey="value"
                   paddingAngle={3}
                 >
-                  // @ts-ignore
-                  // @ts-ignore
                   {txTypeData.map((entry, i) => (
                     <Cell key={i} fill={entry.color} />
                   ))}
@@ -811,8 +798,6 @@ function AnalyticsTab() {
               </PieChart>
             </ResponsiveContainer>
             <div className="flex flex-wrap gap-2 justify-center mt-2">
-              // @ts-ignore
-              // @ts-ignore
               {txTypeData.map(d => (
                 <div key={d.name} className="flex items-center gap-1">
                   <div
@@ -911,16 +896,11 @@ function SettlementPanel() {
     errors: string[];
     runAt: Date;
   } | null>(null);
-
-  // @ts-ignore
   const { data: lastRun } = trpc.settlement.getLastRun.useQuery(undefined, {
     refetchInterval: 30_000,
   });
-
-  // @ts-ignore
   const runNow = trpc.settlement.runNow.useMutation({
     onMutate: () => setRunning(true),
-    // @ts-ignore
     onSuccess: data => {
       setRunning(false);
       setLastResult(data);
@@ -1064,13 +1044,11 @@ function SettlementHistoryTab() {
   const [page, setPage] = useState(0);
   const limit = 20;
   const { data: historyData, isLoading: histLoading } =
-    // @ts-ignore
     trpc.settlement.getHistory.useQuery(
       { limit, offset: page * limit },
       { refetchInterval: 60_000 }
     );
   const { data: outstandingData, isLoading: outLoading } =
-    // @ts-ignore
     trpc.settlement.getOutstanding.useQuery(undefined, {
       refetchInterval: 60_000,
     });
@@ -1426,20 +1404,15 @@ export default function AdminPanel() {
     | "mqtt"
     | "coverage"
   >(initialTab);
-  // @ts-ignore
   const agent = usePosStore(s => s.agent);
-  // @ts-ignore
   const fraudEvents = usePosStore(s => s.fraudEvents);
-  // @ts-ignore
   const unreadFraud = usePosStore(s => s.unreadFraudCount);
-  // @ts-ignore
   const clearFraudCount = usePosStore(s => s.clearFraudCount);
 
   // Connect to Socket.IO for live fraud events
   useFraudSocket();
 
   // Load recent transactions for KPIs
-  // @ts-ignore
   const { data: txList } = trpc.transactions.list.useQuery({ limit: 100 });
 
   // 7-day success rate from Python analytics service
@@ -1535,15 +1508,12 @@ export default function AdminPanel() {
     0
   );
   const criticalFraud = fraudEvents.filter(
-    // @ts-ignore
     e => e.severity === "critical"
   ).length;
   const fraudRate =
     txList && txList.length > 0
       ? ((criticalFraud / txList.length) * 100).toFixed(2)
       : "0.00";
-
-  // @ts-ignore
   const { data: topupRequests } = trpc.agentMgmt.listTopUpRequests.useQuery({
     status: "pending",
   });

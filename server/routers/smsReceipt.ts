@@ -124,14 +124,12 @@ export const smsReceiptRouter = router({
 
         // Build and send SMS
         const message = buildReceiptSMS({
-          // @ts-ignore
           ref: tx.ref,
           type: tx.type,
           amount: Number(tx.amount),
           fee: Number(tx.fee ?? 0),
           agentCode: session.agentCode,
           agentName: session.name,
-          // @ts-ignore
           customerName: tx.customerName,
         });
 
@@ -141,13 +139,11 @@ export const smsReceiptRouter = router({
         if (smsResult.success) {
           await db
             .update(transactions)
-            // @ts-ignore
             .set({ smsSent: true })
             .where(eq(transactions.id, tx.id));
         }
 
         await writeAuditLog({
-          // @ts-ignore
           agentId: session.id,
           agentCode: session.agentCode,
           action: smsResult.success ? "SMS_RECEIPT_SENT" : "SMS_RECEIPT_FAILED",
@@ -219,7 +215,6 @@ export const smsReceiptRouter = router({
         if (db && smsResult.success) {
           await db
             .update(transactions)
-            // @ts-ignore
             .set({ smsSent: true })
             .where(eq(transactions.ref, input.transactionRef));
         }

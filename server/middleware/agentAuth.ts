@@ -48,6 +48,5 @@ export async function requireAgent(req: Request): Promise<Agent> {
     err.code = "NOT_FOUND";
     throw err;
   }
-  // @ts-ignore
   return agent;
 }

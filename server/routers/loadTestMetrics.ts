@@ -227,15 +227,10 @@ export const loadTestMetricsRouter = router({
       return {
         ...record,
         config: {
-          // @ts-ignore
           targetRps: record.targetRps,
-          // @ts-ignore
           duration: record.durationSeconds,
-          // @ts-ignore
           concurrency: record.concurrency,
-          // @ts-ignore
           zipfExponent: Number(record.zipfSkew) || 1.07,
-          // @ts-ignore
           merchantCount: record.merchantCount ?? 1000,
         },
         results: res

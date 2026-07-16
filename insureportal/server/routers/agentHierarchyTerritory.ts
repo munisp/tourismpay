@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Sprint 87: Upgraded from mock data to real DB queries — agentHierarchyTerritory
 import { z } from "zod";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";

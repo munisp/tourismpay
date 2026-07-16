@@ -29,7 +29,6 @@ export default function UserQuietHours() {
   const configQ = trpc.quietHours.get.useQuery({ userId });
   // @ts-ignore Sprint 85
   const statusQ = trpc.quietHours.checkStatus.useQuery({ userId });
-  // @ts-ignore
   const updateMut = trpc.quietHours.update.useMutation({
     onSuccess: () => {
       configQ.refetch();
