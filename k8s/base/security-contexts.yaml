@@ -1,0 +1,170 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# TourismPay Kubernetes Security Contexts
+# Enforces Pod Security Standards (restricted profile):
+#  - runAsNonRoot: true
+#  - readOnlyRootFilesystem: true
+#  - allowPrivilegeEscalation: false
+#  - drop ALL capabilities
+#  - seccompProfile: RuntimeDefault
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Namespace-level Pod Security Standards enforcement
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tourismpay
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.29
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: v1.29
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: v1.29
+
+---
+# Patch for tourismpay-server deployment to add security context
+# Apply with: kubectl patch deployment tourismpay-server -n tourismpay --patch-file security-contexts.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tourismpay-server
+  namespace: tourismpay
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: uploads
+              mountPath: /app/uploads
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: uploads
+          emptyDir: {}
+
+---
+# Security context for fraud-scoring
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraud-scoring
+  namespace: tourismpay
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: fraud-scoring
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: models
+              mountPath: /models
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: models
+          persistentVolumeClaim:
+            claimName: fraud-models-pvc
+
+---
+# Security context for lakehouse-etl
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lakehouse-etl
+  namespace: tourismpay
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: lakehouse-etl
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: lakehouse-data
+              mountPath: /data/lakehouse
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: lakehouse-data
+          persistentVolumeClaim:
+            claimName: lakehouse-data-pvc
+
+---
+# Security context for crypto-engine (strictest — no filesystem writes)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crypto-engine
+  namespace: tourismpay
+spec:
+  template:
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534  # nobody
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: crypto-engine
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi

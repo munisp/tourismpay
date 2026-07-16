@@ -1,0 +1,223 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TourismPay Polyglot Microservices
+# Usage: docker compose -f docker-compose.yml -f docker-compose.services.yml up
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 20s
+
+services:
+
+  # ─── Go: TigerBeetle Gateway ────────────────────────────────────────────────
+  tigerbeetle-gateway:
+    build:
+      context: ./services/tigerbeetle-gateway
+      dockerfile: Dockerfile
+    image: tourismpay/tigerbeetle-gateway:latest
+    container_name: tp-tigerbeetle-gateway
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      TB_ADDRESS: ${TB_ADDRESS:-tigerbeetle:3000}
+      TB_CLUSTER_ID: ${TB_CLUSTER_ID:-0}
+      HTTP_PORT: "8081"
+      DATABASE_URL: ${DATABASE_URL}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/health"]
+    networks:
+      - tourismpay-net
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  # ─── Go: Temporal Worker ────────────────────────────────────────────────────
+  temporal-worker:
+    build:
+      context: ./services/temporal-worker
+      dockerfile: Dockerfile
+    image: tourismpay/temporal-worker:latest
+    container_name: tp-temporal-worker
+    restart: unless-stopped
+    environment:
+      TEMPORAL_HOST: ${TEMPORAL_HOST:-temporal:7233}
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-tourismpay}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    networks:
+      - tourismpay-net
+    logging: *default-logging
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.2"
+          memory: 128M
+
+  # ─── Rust: Fluvio Consumer ──────────────────────────────────────────────────
+  fluvio-consumer:
+    build:
+      context: ./services/fluvio-consumer
+      dockerfile: Dockerfile
+    image: tourismpay/fluvio-consumer:latest
+    container_name: tp-fluvio-consumer
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      FLUVIO_ENDPOINT: ${FLUVIO_ENDPOINT:-fluvio:9003}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      HTTP_PORT: "8082"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/health"]
+    networks:
+      - tourismpay-net
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  # ─── Rust: Crypto Engine ────────────────────────────────────────────────────
+  crypto-engine:
+    build:
+      context: ./services/crypto-engine
+      dockerfile: Dockerfile
+    image: tourismpay/crypto-engine:latest
+    container_name: tp-crypto-engine
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      HTTP_PORT: "8083"
+      MASTER_KEY: ${CRYPTO_MASTER_KEY}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "wget", "-qO-", "http://localhost:8083/health"]
+    networks:
+      - tourismpay-net
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+        reservations:
+          cpus: "0.2"
+          memory: 64M
+
+  # ─── Python: Lakehouse ETL ──────────────────────────────────────────────────
+  lakehouse-etl:
+    build:
+      context: ./services/lakehouse-etl
+      dockerfile: Dockerfile
+    image: tourismpay/lakehouse-etl:latest
+    container_name: tp-lakehouse-etl
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      PG_DSN: ${DATABASE_URL}
+      LAKEHOUSE_PATH: /data/lakehouse
+      LAKEHOUSE_S3_BUCKET: ${LAKEHOUSE_S3_BUCKET:-}
+      AWS_REGION: ${AWS_REGION:-af-south-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      HTTP_PORT: "8084"
+      SCHEDULE_ENABLED: ${LAKEHOUSE_SCHEDULE_ENABLED:-true}
+    volumes:
+      - lakehouse-data:/data/lakehouse
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8084/health')"]
+    networks:
+      - tourismpay-net
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  # ─── Python: Fraud Scoring ──────────────────────────────────────────────────
+  fraud-scoring:
+    build:
+      context: ./services/fraud-scoring
+      dockerfile: Dockerfile
+    image: tourismpay/fraud-scoring:latest
+    container_name: tp-fraud-scoring
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      PG_DSN: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      MODEL_PATH: /models
+      HTTP_PORT: "8085"
+      SCORE_THRESHOLD: ${FRAUD_SCORE_THRESHOLD:-0.7}
+    volumes:
+      - fraud-models:/models
+    healthcheck:
+      <<: *healthcheck-defaults
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8085/health')"]
+    networks:
+      - tourismpay-net
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+volumes:
+  lakehouse-data:
+    driver: local
+  fraud-models:
+    driver: local
+
+networks:
+  tourismpay-net:
+    external: true
+    name: tourismpay_default

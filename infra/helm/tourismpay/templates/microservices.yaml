@@ -1,0 +1,209 @@
+{{- /* ─────────────────────────────────────────────────────────────────────
+  TourismPay Polyglot Microservices Helm Template
+  Deploys: tigerbeetle-gateway, temporal-worker, fluvio-consumer,
+           crypto-engine, lakehouse-etl, fraud-scoring
+───────────────────────────────────────────────────────────────────────── */ -}}
+
+{{- $services := list
+  (dict
+    "name" "tigerbeetle-gateway"
+    "image" "tourismpay/tigerbeetle-gateway"
+    "port" 8081
+    "replicas" 2
+    "cpu" "500m"
+    "memory" "256Mi"
+    "envFrom" "tourismpay-server-secrets"
+  )
+  (dict
+    "name" "temporal-worker"
+    "image" "tourismpay/temporal-worker"
+    "port" 0
+    "replicas" 2
+    "cpu" "1000m"
+    "memory" "512Mi"
+    "envFrom" "tourismpay-server-secrets"
+  )
+  (dict
+    "name" "fluvio-consumer"
+    "image" "tourismpay/fluvio-consumer"
+    "port" 8082
+    "replicas" 2
+    "cpu" "500m"
+    "memory" "256Mi"
+    "envFrom" "tourismpay-server-secrets"
+  )
+  (dict
+    "name" "crypto-engine"
+    "image" "tourismpay/crypto-engine"
+    "port" 8083
+    "replicas" 3
+    "cpu" "1000m"
+    "memory" "256Mi"
+    "envFrom" "crypto-engine-secrets"
+  )
+  (dict
+    "name" "lakehouse-etl"
+    "image" "tourismpay/lakehouse-etl"
+    "port" 8084
+    "replicas" 1
+    "cpu" "2000m"
+    "memory" "2Gi"
+    "envFrom" "data-services-secrets"
+  )
+  (dict
+    "name" "fraud-scoring"
+    "image" "tourismpay/fraud-scoring"
+    "port" 8085
+    "replicas" 2
+    "cpu" "2000m"
+    "memory" "1Gi"
+    "envFrom" "data-services-secrets"
+  )
+-}}
+
+{{- range $svc := $services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ $svc.name }}
+    app.kubernetes.io/name: {{ $svc.name }}
+    app.kubernetes.io/part-of: tourismpay
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: {{ $.Chart.Name }}-{{ $.Chart.Version }}
+spec:
+  replicas: {{ $svc.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $svc.name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: {{ $svc.name }}
+        app.kubernetes.io/name: {{ $svc.name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ $svc.port | quote }}
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: tourismpay-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: {{ $svc.name }}
+          image: {{ $svc.image }}:{{ $.Values.image.tag | default "latest" }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy | default "IfNotPresent" }}
+          {{- if gt (int $svc.port) 0 }}
+          ports:
+            - name: http
+              containerPort: {{ $svc.port }}
+              protocol: TCP
+          {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ $svc.envFrom }}
+          env:
+            - name: LOG_LEVEL
+              value: {{ $.Values.logLevel | default "info" | quote }}
+            - name: NODE_ENV
+              value: {{ $.Values.env | default "production" | quote }}
+          resources:
+            requests:
+              cpu: {{ divf (float64 (trimSuffix "m" $svc.cpu)) 4 | printf "%.0fm" }}
+              memory: {{ $svc.memory }}
+            limits:
+              cpu: {{ $svc.cpu }}
+              memory: {{ $svc.memory }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          {{- if gt (int $svc.port) 0 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ $svc.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ $svc.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: {{ $svc.name }}
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: {{ $svc.name }}
+
+{{- if gt (int $svc.port) 0 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ $svc.name }}
+spec:
+  selector:
+    app: {{ $svc.name }}
+  ports:
+    - name: http
+      port: {{ $svc.port }}
+      targetPort: {{ $svc.port }}
+      protocol: TCP
+  type: ClusterIP
+{{- end }}
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $svc.name }}-pdb
+  namespace: {{ $.Release.Namespace }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: {{ $svc.name }}
+
+{{- end }}

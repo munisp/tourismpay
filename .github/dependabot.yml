@@ -1,0 +1,101 @@
+version: 2
+updates:
+  # npm / pnpm (main TypeScript server)
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:00"
+      timezone: Africa/Lagos
+    open-pull-requests-limit: 10
+    groups:
+      drizzle:
+        patterns: ["drizzle-*"]
+      trpc:
+        patterns: ["@trpc/*"]
+      aws:
+        patterns: ["@aws-sdk/*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    labels:
+      - dependencies
+      - automated
+
+  # Go — tigerbeetle-gateway
+  - package-ecosystem: gomod
+    directory: "/services/tigerbeetle-gateway"
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - go
+      - automated
+
+  # Go — temporal-worker
+  - package-ecosystem: gomod
+    directory: "/services/temporal-worker"
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - go
+      - automated
+
+  # Rust — fluvio-consumer
+  - package-ecosystem: cargo
+    directory: "/services/fluvio-consumer"
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - rust
+      - automated
+
+  # Rust — crypto-engine
+  - package-ecosystem: cargo
+    directory: "/services/crypto-engine"
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - rust
+      - automated
+
+  # Python — lakehouse-etl
+  - package-ecosystem: pip
+    directory: "/services/lakehouse-etl"
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - python
+      - automated
+
+  # Python — fraud-scoring
+  - package-ecosystem: pip
+    directory: "/services/fraud-scoring"
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - python
+      - automated
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - github-actions
+      - automated
