@@ -171,13 +171,45 @@ def _extract_entity_from_text(text: str) -> BusinessEntity:
     if m:
         entity.nature_of_business = m.group(1).strip()
 
-    # Directors
-    director_pattern = re.compile(
-        r"(?:DIRECTOR|SECRETARY)[:\s]+([A-Z][A-Za-z\s]+?)(?:\n|,\s*(?:NATIONALITY|ADDRESS))",
-        re.IGNORECASE,
+    # Directors — extract from DIRECTORS section or inline patterns
+    directors_section = re.search(
+        r"DIRECTORS?\s*[:\-]?\s*\n(.*?)(?:\n\s*\n|\nSHAREHOLDER|\nWITNESS|\nDATE|\Z)",
+        text, re.IGNORECASE | re.DOTALL,
     )
-    for dm in director_pattern.finditer(text):
-        entity.directors.append(Director(name=dm.group(1).strip()))
+    if directors_section:
+        section_text = directors_section.group(1)
+        # Match numbered list (e.g., "1. John Obi - Managing Director")
+        for dm in re.finditer(
+            r"(?:\d+[\.\)]\s*)?([A-Z][A-Za-z\s\-'\.]+?)(?:\s*[-–—]\s*(.+?))?(?:\n|$)",
+            section_text,
+        ):
+            name = dm.group(1).strip().rstrip("-–— ")
+            position = (dm.group(2) or "").strip()
+            if name and len(name) > 2 and not name.upper().startswith(("SHAREHOLDER", "WITNESS", "DATE")):
+                entity.directors.append(Director(name=name, position=position))
+    else:
+        # Fallback: match inline "DIRECTOR: Name" or "SECRETARY: Name"
+        for dm in re.finditer(
+            r"(?:DIRECTOR|SECRETARY)[:\s]+([A-Z][A-Za-z\s\-'\.]+?)(?:\n|,\s*(?:NATIONALITY|ADDRESS))",
+            text, re.IGNORECASE,
+        ):
+            entity.directors.append(Director(name=dm.group(1).strip()))
+
+    # Shareholders — extract from SHAREHOLDERS section
+    shareholders_section = re.search(
+        r"SHAREHOLDERS?\s*[:\-]?\s*\n(.*?)(?:\n\s*\n|\nDIRECTOR|\nWITNESS|\nDATE|\Z)",
+        text, re.IGNORECASE | re.DOTALL,
+    )
+    if shareholders_section:
+        section_text = shareholders_section.group(1)
+        for sm in re.finditer(
+            r"(?:[-•]\s*|\d+[\.\)]\s*)?([A-Z][A-Za-z\s\-'\.]+?)(?:\s*\((\d+(?:\.\d+)?%?)\))?(?:\n|$)",
+            section_text,
+        ):
+            name = sm.group(1).strip().rstrip("-–— ")
+            percentage = sm.group(2) or ""
+            if name and len(name) > 2:
+                entity.shareholders.append({"name": name, "percentage": percentage})
 
     return entity
 
