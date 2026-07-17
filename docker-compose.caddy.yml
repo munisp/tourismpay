@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  caddy:
+    build:
+      context: ./caddy
+      dockerfile: Dockerfile
+    container_name: caddy-edge
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # For HTTP/3
+      - "2019:2019"   # Admin API
+    environment:
+      - CADDY_OAUTH_SECRET=${CADDY_OAUTH_SECRET:-default_secret}
+      - CADDY_JWT_SECRET=${CADDY_JWT_SECRET:-default_jwt_secret_key_minimum_32_bytes}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - ./caddy/certs:/etc/caddy/certs
+    depends_on:
+      - redis
+      - keycloak
+      - apisix
+    networks:
+      - tourismpay-network
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  tourismpay-network:
+    external: true

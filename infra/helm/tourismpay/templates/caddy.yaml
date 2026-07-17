@@ -1,0 +1,94 @@
+{{- if .Values.caddy.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tourismpay.fullname" . }}-caddy
+  labels:
+    {{- include "tourismpay.labels" . | nindent 4 }}
+    app.kubernetes.io/component: edge-proxy
+spec:
+  replicas: {{ .Values.caddy.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "tourismpay.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: edge-proxy
+  template:
+    metadata:
+      labels:
+        {{- include "tourismpay.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: edge-proxy
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "2019"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: caddy
+          image: "{{ .Values.caddy.image.repository }}:{{ .Values.caddy.image.tag }}"
+          imagePullPolicy: {{ .Values.caddy.image.pullPolicy }}
+          ports:
+            - containerPort: 80
+              name: http
+            - containerPort: 443
+              name: https
+            - containerPort: 443
+              name: http3
+              protocol: UDP
+            - containerPort: 2019
+              name: admin
+          env:
+            - name: CADDY_OAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tourismpay.fullname" . }}-secrets
+                  key: caddy-oauth-secret
+            - name: CADDY_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tourismpay.fullname" . }}-secrets
+                  key: caddy-jwt-secret
+          volumeMounts:
+            - name: caddy-config
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
+            - name: caddy-data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /config/
+              port: 2019
+          readinessProbe:
+            httpGet:
+              path: /config/
+              port: 2019
+      volumes:
+        - name: caddy-config
+          configMap:
+            name: {{ include "tourismpay.fullname" . }}-caddy-config
+        - name: caddy-data
+          persistentVolumeClaim:
+            claimName: {{ include "tourismpay.fullname" . }}-caddy-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tourismpay.fullname" . }}-caddy
+  labels:
+    {{- include "tourismpay.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.caddy.service.type }}
+  ports:
+    - port: 80
+      targetPort: http
+      name: http
+    - port: 443
+      targetPort: https
+      name: https
+    - port: 443
+      targetPort: http3
+      protocol: UDP
+      name: http3
+  selector:
+    {{- include "tourismpay.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: edge-proxy
+{{- end }}

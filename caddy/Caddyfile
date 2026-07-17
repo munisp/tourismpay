@@ -1,0 +1,136 @@
+{
+	# Global options
+	admin 0.0.0.0:2019
+	
+	# Enable experimental HTTP/3
+	servers {
+		protocols h1 h2 h3
+	}
+
+	# Storage configuration for distributed certs via Redis
+	storage redis {
+		host redis
+		port 6379
+		db 1
+		key_prefix caddy
+	}
+	
+	# OpenTelemetry tracing
+	tracing {
+		span caddy
+	}
+
+	# Security App Configuration
+	security {
+		oauth identity provider keycloak {
+			realm tourismpay
+			driver okta
+			domain keycloak:8080
+			client_id tourismpay-caddy
+			client_secret {$CADDY_OAUTH_SECRET}
+			scopes openid email profile roles
+		}
+
+		authentication portal myportal {
+			crypto default token lifetime 3600
+			crypto key sign-verify {$CADDY_JWT_SECRET}
+			
+			enable identity provider keycloak
+			
+			ui {
+				theme basic
+				title "TourismPay Authentication"
+			}
+		}
+
+		authorization policy admin_policy {
+			set auth url https://auth.tourismpay.ng/
+			crypto key verify {$CADDY_JWT_SECRET}
+			allow roles authp/admin
+		}
+		
+		authorization policy user_policy {
+			set auth url https://auth.tourismpay.ng/
+			crypto key verify {$CADDY_JWT_SECRET}
+			allow roles authp/admin authp/user
+		}
+	}
+}
+
+# Main Application & API Gateway Edge (Public)
+https://api.tourismpay.ng {
+	# Rate limiting (Distributed via Redis)
+	rate_limit {
+		zone public_api {
+			key {remote_host}
+			events 1000
+			window 1m
+		}
+	}
+
+	# WAF (Web Application Firewall) via OpenAppSec / CrowdSec
+	# Assuming OpenAppSec is a sidecar or we use caddy-waf
+	waf {
+		rule_set owasp
+		anomaly_score 5
+	}
+
+	# Proxy to APISIX Gateway
+	reverse_proxy apisix:9080 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+# Auth Portal (Caddy Security)
+https://auth.tourismpay.ng {
+	authenticate with myportal
+}
+
+# Temporal Web UI (Protected)
+https://temporal.tourismpay.ng {
+	authorize with admin_policy
+	reverse_proxy temporal-web:8080
+}
+
+# Grafana (Protected)
+https://grafana.tourismpay.ng {
+	authorize with admin_policy
+	reverse_proxy grafana:3000
+}
+
+# APISIX Admin API (Protected)
+https://apisix-admin.tourismpay.ng {
+	authorize with admin_policy
+	reverse_proxy apisix:9180
+}
+
+# Keycloak Admin UI
+https://auth-admin.tourismpay.ng {
+	reverse_proxy keycloak:8080
+}
+
+# Internal mTLS for microservices
+# Example: TigerBeetle Gateway
+http://tigerbeetle-gateway.internal:8080 {
+	# Enforce mTLS for internal service mesh
+	tls {
+		client_auth {
+			mode require_and_verify
+			trusted_ca_cert_file /etc/caddy/certs/internal_ca.crt
+		}
+	}
+	reverse_proxy tigerbeetle-gateway:8080
+}
+
+# On-Demand TLS for Merchant Subdomains
+https://*.merchant.tourismpay.ng {
+	tls {
+		on_demand
+	}
+	
+	# Proxy to the Node.js / Next.js frontend serving merchants
+	reverse_proxy app:3000
+}

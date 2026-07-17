@@ -1,0 +1,78 @@
+{
+  "admin": {
+    "listen": "0.0.0.0:2019"
+  },
+  "apps": {
+    "http": {
+      "servers": {
+        "srv0": {
+          "listen": [
+            ":443"
+          ],
+          "routes": [
+            {
+              "match": [
+                {
+                  "host": [
+                    "api.tourismpay.ng"
+                  ]
+                }
+              ],
+              "handle": [
+                {
+                  "handler": "subroute",
+                  "routes": [
+                    {
+                      "handle": [
+                        {
+                          "handler": "rate_limit",
+                          "zone": "public_api",
+                          "events": 1000,
+                          "window": "1m"
+                        },
+                        {
+                          "handler": "waf",
+                          "rule_set": "owasp",
+                          "anomaly_score": 5
+                        },
+                        {
+                          "handler": "reverse_proxy",
+                          "upstreams": [
+                            {
+                              "dial": "apisix:9080"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "security": {
+      "config": {
+        "identity_providers": [
+          {
+            "name": "keycloak",
+            "driver": "okta",
+            "domain": "keycloak:8080",
+            "client_id": "tourismpay-caddy",
+            "client_secret": "{env.CADDY_OAUTH_SECRET}",
+            "scopes": ["openid", "email", "profile", "roles"]
+          }
+        ]
+      }
+    }
+  },
+  "storage": {
+    "module": "redis",
+    "host": "redis",
+    "port": 6379,
+    "db": 1,
+    "key_prefix": "caddy"
+  }
+}

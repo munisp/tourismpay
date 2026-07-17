@@ -226,6 +226,7 @@ import { voiceCommandPosRouter } from "./routers/voiceCommandPos";
 import { whiteLabelApprovalRouter } from "./routers/whiteLabelApproval";
 import { whiteLabelBrandingRouter } from "./routers/whiteLabelBranding";
 import { whiteLabelOnboardingRouter } from "./routers/whiteLabelOnboarding";
+import { caddyRouter } from "./routers/caddy";
 import { workflowEngineRouter } from "./routers/workflowEngine";
 import { accentColorRouter } from './routers/accentColor';
 import { accountOpeningRouter } from './routers/accountOpening';
@@ -1092,6 +1093,7 @@ adminDashboard: adminDashboardRouter,
   whiteLabelApproval: whiteLabelApprovalRouter,
   whiteLabelBranding: whiteLabelBrandingRouter,
   whiteLabelOnboarding: whiteLabelOnboardingRouter,
+  caddy: caddyRouter,
   workflowEngine: workflowEngineRouter,
   accentColor: accentColorRouter,
   accountOpening: accountOpeningRouter,
