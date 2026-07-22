@@ -20,7 +20,10 @@
     "db:studio": "drizzle-kit studio",
     "db:generate": "drizzle-kit generate",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "db:seed:full": "tsx drizzle/seed-runner.ts",
+    "db:seed:full:reset": "tsx drizzle/seed-runner.ts --reset",
+    "db:seed:domain": "tsx drizzle/seed-runner.ts --domain"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.995.0",
