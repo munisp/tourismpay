@@ -92,6 +92,24 @@ import PaymentReceipt from "@/pages/tourist/PaymentReceipt";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { OfflinePaymentBanner } from "@/components/OfflinePaymentBanner";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
+import AgentBenchmarking from "./pages/AgentBenchmarking";
+import AgentLoanOriginationV2 from "./pages/AgentLoanOriginationV2";
+import AgentTerritoryHeatmap from "./pages/AgentTerritoryHeatmap";
+import BulkTransactionProcessor from "./pages/BulkTransactionProcessor";
+import ComplianceCertManager from "./pages/ComplianceCertManager";
+import CustomerJourneyMapper from "./pages/CustomerJourneyMapper";
+import CustomerSurveys from "./pages/CustomerSurveys";
+import DataRetentionPolicy from "./pages/DataRetentionPolicy";
+import DeviceFleetManager from "./pages/DeviceFleetManager";
+import GatewayHealthMonitor from "./pages/GatewayHealthMonitor";
+import IncidentPlaybook from "./pages/IncidentPlaybook";
+import MfaManager from "./pages/MfaManager";
+import PlatformHealthScorecard from "./pages/PlatformHealthScorecard";
+import ReportScheduler from "./pages/ReportScheduler";
+import RevenueLeakageDetector from "./pages/RevenueLeakageDetector";
+import SystemConfigManager from "./pages/SystemConfigManager";
+import TrainingCertification from "./pages/TrainingCertification";
+import TxVelocityMonitor from "./pages/TxVelocityMonitor";
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -190,6 +208,25 @@ function Router() {
             <Route path="/pay/:token/catalog" component={TouristProductCatalog} />
             {/* Tourist order confirmation screen */}
             <Route path="/pay/:token" component={TouristOrderConfirm} />
+                        {/* Feature Pages — Admin/NOC */}
+            <Route path="/admin/agent-benchmarking">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><AgentBenchmarking /></ProtectedRoute>}</Route>
+            <Route path="/admin/agent-loans">{() => <ProtectedRoute roles={["admin", "settlement_officer"]}><AgentLoanOriginationV2 /></ProtectedRoute>}</Route>
+            <Route path="/admin/territory-heatmap">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><AgentTerritoryHeatmap /></ProtectedRoute>}</Route>
+            <Route path="/admin/bulk-transactions">{() => <ProtectedRoute roles={["admin", "settlement_officer"]}><BulkTransactionProcessor /></ProtectedRoute>}</Route>
+            <Route path="/admin/compliance-certs">{() => <ProtectedRoute roles={["admin", "compliance_officer"]}><ComplianceCertManager /></ProtectedRoute>}</Route>
+            <Route path="/admin/customer-journey">{() => <ProtectedRoute roles={["admin"]}><CustomerJourneyMapper /></ProtectedRoute>}</Route>
+            <Route path="/admin/surveys">{() => <ProtectedRoute roles={["admin"]}><CustomerSurveys /></ProtectedRoute>}</Route>
+            <Route path="/admin/data-retention">{() => <ProtectedRoute roles={["admin", "compliance_officer"]}><DataRetentionPolicy /></ProtectedRoute>}</Route>
+            <Route path="/admin/device-fleet">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><DeviceFleetManager /></ProtectedRoute>}</Route>
+            <Route path="/admin/gateway-health">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><GatewayHealthMonitor /></ProtectedRoute>}</Route>
+            <Route path="/admin/incident-playbook">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><IncidentPlaybook /></ProtectedRoute>}</Route>
+            <Route path="/admin/mfa-manager">{() => <ProtectedRoute roles={["admin"]}><MfaManager /></ProtectedRoute>}</Route>
+            <Route path="/admin/platform-health">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><PlatformHealthScorecard /></ProtectedRoute>}</Route>
+            <Route path="/admin/report-scheduler">{() => <ProtectedRoute roles={["admin", "compliance_officer"]}><ReportScheduler /></ProtectedRoute>}</Route>
+            <Route path="/admin/revenue-leakage">{() => <ProtectedRoute roles={["admin", "settlement_officer"]}><RevenueLeakageDetector /></ProtectedRoute>}</Route>
+            <Route path="/admin/system-config">{() => <ProtectedRoute roles={["admin"]}><SystemConfigManager /></ProtectedRoute>}</Route>
+            <Route path="/admin/training">{() => <ProtectedRoute roles={["admin"]}><TrainingCertification /></ProtectedRoute>}</Route>
+            <Route path="/admin/tx-velocity">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><TxVelocityMonitor /></ProtectedRoute>}</Route>
             <Route component={NotFound} />
           </Switch>
         </AppShell>

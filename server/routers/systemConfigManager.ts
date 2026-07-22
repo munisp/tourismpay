@@ -210,6 +210,7 @@ const toggleFeatureFlag = protectedProcedure
   });
 
 export const systemConfigManagerRouter = router({
+  list: listConfigs,
   listConfigs,
   getConfig,
   listFeatureFlags,

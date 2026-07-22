@@ -1,7 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useState } from "react";
 import { Trophy } from "lucide-react";
-import { secureRandom } from "@/lib/secureRandom";
 
 // Agent Benchmarking — Peer comparison with percentile rankings
 // Sprint 42: Final Production Features
@@ -12,38 +11,7 @@ export default function AgentBenchmarking() {
     undefined,
     { retry: 1 }
   );
-  const mockData =
-    liveData ??
-    Array.from({ length: 10 }, (_, i) => ({
-      id: i + 1,
-      col1: `REF-${String(i + 1).padStart(3, "0")}`,
-      col2: [
-        "Chioma Eze",
-        "Emeka Obi",
-        "Fatima Bello",
-        "Adamu Yusuf",
-        "Grace Okonkwo",
-        "Ibrahim Musa",
-        "Joy Nwosu",
-        "Kemi Ade",
-        "Ladi Bako",
-        "Musa Dan",
-      ][i],
-      col3: [
-        "active",
-        "pending",
-        "completed",
-        "active",
-        "warning",
-        "active",
-        "completed",
-        "pending",
-        "active",
-        "completed",
-      ][i],
-      col4: `${(secureRandom() * 100).toFixed(1)}`,
-      col5: new Date(Date.now() - i * 3600000).toLocaleString(),
-    }));
+  const data = liveData?.items ?? liveData ?? [];
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<
     "overview" | "details" | "history" | "settings"
@@ -58,7 +26,7 @@ export default function AgentBenchmarking() {
 
   const columns = ["Agent", "Score", "Percentile", "Rank", "Trend"];
 
-  const filtered = mockData.filter(
+  const filtered = data.filter(
     // @ts-ignore Sprint 85 — Sprint 85: pre-existing type mismatch from router/page interface
     r =>
       r.col1.toLowerCase().includes(search.toLowerCase()) ||

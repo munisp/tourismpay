@@ -386,3 +386,30 @@ export async function getLedgerSummary(): Promise<{
     totalVolume: String(transfers[0].volume || "0"),
   };
 }
+
+// ─── Alias: createLedgerTransfer (used by reversal workflow and other routers) ─
+export interface LedgerTransferRequest {
+  id?: string;
+  debitAccountId: string;
+  creditAccountId: string;
+  amount: bigint;
+  ledgerCode: number;
+  currencyCode: number;
+  pendingId?: string;
+  userDataStr?: string;
+}
+
+export async function createLedgerTransfer(req: LedgerTransferRequest): Promise<{ id: string } | null> {
+  const idempotencyKey = req.id || crypto.randomUUID();
+  const transferId = await createTransfer({
+    debitAccountId: req.debitAccountId,
+    creditAccountId: req.creditAccountId,
+    amount: req.amount,
+    ledgerCode: req.ledgerCode,
+    transferCode: TRANSFER_CODES.WALLET_PAYMENT,
+    idempotencyKey,
+    metadata: { userDataStr: req.userDataStr, pendingId: req.pendingId },
+  });
+  if (!transferId) return null;
+  return { id: transferId };
+}

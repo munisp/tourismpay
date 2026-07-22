@@ -384,7 +384,7 @@ OUTPUT: valid JSON with this structure:
 
       return {
         itinerary: {
-          id: `trip_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          id: `trip_${Date.now()}_${require('crypto').randomBytes(3).toString('hex')}`,
           destination: cityName,
           country: countryName,
           countryCode: intent.country,

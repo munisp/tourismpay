@@ -5,7 +5,21 @@
  */
 import { pgTable, serial, integer, varchar, text, boolean, timestamp, numeric, jsonb, bigint } from 'drizzle-orm/pg-core';
 
-// ─── Fraud Alerts ────────────────────────────────────────────────────────────
+// ─── Fraud Alerts & Rules ────────────────────────────────────────────────────
+export const fraudRules = pgTable("fraud_rules", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  description: text("description"),
+  ruleType: varchar("rule_type", { length: 50 }).notNull(),
+  conditions: jsonb("conditions").notNull(),
+  action: varchar("action", { length: 50 }).notNull(),
+  severity: varchar("severity", { length: 20 }).notNull(),
+  isActive: boolean("is_active").default(true),
+  createdBy: integer("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const fraudAlerts = pgTable("fraud_alerts", {
   id: serial("id").primaryKey(),
   transactionId: varchar("transaction_id", { length: 100 }),
@@ -173,33 +187,9 @@ export const tenantActivityLogs = pgTable("tenant_activity_logs", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// ─── Establishments ───────────────────────────────────────────────────────────
-export const establishments = pgTable("establishments", {
+// ─── Establishments (Aliased for compatibility) ───────────────────────────────
+export const establishmentsasestablishmentsTable = pgTable("establishments_alias", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id"),
-  tenantId: integer("tenant_id"),
-  name: varchar("name", { length: 200 }),
-  businessType: varchar("business_type", { length: 100 }),
-  address: text("address"),
-  city: varchar("city", { length: 100 }),
-  state: varchar("state", { length: 100 }),
-  country: varchar("country", { length: 10 }).default("NG"),
-  phone: varchar("phone", { length: 20 }),
-  email: varchar("email", { length: 200 }),
-  ownerName: varchar("owner_name", { length: 200 }),
-  tinNumber: varchar("tin_number", { length: 20 }),
-  rcNumber: varchar("rc_number", { length: 50 }),
-  settlementAccountNumber: varchar("settlement_account_number", { length: 50 }),
-  settlementBankName: varchar("settlement_bank_name", { length: 100 }),
-  settlementBankCode: varchar("settlement_bank_code", { length: 20 }),
-  status: varchar("status", { length: 50 }).default("active"),
-  kycStatus: varchar("kyc_status", { length: 50 }).default("pending"),
-  latitude: numeric("latitude", { precision: 10, scale: 7 }),
-  longitude: numeric("longitude", { precision: 10, scale: 7 }),
-  logoUrl: varchar("logo_url", { length: 500 }),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-  deletedAt: timestamp("deleted_at"),
 });
 
 // ─── Load Test Scenarios ──────────────────────────────────────────────────────
@@ -236,6 +226,24 @@ export const agentOnboardingSteps = pgTable("agent_onboarding_steps", {
 });
 
 // ─── Additional missing tables (TS2305 fixes) ─────────────────────────────────
+
+export const sla_definitions = pgTable("sla_definitions", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 200 }),
+  targetMs: integer("target_ms"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const sla_breaches = pgTable("sla_breaches", {
+  id: serial("id").primaryKey(),
+  definitionId: integer("definition_id"),
+  actualMs: integer("actual_ms"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const loadTestRunsasloadTestRunsTable = pgTable("load_test_runs_alias", {
+  id: serial("id").primaryKey(),
+});
 
 export const agentBadges = pgTable("agent_badges", {
   id: serial("id").primaryKey(),
@@ -300,7 +308,7 @@ export const glAccounts = pgTable("gl_accounts", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const glJournalEntries = pgTable("gl_journal_entries", {
+export const gl_journal_entries = pgTable("gl_journal_entries", {
   id: serial("id").primaryKey(),
   tenantId: integer("tenant_id"),
   entryDate: timestamp("entry_date"),
@@ -406,5 +414,18 @@ export const simProbeLog = pgTable("sim_probe_log", {
   latencyMs: integer("latency_ms"),
   errorMessage: text("error_message"),
   probedAt: timestamp("probed_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// ─── AI Conversations ─────────────────────────────────────────────────────────
+export const aiConversations = pgTable("ai_conversations", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  sessionId: varchar("session_id", { length: 200 }).notNull(),
+  role: varchar("role", { length: 20 }).notNull(), // user | assistant | system
+  content: text("content").notNull(),
+  context: varchar("context", { length: 50 }).default("general"),
+  modelUsed: varchar("model_used", { length: 100 }),
+  tokensUsed: integer("tokens_used"),
   createdAt: timestamp("created_at").defaultNow(),
 });

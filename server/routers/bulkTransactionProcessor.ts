@@ -215,6 +215,7 @@ const cancelBatch = protectedProcedure
   });
 
 export const bulkTransactionProcessorRouter = router({
+  list: getBatchStatus,
   uploadBatch,
   getBatchStatus,
   listBatches,

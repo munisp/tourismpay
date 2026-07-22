@@ -898,7 +898,7 @@ export const localPaymentsRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = String(ctx.user.id);
-        const payCode = `*555*${Math.floor(Math.random() * 900000 + 100000)}#`;
+        const payCode = `*555*${crypto.randomInt(100000, 999999)}#`;
 
         return {
           ussdCode: payCode,

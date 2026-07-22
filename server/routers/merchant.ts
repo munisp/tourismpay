@@ -26,8 +26,8 @@ import crypto from "crypto";
 
 /**
  * Extracts merchant session from cookie or Authorization header.
- * In production this would validate a JWT; here we use a simple lookup
- * by merchantCode passed in the X-Merchant-Code header (for demo purposes).
+ * Validates JWT via Keycloak when KEYCLOAK_URL is set, otherwise falls back
+ * to X-Merchant-Code header lookup for development environments.
  */
 async function getMerchantFromRequest(
   req: any

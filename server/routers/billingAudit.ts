@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { publishEvent, TOPICS } from "../_core/kafka";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 

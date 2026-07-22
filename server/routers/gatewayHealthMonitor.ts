@@ -178,6 +178,7 @@ const setAlertThreshold = protectedProcedure
   });
 
 export const gatewayHealthMonitorRouter = router({
+  list: getGatewayStatus,
   getGatewayStatus,
   getUptimeHistory,
   getLatencyMetrics,

@@ -175,6 +175,7 @@ const setTargets = protectedProcedure
   });
 
 export const agentBenchmarkingRouter = router({
+  list: getBenchmarks,
   getBenchmarks,
   getPeerComparison,
   getPerformanceTrend,

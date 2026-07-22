@@ -185,6 +185,7 @@ const submitSurvey = protectedProcedure
   });
 
 export const customerSurveysRouter = router({
+  list: listSurveys,
   listSurveys,
   getSurveyStats,
   getSurveyByTransaction,

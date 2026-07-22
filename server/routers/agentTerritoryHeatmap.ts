@@ -178,6 +178,7 @@ const assignTerritory = protectedProcedure
   });
 
 export const agentTerritoryHeatmapRouter = router({
+  list: getHeatmapData,
   getHeatmapData,
   getTerritoryStats,
   getAgentLocations,

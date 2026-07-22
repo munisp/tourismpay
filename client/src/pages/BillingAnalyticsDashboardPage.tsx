@@ -1,4 +1,3 @@
-import { secureRandom } from "@/lib/secureRandom";
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -78,14 +77,14 @@ export default function BillingAnalyticsDashboardPage() {
           datasets: [
             {
               label: "Platform Revenue (₦M)",
-              data: labels.map(() => Math.round(secureRandom() * 50 + 20)),
+              data: labels.map((_, i) => Math.round(20 + i * 4)),
               backgroundColor: "rgba(59, 130, 246, 0.7)",
               borderColor: "rgb(59, 130, 246)",
               borderWidth: 1,
             },
             {
               label: "Tenant Revenue (₦M)",
-              data: labels.map(() => Math.round(secureRandom() * 80 + 40)),
+              data: labels.map((_, i) => Math.round(40 + i * 6)),
               backgroundColor: "rgba(16, 185, 129, 0.7)",
               borderColor: "rgb(16, 185, 129)",
               borderWidth: 1,
@@ -153,7 +152,7 @@ export default function BillingAnalyticsDashboardPage() {
           datasets: [
             {
               label: "Revenue Churn %",
-              data: labels.map(() => (secureRandom() * 3 + 1).toFixed(1)),
+              data: labels.map((_, i) => (1.0 + i * 0.1).toFixed(1)),
               borderColor: "rgb(239, 68, 68)",
               backgroundColor: "rgba(239, 68, 68, 0.1)",
               fill: true,
@@ -161,7 +160,7 @@ export default function BillingAnalyticsDashboardPage() {
             },
             {
               label: "Logo Churn %",
-              data: labels.map(() => (secureRandom() * 5 + 2).toFixed(1)),
+              data: labels.map((_, i) => (2.0 + i * 0.1).toFixed(1)),
               borderColor: "rgb(245, 158, 11)",
               backgroundColor: "rgba(245, 158, 11, 0.1)",
               fill: true,
@@ -265,7 +264,7 @@ export default function BillingAnalyticsDashboardPage() {
     // Revenue Forecast Chart
     if (forecastChartRef.current) {
       const forecastLabels = getMonthLabels(monthCount + 6);
-      const actualData = labels.map(() => Math.round(secureRandom() * 30 + 50));
+      const actualData = labels.map((_, i) => Math.round(50 + i * 2));
       const forecastValues = Array(6)
         .fill(0)
         .map((_, i) =>

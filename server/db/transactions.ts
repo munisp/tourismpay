@@ -138,7 +138,7 @@ export async function transferFunds(
     }
 
     const now = Math.floor(Date.now() / 1000);
-    const ref = input.reference ?? `TXF-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    const ref = input.reference ?? `TXF-${Date.now()}-${require('crypto').randomBytes(3).toString('hex').toUpperCase()}`;
 
     // Debit sender
     const [fromBalanceUpdated] = await tx
@@ -342,7 +342,7 @@ export async function processRemittance(
       );
 
     // Create remittance record (id must be provided or generated)
-    const remittanceId = `REM-${now}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    const remittanceId = `REM-${now}-${require('crypto').randomBytes(3).toString('hex').toUpperCase()}`;
     const [remittance] = await tx
       .insert(remittances)
       .values({

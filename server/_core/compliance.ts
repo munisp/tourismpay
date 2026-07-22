@@ -372,7 +372,7 @@ export async function generateCTRReport(params: {
   transactionDate: Date;
   transactionType: string;
 }): Promise<CTRReport> {
-  const reportId = `CTR-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  const reportId = `CTR-${Date.now()}-${require('crypto').randomBytes(3).toString('hex').toUpperCase()}`;
 
   const report: CTRReport = {
     reportId,

@@ -182,6 +182,7 @@ const acknowledgeAlert = protectedProcedure
   });
 
 export const platformHealthScorecardRouter = router({
+  list: getOverallScore,
   getOverallScore,
   getSubsystemScores,
   getScoreHistory,

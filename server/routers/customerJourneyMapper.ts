@@ -176,6 +176,7 @@ const getConversionFunnel = protectedProcedure
   });
 
 export const customerJourneyMapperRouter = router({
+  list: getJourney,
   getJourney,
   listJourneys,
   getJourneyStats,

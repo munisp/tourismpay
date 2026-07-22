@@ -177,6 +177,7 @@ const resetCircuitBreaker = protectedProcedure
   });
 
 export const txVelocityMonitorRouter = router({
+  list: getCurrentTps,
   getCurrentTps,
   getVelocityHistory,
   getCircuitBreakerStatus,

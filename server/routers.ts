@@ -779,7 +779,7 @@ export const appRouter = router({
         if (!db) throw new Error("Database unavailable");
         const existing = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
         if (existing.length > 0) throw new Error("Email already registered");
-        const openId = `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const openId = `mobile-${Date.now()}-${require('crypto').randomBytes(6).toString('hex')}`;
         const row = await db.insert(users).values({
           name: input.name,
           email: input.email,

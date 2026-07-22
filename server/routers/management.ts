@@ -1863,7 +1863,15 @@ export const managementRouter = router({
       .input(z.object({ key: z.string(), value: z.unknown() }))
       .mutation(async ({ input }) => {
         try {
-          // In production this would update platform_settings table
+          // Update platform_settings table
+          const db = await getDb();
+          if (db) {
+            await db.execute(
+              `INSERT INTO platform_settings (key, value, updated_at) VALUES ($1, $2::jsonb, NOW())
+               ON CONFLICT (key) DO UPDATE SET value = $2::jsonb, updated_at = NOW()`,
+              [input.key, JSON.stringify(input.value)]
+            );
+          }
           return { success: true, key: input.key, value: input.value };
         } catch (error) {
           if (error instanceof TRPCError) throw error;

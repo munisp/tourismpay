@@ -211,6 +211,7 @@ const updateFirmware = protectedProcedure
   });
 
 export const deviceFleetManagerRouter = router({
+  list: listDevices,
   listDevices,
   getDevice,
   registerDevice,

@@ -1,6 +1,7 @@
 # TourismPay — Full-Stack Development/Deployment
 # Usage: docker compose up -d
 # All services share a PostgreSQL instance.
+# Infrastructure: Keycloak, TigerBeetle, APISIX, Permify, Dapr, Temporal, Fluvio, Lakehouse, OpenAppSec, Ollama
 
 services:
   # ─── PostgreSQL ─────────────────────────────────────────────────────────────
@@ -42,16 +43,33 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
       SETTLEMENT_SERVICE_URL: http://settlement:8081
-      EXCHANGE_RATE_ML_URL: http://python-ml:8004
       KYC_SERVICE_URL: http://kyc:8082
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka:9092
-      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
+      KEYCLOAK_URL: http://keycloak:8080
       KEYCLOAK_REALM: tourismpay
       KEYCLOAK_CLIENT_ID: tourismpay-pwa
       KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-}
-      PERMIFY_URL: ${PERMIFY_URL:-http://permify:3476}
+      PERMIFY_URL: http://permify:3476
+      PERMIFY_HOST: permify
+      PERMIFY_PORT: "3476"
       PERMIFY_TENANT_ID: tourismpay
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: tourismpay
+      TB_SIDECAR_URL: http://tigerbeetle-sidecar:3001
+      FLUVIO_ENDPOINT: fluvio-sc:9003
+      LAKEHOUSE_SERVICE_URL: http://lakehouse-service:8001
+      LAKEHOUSE_ENABLED: "true"
+      OPENAPPSEC_AGENT_URL: http://openappsec-agent:1080
+      OPENAPPSEC_BLOCKING: ${OPENAPPSEC_BLOCKING:-false}
+      OLLAMA_BASE_URL: http://ollama:11434
+      DAPR_HTTP_PORT: "3500"
+      DAPR_APP_ID: tourismpay-pwa
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ACCESS_KEY:-tourismpay}
+      S3_SECRET_KEY: ${MINIO_SECRET_KEY:-tourismpay123}
+      S3_BUCKET: tourismpay-documents
+      EXCHANGE_RATE_ML_URL: http://lakehouse-service:8001
       MOJALOOP_HUB_URL: ${MOJALOOP_HUB_URL:-}
       MOJALOOP_DFSP_ID: ${MOJALOOP_DFSP_ID:-tourismpay}
       VITE_APP_ID: tourismpay
@@ -199,7 +217,301 @@ services:
       timeout: 3s
       retries: 3
 
+  # ─── Keycloak Identity Provider ─────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/tourismpay
+      KC_DB_USERNAME: tourismpay_user
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-testpass123}
+      KC_DB_SCHEMA: keycloak
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY: edge
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/tourismpay-realm.json:/opt/keycloak/data/import/tourismpay-realm.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # ─── TigerBeetle Ledger (via sidecar HTTP bridge) ──────────────────────────
+  tigerbeetle-sidecar:
+    build:
+      context: ./tb-sidecar
+      dockerfile: Dockerfile
+    environment:
+      TB_CLUSTER_ID: ${TB_CLUSTER_ID:-0}
+      TB_ADDRESSES: ${TB_ADDRESSES:-3000}
+      PORT: "3001"
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ─── Permify Authorization Engine ───────────────────────────────────────────
+  permify:
+    image: ghcr.io/permify/permify:v0.10.1
+    command: serve
+    environment:
+      PERMIFY_DATABASE_ENGINE: postgres
+      PERMIFY_DATABASE_URI: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      PERMIFY_DATABASE_MAX_OPEN_CONNECTIONS: "20"
+      PERMIFY_GRPC_PORT: "3478"
+      PERMIFY_HTTP_PORT: "3476"
+      PERMIFY_LOG_LEVEL: info
+      PERMIFY_AUTHN_ENABLED: "false"
+    ports:
+      - "3476:3476"
+      - "3478:3478"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3476/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ─── Temporal Workflow Engine ────────────────────────────────────────────────
+  temporal:
+    image: temporalio/auto-setup:1.24.2
+    environment:
+      DB: postgresql
+      DB_PORT: 5432
+      POSTGRES_USER: tourismpay_user
+      POSTGRES_PWD: ${POSTGRES_PASSWORD:-testpass123}
+      POSTGRES_SEEDS: postgres
+      ENABLE_ES: "false"
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: tourismpay
+    ports:
+      - "7233:7233"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:7233/health || exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ─── Temporal UI ─────────────────────────────────────────────────────────────
+  temporal-ui:
+    image: temporalio/ui:2.28.0
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8088:8080"
+    depends_on:
+      - temporal
+
+  # ─── Temporal Worker (Settlement + Float workflows) ──────────────────────────
+  temporal-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.temporal-worker
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: tourismpay
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      TB_SIDECAR_URL: http://tigerbeetle-sidecar:3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─── Fluvio Streaming Platform ──────────────────────────────────────────────
+  fluvio-sc:
+    image: infinyon/fluvio:0.11.11
+    command: fluvio-run sc --local /fluvio/metadata
+    ports:
+      - "9003:9003"
+    volumes:
+      - fluviodata:/fluvio/metadata
+
+  fluvio-spu:
+    image: infinyon/fluvio:0.11.11
+    command: fluvio-run spu -i 5001 -p fluvio-spu:9010 -v fluvio-spu:9011 --sc-addr fluvio-sc:9004
+    ports:
+      - "9010:9010"
+    depends_on:
+      - fluvio-sc
+    volumes:
+      - fluviodata:/fluvio/metadata
+
+  # ─── MinIO Object Storage (Lakehouse S3 backend) ────────────────────────────
+  minio:
+    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-tourismpay}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-tourismpay123}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Lakehouse Service (Apache Iceberg + DuckDB + MinIO) ────────────────────
+  lakehouse-service:
+    build:
+      context: ./python-services
+      dockerfile: Dockerfile
+    command: ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-tourismpay}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-tourismpay123}
+      MINIO_BUCKET: tourismpay-lakehouse
+      LAKEHOUSE_ENABLED: "true"
+      SERVICE_API_KEY: ${SERVICE_API_KEY:-test-key-123}
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  # ─── APISIX API Gateway ──────────────────────────────────────────────────────
+  apisix:
+    image: apache/apisix:3.9.1-debian
+    environment:
+      APISIX_STAND_ALONE: "true"
+    ports:
+      - "9080:9080"
+      - "9443:9443"
+      - "9180:9180"
+    volumes:
+      - ./infra/apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ./infra/apisix/routes.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+    depends_on:
+      - server
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9080/apisix/status"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ─── OpenAppSec WAF Agent ────────────────────────────────────────────────────
+  openappsec-agent:
+    image: openappsec/agent:1.1.0
+    restart: unless-stopped
+    privileged: true
+    environment:
+      AGENT_TOKEN: ${OPENAPPSEC_TOKEN:-dev-token}
+      REGISTRATION_SERVER: https://inext-agents.checkpoint.com
+      TUNING_HOST: https://inext-tuning.checkpoint.com
+      OPENAPPSEC_BLOCKING: ${OPENAPPSEC_BLOCKING:-false}
+    volumes:
+      - openappsec-data:/etc/cp/conf
+      - openappsec-logs:/var/log/nano_agent
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  # ─── Dapr Placement Service ──────────────────────────────────────────────────
+  dapr-placement:
+    image: daprio/dapr:1.13.4
+    command: ["./placement", "-port", "50006"]
+    ports:
+      - "50006:50006"
+
+  # ─── Ollama (Local LLM — CPU inference, qwen2.5:7b) ─────────────────────────
+  ollama:
+    image: ollama/ollama:0.3.14
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollamadata:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: "24h"
+      OLLAMA_NUM_PARALLEL: "2"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ─── Ollama Model Puller (pulls qwen2.5:7b on startup) ───────────────────────
+  ollama-pull:
+    image: curlimages/curl:8.6.0
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["curl -sf http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:7b\"}' && curl -sf http://ollama:11434/api/pull -d '{\"name\":\"nomic-embed-text\"}'"]
+    restart: "no"
+
+  # ─── Prometheus ─────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheusdata:/prometheus
+    command:
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+
+  # ─── Grafana ────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    ports:
+      - "3030:3000"
+    volumes:
+      - grafanadata:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    depends_on:
+      - prometheus
+
 volumes:
   pgdata:
   redisdata:
   kafkadata:
+  fluviodata:
+  miniodata:
+  ollamadata:
+  openappsec-data:
+  openappsec-logs:
+  prometheusdata:
+  grafanadata:

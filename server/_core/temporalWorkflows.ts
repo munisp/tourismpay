@@ -421,7 +421,7 @@ export async function startFundFlowWorkflow(
   type: string,
   input: Record<string, unknown>
 ): Promise<string> {
-  const workflowId = `wf-${type}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const workflowId = `wf-${type}-${Date.now()}-${require('crypto').randomBytes(3).toString('hex')}`;
   workflowRegistry[workflowId] = type;
 
   logger.info(`[Temporal] Starting ${type} workflow: ${workflowId}`);

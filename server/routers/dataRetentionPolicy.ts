@@ -265,6 +265,7 @@ const runRetention = protectedProcedure
   });
 
 export const dataRetentionPolicyRouter = router({
+  list: listPolicies,
   listPolicies,
   getPolicy,
   getRetentionStats,

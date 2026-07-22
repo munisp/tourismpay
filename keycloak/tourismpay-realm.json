@@ -1,0 +1,201 @@
+{
+  "realm": "tourismpay",
+  "displayName": "TourismPay Platform",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "accessTokenLifespan": 900,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "defaultSignatureAlgorithm": "RS256",
+  "roles": {
+    "realm": [
+      { "name": "admin", "description": "TourismPay platform administrator" },
+      { "name": "tourist", "description": "Tourist/traveler user" },
+      { "name": "merchant", "description": "Merchant/establishment owner" },
+      { "name": "agent", "description": "Agency banking agent" },
+      { "name": "supervisor", "description": "Agent supervisor" },
+      { "name": "noc_operator", "description": "Network operations center operator" },
+      { "name": "compliance_officer", "description": "Regulatory compliance officer" },
+      { "name": "settlement_officer", "description": "Settlement processing officer" },
+      { "name": "bis_analyst", "description": "Business intelligence and security analyst" },
+      { "name": "underwriter", "description": "Insurance underwriting specialist" },
+      { "name": "claims_adjuster", "description": "Claims processing and adjudication specialist" },
+      { "name": "actuary", "description": "Actuarial and risk assessment specialist" },
+      { "name": "user", "description": "Standard authenticated user" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "tourismpay-pwa",
+      "name": "TourismPay PWA",
+      "description": "TourismPay Progressive Web Application",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [
+        "https://app.tourismpay.com/api/auth/callback",
+        "http://localhost:3000/api/auth/callback",
+        "http://localhost:5173/api/auth/callback"
+      ],
+      "webOrigins": [
+        "https://app.tourismpay.com",
+        "http://localhost:3000",
+        "http://localhost:5173"
+      ],
+      "postLogoutRedirectUris": [
+        "https://app.tourismpay.com/",
+        "http://localhost:3000/",
+        "http://localhost:5173/"
+      ],
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "frontchannelLogout": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "900",
+        "client.session.idle.timeout": "1800",
+        "client.session.max.lifespan": "36000",
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://app.tourismpay.com/++"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "roles",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "user id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "sub",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "email",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "email",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "full name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-full-name-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "tourismpay-mobile",
+      "name": "TourismPay Mobile App",
+      "description": "TourismPay React Native / Flutter mobile application",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "tourismpay://auth/callback",
+        "http://localhost:8081/auth/callback"
+      ],
+      "webOrigins": ["*"],
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "tourismpay-admin-cli",
+      "name": "TourismPay Admin CLI",
+      "description": "Service account for admin operations",
+      "enabled": true,
+      "publicClient": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "protocol": "openid-connect"
+    }
+  ],
+  "identityProviders": [],
+  "userFederationProviders": [],
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en", "fr", "ar", "sw", "yo", "ha", "ig"],
+  "defaultLocale": "en",
+  "eventsEnabled": true,
+  "eventsExpiration": 2592000,
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "enabledEventTypes": [
+    "LOGIN", "LOGIN_ERROR", "LOGOUT", "REGISTER", "REGISTER_ERROR",
+    "TOKEN_EXCHANGE", "CLIENT_LOGIN", "CLIENT_LOGIN_ERROR",
+    "CODE_TO_TOKEN", "CODE_TO_TOKEN_ERROR", "REFRESH_TOKEN",
+    "REFRESH_TOKEN_ERROR", "INTROSPECT_TOKEN", "INTROSPECT_TOKEN_ERROR",
+    "UPDATE_PASSWORD", "UPDATE_PASSWORD_ERROR", "UPDATE_PROFILE",
+    "UPDATE_EMAIL", "RESET_PASSWORD", "RESET_PASSWORD_ERROR"
+  ],
+  "passwordPolicy": "length(8) and upperCase(1) and lowerCase(1) and digits(1) and notUsername(undefined)",
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyInitialCounter": 0,
+  "otpPolicyDigits": 6,
+  "otpPolicyLookAheadWindow": 1,
+  "otpPolicyPeriod": 30,
+  "browserSecurityHeaders": {
+    "contentSecurityPolicyReportOnly": "",
+    "xContentTypeOptions": "nosniff",
+    "xRobotsTag": "none",
+    "xFrameOptions": "SAMEORIGIN",
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "xXSSProtection": "1; mode=block",
+    "strictTransportSecurity": "max-age=31536000; includeSubDomains"
+  }
+}

@@ -13,6 +13,9 @@
  */
 import { z } from "zod";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
+import { getDb } from "../db";
+import { gdsBookingTaxes } from "../../drizzle/schema";
+import { sql, sum, count, eq } from "drizzle-orm";
 
 // ─── Tax Schemas ─────────────────────────────────────────────────────────────
 
@@ -433,7 +436,9 @@ export const gdsIntegrationRouter = router({
     .input(ConvertItinerarySchema)
     .mutation(({ input }) => {
       const bookings = input.items.map((item, idx) => {
-        const baseRate = 150 + Math.random() * 200; // In production: real rate lookup
+        // Use tier-based pricing from the establishment or a default rate
+        const tierRates: Record<string, number> = { budget: 45, mid_range: 150, luxury: 450 };
+        const baseRate = tierRates[(item as any).tier ?? 'mid_range'] ?? 150;
         const nights = item.checkOut
           ? Math.ceil((new Date(item.checkOut).getTime() - new Date(item.checkIn).getTime()) / 86400000)
           : 1;
@@ -523,9 +528,9 @@ export const gdsIntegrationRouter = router({
       jurisdictions: jurisdictions.map((j) => ({
         countryCode: j.countryCode,
         countryName: j.countryName,
-        collected: Math.round(Math.random() * 100000),
-        remitted: Math.round(Math.random() * 50000),
-        status: Math.random() > 0.5 ? "current" : "pending",
+        collected: 0,
+        remitted: 0,
+        status: "pending" as const,
         nextDue: getNextRemittanceDate(),
         authority: j.taxRules[0]?.authority ?? "Unknown",
       })),

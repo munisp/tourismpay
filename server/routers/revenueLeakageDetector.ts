@@ -230,6 +230,7 @@ const resolveDiscrepancy = protectedProcedure
   });
 
 export const revenueLeakageDetectorRouter = router({
+  list: getLeakageReport,
   getLeakageReport,
   getDiscrepancies,
   getRecoveryStats,

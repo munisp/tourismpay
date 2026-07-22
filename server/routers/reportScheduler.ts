@@ -332,6 +332,7 @@ const triggerNow = protectedProcedure
   });
 
 export const reportSchedulerRouter = router({
+  list: listSchedules,
   listSchedules,
   getSchedule,
   dashboard,

@@ -369,7 +369,7 @@ export async function checkRateLimit(params: {
   try {
     const pipeline = redis.pipeline();
     pipeline.zremrangebyscore(rlKey, 0, windowStart);
-    pipeline.zadd(rlKey, now, `${now}-${Math.random()}`);
+    pipeline.zadd(rlKey, now, `${now}-${require("crypto").randomBytes(4).toString("hex")}`);
     pipeline.zcard(rlKey);
     pipeline.expire(rlKey, params.windowSeconds + 1);
     const results = await pipeline.exec();
@@ -396,7 +396,7 @@ export async function acquireLock(
   const redis = await getRedisClient();
   if (!redis) return `local-lock-${Date.now()}`;
   const lockKey = key(NS.LOCK, resource);
-  const lockValue = `${Date.now()}-${Math.random()}`;
+  const lockValue = `${Date.now()}-${require("crypto").randomBytes(4).toString("hex")}`;
   try {
     const result = await redis.set(lockKey, lockValue, "PX", ttlMs, "NX");
     return result === "OK" ? lockValue : null;

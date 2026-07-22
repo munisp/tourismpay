@@ -206,6 +206,7 @@ const getBackupCodes = protectedProcedure
   });
 
 export const mfaManagerRouter = router({
+  list: getMfaStatus,
   getMfaStatus,
   enableTotp,
   verifyTotp,

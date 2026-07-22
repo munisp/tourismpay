@@ -81,11 +81,11 @@ export const agents = pgTable("agents", {
   nin: varchar("nin", { length: 20 }),
   bvn: varchar("bvn", { length: 20 }),
 
-  floatFunded: boolean("float_funded").default(False),
+  floatFunded: boolean("float_funded").default(false),
   notes: text("notes"),
-  profileComplete: boolean("profile_complete").default(False),
-  terminalAssigned: boolean("terminal_assigned").default(False),
-  trainingComplete: boolean("training_complete").default(False),
+  profileComplete: boolean("profile_complete").default(false),
+  terminalAssigned: boolean("terminal_assigned").default(false),
+  trainingComplete: boolean("training_complete").default(false),
 });
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;

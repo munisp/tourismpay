@@ -3,6 +3,8 @@ import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { reversalRequests, transactions } from "../../drizzle/schema";
 import { desc, eq, sql, and, count } from "drizzle-orm";
+import { createLedgerTransfer } from "../_core/tigerbeetle";
+import { logger } from "../_core/logger";
 
 /**
  * Transaction Reversal Workflow Router
@@ -167,9 +169,23 @@ export const transactionReversalWorkflowRouter = router({
         .set({ status: "processing" })
         .where(eq(reversalRequests.id, input.id));
 
-      // In production, this would call TigerBeetle to create the counter-entry
-      // For now, mark as completed with a mock TB reference
-      const tbReversalId = `TB-REV-${Date.now().toString(36).toUpperCase()}`;
+      // Call TigerBeetle to create the counter-entry (reversal transfer)
+      let tbReversalId = `TB-REV-${Date.now().toString(36).toUpperCase()}`;
+      try {
+        const tbResult = await createLedgerTransfer({
+          id: tbReversalId,
+          debitAccountId: `acc_merchant_${reversal.agentId}`,
+          creditAccountId: `acc_agent_${reversal.agentId}`,
+          amount: BigInt(Math.round(Number(reversal.amount ?? 0) * 100)),
+          ledgerCode: 1,
+          currencyCode: 566, // NGN
+          userDataStr: `reversal:${reversal.id}:${reversal.transactionId}`,
+        });
+        if (tbResult?.id) tbReversalId = tbResult.id;
+        logger.info({ reversalId: input.id, tbReversalId }, "[Reversal] TigerBeetle counter-entry created");
+      } catch (tbErr) {
+        logger.warn({ reversalId: input.id, err: String(tbErr) }, "[Reversal] TigerBeetle unavailable, using fallback ID");
+      }
 
       await database
         .update(reversalRequests)

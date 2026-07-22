@@ -233,6 +233,7 @@ const resolveIncident = protectedProcedure
   });
 
 export const incidentPlaybookRouter = router({
+  list: listPlaybooks,
   listPlaybooks,
   getPlaybook,
   getActiveIncidents,

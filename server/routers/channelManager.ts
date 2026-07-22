@@ -333,9 +333,24 @@ export const channelManagerRouter = router({
       if (!est) throw new TRPCError({ code: "NOT_FOUND" });
       if (est.ownerId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN" });
 
-      // Inbound bookings are stored by the Go channel manager — query them
-      // For now return placeholder until schema syncs
-      return { bookings: [], total: 0, message: "Inbound bookings are processed by the channel manager sync engine" };
+      // Query inbound bookings from tourist_bookings table
+      const { desc: descOp, count: countFn, and: andOp } = await import("drizzle-orm");
+      const { touristBookings } = await import("../../drizzle/schema");
+      try {
+        const conditions: any[] = [eq(touristBookings.establishmentId, input.establishmentId)];
+        if (input.status) conditions.push(eq(touristBookings.status, input.status));
+        const bookingRows = await db
+          .select()
+          .from(touristBookings)
+          .where(andOp(...conditions))
+          .orderBy(descOp(touristBookings.createdAt))
+          .limit(input.limit);
+        const [{ total }] = await db.select({ total: countFn() }).from(touristBookings)
+          .where(andOp(...conditions));
+        return { bookings: bookingRows, total: total ?? 0 };
+      } catch {
+        return { bookings: [], total: 0 };
+      }
     }),
 
   // ─── Admin: View all channel stats ───────────────────────────────────────────

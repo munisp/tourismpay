@@ -297,7 +297,7 @@ function generateId(bytes: number): string {
   const chars = "0123456789abcdef";
   let result = "";
   for (let i = 0; i < bytes * 2; i++) {
-    result += chars[Math.floor(Math.random() * 16)];
+    result += chars[require("crypto").randomInt(16)];
   }
   return result;
 }
