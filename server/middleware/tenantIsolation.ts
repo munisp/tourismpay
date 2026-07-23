@@ -25,6 +25,7 @@
  *   })
  */
 import { TRPCError } from "@trpc/server";
+import { eq } from "drizzle-orm";
 import type { TrpcContext } from "../_core/context";
 
 export type TenantContext = TrpcContext & { tenantId: number };
@@ -100,6 +101,5 @@ export function assertTenantOwnership(
  */
 export function tenantFilter(table: { tenantId: any }, userTenantId: number) {
   if (userTenantId === 0) return undefined; // super-admin: no filter
-  const { eq } = require("drizzle-orm");
   return eq(table.tenantId, userTenantId);
 }

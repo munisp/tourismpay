@@ -26,7 +26,7 @@
  *   });
  */
 
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 interface EmailJob {
   id: string;
   to: string | string[];

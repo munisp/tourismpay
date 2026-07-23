@@ -6,7 +6,7 @@
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 export interface DbHealthStatus {
   connected: boolean;
   latencyMs: number;

@@ -15,15 +15,15 @@
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { z } from "zod";
-import { getDb } from "../db";
+import { getDb } from "../db.js";
 import {
   simFailoverLog,
   simOrchestratorConfig,
   simProbeLog,
-} from "../../drizzle/schema";
-import { notifyOwner } from "../_core/notification";
-import { publishEvent } from "../kafkaClient";
-import { protectedProcedure, router } from "../_core/trpc";
+} from "../../drizzle/schema.js";
+import { notifyOwner } from "../_core/notification.js";
+import { publishEvent } from "../kafkaClient.js";
+import { protectedProcedure, router } from "../_core/trpc.js";
 
 // ── Zod schemas ───────────────────────────────────────────────────────────────
 

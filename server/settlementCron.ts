@@ -14,7 +14,7 @@
  */
 import cron from "node-cron";
 import { eq, and, gte, lte } from "drizzle-orm";
-import { getDb } from "./db";
+import { getDb } from "./db.js";
 import {
   agents,
   transactions,
@@ -22,11 +22,11 @@ import {
   erpSyncLog,
   systemConfig,
   connectivityLog,
-} from "../drizzle/schema";
-import { notifyOwner } from "./_core/notification";
-import { sendSms } from "./termii";
+} from "../drizzle/schema.js";
+import { notifyOwner } from "./_core/notification.js";
+import { sendSms } from "./termii.js";
 import { settlementPlatform } from "./_core/platformClient.js";
-import { ENV } from "./_core/env";
+import { ENV } from "./_core/env.js";
 
 interface AgentSettlement {
   agentId: number;
@@ -230,8 +230,8 @@ async function runAutoEscalation(): Promise<void> {
   try {
     const db = await getDb();
     if (!db) return;
-    const { fraudAlerts } = await import("../drizzle/schema");
-    const { notifyOwner } = await import("./_core/notification");
+    const { fraudAlerts } = await import("../drizzle/schema.js");
+    const { notifyOwner } = await import("./_core/notification.js");
     const now = new Date();
     const expired = await db
       .select()
@@ -271,11 +271,11 @@ async function runWeeklyComplianceReport(): Promise<void> {
     const db = await getDb();
     if (!db) return;
     const { fraudAlerts, complianceReports } = await import(
-      "../drizzle/schema"
+      "../drizzle/schema.js"
     );
-    const { notifyOwner } = await import("./_core/notification");
-    const { storagePut } = await import("./storage");
-    const { generateCompliancePdfBuffer } = await import("./compliancePdf");
+    const { notifyOwner } = await import("./_core/notification.js");
+    const { storagePut } = await import("./storage.js");
+    const { generateCompliancePdfBuffer } = await import("./compliancePdf.js");
 
     const periodEnd = new Date();
     const periodStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);

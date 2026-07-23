@@ -121,10 +121,9 @@ import {
   users, walletBalances, walletTransactions, loyaltyAccounts, loyaltyTransactions, loyaltyRewards,
   insurancePolicies, insuranceClaims, kybApplications, kybDocuments, bisInvestigations, bisDirectors,
   socAlerts, tourismEvents, bisReportExports, userNotifications, notificationPreferences, auditLogs, financeRequests,
-  establishments
-} from "./schema";
-
-import {
+  establishments,
+  enairaWallets, enairaTransactions, cbnMerchantRegistrations, apisixRouteRegistry, daprSidecarHealth,
+  biometricEnrollments, didDocuments, verifiableCredentials, carbonOffsets, meshTransactions, serviceHealthAlerts,
   fraudAlerts, billPayments, virtualCards, virtualCardTransactions, bankTransfersOut, savedBeneficiaries,
   paymentLinks, splitBills, splitBillParticipants, moneyRequests, rideBookings, nfcPaymentTokens,
   bankTravelNotifications, esimOrders, agentKioskRegistry, currencyCorridors, preTravelChecklists,
@@ -132,25 +131,18 @@ import {
   tripPlannerMessages, tripPlannerRecommendations, tipTransactions, tipDistributionLog, tipConfigs,
   taxCollections, taxRemittanceTracker, taxRulesCustom, taxReceipts, multiTipGroups, multiTipRecipients,
   gdsBookingTaxes, gdsStaffTips, gdsLoyaltyEarnings, gdsItineraryConversions, gdsDemandForecasts,
-  taxRules, killSwitchSchedules
-} from "./schema-missing";
+  taxRules, killSwitchSchedules,
+  temporalWorkflowExecutions, daprSubscriptions, daprStateEntries, keycloakSessionTokens,
+  tourismPassesTable, socialPosts, referralRewards, agentsTable, agentFloatBalances, cashLoadOrders,
+  ussdSessions, ussdTransactions, agentKycVerifications, walletBalanceAlerts, walletSpendingLimits,
+  pinLockoutHistory, loyaltyBalances, loyaltyConversions, dataExportRequests, dataErasureRequests,
+  flashDeals, merchantInventory, merchantLocations, merchantSplitPayments, wireTransferOrders,
+  partnerQuotes, partnerTransfers
+} from "./schema";
 
 import {
-  temporalWorkflowExecutions, daprSubscriptions, daprStateEntries, fluvioConsumerOffsets,
-  lakehouseEtlRuns, openappsecWafEvents, keycloakSessionTokens
+  fluvioConsumerOffsets, lakehouseEtlRuns, openappsecWafEvents
 } from "./schema-additions";
-
-import {
-  enairaWallets, enairaTransactions, cbnMerchantRegistrations, apisixRouteRegistry, daprSidecarHealth,
-  biometricEnrollments, didDocuments, verifiableCredentials, carbonOffsets, meshTransactions, serviceHealthAlerts
-} from "./schema-platform";
-
-import {
-  tourismPassesTable, socialPosts, flashDeals, referralRewards, merchantInventory, merchantLocations,
-  merchantSplitPayments, wireTransferOrders, agentsTable, agentFloatBalances, cashLoadOrders, partnerQuotes,
-  partnerTransfers, ussdSessions, ussdTransactions, agentKycVerifications, walletBalanceAlerts,
-  walletSpendingLimits, pinLockoutHistory, loyaltyBalances, loyaltyConversions, dataExportRequests, dataErasureRequests
-} from "./schema-extended";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 1: Missing Type Exports

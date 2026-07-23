@@ -83,6 +83,8 @@ export const logger = {
   error: (...args: unknown[]) => emit("error", ...args),
 };
 
+export default logger;
+
 // ─── Compatibility Aliases ────────────────────────────────────────────────────
 /** Express-compatible request logging middleware */
 export function requestLoggingMiddleware(

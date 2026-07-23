@@ -1,4 +1,5 @@
 import { z } from "zod";
+import crypto from "node:crypto";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -12,7 +13,7 @@ import { kybDocumentsRouter } from "./routers/kybDocuments";
 import { kybRouter } from "./routers/kyb";
 import { africaRouter } from "./routers/africa";
 import { copilotRouter } from "./routers/copilot";
-import { fraudRouter, socRouter } from "./routers/security";
+import { socRouter } from "./routers/security";
 import { adminRouter } from "./routers/admin";
 import { notificationsRouter } from "./routers/notifications";
 import { kybApplicationsRouter } from "./routers/kybApplications";
@@ -418,7 +419,7 @@ import { fxRatesRouter } from './routers/fxRates';
 import { gatewayHealthMonitorRouter } from './routers/gatewayHealthMonitor';
 import { geoFenceDedicatedRouter } from './routers/geoFenceDedicated';
 import { geoFencesRouter } from './routers/geoFencesCrud';
-import { geoFencingRouter } from './routers/geoFencing';
+import { geofencingRouter as geoFencingRouter } from './routers/geofencing';
 import { geoFencingDedicatedRouter } from './routers/geoFencingDedicated';
 import { geofencingRouter } from './routers/geofencing';
 import { getCheckerStatusRouter } from './routers/getCheckerStatus';
@@ -779,7 +780,7 @@ export const appRouter = router({
         if (!db) throw new Error("Database unavailable");
         const existing = await db.select().from(users).where(eq(users.email, input.email)).limit(1);
         if (existing.length > 0) throw new Error("Email already registered");
-        const openId = `mobile-${Date.now()}-${require('crypto').randomBytes(6).toString('hex')}`;
+        const openId = `mobile-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
         const row = await db.insert(users).values({
           name: input.name,
           email: input.email,
@@ -848,7 +849,6 @@ export const appRouter = router({
   kyb: kybRouter,
   africa: africaRouter,
   copilot: copilotRouter,
-  fraud: fraudRouter,
   soc: socRouter,
   admin: adminRouter,
   notifications: notificationsRouter,
@@ -909,9 +909,9 @@ export const appRouter = router({
   fundFlow: fundFlowRouter,
 
   // ─── Mobile Aggregate Routers (unified namespaces for React Native client) ─
-  merchant: mobileMerchantRouter,
+  mobileMerchant: mobileMerchantRouter,
   tourist: mobileTouristRouter,
-  paymentSwitch: mobilePaymentSwitchRouter,
+  mobilePaymentSwitch: mobilePaymentSwitchRouter,
   bookings: mobileBookingsRouter,
 taxRemittance: taxRemittanceRouter,
   // ─── eNaira / CBDC-NG Gateway ─────────────────────────────────────────────
@@ -1067,7 +1067,7 @@ adminDashboard: adminDashboardRouter,
   resilience: resilienceRouter,
   revenueAnalytics: revenueAnalyticsRouter,
   revenueForecastingEngine: revenueForecastingEngineRouter,
-  secret: vaultSecretsRouter,
+  vaultSecrets: vaultSecretsRouter,
   settlementNettingEngine: settlementNettingEngineRouter,
   simOrchestrator: simOrchestratorRouter,
   slaMonitoringDash: slaMonitoringDashRouter,
@@ -1426,7 +1426,6 @@ adminDashboard: adminDashboardRouter,
   quietHours: quietHoursRouter,
   raiseDispute: raiseDisputeRouter,
   ransomwareAlerts: ransomwareAlertsRouter,
-  rateAlerts: rateAlertsRouter,
   rateLimitDashboard: rateLimitDashboardRouter,
   reactions: reactionsRouter,
   realtimePnlDashboard: realtimePnlDashboardRouter,
@@ -1446,7 +1445,6 @@ adminDashboard: adminDashboardRouter,
   regulatoryReportGenerator: regulatoryReportGeneratorRouter,
   regulatorySandboxTester: regulatorySandboxTesterRouter,
   relayEndpoint: relayEndpointRouter,
-  remittance: remittanceRouter,
   reportTemplate: reportTemplateRouter,
   reportTemplateDesigner: reportTemplateDesignerRouter,
   requestPermission: requestPermissionRouter,

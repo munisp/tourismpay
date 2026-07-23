@@ -1195,10 +1195,10 @@ export const stablecoinSwapRouter = router({
 
     // Determine KYC tier from kyc_verification_records
     const kycRecords = await db.execute(sql`
-      SELECT verification_type, status FROM kyc_verification_records
+      SELECT document_type, status FROM kyc_verification_records
       WHERE user_id = ${String(ctx.user.id)} AND status = 'verified'
     `);
-    const verifiedTypes = (Array.isArray(kycRecords) ? kycRecords : []).map((r: Record<string, unknown>) => String(r.verification_type));
+    const verifiedTypes = (Array.isArray(kycRecords) ? kycRecords : []).map((r: Record<string, unknown>) => String(r.document_type));
     const hasIdentity = verifiedTypes.includes("identity");
     const hasAddress = verifiedTypes.includes("address");
     const hasEnhanced = verifiedTypes.includes("enhanced");

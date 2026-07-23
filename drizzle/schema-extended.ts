@@ -854,16 +854,7 @@ export const disputeMessages = pgTable("dispute_messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const refunds = pgTable("refunds", {
-  id: serial("id").primaryKey(),
-  transactionId: varchar("transaction_id", { length: 255 }).notNull(),
-  userId: integer("user_id").notNull(),
-  amount: numeric("amount", { precision: 18, scale: 2 }).notNull(),
-  reason: text("reason"),
-  status: varchar("status", { length: 50 }).default("pending"),
-  processedAt: timestamp("processed_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+// refunds is defined in schema-additions.ts
 
 export const reversalRequests = pgTable("reversal_requests", {
   id: serial("id").primaryKey(),
@@ -1254,16 +1245,16 @@ export const merchantKycDocs = pgTable("merchant_kyc_docs", {
 
 // ─── Loyalty ──────────────────────────────────────────────────────────────────
 
+// Matches migration 0000_spooky_the_executioner.sql exactly (camelCase columns).
 export const loyaltyHistory = pgTable("loyalty_history", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  agentId: integer("agentId").notNull(),
+  transactionId: integer("transactionId"),
+  type: varchar("type", { length: 50 }).notNull(),
   points: integer("points").notNull(),
-  action: varchar("action", { length: 100 }).notNull(),
-  description: text("description"),
-  createdAt: timestamp("created_at").defaultNow(),
-
-  agentId: integer("agent_id"),
-  type: varchar("type", { length: 50 }),
+  description: varchar("description", { length: 256 }),
+  balanceAfter: integer("balanceAfter").notNull(),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
 
 // ─── Merchant & POS ───────────────────────────────────────────────────────────
@@ -1309,21 +1300,7 @@ export const merchantPayouts = pgTable("merchant_payouts", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const merchantSettlements = pgTable("merchant_settlements", {
-  id: serial("id").primaryKey(),
-  merchantId: integer("merchant_id").notNull(),
-  amount: numeric("amount", { precision: 18, scale: 2 }).notNull(),
-  currency: varchar("currency", { length: 10 }).default("NGN"),
-  period: varchar("period", { length: 20 }),
-  status: varchar("status", { length: 50 }).default("pending"),
-  settledAt: timestamp("settled_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-
-  grossAmount: numeric("gross_amount", { precision: 18, scale: 6 }),
-
-  periodStart: timestamp("period_start"),
-  periodEnd: timestamp("period_end"),
-});
+// merchantSettlements is defined in schema-additions.ts
 
 // posTerminals is defined in schema-additions.ts
 

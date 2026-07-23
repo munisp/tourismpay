@@ -9,7 +9,7 @@
  */
 import logger from "../_core/logger";
 import { getMtlsAgent } from "./mtlsAgent";
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 
 // ── Circuit Breaker ──────────────────────────────────────────────────────────
 type CircuitState = "closed" | "open" | "half_open";

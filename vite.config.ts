@@ -51,9 +51,26 @@ const pwaPlugin = VitePWA({
   workbox: {
     globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
     maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, // 6 MiB — covers the large vendor bundle
+    // The default NavigationRoute intercepts EVERY full-page navigation and
+    // serves the cached index.html as a SPA fallback -- including
+    // navigations meant for real server endpoints like the demo-login
+    // redirects (window.location.href = "/api/dev/demo-admin-login") and the
+    // OAuth callback. Without this denylist, those never reach the backend
+    // once the service worker is active: the browser gets the cached SPA
+    // shell instead, which then renders its own client-side "not found" page.
+    navigateFallbackDenylist: [/^\/api\//],
     runtimeCaching: [
       {
-        urlPattern: /^\/api\/trpc\/(tourist|merchant|loyalty|wallet)/,
+        // tRPC's httpBatchLink combines multiple procedure calls that fire
+        // together into one comma-separated URL (e.g. "merchant.getDashboard,
+        // auth.me"). Since auth.me/session checks are frequently batched
+        // alongside business-data calls, this must explicitly exclude any
+        // batch containing an "auth." call -- otherwise session state gets
+        // cached for 5 minutes and served stale, making login look like it
+        // randomly reverts.
+        urlPattern: ({ url }: { url: URL }) =>
+          /^\/api\/trpc\/(tourist|merchant|loyalty|wallet)/.test(url.pathname) &&
+          !url.pathname.includes("auth."),
         handler: "NetworkFirst" as const,
         options: {
           cacheName: "trpc-api-cache",

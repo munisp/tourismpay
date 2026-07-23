@@ -321,7 +321,7 @@ export const embeddedFinanceRouter = router({
       const rows = await db.execute(
         sql`SELECT fr.*, u.name as user_name, u.email as user_email
             FROM finance_requests fr
-            JOIN users u ON fr.user_id = u.id
+            JOIN users u ON fr.user_id = u.id::text
             ORDER BY fr.created_at DESC
             LIMIT ${input?.limit ?? 50} OFFSET ${input?.offset ?? 0}`
       );

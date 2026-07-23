@@ -239,7 +239,7 @@ export const walletRouter = router({
             eq(walletTransactions.userId, String(ctx.user.id)),
             eq(walletTransactions.fromCurrency, input.currency),
             eq(walletTransactions.type, "send"),
-            gte(walletTransactions.createdAt, dayStart * 1000), // createdAt is ms
+            gte(walletTransactions.createdAt, dayStart),
           ));
         const dailySpent = parseFloat(sentRows[0]?.total ?? "0");
         const monthSentRows = await db
@@ -249,7 +249,7 @@ export const walletRouter = router({
             eq(walletTransactions.userId, String(ctx.user.id)),
             eq(walletTransactions.fromCurrency, input.currency),
             eq(walletTransactions.type, "send"),
-            gte(walletTransactions.createdAt, monthStart * 1000),
+            gte(walletTransactions.createdAt, monthStart),
           ));
         const monthlySpent = parseFloat(monthSentRows[0]?.total ?? "0");
         for (const limit of activeLimits) {
@@ -888,6 +888,8 @@ export const walletRouter = router({
     const nowMs = Date.now();
     const todayStartMs = new Date().setHours(0, 0, 0, 0);
     const monthStartMs = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+    const todayStartSec = Math.floor(todayStartMs / 1000);
+    const monthStartSec = Math.floor(monthStartMs / 1000);
     const limitsWithUsage = await Promise.all(limits.map(async (limit) => {
       try {
         const [todayRow] = await db
@@ -897,7 +899,7 @@ export const walletRouter = router({
             eq(walletTransactions.userId, String(ctx.user.id)),
             eq(walletTransactions.fromCurrency, limit.currency),
             eq(walletTransactions.type, "send"),
-            gte(walletTransactions.createdAt, todayStartMs),
+            gte(walletTransactions.createdAt, todayStartSec),
           ));
         const [monthRow] = await db
           .select({ total: sql<string>`COALESCE(SUM(CAST(${walletTransactions.amount} AS DECIMAL(20,6))), 0)` })
@@ -906,7 +908,7 @@ export const walletRouter = router({
             eq(walletTransactions.userId, String(ctx.user.id)),
             eq(walletTransactions.fromCurrency, limit.currency),
             eq(walletTransactions.type, "send"),
-            gte(walletTransactions.createdAt, monthStartMs),
+            gte(walletTransactions.createdAt, monthStartSec),
           ));
         // Compute next reset timestamp (UTC)
         const now = new Date();
@@ -1244,7 +1246,7 @@ export const walletRouter = router({
     if (!db) return { balances: [] };
     await ensureDefaultBalances(String(ctx.user.id));
     const nowMs = Date.now();
-    const sevenDaysAgo = nowMs - 7 * 24 * 60 * 60 * 1000;
+    const sevenDaysAgo = Math.floor(nowMs / 1000) - 7 * 24 * 60 * 60;
     const balRows = await db
       .select()
       .from(walletBalances)
@@ -1266,7 +1268,7 @@ export const walletRouter = router({
         // Build day-by-day net delta map (index 0 = 7 days ago, index 6 = today)
         const dayMap: Record<number, number> = {};
         for (const tx of txRows) {
-          const dayIndex = Math.floor((tx.createdAt - sevenDaysAgo) / (24 * 60 * 60 * 1000));
+          const dayIndex = Math.floor((tx.createdAt - sevenDaysAgo) / (24 * 60 * 60));
           const clamped = Math.min(6, Math.max(0, dayIndex));
           const amt = parseFloat(tx.amount as unknown as string);
           dayMap[clamped] = (dayMap[clamped] ?? 0) + (tx.type === "receive" || tx.type === "deposit" ? amt : -amt);
@@ -1897,7 +1899,7 @@ export const walletRouter = router({
       // Monthly wallet outbound spending
       const monthlyRows = await db
         .select({
-          month: sql<string>`to_char(to_timestamp(${walletTransactions.createdAt} / 1000.0), 'YYYY-MM')`,
+          month: sql<string>`to_char(to_timestamp(${walletTransactions.createdAt}), 'YYYY-MM')`,
           total: sql<string>`coalesce(sum(cast(${walletTransactions.amount} as numeric)), 0)`,
           txCount: count(),
         })
@@ -1907,11 +1909,11 @@ export const walletRouter = router({
             eq(walletTransactions.userId, String(ctx.user.id)),
             eq(walletTransactions.type, "send"),
             eq(walletTransactions.status, "completed"),
-            gte(walletTransactions.createdAt, sinceTs * 1000)
+            gte(walletTransactions.createdAt, sinceTs)
           )
         )
-        .groupBy(sql`to_char(to_timestamp(${walletTransactions.createdAt} / 1000.0), 'YYYY-MM')`)
-        .orderBy(sql`to_char(to_timestamp(${walletTransactions.createdAt} / 1000.0), 'YYYY-MM')`);
+        .groupBy(sql`to_char(to_timestamp(${walletTransactions.createdAt}), 'YYYY-MM')`)
+        .orderBy(sql`to_char(to_timestamp(${walletTransactions.createdAt}), 'YYYY-MM')`);
 
       // QR payments by establishment category
       const qrByCategory = await db

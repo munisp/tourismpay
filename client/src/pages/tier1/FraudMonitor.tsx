@@ -243,7 +243,7 @@ export default function FraudMonitor() {
 
   const timelineData = Array.from({ length: 12 }, (_, i) => {
     const hour = i * 2;
-    const hourAlerts = (alerts ?? []).filter((a: FraudAlertRow) => {
+    const hourAlerts = (alerts?.items ?? []).filter((a: FraudAlertRow) => {
       const h = new Date(a.createdAt).getHours();
       return h >= hour && h < hour + 2;
     });
@@ -256,7 +256,7 @@ export default function FraudMonitor() {
 
   const displayAlerts: FraudAlertRow[] = liveAlerts.length > 0
     ? liveAlerts
-    : ((alerts ?? []) as FraudAlertRow[]);
+    : ((alerts?.items ?? []) as FraudAlertRow[]);
 
   return (
     <div className="p-6 min-h-full space-y-4">

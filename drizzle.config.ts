@@ -15,10 +15,14 @@ export default defineConfig({
     "./drizzle/schema-improvements.ts",
     "./drizzle/schema-additions.ts",
     "./drizzle/schema-extended.ts",
-    "./drizzle/schema-constraints.ts",
     "./drizzle/schema-platform.ts",
     "./drizzle/views.ts",
   ],
+  // schema-constraints.ts is intentionally excluded: it's unused by the running
+  // app (only generates ALTER TABLE ADD CONSTRAINT statements for migration
+  // 0078) and its compositeIndexes block currently throws at load time
+  // (references a table field that resolves to undefined under drizzle-kit's
+  // CJS loader). Re-add once that's fixed separately.
   out: "./drizzle",
 
   // ─── Dialect ─────────────────────────────────────────────────────────────

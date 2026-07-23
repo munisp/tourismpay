@@ -54,16 +54,24 @@ let _client: ReturnType<typeof postgres> | null = null;
 
 /** Build a configured postgres.js connection pool. */
 function buildClient(dbUrl: string): ReturnType<typeof postgres> {
+  // `sslmode=disable` in the URL must always win. Without this check, any
+  // non-localhost hostname (e.g. the in-cluster "tourismpay-postgres" service)
+  // force-enabled SSL below even when the connection string explicitly said
+  // not to -- and since that Postgres doesn't speak TLS, every connection
+  // failed with "socket disconnected before secure TLS connection was
+  // established". This broke /readyz permanently in production.
   const sslRequired =
-    dbUrl.includes("sslmode=require") ||
-    dbUrl.includes("ssl=true") ||
-    (!dbUrl.includes("localhost") && !dbUrl.includes("127.0.0.1"));
+    !dbUrl.includes("sslmode=disable") &&
+    (dbUrl.includes("sslmode=require") ||
+      dbUrl.includes("ssl=true") ||
+      (!dbUrl.includes("localhost") && !dbUrl.includes("127.0.0.1")));
   const poolSize = parseInt(process.env.DB_POOL_SIZE || "20", 10);
   return postgres(dbUrl, {
     max: poolSize,
     idle_timeout: 30,
     connect_timeout: 10,
     ssl: sslRequired ? { rejectUnauthorized: false } : false,
+    prepare: false,
   });
 }
 
@@ -80,7 +88,12 @@ export async function getDb(): Promise<DrizzleDb | null> {
     try {
       _client = buildClient(ENV.databaseUrl);
       _db = drizzle(_client, {
-        schema: fullSchema,
+        // Not passing `schema: fullSchema` here: it enables drizzle's relational
+        // query API (db.query.*), which is unused anywhere in this codebase, and
+        // building its relational config eagerly walks every relations() call
+        // across the schema files — several of which reference tables that are
+        // still undefined at that point due to circular exports between
+        // schema.ts and schema-improvements.ts, crashing the connection.
         logger: process.env.NODE_ENV !== "test" ? new AppQueryLogger() : false,
         casing: "snake_case",
       }) as unknown as DrizzleDb;
@@ -414,7 +427,7 @@ export async function getFraudAlerts(filters?: {
   const conditions = [];
   if (filters?.status) conditions.push(eq(fraudAlerts.status, filters.status as any));
   if (filters?.severity) conditions.push(eq(fraudAlerts.severity, filters.severity as any));
-  if (filters?.since) conditions.push(sql`${fraudAlerts.createdAt} >= ${filters.since}`);
+  if (filters?.since) conditions.push(sql`${fraudAlerts.createdAt} >= ${filters.since.toISOString()}`);
   if (conditions.length > 0) query = (query as any).where(and(...conditions));
   return (query as any)
     .orderBy(desc(fraudAlerts.createdAt))
@@ -455,7 +468,7 @@ export async function getSocAlerts(filters?: {
   if (filters?.status) conditions.push(eq(socAlerts.status, filters.status as any));
   if (filters?.severity) conditions.push(eq(socAlerts.severity, filters.severity as any));
   if (filters?.type) conditions.push(eq(socAlerts.type, filters.type as any));
-  if (filters?.since) conditions.push(sql`${socAlerts.createdAt} >= ${filters.since}`);
+  if (filters?.since) conditions.push(sql`${socAlerts.createdAt} >= ${filters.since.toISOString()}`);
   if (conditions.length > 0) query = (query as any).where(and(...conditions));
   return (query as any)
     .orderBy(desc(socAlerts.createdAt))
@@ -997,8 +1010,8 @@ export async function getAuditLogs(filters?: {
   if (filters?.action) conditions.push(eq(auditLogs.action, filters.action));
   if (filters?.entityType) conditions.push(eq(auditLogs.entityType, filters.entityType));
   if (filters?.entityId) conditions.push(eq(auditLogs.entityId, filters.entityId));
-  if (filters?.since) conditions.push(sql`${auditLogs.createdAt} >= ${filters.since}`);
-  if (filters?.until) conditions.push(sql`${auditLogs.createdAt} <= ${filters.until}`);
+  if (filters?.since) conditions.push(sql`${auditLogs.createdAt} >= ${filters.since.toISOString()}`);
+  if (filters?.until) conditions.push(sql`${auditLogs.createdAt} <= ${filters.until.toISOString()}`);
   if (conditions.length > 0) query = (query as any).where(and(...conditions));
   return (query as any)
     .orderBy(desc(auditLogs.createdAt))
@@ -1015,7 +1028,7 @@ export async function getAuditLogStats() {
   const [todayCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(auditLogs)
-    .where(sql`${auditLogs.createdAt} >= ${today}`);
+    .where(sql`${auditLogs.createdAt} >= ${today.toISOString()}`);
   const byAction = await db
     .select({ action: auditLogs.action, count: sql<number>`count(*)` })
     .from(auditLogs)
@@ -1096,8 +1109,9 @@ export async function globalSearch(query: string) {
         createdAt: kybApplications.createdAt,
       })
       .from(kybApplications)
+      .innerJoin(establishments, eq(kybApplications.establishmentId, establishments.id))
       .where(
-        sql`lower(${kybApplications.status}) like ${q}`
+        sql`lower(${establishments.name}) like ${q}`
       )
       .limit(5),
   ]);
@@ -1312,7 +1326,33 @@ export async function updateFraudAlertStatus(id: number, status: string) {
   return db.update(fraudAlerts).set({ status } as never).where(eq(fraudAlerts.id, id));
 }
 
-export async function writeAuditLog(entry: Record<string, unknown>) {
-  const { auditLog } = await import('../drizzle/schema');
-  return db.insert(auditLog as never).values(entry as never);
+export async function updateTransactionStatus(id: number, status: string, reason?: string) {
+  const { transactions } = await import('../drizzle/schema');
+  return db
+    .update(transactions)
+    .set({ status, description: reason, updatedAt: new Date() } as never)
+    .where(eq((transactions as never as Record<string, unknown>).id as never, id));
 }
+
+export async function addLoyaltyHistory(
+  agentId: number,
+  type: "earned" | "redeemed",
+  points: number,
+  description: string,
+  transactionId?: number
+) {
+  const { agents, loyaltyHistory } = await import('../drizzle/schema');
+  const delta = type === "earned" ? points : -points;
+  const [agent] = await db
+    .update(agents)
+    .set({ loyaltyPoints: sql`COALESCE(${agents.loyaltyPoints}, 0) + ${delta}` })
+    .where(eq(agents.id, agentId))
+    .returning();
+  const balanceAfter = (agent as { loyaltyPoints?: number } | undefined)?.loyaltyPoints ?? 0;
+  const [entry] = await db
+    .insert(loyaltyHistory)
+    .values({ agentId, transactionId, type, points, description, balanceAfter } as never)
+    .returning();
+  return entry;
+}
+

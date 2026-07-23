@@ -15,7 +15,7 @@
  * 4. Structured logging with trace context
  */
 import logger from "../_core/logger";
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 

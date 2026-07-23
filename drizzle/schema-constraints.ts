@@ -41,7 +41,7 @@ import {
   touristBookings,
   merchantProducts,
   auditLogs,
-} from "./schema.js";
+} from "./schema";
 
 // ─── Check Constraints ────────────────────────────────────────────────────────
 

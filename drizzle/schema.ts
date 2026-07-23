@@ -68,6 +68,7 @@ export const establishmentTypeEnum = pgEnum("establishment_type", [
   "nightclub",
   "sports_venue",
   "travel_agency",
+  "retail",
 ]);
 
 export const fraudAlertSeverityEnum = pgEnum("fraud_alert_severity", [
@@ -144,7 +145,7 @@ export const establishments = pgTable(
     registrationNumber: varchar("registration_number", { length: 100 }),
     taxId: varchar("tax_id", { length: 100 }),
     contactEmail: varchar("contact_email", { length: 320 }),
-    contactPhone: varchar("contact_phone", { length: 30 }),
+    contactPhone: varchar("contact_phone", { length: 255 }),
     website: varchar("website", { length: 500 }),
     kybStatus: kybStatusEnum("kyb_status").default("draft").notNull(),
     kybScore: integer("kyb_score"),
@@ -3783,11 +3784,25 @@ export const daprSidecarHealth = pgTable("dapr_sidecar_health", {
 
 // ─── Re-exports from schema sub-files ────────────────────────────────────────
 // These allow server code to import everything from "drizzle/schema"
-export * from "./schema-improvements";
 export * from "./schema-additions";
 export * from "./schema-extended";
-export * from "./schema-constraints";
 export * from "./schema-platform";
+// schema-improvements.ts is intentionally NOT re-exported here either: it
+// imports table objects (e.g. users) back from this file, and schema.ts
+// containing it via `export *` means schema.ts must fully resolve
+// schema-improvements.ts as part of its own module body before it finishes
+// defining those same tables -- a circular-import crash, both in the esbuild
+// runtime bundle and in drizzle-kit's own CJS loader. Nothing in server/**
+// consumes schema-improvements.ts's exports via this barrel (verified by
+// grep); drizzle-kit sees it directly since drizzle.config.ts lists it
+// separately in its `schema` array.
+//
+// schema-constraints.ts is intentionally NOT re-exported here: its top-level
+// checkConstraints/compositeIndexes objects eagerly reference table objects
+// (e.g. walletBalances) that create a circular-import crash at server boot
+// (schema.ts -> schema-constraints.ts -> back to schema.ts, evaluated before
+// schema.ts finishes defining its own tables). It is only used by drizzle-kit
+// for migration generation, which reads it directly per drizzle.config.ts.
 
 // Missing tables (added to resolve TS errors)
 export * from './schema-missing';

@@ -1288,7 +1288,7 @@ Current date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
         })
         .from(touristDealRedemptions)
         .where(
-          sql`deal_id = ANY(${dealIds}::int[]) AND redeemed_at >= ${sinceDate}`
+          sql`deal_id = ANY(${dealIds}::int[]) AND redeemed_at >= ${sinceDate.toISOString()}`
         );
 
       // Aggregate per deal
@@ -1360,7 +1360,7 @@ Current date: ${new Date().toLocaleDateString("en-US", { weekday: "long", year: 
       const redemptions = await db
         .select({ dealId: touristDealRedemptions.dealId })
         .from(touristDealRedemptions)
-        .where(sql`user_id = ${ctx.user.id} AND redeemed_at >= ${sinceDate}`);
+        .where(sql`user_id = ${ctx.user.id} AND redeemed_at >= ${sinceDate.toISOString()}`);
 
       let totalSavingsUsd = 0;
       if (redemptions.length > 0) {

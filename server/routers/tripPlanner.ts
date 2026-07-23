@@ -6,6 +6,7 @@
  * data and one-click booking.
  */
 import { z } from "zod";
+import crypto from "node:crypto";
 import { protectedProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import { TRPCError } from "@trpc/server";
@@ -384,7 +385,7 @@ OUTPUT: valid JSON with this structure:
 
       return {
         itinerary: {
-          id: `trip_${Date.now()}_${require('crypto').randomBytes(3).toString('hex')}`,
+          id: `trip_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
           destination: cityName,
           country: countryName,
           countryCode: intent.country,

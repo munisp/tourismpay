@@ -24,6 +24,7 @@ import {
   checkCBNTransactionLimit,
   runAMLCheck,
   recordConsent,
+  CBN_KYC_LIMITS,
   type KycTier,
   type ConsentPurpose,
 } from "../_core/compliance";
@@ -172,7 +173,6 @@ systemRouter.get("/compliance/limits", (req: Request, res: Response) => {
   const { kycTier, amountKobo, transactionType } = parsed.data;
 
   // Return all limits for the tier
-  const { CBN_KYC_LIMITS } = require("../_core/compliance");
   const tierLimits = CBN_KYC_LIMITS[kycTier];
 
   const response: Record<string, unknown> = { kycTier, limits: tierLimits };

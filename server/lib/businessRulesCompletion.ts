@@ -12,7 +12,7 @@
 // F6: Transaction Reversal Workflow with Approval Chain
 // ============================================================
 
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 export type ReversalStatus =
   | "pending"
   | "l1_approved"

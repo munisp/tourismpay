@@ -26,7 +26,7 @@
 
 import { ENV } from "../_core/env.js";
 import axios from "axios";
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -232,7 +232,7 @@ export async function fluvioProduce(event: FluvioEvent): Promise<void> {
   };
   notifySseListeners(enriched);
   // Record analytics metrics (non-blocking, fire-and-forget)
-  import("./analyticsMetrics")
+  import("./analyticsMetrics.js")
     .then(({ recordMetric }) => {
       recordMetric("mqtt.messages.total", 1, { topic: event.topic }).catch(
         () => {}

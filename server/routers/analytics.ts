@@ -46,7 +46,7 @@ export const analyticsRouter = router({
       .where(sql`created_at >= ${thirtyDaysAgo}`);
 
     // BIS investigation stats — last 30 days
-    const thirtyDaysAgoMs = Date.now() - 30 * 86400 * 1000;
+    const thirtyDaysAgoDate = new Date(Date.now() - 30 * 86400 * 1000);
     const [bisStats] = await db
       .select({
         total: count(),
@@ -56,7 +56,7 @@ export const analyticsRouter = router({
         avgRiskScore: sql<number>`avg(risk_score) filter (where risk_score is not null)`,
       })
       .from(bisInvestigations)
-      .where(sql`created_at >= ${thirtyDaysAgoMs}`);
+      .where(sql`created_at >= ${thirtyDaysAgoDate.toISOString()}`);
 
     // Fraud alert stats — last 30 days
     const [fraudStats] = await db
@@ -67,7 +67,7 @@ export const analyticsRouter = router({
         resolved: sql<number>`count(*) filter (where status = 'resolved')`,
       })
       .from(fraudAlerts)
-      .where(sql`created_at >= ${thirtyDaysAgoMs}`);
+      .where(sql`created_at >= ${thirtyDaysAgoDate.toISOString()}`);
 
     // PaymentSwitch remittance stats — last 30 days
     const [remittanceStats] = await db
@@ -102,11 +102,11 @@ export const analyticsRouter = router({
     const [psFraudStats] = await db
       .select({
         total: count(),
-        blocked: sql<number>`count(*) filter (where status = 'blocked')`,
-        flagged: sql<number>`count(*) filter (where status = 'flagged')`,
+        blocked: sql<number>`count(*) filter (where status = 'open')`,
+        flagged: sql<number>`count(*) filter (where status = 'investigating')`,
       })
       .from(fraudAlerts)
-      .where(sql`created_at >= ${thirtyDaysAgoMs}`);
+      .where(sql`created_at >= ${thirtyDaysAgoDate.toISOString()}`);
 
     return {
       period: "last_30_days",
@@ -170,7 +170,7 @@ export const analyticsRouter = router({
     .query(async ({ input }) => {
       const db = await requireDb();
       const sinceTs = Math.floor(Date.now() / 1000) - input.days * 86400;
-      const sinceTsMs = Date.now() - input.days * 86400 * 1000;
+      const sinceDate = new Date(Date.now() - input.days * 86400 * 1000);
 
       if (input.metric === "wallet_volume") {
         const rows = await db.execute(
@@ -188,11 +188,11 @@ export const analyticsRouter = router({
       if (input.metric === "bis_investigations") {
         const rows = await db.execute(
           sql`SELECT
-            to_char(to_timestamp(created_at / 1000), 'YYYY-MM-DD') as day,
+            to_char(created_at, 'YYYY-MM-DD') as day,
             count(*) as total,
             count(*) filter (where status = 'flagged') as flagged
           FROM bis_investigations
-          WHERE created_at >= ${sinceTsMs}
+          WHERE created_at >= ${sinceDate.toISOString()}
           GROUP BY day ORDER BY day`
         );
         return { metric: input.metric, data: (rows as any[]) as { day: string; total: number; flagged: number }[] };
@@ -214,11 +214,11 @@ export const analyticsRouter = router({
       // fraud_alerts
       const rows = await db.execute(
         sql`SELECT
-          to_char(to_timestamp(created_at / 1000), 'YYYY-MM-DD') as day,
+          to_char(created_at, 'YYYY-MM-DD') as day,
           count(*) as total,
           count(*) filter (where severity = 'critical') as critical
         FROM fraud_alerts
-        WHERE created_at >= ${sinceTsMs}
+        WHERE created_at >= ${sinceDate.toISOString()}
         GROUP BY day ORDER BY day`
       );
       return { metric: input.metric, data: (rows as any[]) as { day: string; total: number; critical: number }[] };
@@ -245,10 +245,10 @@ export const analyticsRouter = router({
       .from(fraudAlerts);
 
     // Check for stuck BIS investigations (processing > 24h)
-    const oneDayAgoMs = Date.now() - 86400 * 1000;
+    const oneDayAgoDate = new Date(Date.now() - 86400 * 1000);
     const [bisHealth] = await db
       .select({
-        stuckProcessing: sql<number>`count(*) filter (where status = 'processing' and created_at < ${oneDayAgoMs})`,
+        stuckProcessing: sql<number>`count(*) filter (where status = 'processing' and created_at < ${oneDayAgoDate.toISOString()})`,
       })
       .from(bisInvestigations);
 
@@ -290,7 +290,7 @@ export const analyticsRouter = router({
         count: sql<number>`count(*)`,
       })
       .from(users)
-      .where(sql`last_signed_in >= ${oneDayAgo}`)
+      .where(sql`last_signed_in >= ${oneDayAgo.toISOString()}`)
       .groupBy(users.role);
     const roleOrder = ["tourist", "merchant", "compliance_officer", "noc_operator", "settlement_officer", "bis_analyst", "admin", "user"];
     const byRole: Record<string, number> = Object.fromEntries(roleOrder.map((r) => [r, 0]));
@@ -319,7 +319,7 @@ export const analyticsRouter = router({
           totalAmountUsd: sql<number>`coalesce(sum(amount_usd::numeric) filter (where status = 'paid'), 0)`,
         })
         .from(qrPaymentTokens)
-        .where(sql`created_at >= ${since}`);
+        .where(sql`created_at >= ${since.toISOString()}`);
       const daily = await db.execute(
         sql`SELECT
           to_char(created_at, 'YYYY-MM-DD') as day,
@@ -327,7 +327,7 @@ export const analyticsRouter = router({
           count(*) filter (where status = 'paid') as paid,
           coalesce(sum(amount_usd::numeric) filter (where status = 'paid'), 0) as volume
         FROM qr_payment_tokens
-        WHERE created_at >= ${since}
+        WHERE created_at >= ${since.toISOString()}
         GROUP BY day ORDER BY day`
       );
       return {
@@ -355,11 +355,11 @@ export const analyticsRouter = router({
         total: count(),
         approved: sql<number>`count(*) filter (where status = 'approved')`,
         rejected: sql<number>`count(*) filter (where status = 'rejected')`,
-        pending: sql<number>`count(*) filter (where status = 'pending' or status = 'submitted')`,
+        pending: sql<number>`count(*) filter (where status = 'draft' or status = 'submitted')`,
         underReview: sql<number>`count(*) filter (where status = 'under_review')`,
       })
       .from(kybApplications)
-      .where(sql`created_at >= ${thirtyDaysAgo}`);
+      .where(sql`created_at >= ${thirtyDaysAgo.toISOString()}`);
     const total = Number(stats?.total ?? 0);
     const approved = Number(stats?.approved ?? 0);
     const rejected = Number(stats?.rejected ?? 0);

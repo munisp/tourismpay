@@ -13,7 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // Pagination
 // ═══════════════════════════════════════════════════════════════════════════════
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 export interface PaginationParams {
   page: number;
   limit: number;

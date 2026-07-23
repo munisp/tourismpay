@@ -257,10 +257,10 @@ export const offlinePosModeRouter = router({
 
     const oneWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const startedRows = await db.execute(
-      sql`SELECT count(*) as total FROM audit_log WHERE action = 'OFFLINE_SESSION_STARTED' AND "createdAt" > ${oneWeek}`
+      sql`SELECT count(*) as total FROM audit_logs WHERE action = 'OFFLINE_SESSION_STARTED' AND "created_at" > ${oneWeek.toISOString()}`
     );
     const endedRows = await db.execute(
-      sql`SELECT count(*) as total FROM audit_log WHERE action = 'OFFLINE_SESSION_ENDED' AND "createdAt" > ${oneWeek}`
+      sql`SELECT count(*) as total FROM audit_logs WHERE action = 'OFFLINE_SESSION_ENDED' AND "created_at" > ${oneWeek.toISOString()}`
     );
 
     const totalStarted = Number(

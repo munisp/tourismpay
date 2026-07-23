@@ -14,7 +14,7 @@
  *  - System uptime and database health
  */
 
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 import { notifyOwner } from "../_core/notification";
 import {
   checkDbHealth,

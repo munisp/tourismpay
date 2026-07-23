@@ -13,7 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // Generic State Machine
 // ═══════════════════════════════════════════════════════════════════════════════
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 export interface StateTransition<S extends string> {
   from: S;
   to: S;

@@ -1,16 +1,17 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { sql, gte, eq } from "drizzle-orm";
+import { sql, gte, eq, count, and } from "drizzle-orm";
 import {
   getFraudAlerts,
   createFraudAlert,
   updateFraudAlertStatus,
+  resolveFraudAlert,
   writeAuditLog,
-} from "../db";
-import { getDb } from "../db";
-import { fraudAlerts, fraudRules } from "../../drizzle/schema";
-import { protectedProcedure, router } from "../_core/trpc";
-import { getAgentFromCookie } from "../middleware/agentAuth";
+} from "../db.js";
+import { getDb } from "../db.js";
+import { fraudAlerts, fraudRules } from "../../drizzle/schema.js";
+import { protectedProcedure, router } from "../_core/trpc.js";
+import { getAgentFromCookie } from "../middleware/agentAuth.js";
 
 export const fraudRouter = router({
   // ── List alerts (admin or agent-scoped) ───────────────────────────────────
@@ -516,5 +517,64 @@ export const fraudRouter = router({
       blocked: r.blocked,
       volume: r.alerts,
     }));
+  }),
+
+  // ── Recent alerts for live feed (last N minutes) ──────────────────────────
+  recentAlerts: protectedProcedure
+    .input(z.object({ minutes: z.number().min(1).max(60).default(5) }).optional())
+    .query(async ({ input }) => {
+      const since = new Date(Date.now() - (input?.minutes ?? 5) * 60 * 1000);
+      return getFraudAlerts({ since, limit: 50 } as any);
+    }),
+
+  // ── Resolve a fraud alert ──────────────────────────────────────────────────
+  resolve: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      return resolveFraudAlert(input.id, ctx.user.id);
+    }),
+
+  // ── Mark a fraud alert as false positive ───────────────────────────────────
+  markFalsePositive: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      return db
+        .update(fraudAlerts)
+        .set({
+          status: "false_positive",
+          resolvedBy: ctx.user.id,
+          resolvedAt: new Date(),
+          updatedAt: new Date(),
+        } as any)
+        .where(eq(fraudAlerts.id, input.id))
+        .returning();
+    }),
+
+  // ── Fraud stats for dashboard ──────────────────────────────────────────────
+  // Six lightweight COUNT queries instead of six separate 1000-row fetches --
+  // the old version fetched up to 6000 rows across six concurrent connections
+  // just to count them in JS, which was flaky under real dashboard load.
+  stats: protectedProcedure.query(async () => {
+    const db = (await getDb())!;
+    if (!db) throw new Error("Database connection unavailable");
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const countWhere = async (condition?: any) => {
+      const [row] = condition
+        ? await db.select({ n: count() }).from(fraudAlerts).where(condition)
+        : await db.select({ n: count() }).from(fraudAlerts);
+      return row?.n ?? 0;
+    };
+    const [total, open, critical, high, investigating, last24h] = await Promise.all([
+      countWhere(),
+      countWhere(eq(fraudAlerts.status, "open")),
+      countWhere(eq(fraudAlerts.severity, "critical")),
+      countWhere(eq(fraudAlerts.severity, "high")),
+      countWhere(eq(fraudAlerts.status, "investigating")),
+      countWhere(gte(fraudAlerts.createdAt, since24h)),
+    ]);
+
+    return { total, open, critical, high, investigating, last24h };
   }),
 });

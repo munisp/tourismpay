@@ -128,57 +128,49 @@ export type InsertRealtimeTxAlert = typeof realtimeTxAlerts.$inferInsert;
 
 // ─── SLA Definitions ─────────────────────────────────────────────────────────
 
-export const slaDefinitions = pgTable(
+// Matches migration 0033_massive_lethal_legion.sql exactly.
+export const sla_definitions = pgTable(
   "sla_definitions",
   {
     id: serial("id").primaryKey(),
-    name: varchar("name", { length: 255 }).notNull(),
-    service: varchar("service", { length: 100 }).notNull(),
-    metricType: varchar("metric_type", { length: 100 }).notNull(), // uptime | latency | error_rate | throughput
-    targetValue: decimal("target_value", { precision: 10, scale: 4 }).notNull(),
-    unit: varchar("unit", { length: 50 }).notNull(), // percent | ms | rpm
-    windowHours: integer("window_hours").notNull().default(24),
-    isActive: boolean("is_active").notNull().default(true),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    name: text("name").notNull(),
+    serviceType: text("service_type").notNull(),
+    metricType: text("metric_type").notNull(),
+    targetValue: integer("target_value").notNull(),
+    warningThreshold: integer("warning_threshold"),
+    criticalThreshold: integer("critical_threshold"),
+    measurementWindow: text("measurement_window").notNull().default("1h"),
+    isActive: boolean("is_active").default(true),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at"),
   },
-  (t) => [
-    index("sla_def_service_idx").on(t.service),
-  ]
 );
-export const sla_definitions = slaDefinitions;
-export type SlaDefinition = typeof slaDefinitions.$inferSelect;
-export type InsertSlaDefinition = typeof slaDefinitions.$inferInsert;
+export type SlaDefinition = typeof sla_definitions.$inferSelect;
+export type InsertSlaDefinition = typeof sla_definitions.$inferInsert;
 
 // ─── SLA Breaches ─────────────────────────────────────────────────────────────
 
-export const slaBreaches = pgTable(
+// Matches migration 0033_massive_lethal_legion.sql exactly.
+export const sla_breaches = pgTable(
   "sla_breaches",
   {
     id: serial("id").primaryKey(),
-    slaDefinitionId: integer("sla_definition_id").references(() => slaDefinitions.id),
-    service: varchar("service", { length: 100 }).notNull(),
-    metricType: varchar("metric_type", { length: 100 }).notNull(),
-    actualValue: decimal("actual_value", { precision: 10, scale: 4 }).notNull(),
-    targetValue: decimal("target_value", { precision: 10, scale: 4 }).notNull(),
-    breachStartedAt: timestamp("breach_started_at").notNull(),
-    breachResolvedAt: timestamp("breach_resolved_at"),
-    durationMinutes: integer("duration_minutes"),
-    severity: varchar("severity", { length: 50 }).notNull().default("medium"),
-    notified: boolean("notified").notNull().default(false),
-    metadata: jsonb("metadata"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  
-  resolvedAt: timestamp("resolved_at"),
-},
+    slaDefinitionId: integer("sla_definition_id").notNull(),
+    breachType: text("breach_type").notNull(),
+    actualValue: integer("actual_value").notNull(),
+    targetValue: integer("target_value").notNull(),
+    duration: integer("duration"),
+    impactLevel: text("impact_level").notNull().default("medium"),
+    resolvedAt: timestamp("resolved_at"),
+    resolution: text("resolution"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
   (t) => [
-    index("sla_breach_service_idx").on(t.service),
-    index("sla_breach_started_idx").on(t.breachStartedAt),
+    index("sla_breach_definition_idx").on(t.slaDefinitionId),
   ]
 );
-export const sla_breaches = slaBreaches;
-export type SlaBreach = typeof slaBreaches.$inferSelect;
-export type InsertSlaBreach = typeof slaBreaches.$inferInsert;
+export type SlaBreach = typeof sla_breaches.$inferSelect;
+export type InsertSlaBreach = typeof sla_breaches.$inferInsert;
 
 // ─── Operational Runbooks ─────────────────────────────────────────────────────
 

@@ -5,7 +5,7 @@
  * graceful shutdown, and connection draining
  */
 import logger from "../_core/logger";
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 
 // ── 1. Circuit Breaker ────────────────────────────────────────────────────────
 type CircuitState = "closed" | "open" | "half_open";

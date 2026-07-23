@@ -34,6 +34,8 @@ import { createTransfer as tbCreateTransfer } from "../_core/tigerbeetle";
 const SETTLEMENT_SERVICE_URL = process.env.SETTLEMENT_SERVICE_URL || "http://localhost:8081";
 const PARTNER_SERVICE_URL = process.env.PARTNER_REMITTANCE_URL || "http://localhost:8085";
 const KYC_SERVICE_URL = process.env.KYC_SERVICE_URL || "http://localhost:8082";
+const SETTLEMENT_API_KEY = process.env.SETTLEMENT_API_KEY || "";
+const KYC_API_KEY = process.env.KYC_API_KEY || "";
 
 const WIRE_RAILS = ["swift_gpi", "sepa_instant", "ach_us", "faster_pay_uk", "imto_partner"] as const;
 const PARTNER_PROVIDERS = ["wise", "revolut", "remitly", "lemfi"] as const;
@@ -43,11 +45,16 @@ const WALLET_CURRENCIES = ["USDC", "USDT", "DAI", "NGN", "KES", "GHS", "ZAR", "U
 // ─── Helper: Call Go Settlement Service ─────────────────────────────────────
 
 async function callGoService(path: string, method: string = "GET", body?: unknown) {
-  const res = await fetch(`${SETTLEMENT_SERVICE_URL}${path}`, {
-    method,
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer internal-service-token` },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${SETTLEMENT_SERVICE_URL}${path}`, {
+      method,
+      headers: { "Content-Type": "application/json", "X-API-Key": SETTLEMENT_API_KEY },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new TRPCError({ code: "NOT_IMPLEMENTED", message: "Wire transfer / agent banking is not available in this environment (settlement service is not deployed)." });
+  }
   if (!res.ok) {
     const err = await res.text();
     throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Settlement service error: ${err}` });
@@ -58,11 +65,16 @@ async function callGoService(path: string, method: string = "GET", body?: unknow
 // ─── Helper: Call Python Partner Service ────────────────────────────────────
 
 async function callPartnerService(path: string, method: string = "GET", body?: unknown) {
-  const res = await fetch(`${PARTNER_SERVICE_URL}${path}`, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${PARTNER_SERVICE_URL}${path}`, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new TRPCError({ code: "NOT_IMPLEMENTED", message: "Partner remittance is not available in this environment (partner service is not deployed)." });
+  }
   if (!res.ok) {
     const err = await res.text();
     throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Partner service error: ${err}` });
@@ -73,11 +85,16 @@ async function callPartnerService(path: string, method: string = "GET", body?: u
 // ─── Helper: Call Rust KYC Service ──────────────────────────────────────────
 
 async function callKYCService(path: string, method: string = "GET", body?: unknown) {
-  const res = await fetch(`${KYC_SERVICE_URL}${path}`, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${KYC_SERVICE_URL}${path}`, {
+      method,
+      headers: { "Content-Type": "application/json", "X-API-Key": KYC_API_KEY },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new TRPCError({ code: "NOT_IMPLEMENTED", message: "Agent banking / KYC is not available in this environment (KYC service is not deployed)." });
+  }
   if (!res.ok) {
     const err = await res.text();
     throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `KYC service error: ${err}` });
@@ -90,21 +107,22 @@ async function callKYCService(path: string, method: string = "GET", body?: unkno
 async function creditWallet(userId: string, currency: string, amount: number, source: string, ref: string) {
   const db = await getDb();
   if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
+  const nowSec = Math.floor(Date.now() / 1000);
 
   // Upsert wallet balance
   await db.execute(sql`
     INSERT INTO wallet_balances (id, user_id, currency, balance, locked_balance, wallet_address, network, created_at, updated_at)
-    VALUES (gen_random_uuid()::text, ${String(userId)}, ${currency}, ${String(amount)}, '0', ${'tp_' + currency.toLowerCase() + '_' + String(userId).slice(0, 8)}, ${currency}, ${Date.now()}, ${Date.now()})
+    VALUES (gen_random_uuid()::text, ${String(userId)}, ${currency}, ${String(amount)}, '0', ${'tp_' + currency.toLowerCase() + '_' + String(userId).slice(0, 8)}, ${currency}, ${nowSec}, ${nowSec})
     ON CONFLICT (user_id, currency) DO UPDATE SET
       balance = (CAST(wallet_balances.balance AS NUMERIC) + ${amount})::text,
-      updated_at = ${Date.now()}
+      updated_at = ${nowSec}
   `);
 
   // Record transaction
   const txId = crypto.randomUUID();
   await db.execute(sql`
     INSERT INTO wallet_transactions (id, user_id, type, status, currency, amount, fee, counterparty, note, tx_hash, created_at, updated_at)
-    VALUES (${txId}, ${String(userId)}, 'deposit', 'completed', ${currency}, ${String(amount)}, '0', ${source}, ${ref}, ${'0x' + crypto.randomUUID().replace(/-/g, '')}, ${Date.now()}, ${Date.now()})
+    VALUES (${txId}, ${String(userId)}, 'deposit', 'completed', ${currency}, ${String(amount)}, '0', ${source}, ${ref}, ${'0x' + crypto.randomUUID().replace(/-/g, '')}, ${nowSec}, ${nowSec})
   `);
 
   return txId;

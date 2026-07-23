@@ -4,17 +4,17 @@
  */
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { getDb } from "../db";
-import { agents, floatTopUpRequests } from "../../drizzle/schema";
-import { eq, desc, asc } from "drizzle-orm";
-import { protectedProcedure, router } from "../_core/trpc";
-import { getAgentFromCookie } from "../middleware/agentAuth";
+import { getDb } from "../db.js";
+import { agents, floatTopUpRequests } from "../../drizzle/schema.js";
+import { eq, desc, asc, sql } from "drizzle-orm";
+import { protectedProcedure, router } from "../_core/trpc.js";
+import { getAgentFromCookie } from "../middleware/agentAuth.js";
 import {
   writeAuditLog,
   updateAgentFloat,
   getAgentById,
   withTransaction,
-} from "../db";
+} from "../db.js";
 
 async function requireAdmin(req: any) {
   const session = await getAgentFromCookie(req);
@@ -269,18 +269,12 @@ export const agentManagementRouter = router({
         await withTransaction(async tx => {
           // Credit agent float (updates agents.floatBalance)
           await tx
-            .update(require("../../drizzle/schema").agents)
+            .update(agents)
             .set({
-              floatBalance: require("drizzle-orm")
-                .sql`"floatBalance" + ${Number(req.requestedAmount)}`,
+              floatBalance: sql`"floatBalance" + ${Number(req.requestedAmount)}`,
               updatedAt: new Date(),
             })
-            .where(
-              require("drizzle-orm").eq(
-                require("../../drizzle/schema").agents.id,
-                req.agentId
-              )
-            );
+            .where(eq(agents.id, req.agentId));
           // Update request status
           await tx
             .update(floatTopUpRequests)

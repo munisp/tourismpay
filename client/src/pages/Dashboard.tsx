@@ -44,7 +44,7 @@ export default function Dashboard() {
       href: `/bis/${inv.id}`,
       time: new Date(inv.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     })) ?? []),
-    ...((recentFraud as any[])?.slice(0, 2).map((a: any) => ({
+    ...((recentFraud as any)?.items?.slice(0, 2).map((a: any) => ({
       id: `FRD-${a.id}`,
       subject: a.description ?? "Suspicious activity",
       country: a.country ?? "??",

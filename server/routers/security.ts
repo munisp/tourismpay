@@ -1,5 +1,8 @@
 import { z } from "zod";
+import { sql, eq, gte, count } from "drizzle-orm";
 import { router, protectedProcedure } from "../_core/trpc";
+import { getDb } from "../db";
+import { socAlerts } from "../../drizzle/schema";
 import {
   createFraudAlert,
   getFraudAlerts,
@@ -169,25 +172,28 @@ export const socRouter = router({
     }),
 
   // SOC stats for dashboard
+  // Six lightweight COUNT queries instead of six separate 1000-row fetches --
+  // the old version fetched up to 6000 rows across six concurrent connections
+  // just to count them in JS, which was flaky under real dashboard load.
   stats: protectedProcedure.query(async () => {
-    const [all, open, critical, intrusions, threatIntel] = await Promise.all([
-      getSocAlerts({ limit: 1000 }),
-      getSocAlerts({ status: "open", limit: 1000 }),
-      getSocAlerts({ severity: "critical", limit: 1000 }),
-      getSocAlerts({ type: "intrusion", limit: 1000 }),
-      getSocAlerts({ type: "threat_intel", limit: 1000 }),
+    const db = await getDb();
+    if (!db) throw new Error("Database connection unavailable");
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const countWhere = async (condition?: any) => {
+      const [row] = condition
+        ? await db.select({ n: count() }).from(socAlerts).where(condition)
+        : await db.select({ n: count() }).from(socAlerts);
+      return row?.n ?? 0;
+    };
+    const [total, open, critical, intrusions, threatIntel, last24h] = await Promise.all([
+      countWhere(),
+      countWhere(eq(socAlerts.status, "open")),
+      countWhere(eq(socAlerts.severity, "critical")),
+      countWhere(eq(socAlerts.type, "intrusion")),
+      countWhere(eq(socAlerts.type, "threat_intel")),
+      countWhere(gte(socAlerts.createdAt, since24h)),
     ]);
 
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const last24h = await getSocAlerts({ since: since24h, limit: 1000 });
-
-    return {
-      total: all.length,
-      open: open.length,
-      critical: critical.length,
-      intrusions: intrusions.length,
-      threatIntel: threatIntel.length,
-      last24h: last24h.length,
-    };
+    return { total, open, critical, intrusions, threatIntel, last24h };
   }),
 });

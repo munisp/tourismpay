@@ -109,23 +109,7 @@ export const tenantSubscriptions = pgTable("tenant_subscriptions", {
 });
 
 // ─── Webhook Deliveries ───────────────────────────────────────────────────────
-export const webhookDeliveries = pgTable("webhook_deliveries", {
-  id: serial("id").primaryKey(),
-  endpointId: integer("endpoint_id"),
-  subscriptionId: integer("subscription_id"),
-  eventType: varchar("event_type", { length: 100 }),
-  payload: jsonb("payload"),
-  status: varchar("status", { length: 50 }).default("pending"),
-  httpStatus: integer("http_status"),
-  responseBody: text("response_body"),
-  attemptCount: integer("attempt_count").default(0),
-  retryCount: integer("retry_count").default(0),
-  responseTime: integer("response_time"),
-  nextRetryAt: timestamp("next_retry_at"),
-  deliveredAt: timestamp("delivered_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+// webhookDeliveries is defined in schema-additions.ts
 
 // ─── MDM Devices ──────────────────────────────────────────────────────────────
 export const mdmDevices = pgTable("mdm_devices", {
@@ -227,19 +211,9 @@ export const agentOnboardingSteps = pgTable("agent_onboarding_steps", {
 
 // ─── Additional missing tables (TS2305 fixes) ─────────────────────────────────
 
-export const sla_definitions = pgTable("sla_definitions", {
-  id: serial("id").primaryKey(),
-  name: varchar("name", { length: 200 }),
-  targetMs: integer("target_ms"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+// sla_definitions is defined in schema-platform.ts
 
-export const sla_breaches = pgTable("sla_breaches", {
-  id: serial("id").primaryKey(),
-  definitionId: integer("definition_id"),
-  actualMs: integer("actual_ms"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+// sla_breaches is defined in schema-platform.ts
 
 export const loadTestRunsasloadTestRunsTable = pgTable("load_test_runs_alias", {
   id: serial("id").primaryKey(),
@@ -294,18 +268,32 @@ export const dataRightsRequests = pgTable("data_rights_requests", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const glAccounts = pgTable("gl_accounts", {
+// Matches migration 0033_massive_lethal_legion.sql exactly.
+export const gl_accounts = pgTable("gl_accounts", {
   id: serial("id").primaryKey(),
-  tenantId: integer("tenant_id"),
-  accountCode: varchar("account_code", { length: 50 }),
-  accountName: varchar("account_name", { length: 200 }),
-  accountType: varchar("account_type", { length: 50 }),
-  parentId: integer("parent_id"),
-  balance: numeric("balance", { precision: 18, scale: 2 }).default("0"),
-  currency: varchar("currency", { length: 10 }).default("NGN"),
+  accountCode: text("account_code").notNull().unique(),
+  accountName: text("account_name").notNull(),
+  accountType: text("account_type").notNull(),
+  parentAccountId: integer("parent_account_id"),
+  currency: text("currency").notNull().default("NGN"),
+  balance: integer("balance").notNull().default(0),
   isActive: boolean("is_active").default(true),
+  description: text("description"),
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// Matches migration 0033_massive_lethal_legion.sql exactly.
+export const customer_journey_events = pgTable("customer_journey_events", {
+  id: serial("id").primaryKey(),
+  customerId: text("customer_id").notNull(),
+  eventType: text("event_type").notNull(),
+  eventSource: text("event_source").notNull(),
+  eventData: text("event_data"),
+  sessionId: text("session_id"),
+  deviceType: text("device_type"),
+  channel: text("channel"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const gl_journal_entries = pgTable("gl_journal_entries", {

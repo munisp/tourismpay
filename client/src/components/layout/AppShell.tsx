@@ -378,6 +378,15 @@ export default function AppShell({ children }: AppShellProps) {
               <Button variant="ghost" size="icon" className="w-6 h-6 text-muted-foreground hover:text-foreground shrink-0">
                 <Settings className="w-3.5 h-3.5" />
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-6 h-6 text-muted-foreground hover:text-foreground shrink-0"
+                onClick={async () => { await logout(); navigate("/login"); }}
+                title="Sign out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </Button>
             </div>
           </div>
         )}

@@ -9,6 +9,12 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  // Self-hosted MinIO (S3-compatible object storage) for file uploads (KYB
+  // documents, merchant product images, reports, etc.)
+  minioEndpoint: process.env.MINIO_ENDPOINT ?? "http://localhost:9000",
+  minioRootUser: process.env.MINIO_ROOT_USER ?? "",
+  minioRootPassword: process.env.MINIO_ROOT_PASSWORD ?? "",
+  minioBucket: process.env.MINIO_BUCKET ?? "tourismpay-storage",
   // VAPID keys for Web Push notifications
   // Default keys are pre-generated for TourismPay — override via env vars in production
   vapidPublicKey: process.env.VAPID_PUBLIC_KEY ?? "BFMCqrD4ysRr4VAMWI8gh856ZGWEXX7pCeZWLoF3e7t7Aa3SOAS-29AxsOkVlAisaZm60lQ9vIgjR5OnU5KblC0",

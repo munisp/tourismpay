@@ -4,6 +4,7 @@
  * Response compression, query result caching, connection pool optimization,
  * and request metrics for P99 response times
  */
+import zlib from "node:zlib";
 import { cacheGet, cacheSet } from "../redisClient";
 import logger from "../_core/logger";
 
@@ -267,7 +268,6 @@ export function compressionMiddleware(
       acceptEncoding.includes("gzip")
     ) {
       // Node.js built-in zlib compression
-      const zlib = require("zlib");
       const compressed = zlib.gzipSync(Buffer.from(body));
       res.setHeader("Content-Encoding", "gzip");
       res.setHeader("Content-Length", compressed.length);

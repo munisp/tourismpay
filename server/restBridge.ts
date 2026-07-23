@@ -40,7 +40,7 @@
  */
 
 import { Router, Request, Response, NextFunction } from "express";
-import { getDb } from "./db";
+import { getDb } from "./db.js";
 import {
   agents,
   transactions,
@@ -63,9 +63,9 @@ import {
   customers,
   tenants,
   auditLog,
-} from "../drizzle/schema";
+} from "../drizzle/schema.js";
 import { eq, desc, count, sql } from "drizzle-orm";
-import { verifySessionJwt, KC_SESSION_COOKIE } from "./_core/keycloakAuth";
+import { verifySessionJwt, KC_SESSION_COOKIE } from "./_core/keycloakAuth.js";
 
 const router = Router();
 

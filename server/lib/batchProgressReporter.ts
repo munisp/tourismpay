@@ -14,6 +14,7 @@
  */
 import logger from "../_core/logger";
 import { getConfigNumber } from "./runtimeConfig";
+import { getIO } from "../socketSingleton";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -254,7 +255,6 @@ export function createSocketIOProgressHandler(): (
 
     // Emit to Socket.IO /settlement namespace
     try {
-      const { getIO } = require("../socketSingleton");
       const io = getIO();
       if (io) {
         const settlementNs = io.of("/settlement");

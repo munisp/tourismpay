@@ -12,7 +12,7 @@
 // F11: Global Notification Center
 // ============================================================
 
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 export type NotificationType =
   | "info"
   | "warning"

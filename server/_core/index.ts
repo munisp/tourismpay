@@ -200,8 +200,9 @@ async function startServer() {
   // ─── Dapr pub/sub subscriptions & sidecar health endpoint ─────────────────────────────
   registerDaprRoutes(app);
 
-  // DEV ONLY: session token endpoint for screenshots/testing
-  if (process.env.NODE_ENV === "development") {
+  // Demo/dev login endpoints. Enabled in development, or in any environment when
+  // ENABLE_DEMO_LOGIN=true (used for keyless demo deployments without Keycloak/OAuth).
+  if (process.env.NODE_ENV === "development" || process.env.ENABLE_DEMO_LOGIN === "true") {
     app.get("/api/dev/session-token", async (_req, res) => {
       try {
         const { sdk } = await import("./sdk");
@@ -340,10 +341,46 @@ async function startServer() {
           email: "amara.diallo@demo.tourismpay.com",
           loginMethod: "demo",
           lastSignedIn: new Date(),
+          role: "tourist" as any,
         });
         const token = await sdk.createSessionToken("demo_tourist_001", { name: "Amara Diallo" });
         res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; SameSite=Lax`);
         const redirect = (_req as any).query?.redirect || "/tourist/onboarding";
+        res.redirect(302, redirect as string);
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    // DEMO: admin login — upserts a demo admin user and sets a session.
+    // Admin unlocks the full dashboard (BIS, security, admin, finance, analytics).
+    app.get("/api/dev/demo-admin-login", async (_req, res) => {
+      try {
+        const { sdk } = await import("./sdk");
+        const dbModule = await import("../db");
+        const { getDb } = dbModule;
+        const { users } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+
+        await dbModule.upsertUser({
+          openId: "demo_admin_001",
+          name: "Patrick Munis",
+          email: "admin@tourismpay.io",
+          loginMethod: "demo",
+          lastSignedIn: new Date(),
+          role: "admin" as any,
+        });
+        // Ensure role stays admin and onboarding is complete so no redirect fires.
+        const db = await getDb();
+        if (db) {
+          await db
+            .update(users)
+            .set({ role: "admin" as any, onboardingCompleted: true, updatedAt: new Date() })
+            .where(eq(users.openId, "demo_admin_001"));
+        }
+        const token = await sdk.createSessionToken("demo_admin_001", { name: "Patrick Munis" });
+        res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; SameSite=Lax`);
+        const redirect = (_req as any).query?.redirect || "/";
         res.redirect(302, redirect as string);
       } catch (e: any) {
         res.status(500).json({ error: e.message });

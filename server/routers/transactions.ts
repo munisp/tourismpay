@@ -11,8 +11,8 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
-import { notifyOwner } from "../_core/notification";
-import { tbCreateTransfer, tbEnsureAgentAccount } from "../tbClient";
+import { notifyOwner } from "../_core/notification.js";
+import { tbCreateTransfer, tbEnsureAgentAccount } from "../tbClient.js";
 import {
   createTransaction,
   getTransactionsByAgent,
@@ -26,10 +26,10 @@ import {
   getAgentById,
   createFraudAlert,
   getDb,
-} from "../db";
-import { protectedProcedure, router } from "../_core/trpc";
-import { getAgentFromCookie } from "../middleware/agentAuth";
-import { ENV } from "../_core/env";
+} from "../db.js";
+import { protectedProcedure, router } from "../_core/trpc.js";
+import { getAgentFromCookie } from "../middleware/agentAuth.js";
+import { ENV } from "../_core/env.js";
 import {
   transactions,
   agents,
@@ -41,9 +41,9 @@ import {
   geofenceZones,
   deviceLocations,
   commissionRules,
-} from "../../drizzle/schema";
-import { sendSms, buildConfirmationSms } from "../termii";
-import { getIO } from "../socketSingleton";
+} from "../../drizzle/schema.js";
+import { sendSms, buildConfirmationSms } from "../termii.js";
+import { getIO } from "../socketSingleton.js";
 import { floatPlatform, analyticsPlatform } from "../_core/platformClient.js";
 import crypto from "crypto";
 import {
@@ -51,7 +51,7 @@ import {
   transactionErrorsTotal,
   transactionDurationMs,
   floatLocksTotal,
-} from "../metrics";
+} from "../metrics.js";
 // ─── Commission & loyalty rates ───────────────────────────────────────────────
 const COMMISSION_RATES: Record<string, number> = {
   "Cash In": 0.003,
@@ -561,7 +561,7 @@ export const transactionsRouter = router({
         let commissionRate = COMMISSION_RATES[input.type] ?? 0;
         try {
           const cacheKey = `commission_rate:${input.type}`;
-          const { cacheGet, cacheSet } = await import("../redisClient");
+          const { cacheGet, cacheSet } = await import("../redisClient.js");
           const cached = await cacheGet(cacheKey);
           if (cached !== null) {
             commissionRate = Number(cached);
@@ -596,7 +596,7 @@ export const transactionsRouter = router({
             calculateFraudScore,
             checkTransactionLimits,
             checkAmlTriggers,
-          } = await import("../lib/businessRulesEngine");
+          } = await import("../lib/businessRulesEngine.js");
           // Override commission with business rules engine calculation
           const brCommission = calculateCommission(
             // @ts-expect-error middleware type mismatch
@@ -762,7 +762,7 @@ export const transactionsRouter = router({
         // split it across the hierarchy: sub_agent → agent → master → super → platform
         if (commission > 0) {
           const { executeCommissionCascade } = await import(
-            "../lib/commissionCascade"
+            "../lib/commissionCascade.js"
           );
           const cascadeResult = await executeCommissionCascade({
             transactionId: tx.id,
@@ -851,7 +851,7 @@ export const transactionsRouter = router({
           .inc();
 
         // ── Kafka domain event (fire-and-forget, fail-open) ────────────────────────
-        import("../kafkaClient")
+        import("../kafkaClient.js")
           .then(({ publishEvent }) =>
             publishEvent(
               "pos.transactions.created",
@@ -891,7 +891,7 @@ export const transactionsRouter = router({
           );
 
         // ── Real-Time Fraud Detection (fire-and-forget, fail-open) ─────────────────────
-        import("../lib/fraudDetectionEngine")
+        import("../lib/fraudDetectionEngine.js")
           .then(async ({ detectFraud, createAndEmitFraudAlert }) => {
             try {
               const fraudCtx = {
@@ -1117,7 +1117,7 @@ export const transactionsRouter = router({
           });
 
           try {
-            const { notifyOwner } = await import("../_core/notification");
+            const { notifyOwner } = await import("../_core/notification.js");
             await notifyOwner({
               title: `Reversal Approval Required — ₦${amount.toLocaleString()}`,
               content: `Agent ${agent.agentCode} (${agent.name}) requested reversal of ₦${amount.toLocaleString()} for ${input.ref}. Reason: ${input.reason ?? "Not specified"}. Review in Admin Panel → Pending Reversals.`,

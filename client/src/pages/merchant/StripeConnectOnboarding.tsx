@@ -39,10 +39,16 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-type ConnectStatus = "not_connected" | "onboarding" | "pending_verification" | "active" | "restricted";
+type ConnectStatus = "not_connected" | "not_started" | "onboarding" | "pending_verification" | "active" | "restricted";
 
 const STATUS_CONFIG: Record<ConnectStatus, { label: string; color: string; icon: React.ElementType; description: string }> = {
   not_connected: {
+    label: "Not Connected",
+    color: "text-muted-foreground",
+    icon: AlertTriangle,
+    description: "Connect your Stripe account to start receiving payouts.",
+  },
+  not_started: {
     label: "Not Connected",
     color: "text-muted-foreground",
     icon: AlertTriangle,
@@ -193,7 +199,7 @@ export default function StripeConnectOnboarding() {
   }, [stripeConnectParam, estIdParam, selectedEstId]);
 
   const status: ConnectStatus = (connectStatus?.status as ConnectStatus) ?? "not_connected";
-  const statusCfg = STATUS_CONFIG[status];
+  const statusCfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.not_connected;
   const StatusIcon = statusCfg.icon;
 
   const handleConnectOrContinue = () => {

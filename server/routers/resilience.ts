@@ -34,7 +34,7 @@ import { TRPCError } from "@trpc/server";
 // SECURITY: Guard against empty VAPID keys (test/dev environments may not have them set)
 if (ENV.vapidPublicKey && ENV.vapidPrivateKey) {
   webpush.setVapidDetails(
-    ENV.vapidSubject,
+    ENV.vapidEmail,
     ENV.vapidPublicKey,
     ENV.vapidPrivateKey
   );

@@ -1,102 +1,70 @@
-// Storage helpers (S3-compatible object storage proxy)
-// Uses the platform-provided storage proxy (Authorization: Bearer <token>)
+// Storage helpers (S3-compatible object storage via self-hosted MinIO)
 
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ENV } from './_core/env';
 
-type StorageConfig = { baseUrl: string; apiKey: string };
+let client: S3Client | null = null;
 
-function getStorageConfig(): StorageConfig {
-  const baseUrl = ENV.forgeApiUrl;
-  const apiKey = ENV.forgeApiKey;
-
-  if (!baseUrl || !apiKey) {
+function getClient(): S3Client {
+  if (client) return client;
+  if (!ENV.minioRootUser || !ENV.minioRootPassword) {
     throw new Error(
-      "Storage proxy credentials missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
+      "Storage credentials missing: set MINIO_ROOT_USER and MINIO_ROOT_PASSWORD"
     );
   }
-
-  return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey };
-}
-
-function buildUploadUrl(baseUrl: string, relKey: string): URL {
-  const url = new URL("v1/storage/upload", ensureTrailingSlash(baseUrl));
-  url.searchParams.set("path", normalizeKey(relKey));
-  return url;
-}
-
-async function buildDownloadUrl(
-  baseUrl: string,
-  relKey: string,
-  apiKey: string
-): Promise<string> {
-  const downloadApiUrl = new URL(
-    "v1/storage/downloadUrl",
-    ensureTrailingSlash(baseUrl)
-  );
-  downloadApiUrl.searchParams.set("path", normalizeKey(relKey));
-  const response = await fetch(downloadApiUrl, {
-    method: "GET",
-    headers: buildAuthHeaders(apiKey),
+  client = new S3Client({
+    endpoint: ENV.minioEndpoint,
+    region: "us-east-1", // MinIO ignores region but the SDK requires one
+    forcePathStyle: true, // required for MinIO (virtual-hosted-style buckets don't apply)
+    credentials: {
+      accessKeyId: ENV.minioRootUser,
+      secretAccessKey: ENV.minioRootPassword,
+    },
   });
-  return (await response.json()).url;
-}
-
-function ensureTrailingSlash(value: string): string {
-  return value.endsWith("/") ? value : `${value}/`;
+  return client;
 }
 
 function normalizeKey(relKey: string): string {
   return relKey.replace(/^\/+/, "");
 }
 
-function toFormData(
-  data: Buffer | Uint8Array | string,
-  contentType: string,
-  fileName: string
-): FormData {
-  const blob =
-    typeof data === "string"
-      ? new Blob([data], { type: contentType })
-      : new Blob([data as any], { type: contentType });
-  const form = new FormData();
-  form.append("file", blob, fileName || "file");
-  return form;
-}
-
-function buildAuthHeaders(apiKey: string): HeadersInit {
-  return { Authorization: `Bearer ${apiKey}` };
-}
+// Callers persist the returned `url` and, in most call sites in this codebase,
+// reuse that stored value directly rather than re-deriving a fresh URL from
+// `key` via storageGet() at view time. Since the bucket is private, use the
+// longest expiry AWS SigV4 presigned URLs allow (7 days) so links stay valid
+// for a reasonable review window. Callers that need a link to work beyond
+// that should call storageGet(key) again to mint a fresh one.
+const PRESIGNED_URL_EXPIRY_SECONDS = 7 * 24 * 60 * 60;
 
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream"
 ): Promise<{ key: string; url: string }> {
-  const { baseUrl, apiKey } = getStorageConfig();
   const key = normalizeKey(relKey);
-  const uploadUrl = buildUploadUrl(baseUrl, key);
-  const formData = toFormData(data, contentType, key.split("/").pop() ?? key);
-  const response = await fetch(uploadUrl, {
-    method: "POST",
-    headers: buildAuthHeaders(apiKey),
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const message = await response.text().catch(() => response.statusText);
-    throw new Error(
-      `Storage upload failed (${response.status} ${response.statusText}): ${message}`
-    );
-  }
-  const url = (await response.json()).url;
+  await getClient().send(
+    new PutObjectCommand({
+      Bucket: ENV.minioBucket,
+      Key: key,
+      Body: data,
+      ContentType: contentType,
+    })
+  );
+  const url = await getSignedUrl(
+    getClient(),
+    new GetObjectCommand({ Bucket: ENV.minioBucket, Key: key }),
+    { expiresIn: PRESIGNED_URL_EXPIRY_SECONDS }
+  );
   return { key, url };
 }
 
-export async function storageGet(relKey: string): Promise<{ key: string; url: string; }> {
-  const { baseUrl, apiKey } = getStorageConfig();
+export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
-  return {
-    key,
-    url: await buildDownloadUrl(baseUrl, key, apiKey),
-  };
+  const url = await getSignedUrl(
+    getClient(),
+    new GetObjectCommand({ Bucket: ENV.minioBucket, Key: key }),
+    { expiresIn: PRESIGNED_URL_EXPIRY_SECONDS }
+  );
+  return { key, url };
 }

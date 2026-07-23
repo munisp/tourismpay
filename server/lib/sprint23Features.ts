@@ -14,7 +14,7 @@
 
 // ─── 1. Scheduled Email Delivery ────────────────────────────────────────
 
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 interface ScheduledDeliveryConfig {
   enabled: boolean;
   cronExpression: string; // e.g., "0 8 * * 1" = Monday 08:00

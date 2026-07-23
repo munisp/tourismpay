@@ -6,7 +6,7 @@
  */
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 type Severity = "info" | "warning" | "critical";
 type Channel = "email" | "sms" | "push" | "webhook" | "in-app";
 

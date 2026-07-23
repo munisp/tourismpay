@@ -1,24 +1,32 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Zap, Eye, EyeOff, Shield } from "lucide-react";
+import { Zap, Eye, EyeOff, Shield, Briefcase, Plane } from "lucide-react";
 
 const HERO_URL = "/icons/pwa-512.png";
 
+// Demo login endpoints (server-side; enabled via ENABLE_DEMO_LOGIN). Each sets a
+// session cookie and redirects into the app for that persona.
+const DEMO_LOGINS = {
+  admin: "/api/dev/demo-admin-login",
+  merchant: "/api/dev/demo-merchant-login",
+  tourist: "/api/dev/demo-tourist-login",
+} as const;
+
 export default function Login() {
-  const [, setLocation] = useLocation();
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<keyof typeof DEMO_LOGINS | null>(null);
+
+  // Full-page navigation so the server Set-Cookie + 302 redirect take effect.
+  const demoLogin = (persona: keyof typeof DEMO_LOGINS) => {
+    setLoading(persona);
+    window.location.href = DEMO_LOGINS[persona];
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setLocation("/");
-    }, 1200);
+    demoLogin("admin");
   };
 
   return (
@@ -92,16 +100,47 @@ export default function Login() {
             <Button
               type="submit"
               className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
-              disabled={loading}
+              disabled={loading !== null}
             >
-              {loading ? (
+              {loading === "admin" ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                  Authenticating...
+                  Signing in…
                 </span>
-              ) : "Sign In"}
+              ) : "Sign In as Admin"}
             </Button>
           </form>
+
+          {/* Demo personas — no password needed */}
+          <div className="mt-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Demo personas</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                disabled={loading !== null}
+                onClick={() => demoLogin("merchant")}
+              >
+                <Briefcase className="w-4 h-4 mr-2" />
+                {loading === "merchant" ? "Opening…" : "Merchant"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                disabled={loading !== null}
+                onClick={() => demoLogin("tourist")}
+              >
+                <Plane className="w-4 h-4 mr-2" />
+                {loading === "tourist" ? "Opening…" : "Tourist"}
+              </Button>
+            </div>
+          </div>
 
           <div className="mt-8 pt-6 border-t border-border">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">

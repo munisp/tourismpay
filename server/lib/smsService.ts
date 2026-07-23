@@ -29,7 +29,7 @@
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 export type SmsProvider = "twilio" | "africastalking" | "termii" | "console";
 
 export interface SmsMessage {

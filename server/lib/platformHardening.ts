@@ -9,7 +9,7 @@
  */
 
 // ─── F16: Chat Audit Trail ──────────────────────────────────────────────────
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 export type AuditAction =
   | "session_created"
   | "session_assigned"

@@ -36,7 +36,40 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
+          // If a SW was already controlling this page before we (re-)register, any future
+          // controllerchange is a genuine update. On a brand-new visitor's first-ever load
+          // there's no controller yet, so the first claim isn't an "update" -- don't reload
+          // for that one, only for ones after.
+          const hadController = !!navigator.serviceWorker.controller;
+          navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((reg) => {
+            // The generated SW calls skipWaiting()+clientsClaim() unconditionally, so once
+            // the browser notices a new sw.js it activates immediately -- but browsers only
+            // check for a new sw.js on their own on a throttled schedule (up to 24h apart).
+            // Ask explicitly so deploys are picked up promptly instead of requiring a hard
+            // refresh or incognito window.
+            const checkForUpdate = () => reg.update().catch(() => {});
+            setInterval(checkForUpdate, 60 * 1000);
+            document.addEventListener('visibilitychange', () => {
+              if (document.visibilityState === 'visible') checkForUpdate();
+            });
+
+            // Once a new SW takes control (via clientsClaim), the current tab is still
+            // running the OLD JS in memory. Reload once so it actually picks up the new
+            // bundle. Guard against reload loops if this fires more than once.
+            let isFirstEvent = true;
+            let reloaded = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              // Skip only the very first event when there was no prior controller --
+              // that's the initial claim on a fresh load, not an update. Every event
+              // after that (including a first event when a controller already existed)
+              // is a genuine update.
+              const skip = isFirstEvent && !hadController;
+              isFirstEvent = false;
+              if (skip || reloaded) return;
+              reloaded = true;
+              window.location.reload();
+            });
+          }).catch(() => {});
         });
       }
     </script>

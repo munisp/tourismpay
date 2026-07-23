@@ -4,6 +4,7 @@
  * POS terminal MQTT events into Fluvio topics.
  */
 import { z } from "zod";
+import net from "node:net";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { mqttBridgeConfig } from "../../drizzle/schema";
@@ -148,8 +149,6 @@ export const mqttBridgeRouter = router({
         const port = input.port ?? (input.useTls ? 8883 : 1883);
 
         await new Promise<void>((resolve, reject) => {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const net = require("net") as typeof import("net");
           const socket = new net.Socket();
           const timeout = setTimeout(() => {
             socket.destroy();

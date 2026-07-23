@@ -366,20 +366,27 @@ export const webhookEndpoints = pgTable(
   }),
 );
 
+// Matches migrations 0026_overconfident_stardust.sql + 0036_complete_energizer.sql exactly.
 export const webhookDeliveries = pgTable(
   "webhook_deliveries",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    id: serial("id").primaryKey(),
     endpointId: integer("endpoint_id").notNull(),
-    eventType: varchar("event_type", { length: 200 }).notNull(),
+    eventType: varchar("event_type", { length: 64 }).notNull(),
     payload: jsonb("payload").notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
     statusCode: integer("status_code"),
     responseBody: text("response_body"),
-    attempts: integer("attempts").notNull().default(0),
-    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(3),
     nextRetryAt: timestamp("next_retry_at"),
     deliveredAt: timestamp("delivered_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
+    subscriptionId: integer("subscription_id"),
+    responseCode: integer("response_code"),
+    responseTime: integer("response_time"),
+    retryCount: integer("retry_count").notNull().default(0),
+    updatedAt: timestamp("updated_at"),
   },
   (t) => ({
     endpointIdIdx: index("webhook_deliveries_endpoint_id_idx").on(t.endpointId),
@@ -585,32 +592,24 @@ export const settlementBatchItems = pgTable(
   }),
 );
 
+// Matches migration 0016_lean_speed.sql exactly (note: DB columns are
+// case-sensitive camelCase, not snake_case, as originally migrated).
 export const merchantSettlements = pgTable(
   "merchant_settlements",
   {
     id: serial("id").primaryKey(),
-    batchId: integer("batch_id").notNull(),
-    merchantId: integer("merchant_id").notNull(),
-    establishmentId: integer("establishment_id"),
-    totalAmount: numeric("total_amount", { precision: 20, scale: 8 }).notNull(),
-    feeAmount: numeric("fee_amount", { precision: 20, scale: 8 }).notNull().default("0"),
-    netAmount: numeric("net_amount", { precision: 20, scale: 8 }).notNull(),
-    currency: varchar("currency", { length: 10 }).notNull(),
-    bankAccountNumber: varchar("bank_account_number", { length: 50 }),
-    bankCode: varchar("bank_code", { length: 20 }),
-    status: settlementStatusEnum("status").notNull().default("pending"),
-    transferReference: varchar("transfer_reference", { length: 200 }),
-    settledAt: timestamp("settled_at"),
-    metadata: jsonb("metadata"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-  
-    grossAmount: numeric("gross_amount", { precision: 20, scale: 8 }).default("0"),
-    period: varchar("period", { length: 50 }),
-    periodStart: timestamp("period_start"),
-    periodEnd: timestamp("period_end"),
+    merchantId: integer("merchantId").notNull(),
+    period: varchar("period", { length: 10 }).notNull(),
+    grossAmount: numeric("grossAmount", { precision: 15, scale: 2 }).notNull(),
+    feeAmount: numeric("feeAmount", { precision: 15, scale: 2 }).notNull().default("0.00"),
+    netAmount: numeric("netAmount", { precision: 15, scale: 2 }).notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("NGN"),
+    status: varchar("status", { length: 32 }).notNull().default("pending"),
+    settledAt: timestamp("settledAt"),
+    bankRef: varchar("bankRef", { length: 64 }),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
   },
   (t) => ({
-    batchIdIdx: index("merchant_settlements_batch_id_idx").on(t.batchId),
     merchantIdIdx: index("merchant_settlements_merchant_id_idx").on(t.merchantId),
   }),
 );
@@ -906,27 +905,44 @@ export const paymentIntents = pgTable(
   }),
 );
 
+// Matches migration 0029_tan_wolverine.sql exactly (note: DB columns are
+// case-sensitive camelCase, not snake_case, as originally migrated).
 export const refunds = pgTable(
   "refunds",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    transactionId: varchar("transaction_id", { length: 100 }).notNull(),
-    userId: integer("user_id").notNull(),
-    amount: numeric("amount", { precision: 20, scale: 8 }).notNull(),
-    currency: varchar("currency", { length: 10 }).notNull(),
-    reason: text("reason").notNull(),
-    status: refundStatusEnum("status").notNull().default("pending"),
-    refundReference: varchar("refund_reference", { length: 200 }),
-    processedBy: integer("processed_by"),
-    processedAt: timestamp("processed_at"),
-    metadata: jsonb("metadata"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    id: serial("id").primaryKey(),
+    ref: varchar("ref", { length: 32 }).notNull().unique(),
+    disputeId: integer("disputeId"),
+    transactionId: integer("transactionId"),
+    transactionRef: varchar("transactionRef", { length: 32 }),
+    agentId: integer("agentId").notNull(),
+    customerId: integer("customerId"),
+    customerName: varchar("customerName", { length: 128 }),
+    customerPhone: varchar("customerPhone", { length: 20 }),
+    originalAmount: integer("originalAmount").notNull(),
+    refundAmount: integer("refundAmount").notNull(),
+    currency: varchar("currency", { length: 3 }).notNull().default("NGN"),
+    reason: varchar("reason", { length: 256 }).notNull(),
+    category: varchar("category", { length: 64 }).notNull().default("general"),
+    status: varchar("status", { length: 32 }).notNull().default("pending"),
+    method: varchar("method", { length: 32 }).notNull().default("original_method"),
+    approvedBy: varchar("approvedBy", { length: 128 }),
+    approvedAt: timestamp("approvedAt"),
+    processedAt: timestamp("processedAt"),
+    rejectedBy: varchar("rejectedBy", { length: 128 }),
+    rejectedAt: timestamp("rejectedAt"),
+    rejectionReason: text("rejectionReason"),
+    notes: text("notes"),
+    metadata: text("metadata"),
+    tenantId: integer("tenantId"),
+    deletedAt: timestamp("deletedAt"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   },
   (t) => ({
-    transactionIdIdx: index("refunds_transaction_id_idx").on(t.transactionId),
-    userIdIdx: index("refunds_user_id_idx").on(t.userId),
-    statusIdx: index("refunds_status_idx").on(t.status),
+    agentIdIdx: index("refund_agentId_idx").on(t.agentId),
+    statusIdx: index("refund_status_idx").on(t.status),
+    disputeIdIdx: index("refund_disputeId_idx").on(t.disputeId),
   }),
 );
 

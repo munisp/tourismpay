@@ -16,6 +16,7 @@
  *  7. processAgentCashLoad   — agent cash load + wallet credit + commission
  */
 
+import crypto from "node:crypto";
 import { eq, sql, and } from "drizzle-orm";
 import type { DrizzleDb as DB } from "../db.js";
 import {
@@ -138,7 +139,7 @@ export async function transferFunds(
     }
 
     const now = Math.floor(Date.now() / 1000);
-    const ref = input.reference ?? `TXF-${Date.now()}-${require('crypto').randomBytes(3).toString('hex').toUpperCase()}`;
+    const ref = input.reference ?? `TXF-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
     // Debit sender
     const [fromBalanceUpdated] = await tx
@@ -342,7 +343,7 @@ export async function processRemittance(
       );
 
     // Create remittance record (id must be provided or generated)
-    const remittanceId = `REM-${now}-${require('crypto').randomBytes(3).toString('hex').toUpperCase()}`;
+    const remittanceId = `REM-${now}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
     const [remittance] = await tx
       .insert(remittances)
       .values({

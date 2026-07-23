@@ -20,6 +20,7 @@
  *   - Mojaloop: cross-border transfer execution
  *   - Permify: authorization checks per activity
  */
+import crypto from "node:crypto";
 import { logger } from "./logger";
 import { publishAuditEvent } from "./kafka";
 import { acquireLock, releaseLock } from "./redis";
@@ -421,7 +422,7 @@ export async function startFundFlowWorkflow(
   type: string,
   input: Record<string, unknown>
 ): Promise<string> {
-  const workflowId = `wf-${type}-${Date.now()}-${require('crypto').randomBytes(3).toString('hex')}`;
+  const workflowId = `wf-${type}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
   workflowRegistry[workflowId] = type;
 
   logger.info(`[Temporal] Starting ${type} workflow: ${workflowId}`);

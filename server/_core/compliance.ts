@@ -13,6 +13,7 @@
  *  7. AML (Anti-Money Laundering) transaction monitoring
  */
 
+import crypto from "node:crypto";
 import { logger } from "./logger";
 import { getDb } from "../db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
@@ -372,7 +373,7 @@ export async function generateCTRReport(params: {
   transactionDate: Date;
   transactionType: string;
 }): Promise<CTRReport> {
-  const reportId = `CTR-${Date.now()}-${require('crypto').randomBytes(3).toString('hex').toUpperCase()}`;
+  const reportId = `CTR-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
   const report: CTRReport = {
     reportId,

@@ -1,5 +1,5 @@
 // TypeScript enabled — Sprint 96 security audit
-import { secureRandom } from "../lib/securityAuditFixes";
+import { secureRandom } from "./securityAuditFixes";
 interface WebhookAttempt {
   attemptNumber: number;
   statusCode: number;
