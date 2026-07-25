@@ -159,10 +159,12 @@ func (s *VirtualCardService) IssueCard(req IssueCardRequest) (*VirtualCard, erro
 		CreatedAt:      now,
 	}
 
-	database.DB.Exec(
-		"INSERT INTO virtual_cards (id, user_id, card_number, card_type, currency, balance, spending_limit, status, expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-		cardID, req.UserID, pan, string(req.CardType), req.Currency, req.FundAmount, spendLimit, "ACTIVE", expiry,
-	)
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO virtual_cards (id, user_id, card_number, card_type, currency, balance, spending_limit, status, expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+			cardID, req.UserID, pan, string(req.CardType), req.Currency, req.FundAmount, spendLimit, "ACTIVE", expiry,
+		)
+	}
 
 	virtualCardsIssued.WithLabelValues(string(req.CardType), req.Currency).Inc()
 	virtualCardActiveGauge.Inc()

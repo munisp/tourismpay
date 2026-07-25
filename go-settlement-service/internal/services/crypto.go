@@ -264,9 +264,16 @@ func (s *CryptoService) CreateWallet(userID string) *CryptoWallet {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Check if wallet already exists in DB
-	if existing := s.GetWalletByUser(userID); existing != nil {
-		return existing
+	// Check if wallet already exists in DB (inline to avoid RLock deadlock)
+	if database.DB != nil {
+		var existingID string
+		err := database.DB.QueryRow(
+			"SELECT id FROM crypto_transactions WHERE user_id=$1 AND tx_type='wallet_created' LIMIT 1",
+			userID,
+		).Scan(&existingID)
+		if err == nil && existingID != "" {
+			return &CryptoWallet{WalletID: existingID, UserID: userID, Balances: make(map[string]float64), Addresses: make(map[string]string), CreatedAt: time.Now()}
+		}
 	}
 
 	walletID := s.generateID("CW")
@@ -294,10 +301,12 @@ func (s *CryptoService) CreateWallet(userID string) *CryptoWallet {
 	}
 
 	// Persist to PostgreSQL
-	database.DB.Exec(
-		"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-		walletID, userID, "wallet_created", 0.0, "MULTI", "multi", "completed",
-	)
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+			walletID, userID, "wallet_created", 0.0, "MULTI", "multi", "completed",
+		)
+	}
 
 	return wallet
 }

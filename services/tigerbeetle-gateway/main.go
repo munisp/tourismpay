@@ -197,7 +197,7 @@ func NewAccountMapStore(dsn string) (*AccountMapStore, error) {
 }
 
 func (s *AccountMapStore) RecordAccount(entityType string, entityID int64, currency string, tbAccountID uint64, ledger int, code int) error {
-	if s.db == nil {
+	if s == nil || s.db == nil {
 		return nil
 	}
 	_, err := s.db.Exec(`
@@ -212,7 +212,7 @@ func (s *AccountMapStore) RecordAccount(entityType string, entityID int64, curre
 }
 
 func (s *AccountMapStore) RecordTransfer(tbTransferID, debitAccountID, creditAccountID, amount uint64, currency string, ledger, code int, refType, refID string) error {
-	if s.db == nil {
+	if s == nil || s.db == nil {
 		return nil
 	}
 	_, err := s.db.Exec(`
