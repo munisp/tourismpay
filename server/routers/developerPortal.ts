@@ -12,6 +12,7 @@
  *  - devPortal.validateKey  — validate a raw API key (public, for gateway use)
  */
 import crypto from "crypto";
+import { logger } from "../_core/logger";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, isNull, desc, gte, count, sql } from "drizzle-orm";
@@ -371,7 +372,7 @@ export const developerPortalRouter = router({
           .set({ lastUsedAt: new Date() })
           .where(eq(apiKeys.id, key.id))
           .catch((e: unknown) =>
-            console.error("[DevPortal] lastUsedAt update failed:", e)
+            logger.error("[DevPortal] lastUsedAt update failed:", e)
           );
 
         return {

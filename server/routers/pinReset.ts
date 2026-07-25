@@ -10,6 +10,7 @@
  *   6. Server verifies OTP, hashes new PIN, updates agents table
  */
 import { TRPCError } from "@trpc/server";
+import { logger } from "../_core/logger";
 import { z } from "zod";
 import { eq, and, gt } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -97,13 +98,13 @@ export const pinResetRouter = router({
           // Redact phone number in logs to avoid PII exposure
           const maskedPhone =
             input.phone.slice(0, 4) + "****" + input.phone.slice(-3);
-          console.error(
+          logger.error(
             `[pinReset] SMS delivery failed for ${maskedPhone}: ${smsResult.error}`
           );
         } else {
           const maskedPhone =
             input.phone.slice(0, 4) + "****" + input.phone.slice(-3);
-          console.info(
+          logger.info(
             `[pinReset] OTP SMS sent to ${maskedPhone} — messageId: ${smsResult.messageId}`
           );
         }

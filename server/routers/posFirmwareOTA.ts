@@ -6,6 +6,7 @@
  * Go firmware distribution service (port 8141)
  */
 import { z } from "zod";
+import { logger } from "../_core/logger";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb, writeAuditLog } from "../db";
 import { posTerminals, platformSettings } from "../../drizzle/schema";
@@ -31,7 +32,7 @@ export const posFirmwareOTARouter = router({
         if (rows[0]?.value) {
           try {
             versions = JSON.parse(String(rows[0].value));
-          } catch (err) { console.error("[posFirmwareOTA] operation failed:", err); }
+          } catch (err) { logger.error("[posFirmwareOTA] operation failed:", err); }
         }
 
         return { versions };
@@ -81,7 +82,7 @@ export const posFirmwareOTARouter = router({
         if (existing[0]?.value) {
           try {
             versions = JSON.parse(String(existing[0].value));
-          } catch (err) { console.error("[posFirmwareOTA] operation failed:", err); }
+          } catch (err) { logger.error("[posFirmwareOTA] operation failed:", err); }
         }
         versions.unshift(entry);
 
@@ -187,7 +188,7 @@ export const posFirmwareOTARouter = router({
         }> = [];
         try {
           versions = JSON.parse(String(rows[0].value));
-        } catch (err) { console.error("[posFirmwareOTA] operation failed:", err); }
+        } catch (err) { logger.error("[posFirmwareOTA] operation failed:", err); }
 
         const latest = versions.find(
           v => v.status === "released" || v.status === "staged"

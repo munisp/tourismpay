@@ -5,6 +5,7 @@
  * Middleware: Redis (mode state cache), Kafka (offline events), PostgreSQL (config persistence)
  */
 import { z } from "zod";
+import { logger } from "../_core/logger";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb, writeAuditLog } from "../db";
 import { agents, platformSettings } from "../../drizzle/schema";
@@ -60,7 +61,7 @@ export const offlinePosModeRouter = router({
       if (configRows[0]?.value) {
         try {
           config = { ...config, ...JSON.parse(String(configRows[0].value)) };
-        } catch (err) { console.error("[offlinePosMode] operation failed:", err); }
+        } catch (err) { logger.error("[offlinePosMode] operation failed:", err); }
       }
 
       const tierMultipliers: Record<string, number> = {

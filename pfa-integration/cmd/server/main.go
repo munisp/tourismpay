@@ -8,7 +8,7 @@ import (
 	"github.com/unified-insurance/pfa-integration/internal/handlers"
 	"github.com/unified-insurance/pfa-integration/internal/repository"
 	"github.com/unified-insurance/pfa-integration/internal/service"
-	"gorm.io/driver/sqlite"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 

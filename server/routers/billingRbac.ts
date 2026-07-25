@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { logger } from "../_core/logger";
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { getDb } from "../db";
@@ -154,7 +155,7 @@ export async function checkBillingPermission(
         return result.can === "CHECK_RESULT_ALLOWED";
       }
     } catch (e) {
-      console.warn(
+      logger.warn(
         "[BillingRBAC] Permify check failed, using local only:",
         (e as Error).message
       );

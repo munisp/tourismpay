@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { logger } from "../_core/logger";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { loadTestRuns as loadTestRunsTable } from "../../drizzle/schema";
@@ -186,7 +187,7 @@ async function checkP99ThresholdAndNotify(run: any) {
       content: `Run ${run.runId} has ${violations.length} threshold violation(s):\n${violations.join("\n")}`,
     });
   } else {
-    console.log(`Run ${run.runId} passed all thresholds`);
+    logger.info(`Run ${run.runId} passed all thresholds`);
   }
 }
 

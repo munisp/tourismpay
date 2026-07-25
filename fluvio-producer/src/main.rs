@@ -7,6 +7,7 @@ mod auth;
 ///
 /// Sprint 90: Added biometric event topics and real Fluvio client connection.
 use actix_web::{web, App, HttpServer, HttpResponse, middleware::Logger};
+use sqlx::PgPool;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::Mutex;
@@ -461,6 +462,18 @@ async fn list_topics() -> HttpResponse {
 // ── Main ─────────────────────────────────────────────────────────────────
 
 #[actix_web::main]
+
+use sqlx::PgPool;
+use std::env;
+
+async fn get_db_pool() -> PgPool {
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/tourismpay".to_string());
+    PgPool::connect(&database_url)
+        .await
+        .expect("Failed to connect to PostgreSQL")
+}
+
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(

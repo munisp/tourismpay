@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { logger } from "../_core/logger";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 
@@ -34,7 +35,7 @@ async function getTemporalClient(): Promise<Client | null> {
     });
     return temporalClient;
   } catch {
-    console.warn(
+    logger.warn(
       "[BillingOnboarding] Temporal not available, using local execution"
     );
     return null;

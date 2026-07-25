@@ -40,7 +40,7 @@ export function FXRateTicker() {
     const updateRates = () => {
       setRates(RATE_PAIRS.map(({ label }) => {
         const base = BASE_RATES[label] ?? 1;
-        const jitter = (Math.random() - 0.5) * base * 0.002;
+        const jitter = (((Date.now() % 100) / 100) - 0.5) * base * 0.002;
         const rate = base + jitter;
         const changePct = (jitter / base) * 100;
         return {

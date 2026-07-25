@@ -1,4 +1,5 @@
 use actix_web::{web, App, HttpServer, HttpResponse, middleware};
+use sqlx::PgPool;
 mod auth;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -212,6 +213,18 @@ async fn get_threat_intel(data: web::Data<Arc<AppState>>) -> HttpResponse {
 }
 
 #[actix_web::main]
+
+use sqlx::PgPool;
+use std::env;
+
+async fn get_db_pool() -> PgPool {
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/tourismpay".to_string());
+    PgPool::connect(&database_url)
+        .await
+        .expect("Failed to connect to PostgreSQL")
+}
+
 async fn main() -> std::io::Result<()> {
     let port = std::env::var("PORT").unwrap_or_else(|_| "8093".to_string());
     let state = Arc::new(AppState {

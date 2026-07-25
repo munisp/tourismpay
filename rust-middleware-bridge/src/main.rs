@@ -14,6 +14,7 @@ mod auth;
 //! Listens on port 9100 (configurable via RUST_BRIDGE_PORT).
 
 use actix_web::{web, App, HttpServer, HttpResponse};
+use sqlx::PgPool;
 use chrono::Utc;
 use dashmap::DashMap;
 use hmac::{Hmac, Mac};
@@ -314,6 +315,18 @@ async fn stats(state: web::Data<Arc<AppState>>) -> HttpResponse {
 }
 
 #[actix_web::main]
+
+use sqlx::PgPool;
+use std::env;
+
+async fn get_db_pool() -> PgPool {
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/tourismpay".to_string());
+    PgPool::connect(&database_url)
+        .await
+        .expect("Failed to connect to PostgreSQL")
+}
+
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into())).json().init();
     let port: u16 = env::var("RUST_BRIDGE_PORT").unwrap_or_else(|_| "9100".into()).parse().unwrap_or(9100);

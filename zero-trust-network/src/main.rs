@@ -1,4 +1,5 @@
 use actix_web::{web, App, HttpServer, HttpResponse};
+use sqlx::PgPool;
 use serde::{Deserialize, Serialize};
 
 mod auth;
@@ -38,6 +39,18 @@ async fn get_mesh_status() -> HttpResponse {
 }
 
 #[actix_web::main]
+
+use sqlx::PgPool;
+use std::env;
+
+async fn get_db_pool() -> PgPool {
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/tourismpay".to_string());
+    PgPool::connect(&database_url)
+        .await
+        .expect("Failed to connect to PostgreSQL")
+}
+
 async fn main() -> std::io::Result<()> {
     let port = std::env::var("PORT").unwrap_or_else(|_| "8094".to_string());
     println!("Zero Trust Network starting on :{}", port);

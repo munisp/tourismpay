@@ -9,6 +9,7 @@
  *  5. Reversal approval threshold — reversals > ₦10,000 require admin/supervisor approval
  */
 import { TRPCError } from "@trpc/server";
+import { logger } from "../_core/logger";
 import { z } from "zod";
 import { eq, and, gte, lte, sql, desc } from "drizzle-orm";
 import { notifyOwner } from "../_core/notification.js";
@@ -226,7 +227,7 @@ async function checkVelocityLimits(
 
     return { allowed: true };
   } catch (err) {
-    console.error("[Velocity] Check error (fail-open):", err);
+    logger.error("[Velocity] Check error (fail-open):", err);
     return { allowed: true };
   }
 }
@@ -275,7 +276,7 @@ async function validateDeviceToken(
     }
     return { valid: true };
   } catch (err) {
-    console.error("[DeviceToken] Validation error (fail-open):", err);
+    logger.error("[DeviceToken] Validation error (fail-open):", err);
     return { valid: true };
   }
 }
@@ -552,7 +553,7 @@ export const transactionsRouter = router({
           }
         } catch (geoErr) {
           if (geoErr instanceof TRPCError) throw geoErr;
-          console.error("[Geofence] Check error (fail-open):", geoErr);
+          logger.error("[Geofence] Check error (fail-open):", geoErr);
         }
 
         // ── Core processing ────────────────────────────────────────────────────
@@ -654,7 +655,7 @@ export const transactionsRouter = router({
             });
           }
         } catch (brErr) {
-          console.warn(
+          logger.warn(
             "[BusinessRules] Engine error (fail-open):",
             (brErr as Error).message
           );
@@ -679,11 +680,11 @@ export const transactionsRouter = router({
         });
 
         if (tbResult) {
-          console.log(
+          logger.info(
             `[TB] Transfer committed: ${tbResult.id} (syncStatus=${tbResult.syncStatus})`
           );
         } else {
-          console.warn(
+          logger.warn(
             `[TB] Sidecar unavailable — transaction ${ref} persisted to PostgreSQL only`
           );
         }
@@ -727,7 +728,7 @@ export const transactionsRouter = router({
               );
             }
           } catch (floatErr) {
-            console.warn(
+            logger.warn(
               "[float] Platform settle sync failed (fail-open):",
               (floatErr as Error).message
             );
@@ -750,7 +751,7 @@ export const transactionsRouter = router({
               );
             }
           } catch (floatErr) {
-            console.warn(
+            logger.warn(
               "[float] Platform utilize sync failed (fail-open):",
               (floatErr as Error).message
             );
@@ -775,7 +776,7 @@ export const transactionsRouter = router({
             tenantId: (agent as any).tenantId ?? undefined,
           });
           if (!cascadeResult.success) {
-            console.warn(
+            logger.warn(
               `[CommissionCascade] Fallback for ${ref}: ${cascadeResult.error}`
             );
           }
@@ -821,7 +822,7 @@ export const transactionsRouter = router({
             });
             sendSms(input.customerPhone, message).then(result => {
               if (!result.success) {
-                console.error(
+                logger.error(
                   `[SMS] Confirmation failed for ${ref}: ${result.error}`
                 );
               } else {
@@ -831,7 +832,7 @@ export const transactionsRouter = router({
                       .set({ smsSent: true })
                       .where(eq(transactions.id, tx.id))
                       .catch(e =>
-                        console.error("[SMS] smsSent update failed:", e)
+                        logger.error("[SMS] smsSent update failed:", e)
                       );
                   }
                 });
@@ -869,7 +870,7 @@ export const transactionsRouter = router({
             )
           )
           .catch((e: unknown) =>
-            console.error("[Kafka] Event publish failed:", e)
+            logger.error("[Kafka] Event publish failed:", e)
           );
 
         // ── Fluvio stream event (fire-and-forget, fail-open) ──────────────────────
@@ -887,7 +888,7 @@ export const transactionsRouter = router({
             })
           )
           .catch((e: unknown) =>
-            console.error("[Fluvio] Transaction event failed:", e)
+            logger.error("[Fluvio] Transaction event failed:", e)
           );
 
         // ── Real-Time Fraud Detection (fire-and-forget, fail-open) ─────────────────────
@@ -907,19 +908,19 @@ export const transactionsRouter = router({
               const result = await detectFraud(fraudCtx);
               if (result.isFraud) {
                 await createAndEmitFraudAlert(fraudCtx, result);
-                console.warn(
+                logger.warn(
                   `[Fraud] Alert created for tx ${ref}: ${result.reason}`
                 );
               }
             } catch (fraudErr) {
-              console.error(
+              logger.error(
                 "[Fraud] Detection failed (fail-open):",
                 (fraudErr as Error).message
               );
             }
           })
           .catch((e: unknown) =>
-            console.error("[Fraud] Engine import failed:", e)
+            logger.error("[Fraud] Engine import failed:", e)
           );
 
         return {
@@ -1896,7 +1897,7 @@ export const transactionsRouter = router({
             content: `Alert #${alert.id} (${alert.severity}) escalated by ${ctx.user.name ?? String(ctx.user.id)}. Reason: ${alert.reason ?? "N/A"}. Amount: \u20a6${alert.amount ?? 0}.`,
           });
         } catch (e) {
-          console.error("[escalateAlert] notifyOwner failed:", e);
+          logger.error("[escalateAlert] notifyOwner failed:", e);
         }
         await writeAuditLog({
           agentId: agent.id,
@@ -1958,7 +1959,7 @@ export const transactionsRouter = router({
               content: `Alert #${alert.id} (${alert.severity}) was snoozed but not resolved. Auto-escalated at ${now.toISOString()}.`,
             });
           } catch (e) {
-            console.error("[autoEscalateSnoozedAlerts] notifyOwner failed:", e);
+            logger.error("[autoEscalateSnoozedAlerts] notifyOwner failed:", e);
           }
         }
         return { escalated: expired.length };
@@ -2375,7 +2376,7 @@ export const transactionsRouter = router({
           };
         }
       } catch (err) {
-        console.warn(
+        logger.warn(
           "[float] Platform getBalance failed, using local DB:",
           (err as Error).message
         );
@@ -2429,7 +2430,7 @@ export const transactionsRouter = router({
             return { source: "platform" as const, transactions: result };
           }
         } catch (err) {
-          console.warn(
+          logger.warn(
             "[float] Platform getTransactions failed, using local DB:",
             (err as Error).message
           );
@@ -2481,7 +2482,7 @@ export const transactionsRouter = router({
             );
             return { source: "platform" as const, data: result };
           } catch (err) {
-            console.warn(
+            logger.warn(
               "[analytics] Platform unavailable, falling back to local DB:",
               (err as Error).message
             );
