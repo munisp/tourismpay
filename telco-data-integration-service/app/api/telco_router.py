@@ -1,3 +1,4 @@
+import os
 """
 Telco Data API Router
 """
@@ -18,7 +19,7 @@ def get_db():
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     # In production, use environment variable
-    engine = create_engine("sqlite:///./telco_data.db")
+    engine = create_engine(os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/tourismpay"))
     SessionLocal = sessionmaker(bind=engine)
     db = SessionLocal()
     try:

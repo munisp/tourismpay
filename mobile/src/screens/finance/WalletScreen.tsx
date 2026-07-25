@@ -86,7 +86,7 @@ export function WalletScreen() {
     setSending(true);
     try {
       const currency = balances[activeBalance]?.currency ?? "USD";
-      const idempotencyKey = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const idempotencyKey = crypto.randomUUID();
 
       if (offlineManager.getConnectionStatus()) {
         await walletAPI.send({ to: sendTo, amount, currency, note: sendNote, idempotencyKey });
@@ -116,7 +116,7 @@ export function WalletScreen() {
     setConverting(true);
     try {
       const from = balances[activeBalance]?.currency ?? "USD";
-      const idempotencyKey = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const idempotencyKey = crypto.randomUUID();
       const result = await walletAPI.swap({ fromCurrency: from, toCurrency: convertTo, amount, idempotencyKey });
       Alert.alert("Converted", `Rate: ${result.rate.toFixed(4)}\nReceived: ${convertTo} ${result.received.toFixed(2)}`);
       setShowConvert(false);

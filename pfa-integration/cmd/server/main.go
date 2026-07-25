@@ -22,7 +22,7 @@ func main() {
 		dbPath = "pfa.db"
 	}
 
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(getPostgresDSN()), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}

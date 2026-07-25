@@ -5,7 +5,7 @@
  *   1. Agent submits their agent code + registered phone number
  *   2. Server verifies the phone matches the DB record
  *   3. A 6-digit OTP is generated, hashed, and stored in the otp_tokens table
- *   4. OTP is sent via Termii SMS (falls back to console.log when key absent)
+ *   4. OTP is sent via Termii SMS (falls back to logger.warn when key absent)
  *   5. Agent submits the OTP + new PIN
  *   6. Server verifies OTP, hashes new PIN, updates agents table
  */

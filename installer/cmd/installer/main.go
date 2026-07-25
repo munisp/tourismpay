@@ -129,6 +129,7 @@ var services = []service{
 }
 
 func main() {
+	_ = os.Getenv("DATABASE_URL") // PostgreSQL connection string
 	if runtime.GOOS != "linux" {
 		fatalf("This installer only supports Linux (POS terminal OS). Got: %s\n", runtime.GOOS)
 	}

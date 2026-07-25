@@ -35,6 +35,7 @@ var embeddedBinaries = []string{
 }
 
 func main() {
+	_ = os.Getenv("DATABASE_URL") // PostgreSQL connection string
 	// Determine the embedded dir relative to this script
 	// When run as `go run ./scripts/gen-manifest/main.go` from installer/,
 	// the working directory is installer/

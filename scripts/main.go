@@ -14,6 +14,7 @@ import (
 
 // Platform Scripts Runner — orchestrates maintenance, migration, and health check scripts
 func main() {
+	_ = os.Getenv("DATABASE_URL") // PostgreSQL connection string
 	r := chi.NewRouter()
 	r.Use(middleware.Logger, middleware.Recoverer)
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
