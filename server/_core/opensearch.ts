@@ -22,8 +22,13 @@ function getClient(): Client | null {
   if (connectionFailed) return null;
 
   const node = process.env.OPENSEARCH_URL || "https://localhost:9200";
-  const username = process.env.OPENSEARCH_USERNAME || "admin";
-  const password = process.env.OPENSEARCH_PASSWORD || "admin";
+  const username = process.env.OPENSEARCH_USERNAME;
+  const password = process.env.OPENSEARCH_PASSWORD;
+  if (!username || !password) {
+    logger.warn("[OpenSearch] OPENSEARCH_USERNAME or OPENSEARCH_PASSWORD not set — skipping connection");
+    connectionFailed = true;
+    return null;
+  }
 
   try {
     client = new Client({
@@ -37,7 +42,7 @@ function getClient(): Client | null {
     client.cluster.health().then(() => {
       logger.info("[OpenSearch] Connected");
     }).catch((err) => {
-      logger.warn(`[OpenSearch] Health check failed: ${err.message} — falling back to PostgreSQL`);
+      logger.warn({ event: "opensearch_health_failed", code: (err as any)?.meta?.statusCode }, "[OpenSearch] Health check failed — falling back to PostgreSQL");
       connectionFailed = true;
       client = null;
     });
@@ -128,7 +133,20 @@ export async function ensureIndices(): Promise<void> {
 
 // ─── Indexing ────────────────────────────────────────────────────────────────
 
+// Allowlist of valid index names to prevent index injection
+const ALLOWED_INDICES = new Set([
+  ...Object.values(INDICES),
+  ...["tourismpay-transactions", "tourismpay-settlements", "tourismpay-merchants",
+      "tourismpay-agents", "tourismpay-fraud-alerts", "tourismpay-orders",
+      "tourismpay-ussd-sessions", "tourismpay-webhooks", "tourismpay-bis-investigations",
+      "tourismpay-customers", "tourismpay-bulk-jobs", "tourismpay-notifications"],
+]);
+
 export async function indexDocument(index: string, id: string, body: Record<string, unknown>): Promise<boolean> {
+  if (!ALLOWED_INDICES.has(index)) {
+    logger.warn({ event: "opensearch_index_rejected", index }, "[OpenSearch] Rejected indexDocument call with unknown index");
+    return false;
+  }
   const os = getClient();
   if (!os) return false;
   try {
@@ -318,8 +336,8 @@ export async function universalSearch(
         size: options?.size ?? 20,
         highlight: {
           fields: { "*": {} },
-          pre_tags: ["<mark>"],
-          post_tags: ["</mark>"],
+          pre_tags: ["[[HIGHLIGHT]]"],
+          post_tags: ["[[/HIGHLIGHT]]"],
         },
       },
     });
@@ -337,7 +355,7 @@ export async function universalSearch(
       source: "opensearch",
     };
   } catch (err) {
-    logger.warn(`[OpenSearch] universalSearch failed: ${(err as Error).message}`);
+    logger.warn({ event: "opensearch_search_failed", code: (err as any)?.meta?.statusCode }, "[OpenSearch] universalSearch failed");
     return { hits: [], total: 0, source: "unavailable" };
   }
 }

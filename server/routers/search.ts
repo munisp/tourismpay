@@ -120,13 +120,32 @@ export const openSearchRouter = router({
   universal: protectedProcedure
     .input(z.object({
       query: z.string().min(2).max(200),
-      indices: z.array(z.string()).optional(),
-      filters: z.record(z.string()).optional(),
-      page: z.number().int().min(1).default(1),
+      // Restrict to allowlisted index names only — prevents index enumeration attacks
+      indices: z.array(z.enum([
+        "tourismpay-transactions", "tourismpay-settlements", "tourismpay-merchants",
+        "tourismpay-agents", "tourismpay-fraud-alerts", "tourismpay-orders",
+        "tourismpay-ussd-sessions", "tourismpay-webhooks", "tourismpay-audit-logs",
+        "tourismpay-establishments", "tourismpay-remittances", "tourismpay-users",
+        "tourismpay-bis-investigations", "tourismpay-customers", "tourismpay-bulk-jobs",
+        "tourismpay-notifications",
+      ])).optional(),
+      // Restrict filter keys to safe field names only — prevents arbitrary field injection
+      filters: z.record(
+        z.string().regex(/^[a-zA-Z_][a-zA-Z0-9_.]{0,49}$/, "Invalid filter field name"),
+        z.string().max(200)
+      ).optional(),
+      page: z.number().int().min(1).max(100).default(1),
       limit: z.number().int().min(1).max(50).default(20),
     }))
     .query(async ({ input }) => {
-      const targetIndices = input.indices ?? Object.values(EXTENDED_INDICES);
+      const allowedIndices = new Set(Object.values(EXTENDED_INDICES));
+      // Double-check: only pass indices that are in our allowlist
+      const targetIndices = input.indices
+        ? input.indices.filter(idx => allowedIndices.has(idx as any))
+        : Object.values(EXTENDED_INDICES);
+      if (targetIndices.length === 0) {
+        return { hits: [], total: 0, source: "opensearch" as const };
+      }
       const result = await universalSearch(input.query, targetIndices, {
         from: (input.page - 1) * input.limit,
         size: input.limit,
@@ -137,7 +156,7 @@ export const openSearchRouter = router({
 
   // Transactions search
   transactions: protectedProcedure
-    .input(z.object({ query: z.string().min(2), status: z.string().optional(), currency: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+    .input(z.object({ query: z.string().min(2), status: z.string().max(50).optional(), currency: z.string().max(10).optional(), page: z.number().default(1), limit: z.number().default(20) }))
     .query(async ({ input }) => {
       const osResult = await osSearchTransactions(input.query, { status: input.status, currency: input.currency }, { from: (input.page - 1) * input.limit, size: input.limit });
       if (osResult) return { hits: osResult.hits, total: osResult.total, source: "opensearch" as const };
@@ -182,7 +201,7 @@ export const openSearchRouter = router({
 
   // Fraud alerts search
   fraudAlerts: protectedProcedure
-    .input(z.object({ query: z.string().min(2), status: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+    .input(z.object({ query: z.string().min(2), status: z.string().max(50).optional(), page: z.number().default(1), limit: z.number().default(20) }))
     .query(async ({ input }) => {
       const osResult = await osSearchFraudAlerts(input.query, { from: (input.page - 1) * input.limit, size: input.limit });
       if (osResult) return { hits: osResult.hits, total: osResult.total, source: "opensearch" as const };
@@ -193,7 +212,7 @@ export const openSearchRouter = router({
 
   // Orders search
   orders: protectedProcedure
-    .input(z.object({ query: z.string().min(2), status: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+    .input(z.object({ query: z.string().min(2), status: z.string().max(50).optional(), page: z.number().default(1), limit: z.number().default(20) }))
     .query(async ({ input }) => {
       const osResult = await osSearchOrders(input.query, { from: (input.page - 1) * input.limit, size: input.limit });
       if (osResult) return { hits: osResult.hits, total: osResult.total, source: "opensearch" as const };
@@ -226,7 +245,7 @@ export const openSearchRouter = router({
 
   // Audit logs search
   auditLogs: protectedProcedure
-    .input(z.object({ query: z.string().min(2), action: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+    .input(z.object({ query: z.string().min(2), action: z.string().max(100).optional(), page: z.number().default(1), limit: z.number().default(20) }))
     .query(async ({ input }) => {
       const osResult = await search(INDICES.AUDIT_LOGS, {
         multi_match: { query: input.query, fields: ["action^3", "actorName^2", "entityType", "entityId"], fuzziness: "AUTO" },
