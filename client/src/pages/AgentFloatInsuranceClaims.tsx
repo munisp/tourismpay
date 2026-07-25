@@ -5,6 +5,7 @@ import { Loader2, RefreshCw, Download, Search, Filter } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AgentFloatInsuranceClaims() {
+  const utils = trpc.useUtils();
   const {
     data: stats,
     isLoading,

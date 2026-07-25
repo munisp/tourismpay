@@ -30,7 +30,7 @@
 import { getDb } from "../db";
 import { sql } from "drizzle-orm";
 import { createLedgerTransfer } from "../_core/tigerbeetle";
-import { publishEvent } from "../_core/fluvio";
+import { produceToFluvio } from "../_core/fluvio";
 import { invokeLLM } from "../_core/llm";
 import { logger } from "../_core/logger";
 
@@ -455,7 +455,8 @@ export const auditActivities = {
 export const fluvioActivities = {
   async emit(topic: string, payload: Record<string, unknown>): Promise<void> {
     try {
-      await publishEvent(topic, JSON.stringify({ ...payload, timestamp: Date.now() }));
+      const eventKey = String(payload.correlationId ?? payload.reference ?? crypto.randomUUID());
+      await produceToFluvio(topic, eventKey, { ...payload, timestamp: Date.now() });
     } catch (err) {
       logger.warn({ topic, err }, "[Fluvio] Event publish failed — non-critical, continuing");
     }

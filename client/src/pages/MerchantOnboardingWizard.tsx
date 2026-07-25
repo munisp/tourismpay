@@ -6,7 +6,7 @@ import {
   CheckCircle, Upload, ArrowRight, ArrowLeft, Loader2,
   Building2, FileText, Wallet, Settings, Rocket
 } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation } from "wouter";
 
 type MerchantType = "hotel" | "restaurant" | "airbnb" | "concert" | "transport" | "nightclub";
 
@@ -23,9 +23,8 @@ const STEP_ICONS = [Building2, FileText, CheckCircle, Wallet, Settings, Rocket];
 const STEP_LABELS = ["Business Info", "KYB Documents", "Review", "Wallet Setup", "Configure", "Go Live"];
 
 export default function MerchantOnboardingWizard() {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const preselectedType = searchParams.get("type") as MerchantType | null;
+  const [, navigate] = useLocation();
+  const preselectedType = new URLSearchParams(window.location.search).get("type") as MerchantType | null;
 
   const [selectedType, setSelectedType] = useState<MerchantType | null>(preselectedType);
   const [step, setStep] = useState(preselectedType ? 1 : 0);

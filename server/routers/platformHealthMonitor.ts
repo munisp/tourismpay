@@ -1,7 +1,6 @@
 // Sprint 87: Upgraded from mock data to real DB queries — platformHealthMonitor
 import { z } from "zod";
-import { sql } from "drizzle-orm";
-import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
+import { publicProcedure, protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { platformSettings } from "../../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
@@ -269,8 +268,6 @@ export const platformHealthMonitorRouter = router({
   getIncidents,
   getUptimeReport,
   createIncident,
-});
-
 
   acknowledgeAlert: adminProcedure
     .input(z.object({ alertId: z.string(), notes: z.string().optional() }))
@@ -286,3 +283,4 @@ export const platformHealthMonitorRouter = router({
       await db.execute(sql`INSERT INTO platform_settings (key, value, updated_at) VALUES (${'health_threshold_' + input.metric}, ${JSON.stringify({ warning: input.warningThreshold, critical: input.criticalThreshold })}, ${Math.floor(Date.now()/1000)}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`);
       return { success: true };
     }),
+});

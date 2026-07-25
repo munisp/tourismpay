@@ -61,8 +61,7 @@ export default function MiddlewareServiceManager() {
             />
             <Button
               onClick={() =>
-                utils.invalidate(); toast.success("Action triggered: Processing your request...")
-              }
+                { utils.invalidate(); toast.success("Action triggered: Processing your request...") }}
             >
               Refresh
             </Button>
@@ -182,11 +181,10 @@ export default function MiddlewareServiceManager() {
                   </div>
                   <Button
                     onClick={() =>
-                      utils.invalidate();
+                      { utils.invalidate();
                       toast.success(
                         "Settings saved: Configuration updated successfully"
-                      )
-                    }
+                      ) }}
                   >
                     Save Settings
                   </Button>

@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 export default function InviteCodeManager() {
+  const utils = trpc.useUtils();
   const [codeType, setCodeType] = useState<"one_time" | "multi_use">(
     "one_time"
   );

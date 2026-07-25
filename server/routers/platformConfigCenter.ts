@@ -1,7 +1,6 @@
 // Sprint 87: Upgraded from mock data to real DB queries — platformConfigCenter
 import { z } from "zod";
-import { sql } from "drizzle-orm";
-import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
+import { publicProcedure, protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { platform_incidents } from "../../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
@@ -266,8 +265,6 @@ export const platformConfigCenterRouter = router({
   toggleFlag,
   updateParam,
   createAbTest,
-});
-
 
   update: adminProcedure
     .input(z.object({ key: z.string(), value: z.any() }))
@@ -285,3 +282,4 @@ export const platformConfigCenterRouter = router({
       }
       return { updated: input.settings.length };
     }),
+});

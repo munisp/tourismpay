@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
 export default function DisputeArbitrationPage() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
   const statsQuery = trpc.txDisputeArbitration.getStats.useQuery();
@@ -39,7 +40,7 @@ export default function DisputeArbitrationPage() {
               className="w-64"
             />
             <Button
-              onClick={() => utils.invalidate(); toast.success("Data refreshed successfully")}
+              onClick={() => { utils.invalidate(); toast.success("Data refreshed successfully") }}
             >
               Refresh
             </Button>
@@ -145,7 +146,7 @@ export default function DisputeArbitrationPage() {
                   </p>
                   <Button
                     variant="outline"
-                    onClick={() => utils.invalidate(); toast.success("Configuration updated")}
+                    onClick={() => { utils.invalidate(); toast.success("Configuration updated") }}
                   >
                     Save Settings
                   </Button>

@@ -896,7 +896,7 @@ export default function CommissionEnginePage() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => utils.invalidate(); toast.success("Batch payout initiated")}
+                onClick={() => { utils.invalidate(); toast.success("Batch payout initiated") }}
               >
                 <DollarSign className="h-4 w-4 mr-1" /> Batch Payout
               </Button>

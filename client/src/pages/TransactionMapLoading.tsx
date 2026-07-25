@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { MapPin } from "lucide-react";
 
 export default function TransactionMapLoading() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const statsQuery = trpc.transactionMapLoading.getStats.useQuery();
   const stats = statsQuery.data;
@@ -84,19 +85,19 @@ export default function TransactionMapLoading() {
                 </h3>
                 <div className="space-y-2">
                   <button
-                    onClick={() => utils.invalidate(); toast.success("Action executed")}
+                    onClick={() => { utils.invalidate(); toast.success("Action executed") }}
                     className="w-full text-left px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300"
                   >
                     Create New Record
                   </button>
                   <button
-                    onClick={() => utils.invalidate(); toast.success("Export started")}
+                    onClick={() => { utils.invalidate(); toast.success("Export started") }}
                     className="w-full text-left px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300"
                   >
                     Export Data
                   </button>
                   <button
-                    onClick={() => utils.invalidate(); toast.success("Report generated")}
+                    onClick={() => { utils.invalidate(); toast.success("Report generated") }}
                     className="w-full text-left px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300"
                   >
                     Generate Report

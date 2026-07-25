@@ -148,7 +148,7 @@ export const agentRouter = router({
     }),
 
   // ── Logout ────────────────────────────────────────────────────────────────
-  logout: protectedProcedure.mutation(({ ctx }) => {
+  logout: protectedProcedure.mutation(async ({ ctx }) => {
     ctx.res.clearCookie("agent_session", { path: "/" });
     const _db = getDb();
     const _now = Math.floor(Date.now() / 1000);

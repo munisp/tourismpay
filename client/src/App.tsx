@@ -264,7 +264,4 @@ function App() {
   );
 }
 
-export default App;          <Route path="/onboarding/merchant" element={<MerchantOnboardingWizard />} />
-          <Route path="/tourist/journey" element={<TouristJourneyDashboard />} />
-          <Route path="/admin/journey-dashboard" element={<JourneyAdminDashboard />} />
-          
+export default App;

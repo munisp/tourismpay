@@ -68,8 +68,7 @@ export default function WebhookDeliverySystem() {
             />
             <Button
               onClick={() =>
-                utils.invalidate(); toast.success("Action triggered: Processing your request...")
-              }
+                { utils.invalidate(); toast.success("Action triggered: Processing your request...") }}
             >
               Refresh
             </Button>
@@ -189,11 +188,10 @@ export default function WebhookDeliverySystem() {
                   </div>
                   <Button
                     onClick={() =>
-                      utils.invalidate();
+                      { utils.invalidate();
                       toast.success(
                         "Settings saved: Configuration updated successfully"
-                      )
-                    }
+                      ) }}
                   >
                     Save Settings
                   </Button>

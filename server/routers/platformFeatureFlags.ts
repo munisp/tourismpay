@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { sql } from "drizzle-orm";
-import { router, protectedProcedure } from "../_core/trpc";
+import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import {
   eq,
@@ -144,7 +143,7 @@ export const platformFeatureFlagsRouter = router({
     }
   }),
 
-  create: adminProcedure
+  createManagedFlag: adminProcedure
     .input(z.object({ name: z.string(), description: z.string().optional(), enabled: z.boolean().default(false), rolloutPercentage: z.number().min(0).max(100).default(0) }))
     .mutation(async ({ input }) => {
       const db = getDb();

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
 export default function TransactionEnrichmentService() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const stats = trpc.transactionEnrichmentService.getStats.useQuery();
 
@@ -19,7 +20,7 @@ export default function TransactionEnrichmentService() {
             Metadata enrichment pipeline for transactions
           </p>
         </div>
-        <Button onClick={() => utils.invalidate(); toast.success("Action triggered")}>
+        <Button onClick={() => { utils.invalidate(); toast.success("Action triggered") }}>
           New Entry
         </Button>
       </div>

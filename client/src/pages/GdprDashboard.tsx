@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 export default function GdprDashboard() {
+  const utils = trpc.useUtils();
   const [activeTab, setActiveTab] = useState<
     "requests" | "export" | "erasure" | "consent"
   >("requests");

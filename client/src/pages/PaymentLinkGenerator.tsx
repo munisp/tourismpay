@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
 export default function PaymentLinkGenerator() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const stats = trpc.paymentLinkGenerator.getStats.useQuery();
 
@@ -19,7 +20,7 @@ export default function PaymentLinkGenerator() {
             Create and manage shareable payment links
           </p>
         </div>
-        <Button onClick={() => utils.invalidate(); toast.success("Action triggered")}>
+        <Button onClick={() => { utils.invalidate(); toast.success("Action triggered") }}>
           New Entry
         </Button>
       </div>

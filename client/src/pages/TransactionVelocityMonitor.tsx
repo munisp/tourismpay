@@ -95,7 +95,7 @@ export default function TransactionVelocityMonitor() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Recent Activity</CardTitle>
-              <Button size="sm" onClick={() => utils.invalidate(); toast.success("Data refreshed")}>
+              <Button size="sm" onClick={() => { utils.invalidate(); toast.success("Data refreshed") }}>
                 Refresh
               </Button>
             </div>
@@ -175,8 +175,7 @@ export default function TransactionVelocityMonitor() {
                           size="sm"
                           variant="ghost"
                           onClick={() =>
-                            utils.invalidate(); toast.info("Loading details...");
-                          }
+                            { utils.invalidate(); toast.info("Loading details..."); }}
                         >
                           View
                         </Button>

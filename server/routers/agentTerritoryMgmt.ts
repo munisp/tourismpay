@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { sql } from "drizzle-orm";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { eq, desc, and, sql, count } from "drizzle-orm";
@@ -129,20 +128,5 @@ export const agentTerritoryMgmtRouter = router({
     };
   }),
 
-  create: adminProcedure
-    .input(z.object({ name: z.string(), regionCode: z.string(), agentId: z.string().optional(), boundaries: z.any().optional() }))
-    .mutation(async ({ input }) => {
-      const db = getDb();
-      const id = crypto.randomUUID();
-      await db.execute(sql`INSERT INTO agent_territories (id, name, region_code, agent_id, created_at) VALUES (${id}, ${input.name}, ${input.regionCode}, ${input.agentId ?? null}, ${Math.floor(Date.now()/1000)})`);
-      return { id };
-    }),
-  assignAgent: adminProcedure
-    .input(z.object({ territoryId: z.string(), agentId: z.string() }))
-    .mutation(async ({ input }) => {
-      const db = getDb();
-      await db.execute(sql`UPDATE agent_territories SET agent_id = ${input.agentId}, updated_at = ${Math.floor(Date.now()/1000)} WHERE id = ${input.territoryId}`);
-      return { success: true };
-    }),
 
 });

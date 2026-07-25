@@ -1,7 +1,6 @@
 // Sprint 87: Upgraded from mock data to real DB queries — agentPerformanceAnalytics
 import { z } from "zod";
-import { sql } from "drizzle-orm";
-import { protectedProcedure, router } from "../_core/trpc";
+import { protectedProcedure, adminProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { agents } from "../../drizzle/schema";
 import { eq, desc, and, sql, count } from "drizzle-orm";
@@ -218,8 +217,6 @@ export const agentPerformanceAnalyticsRouter = router({
   getStats,
   getRegionalComparison,
   setTargets,
-});
-
 
   recordScore: adminProcedure
     .input(z.object({ agentId: z.string(), period: z.string(), score: z.number(), metrics: z.any().optional() }))
@@ -236,3 +233,4 @@ export const agentPerformanceAnalyticsRouter = router({
       const rows = await db.execute(sql`SELECT * FROM agent_performance_scores WHERE (${ input.period ? sql`period = ${input.period}` : sql`1=1`}) ORDER BY score DESC LIMIT 1000`);
       return { format: input.format, count: (rows as any[]).length, data: rows };
     }),
+});

@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 
 export default function ApiAnalyticsPage() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
   const statsQuery = trpc.apiAnalyticsDash.getStats.useQuery();
@@ -37,7 +38,7 @@ export default function ApiAnalyticsPage() {
               className="w-64"
             />
             <Button
-              onClick={() => utils.invalidate(); toast.success("Data refreshed successfully")}
+              onClick={() => { utils.invalidate(); toast.success("Data refreshed successfully") }}
             >
               Refresh
             </Button>
@@ -143,7 +144,7 @@ export default function ApiAnalyticsPage() {
                   </p>
                   <Button
                     variant="outline"
-                    onClick={() => utils.invalidate(); toast.success("Configuration updated")}
+                    onClick={() => { utils.invalidate(); toast.success("Configuration updated") }}
                   >
                     Save Settings
                   </Button>

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 export default function AgentCommissionCalc() {
+  const utils = trpc.useUtils();
   const [tab, setTab] = useState<"overview" | "calculate" | "tiers">(
     "overview"
   );

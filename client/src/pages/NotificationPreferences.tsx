@@ -81,6 +81,7 @@ const DEFAULT_CHANNELS: NotifChannel[] = [
 ];
 
 export default function NotificationPreferences() {
+  const utils = trpc.useUtils();
   const [channels, setChannels] = useState<NotifChannel[]>(DEFAULT_CHANNELS);
   const testNotify = trpc.system.notifyOwner.useMutation({
     onSuccess: () => toast.success("Test notification sent"),
@@ -215,7 +216,7 @@ export default function NotificationPreferences() {
       <div className="flex justify-end">
         <Button
           className="bg-blue-600 hover:bg-blue-700 text-white"
-          onClick={() => utils.invalidate(); toast.success("Preferences saved")}
+          onClick={() => { utils.invalidate(); toast.success("Preferences saved") }}
         >
           Save Preferences
         </Button>

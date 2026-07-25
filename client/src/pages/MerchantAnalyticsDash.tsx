@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
 export default function MerchantAnalyticsDash() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const stats = trpc.merchantAnalyticsDash.getStats.useQuery();
 
@@ -19,7 +20,7 @@ export default function MerchantAnalyticsDash() {
             Merchant-facing analytics and insights portal
           </p>
         </div>
-        <Button onClick={() => utils.invalidate(); toast.success("Action triggered")}>
+        <Button onClick={() => { utils.invalidate(); toast.success("Action triggered") }}>
           New Entry
         </Button>
       </div>

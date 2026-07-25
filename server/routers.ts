@@ -29,7 +29,7 @@ import { kybApplicationsRouter } from "./routers/kybApplications";
 import { bisJobsRouter } from "./routers/bisJobs";
 import { notificationPreferencesRouter } from "./routers/notificationPreferences";
 import { auditLogsRouter } from "./routers/auditLogs";
-import { searchRouter } from "./routers/search";
+import { searchRouter, openSearchRouter } from "./routers/search";
 import { bisModuleEditorRouter, kybComplianceRouter } from "./routers/bisModuleEditor";
 import { csvExportRouter } from "./routers/csvExport";
 import { usersAdminRouter } from "./routers/usersAdmin";
@@ -705,8 +705,8 @@ import { weeklyReportsRouter } from './routers/weeklyReports';
 import { whatsappChannelRouter } from './routers/whatsappChannel';
 import { workflowAutomationRouter } from './routers/workflowAutomation';
 import { workflowsRouter } from './routers/workflows';
-import {
 import { journeyOrchestratorRouter } from './routers/journeyOrchestrator';
+import {
   rateAlertsRouter,
   twoFactorRouter,
   trustedDeviceRouter,

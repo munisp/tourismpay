@@ -276,12 +276,12 @@ export default function KycWorkflow() {
                                   <Button
                                     size="sm"
                                     className="bg-green-600 hover:bg-green-700 text-white"
-                                    onClick={() =>
+                                    onClick={() => {
                                       utils.invalidate();
-                      toast.info(
+                                      toast.info(
                                         `Review session #${a.id} — use document verification flow`
-                                      )
-                                    }
+                                      );
+                                    }}
                                   >
                                     <CheckCircle className="w-3 h-3 mr-1" />{" "}
                                     Review

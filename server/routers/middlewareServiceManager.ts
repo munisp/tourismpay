@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import {
   publicProcedure as openProcedure,
   protectedProcedure,
+  adminProcedure,
   router,
 } from "../_core/trpc";
 
@@ -53,8 +54,6 @@ export const middlewareServiceManagerRouter = router({
       updated: true,
       updatedAt: new Date().toISOString(),
     })),
-});
-
 
   restart: adminProcedure
     .input(z.object({ serviceId: z.string() }))
@@ -71,3 +70,4 @@ export const middlewareServiceManagerRouter = router({
       await db.execute(sql`INSERT INTO platform_settings (key, value, updated_at) VALUES (${'middleware_config_' + input.serviceId}, ${JSON.stringify(input.config)}, ${Math.floor(Date.now()/1000)}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`);
       return { success: true };
     }),
+});

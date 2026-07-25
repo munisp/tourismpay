@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
 export default function POSFirmwareOTA() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const stats = trpc.posFirmwareOTA.getStats.useQuery();
 
@@ -19,7 +20,7 @@ export default function POSFirmwareOTA() {
             Over-the-air firmware management for POS terminals
           </p>
         </div>
-        <Button onClick={() => utils.invalidate(); toast.success("Action triggered")}>
+        <Button onClick={() => { utils.invalidate(); toast.success("Action triggered") }}>
           New Entry
         </Button>
       </div>

@@ -131,6 +131,7 @@ function BatchProgressBar({ event }: { event: BatchProgressEvent }) {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function SettlementBatchProcessor() {
+  const utils = trpc.useUtils();
   const [statusFilter, setStatusFilter] = useState("all");
   const [osSearchQuery, setOsSearchQuery] = useState("");
   const osSearchResult = trpc.openSearch.settlements.useQuery(
