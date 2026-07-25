@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/segmentio/kafka-go"
 	"github.com/shopspring/decimal"
@@ -26,7 +25,7 @@ const (
 
 // ENairaService orchestrates wallet provisioning, payments, and CBN callbacks.
 type ENairaService struct {
-	db          *pgxpool.Pool
+	db          DBQuerier // interface — accepts *pgxpool.Pool or pgxmock.PgxPoolIface
 	redis       *redis.Client
 	kafkaWriter *kafka.Writer
 	cbnClient   *CBNClient
@@ -35,7 +34,7 @@ type ENairaService struct {
 
 // NewENairaService constructs the service with all dependencies.
 func NewENairaService(
-	db *pgxpool.Pool,
+	db DBQuerier,
 	rdb *redis.Client,
 	kafkaWriter *kafka.Writer,
 	cbnClient *CBNClient,

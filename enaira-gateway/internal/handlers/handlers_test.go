@@ -548,3 +548,37 @@ func TestRoutes_AllEndpointsRegistered(t *testing.T) {
 		}
 	}
 }
+
+// ─── handlers.New constructor ─────────────────────────────────────────────────
+
+func TestNew_Constructor(t *testing.T) {
+logger, _ := zap.NewDevelopment()
+svc := newMockSvc()
+h := New(svc, logger)
+if h == nil {
+t.Fatal("New returned nil handler")
+}
+}
+
+// ─── TouristLoad — service error path ────────────────────────────────────────
+
+func TestTouristLoad_ServiceError(t *testing.T) {
+svc := newMockSvc()
+svc.shouldFail = true
+r := setupTestRouter(svc)
+body := models.TouristLoadRequest{
+TouristUserID:   "tourist-001",
+SourceCurrency:  "USD",
+SourceAmountStr: "100.00",
+FXRate:          "1550.00",
+CorrelationID:   "corr-load-err",
+}
+b, _ := json.Marshal(body)
+w := httptest.NewRecorder()
+req, _ := http.NewRequest("POST", "/api/v1/enaira/payments/tourist-load", bytes.NewReader(b))
+req.Header.Set("Content-Type", "application/json")
+r.ServeHTTP(w, req)
+if w.Code != http.StatusInternalServerError {
+t.Errorf("expected 500 on service error, got %d: %s", w.Code, w.Body.String())
+}
+}

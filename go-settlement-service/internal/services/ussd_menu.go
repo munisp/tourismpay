@@ -82,10 +82,12 @@ func (s *USSDService) ProcessRequest(req *USSDRequest) *USSDResponse {
 		s.sessions[req.SessionID] = session
 
 		// Persist session to PostgreSQL
-		database.DB.Exec(
-			"INSERT INTO ussd_sessions (id, phone_number, menu_state, session_data, status) VALUES ($1,$2,$3,$4,$5)",
-			req.SessionID, req.PhoneNumber, "main_menu", "{}", "active",
-		)
+		if database.DB != nil {
+			database.DB.Exec(
+				"INSERT INTO ussd_sessions (id, phone_number, menu_state, session_data, status) VALUES ($1,$2,$3,$4,$5)",
+				req.SessionID, req.PhoneNumber, "main_menu", "{}", "active",
+			)
+		}
 
 		ussdSessionsTotal.WithLabelValues("started").Inc()
 		return s.mainMenu(session)
