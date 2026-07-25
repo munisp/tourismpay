@@ -70,7 +70,7 @@ class OfflineManager {
 
   async enqueue(endpoint: string, method: "POST" | "PUT" | "DELETE" | "GET", body: unknown): Promise<string> {
     const mutation: QueuedMutation = {
-      id: crypto.randomUUID(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       endpoint,
       method,
       body,

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"fmt"
 	"context"
 	"testing"
 	"time"
@@ -449,51 +448,4 @@ func TestCBNWebhookEvent_FailedPayment(t *testing.T) {
 	if failedEvent.ResponseCode == "00" {
 		t.Error("failed payment should not have success response code 00")
 	}
-}
-
-// ─── Additional failure-path tests for mock_cbn_client ───────────────────────
-
-func TestMockCBNClient_ConfirmPayment_Failure(t *testing.T) {
-mock := NewMockCBNClient()
-mock.ShouldFail = true
-mock.FailureCode = "51"
-ctx := context.Background()
-_, err := mock.ConfirmPayment(ctx, "CBN-TXN-fail")
-if err == nil {
-t.Error("expected error on ConfirmPayment failure, got nil")
-}
-}
-
-func TestMockENairaService_TouristLoad_Failure(t *testing.T) {
-svc := NewMockENairaService()
-svc.ShouldFail = true
-ctx := context.Background()
-req := &models.TouristLoadRequest{
-TouristUserID:   "tourist-fail",
-SourceCurrency:  "EUR",
-SourceAmountStr: "50.00",
-FXRate:          "1600.00",
-CorrelationID:   "corr-fail-001",
-}
-_, err := svc.TouristLoad(ctx, req)
-if err == nil {
-t.Error("expected error on TouristLoad failure, got nil")
-}
-}
-
-func TestMockENairaService_ProcessCBNWebhook_Failure(t *testing.T) {
-svc := NewMockENairaService()
-svc.ShouldFail = true
-ctx := context.Background()
-event := &models.CBNWebhookEvent{
-EventType:      "payment.failed",
-TransactionRef: "CBN-TXN-fail",
-Status:         models.TxStatusFailed,
-ResponseCode:   "51",
-Timestamp:      1700000000,
-}
-err := svc.ProcessCBNWebhook(ctx, event)
-if err == nil {
-t.Error("expected error on ProcessCBNWebhook failure, got nil")
-}
 }

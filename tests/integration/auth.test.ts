@@ -7,15 +7,9 @@ import { describe, it, expect } from "vitest";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:3000";
 
-// Helper: fetch with explicit 20s timeout to handle slow deployed server
-async function fetchWithTimeout(url: string, options: RequestInit = {}) {
-  return fetch(url, { ...options, signal: AbortSignal.timeout(20000) });
-}
-
-
 describe("Authentication", () => {
   it("dev session-token endpoint creates valid session", async () => {
-    const res = await fetchWithTimeout(`${BASE_URL}/api/dev/session-token?redirect=/`, { redirect: "manual" });
+    const res = await fetch(`${BASE_URL}/api/dev/session-token?redirect=/`, { redirect: "manual" });
     // In sandbox without DB: 404 (session creation requires DB)
     // In production with DB: 302 redirect with session cookie
     expect([302, 404, 500]).toContain(res.status);
@@ -32,14 +26,7 @@ describe("Authentication", () => {
       "/api/trpc/kyb.stats?input=%7B%22json%22%3Anull%7D",
     ];
     for (const endpoint of endpoints) {
-      let res: Response;
-      try {
-        res = await fetchWithTimeout(`${BASE_URL}${endpoint}`);
-      } catch {
-        // Network error — skip this assertion in degraded network environment
-        console.warn(`Network error for ${endpoint} — skipping`);
-        continue;
-      }
+      const res = await fetch(`${BASE_URL}${endpoint}`);
       // HARD security requirement: must always return 401 for unauthenticated requests
       expect(res.status).toBe(401);
     }
@@ -49,27 +36,19 @@ describe("Authentication", () => {
     // /livez and /metrics are always 200; /health returns 503 when DB is unavailable
     const alwaysUp = ["/livez", "/metrics"];
     for (const endpoint of alwaysUp) {
-      try {
-        const res = await fetchWithTimeout(`${BASE_URL}${endpoint}`);
-        expect(res.status).toBe(200);
-      } catch {
-        console.warn(`Network error for ${endpoint} — skipping`);
-      }
+      const res = await fetch(`${BASE_URL}${endpoint}`);
+      expect(res.status).toBe(200);
     }
     // /health returns 200 when healthy, 503 when DB/Redis unavailable
-    try {
-      const healthRes = await fetchWithTimeout(`${BASE_URL}/health`);
-      expect([200, 503]).toContain(healthRes.status);
-    } catch { console.warn("Network error for /health — skipping"); }
+    const healthRes = await fetch(`${BASE_URL}/health`);
+    expect([200, 503]).toContain(healthRes.status);
     // /readyz returns 503 when DB is unavailable — that is correct behavior
-    try {
-      const readyzRes = await fetchWithTimeout(`${BASE_URL}/readyz`);
-      expect([200, 503]).toContain(readyzRes.status);
-    } catch { console.warn("Network error for /readyz — skipping"); }
+    const readyzRes = await fetch(`${BASE_URL}/readyz`);
+    expect([200, 503]).toContain(readyzRes.status);
   });
 
   it("Keycloak OIDC config is detectable", async () => {
-    const res = await fetchWithTimeout(`${BASE_URL}/health`);
+    const res = await fetch(`${BASE_URL}/health`);
     const body = await res.json() as { checks: { keycloak?: { status: string } } };
     // In dev mode keycloak may not be in checks — accept both cases
     if (body.checks.keycloak) {
@@ -83,19 +62,17 @@ describe("Authentication", () => {
 
 describe("Authorization (Role-Based)", () => {
   it("admin user can access all endpoints", async () => {
-    // Use demo-admin-login which sets a proper session with a real openId
-    const loginRes = await fetchWithTimeout(`${BASE_URL}/api/dev/demo-admin-login`, { redirect: "manual" });
-    if (loginRes.status === 302) {
-      const sessionCookie = (loginRes.headers.get("set-cookie") || "").split(";")[0];
-      const walletRes = await fetchWithTimeout(
-        `${BASE_URL}/api/trpc/wallet.balances?input=%7B%22json%22%3Anull%7D`,
-        { headers: { cookie: sessionCookie } }
-      );
+    const res = await fetch(`${BASE_URL}/api/dev/session-token?redirect=/`, { redirect: "manual" });
+    if (res.status === 302) {
+      const sessionCookie = (res.headers.get("set-cookie") || "").split(";")[0];
+      const walletRes = await fetch(`${BASE_URL}/api/trpc/wallet.balances?input=%7B%22json%22%3Anull%7D`, {
+        headers: { cookie: sessionCookie },
+      });
       // With valid session: 200 (with DB) or 500 (without DB but authenticated)
       expect([200, 500]).toContain(walletRes.status);
     } else {
       // Without DB: session endpoint unavailable — verify auth protection still works
-      const protectedRes = await fetchWithTimeout(`${BASE_URL}/api/trpc/wallet.balances?input=%7B%22json%22%3Anull%7D`);
+      const protectedRes = await fetch(`${BASE_URL}/api/trpc/wallet.balances?input=%7B%22json%22%3Anull%7D`);
       expect(protectedRes.status).toBe(401);
     }
   });

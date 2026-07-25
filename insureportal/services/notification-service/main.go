@@ -1,9 +1,6 @@
 package main
 
 import (
-	_ "github.com/jackc/pgx/v5/stdlib"
-	"database/sql"
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -48,29 +45,6 @@ func requireAuth(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
-}
-
-
-var db *sql.DB
-
-func initDB() {
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		dsn = "postgres://postgres:postgres@localhost:5432/tourismpay?sslmode=disable"
-	}
-	var err error
-	db, err = sql.Open("pgx", dsn)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(5 * time.Minute)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err = db.PingContext(ctx); err != nil {
-		log.Printf("Warning: database ping failed: %v (will retry on first query)", err)
-	}
 }
 
 func main() {

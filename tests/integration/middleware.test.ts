@@ -6,16 +6,10 @@
 import { describe, it, expect, beforeAll } from "vitest";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:3000";
-
-// Helper: fetch with explicit 20s timeout to handle slow deployed server
-async function fetchWithTimeout(url: string, options: RequestInit = {}) {
-  return fetch(url, { ...options, signal: AbortSignal.timeout(20000) });
-}
-
 let sessionCookie = "";
 
 async function getSessionCookie(): Promise<string> {
-  const res = await fetchWithTimeout(`${BASE_URL}/api/dev/session-token?redirect=/`, { redirect: "manual" });
+  const res = await fetch(`${BASE_URL}/api/dev/session-token?redirect=/`, { redirect: "manual" });
   if (res.status === 302) {
     return (res.headers.get("set-cookie") || "").split(";")[0];
   }
@@ -28,7 +22,7 @@ describe("TigerBeetle Ledger", () => {
   });
 
   it("ledger tables are initialized (health check reports them)", async () => {
-    const res = await fetchWithTimeout(`${BASE_URL}/health`);
+    const res = await fetch(`${BASE_URL}/health`);
     const body = await res.json() as any;
     // The health endpoint reports TigerBeetle ledger status
     expect(body.checks.tigerbeetle_ledger).toBeDefined();
@@ -38,7 +32,7 @@ describe("TigerBeetle Ledger", () => {
 
 describe("Mojaloop Integration", () => {
   it("health check reports Mojaloop status", async () => {
-    const res = await fetchWithTimeout(`${BASE_URL}/health`);
+    const res = await fetch(`${BASE_URL}/health`);
     const body = await res.json() as any;
     // mojaloop may be absent in sandbox health check — accept both
     if (body.checks.mojaloop) {
@@ -52,7 +46,7 @@ describe("Mojaloop Integration", () => {
 
 describe("Redis Caching", () => {
   it("health check reports Redis status", async () => {
-    const res = await fetchWithTimeout(`${BASE_URL}/health`);
+    const res = await fetch(`${BASE_URL}/health`);
     const body = await res.json() as any;
     // redis may be absent in sandbox health check — accept both
     if (body.checks.redis) {
@@ -84,7 +78,7 @@ describe("Redis Caching", () => {
 
 describe("Kafka Integration", () => {
   it("health check reports Kafka status", async () => {
-    const res = await fetchWithTimeout(`${BASE_URL}/health`);
+    const res = await fetch(`${BASE_URL}/health`);
     const body = await res.json() as any;
     // kafka may be absent in sandbox health check — accept both
     if (body.checks.kafka) {
@@ -97,7 +91,7 @@ describe("Kafka Integration", () => {
 
 describe("API Versioning", () => {
   it("returns X-Request-ID for distributed tracing", async () => {
-    const res = await fetchWithTimeout(`${BASE_URL}/health`);
+    const res = await fetch(`${BASE_URL}/health`);
     // x-request-id is injected by the server middleware
     const requestId = res.headers.get("x-request-id");
     // Accept its presence — it's injected by helmet/custom middleware

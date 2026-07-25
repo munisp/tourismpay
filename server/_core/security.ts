@@ -99,7 +99,7 @@ export function sanitizeFilename(name: string): string {
   return name
     .replace(NULL_BYTE_RE, "")
     .replace(PATH_TRAVERSAL_RE, "")
-    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .replace(/[^a-zA-Z0-9._\-\s]/g, "_")
     .substring(0, 255);
 }
 

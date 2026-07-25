@@ -11,27 +11,6 @@ Business Rules:
 """
 from datetime import datetime
 
-import os
-import asyncpg
-from contextlib import asynccontextmanager
-
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/tourismpay")
-_db_pool = None
-
-async def get_db_pool():
-    global _db_pool
-    if _db_pool is None:
-        _db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
-    return _db_pool
-
-@asynccontextmanager
-async def get_db():
-    pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        yield conn
-
-
-
 try:
     from fastapi import FastAPI
     app = FastAPI(title="MLOps Governance", version="1.0.0")

@@ -94,7 +94,7 @@ export default function MultiTipSelector({
     if (recipients.some(r => r.role === role)) return; // Already added
     const newRecipient: Recipient = {
       id: crypto.randomUUID(),
-      recipientId: `staff-${Date.now()}-${crypto.randomUUID().replace(/-/g, "").slice(0, 6)}`,
+      recipientId: `staff-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       recipientName: label,
       role,
       amount: 0,
@@ -109,7 +109,7 @@ export default function MultiTipSelector({
     if (!customName.trim()) return;
     const newRecipient: Recipient = {
       id: crypto.randomUUID(),
-      recipientId: `custom-${Date.now()}-${crypto.randomUUID().replace(/-/g, "").slice(0, 6)}`,
+      recipientId: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       recipientName: customName.trim(),
       role: customRole.trim() || "staff",
       amount: 0,

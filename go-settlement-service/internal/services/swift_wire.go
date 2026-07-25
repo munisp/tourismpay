@@ -300,21 +300,18 @@ func (s *SWIFTWireService) ConfirmSettlement(orderID, swiftRef string) (*WireTra
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if database.DB == nil {
-		return nil, fmt.Errorf("wire order not found: %s", orderID)
+	if database.DB != nil {
+		database.DB.Exec("UPDATE swift_transfers SET status='settled', reference=$1 WHERE id=$2", swiftRef, orderID)
 	}
-	database.DB.Exec("UPDATE swift_transfers SET status='settled', reference=$1 WHERE id=$2", swiftRef, orderID)
-	// Inline GetOrder to avoid deadlock
-	o := &WireTransferOrder{}
-	err := database.DB.QueryRow(
-		"SELECT id, sender_id, amount, currency, fee, reference, status, created_at FROM swift_transfers WHERE id=$1",
-		orderID,
-	).Scan(&o.ID, &o.UserID, &o.SourceAmount, &o.SourceCurrency, &o.Fee, &o.CollectionRef, &o.Status, &o.CreatedAt)
+
+	order, err := s.GetOrder(orderID)
 	if err != nil {
-		return nil, fmt.Errorf("wire order not found: %s", orderID)
+		return nil, err
 	}
-	swiftTransfersTotal.WithLabelValues("settled", string(o.WireRail)).Inc()
-	return o, nil
+
+	swiftTransfersTotal.WithLabelValues("settled", string(order.WireRail)).Inc()
+
+	return order, nil
 }
 
 // CreditWallet is called after settlement to credit the tourist's wallet
@@ -322,27 +319,24 @@ func (s *SWIFTWireService) CreditWallet(orderID string) (*WireTransferOrder, err
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if database.DB == nil {
-		return nil, fmt.Errorf("wire order not found: %s", orderID)
+	if database.DB != nil {
+		var status string
+		database.DB.QueryRow("SELECT status FROM swift_transfers WHERE id=$1", orderID).Scan(&status)
+		if status != "settled" {
+			return nil, fmt.Errorf("order not settled yet (current: %s)", status)
+		}
+		database.DB.Exec("UPDATE swift_transfers SET status='credited' WHERE id=$1", orderID)
 	}
-	var status string
-	database.DB.QueryRow("SELECT status FROM swift_transfers WHERE id=$1", orderID).Scan(&status)
-	if status != "settled" {
-		return nil, fmt.Errorf("order not settled yet (current: %s)", status)
-	}
-	database.DB.Exec("UPDATE swift_transfers SET status='credited' WHERE id=$1", orderID)
-	// Inline GetOrder to avoid deadlock
-	o := &WireTransferOrder{}
-	err := database.DB.QueryRow(
-		"SELECT id, sender_id, amount, currency, fee, reference, status, created_at FROM swift_transfers WHERE id=$1",
-		orderID,
-	).Scan(&o.ID, &o.UserID, &o.SourceAmount, &o.SourceCurrency, &o.Fee, &o.CollectionRef, &o.Status, &o.CreatedAt)
+
+	order, err := s.GetOrder(orderID)
 	if err != nil {
-		return nil, fmt.Errorf("wire order not found: %s", orderID)
+		return nil, err
 	}
-	swiftTransfersTotal.WithLabelValues("credited", string(o.WireRail)).Inc()
-	swiftFeesCollected.WithLabelValues(string(o.WireRail)).Add(o.Fee)
-	return o, nil
+
+	swiftTransfersTotal.WithLabelValues("credited", string(order.WireRail)).Inc()
+	swiftFeesCollected.WithLabelValues(string(order.WireRail)).Add(order.Fee)
+
+	return order, nil
 }
 
 // GetOrder returns a wire transfer order by ID

@@ -6,7 +6,6 @@
  * for the TransactionAnalytics dashboard.
  */
 import { z } from "zod";
-import { logger } from "../_core/logger";
 import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { platformBillingLedger, billingAuditLog } from "../../drizzle/schema";
@@ -26,7 +25,7 @@ async function queryOpenSearch(
       body: JSON.stringify(body),
     });
     if (res.ok) return await res.json();
-    logger.warn(`[OpenSearch] Query failed: ${res.status}`);
+    console.warn(`[OpenSearch] Query failed: ${res.status}`);
     return null;
   } catch {
     // OpenSearch not available — fall back to DB

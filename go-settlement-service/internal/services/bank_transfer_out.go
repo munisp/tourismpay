@@ -202,19 +202,18 @@ func (s *BankTransferOutService) InitiateTransfer(req BankTransferOutRequest) (*
 	}
 
 	// Persist transfer to PostgreSQL
-	if database.DB != nil {
+	database.DB.Exec(
+		"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+		txID, req.UserID, req.BeneficiaryName, req.BankCode, req.AccountNumber, req.Amount, "NGN", ref, "completed",
+	)
+
+	// Save beneficiary if requested
+	if req.SaveBeneficiary && req.BeneficiaryName != "" {
+		benID := generateBeneficiaryID()
 		database.DB.Exec(
-			"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-			txID, req.UserID, req.BeneficiaryName, req.BankCode, req.AccountNumber, req.Amount, "NGN", ref, "completed",
+			"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'beneficiary')",
+			benID, req.UserID, req.BeneficiaryName, req.BankCode, req.AccountNumber, 0.0, "NGN", "beneficiary",
 		)
-		// Save beneficiary if requested
-		if req.SaveBeneficiary && req.BeneficiaryName != "" {
-			benID := generateBeneficiaryID()
-			database.DB.Exec(
-				"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'beneficiary')",
-				benID, req.UserID, req.BeneficiaryName, req.BankCode, req.AccountNumber, 0.0, "NGN", "beneficiary",
-			)
-		}
 	}
 
 	bankTransfersOutTotal.WithLabelValues(rail, "completed").Inc()

@@ -53,7 +53,7 @@ export const disputeResolutionRouter = router({
     try {
       const [b] = await db.select({ cnt: count() }).from(sla_breaches);
       breachCount = b?.cnt ?? 0;
-    } catch (err) { logger.error("[disputeResolution] operation failed:", err); }
+    } catch (err) { console.error("[disputeResolution] operation failed:", err); }
     const totalD = total?.cnt ?? 0;
     const resolvedD = resolved?.cnt ?? 0;
     const sla24 =

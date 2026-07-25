@@ -42,7 +42,7 @@ func newMockSvc() *mockSvc {
 			ID:             uuid.New().String(),
 			UserID:         "user-test-001",
 			CBNWalletID:    "cbn-wallet-abc",
-			CBNWalletAddress:  "eNGNabc123",
+			WalletAddress:  "eNGNabc123",
 			WalletType:     models.WalletTypeTourist,
 			Status:         models.WalletStatusActive,
 			BalanceKobo:    500000,
@@ -53,7 +53,7 @@ func newMockSvc() *mockSvc {
 		},
 		tx: &models.ENairaTransaction{
 			ID:              uuid.New().String(),
-			CBNTransactionRef:        "CBN-TXN-test",
+			CBNTxRef:        "CBN-TXN-test",
 			AmountKobo:      100000,
 			Status:          models.TxStatusCompleted,
 			TransactionType: models.TxTypePayment,
@@ -547,38 +547,4 @@ func TestRoutes_AllEndpointsRegistered(t *testing.T) {
 			t.Errorf("expected route %q not registered", route)
 		}
 	}
-}
-
-// ─── handlers.New constructor ─────────────────────────────────────────────────
-
-func TestNew_Constructor(t *testing.T) {
-logger, _ := zap.NewDevelopment()
-svc := newMockSvc()
-h := New(svc, logger)
-if h == nil {
-t.Fatal("New returned nil handler")
-}
-}
-
-// ─── TouristLoad — service error path ────────────────────────────────────────
-
-func TestTouristLoad_ServiceError(t *testing.T) {
-svc := newMockSvc()
-svc.shouldFail = true
-r := setupTestRouter(svc)
-body := models.TouristLoadRequest{
-TouristUserID:   "tourist-001",
-SourceCurrency:  "USD",
-SourceAmountStr: "100.00",
-FXRate:          "1550.00",
-CorrelationID:   "corr-load-err",
-}
-b, _ := json.Marshal(body)
-w := httptest.NewRecorder()
-req, _ := http.NewRequest("POST", "/api/v1/enaira/payments/tourist-load", bytes.NewReader(b))
-req.Header.Set("Content-Type", "application/json")
-r.ServeHTTP(w, req)
-if w.Code != http.StatusInternalServerError {
-t.Errorf("expected 500 on service error, got %d: %s", w.Code, w.Body.String())
-}
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/unified-insurance/reinsurance-management/internal/handlers"
 	"github.com/unified-insurance/reinsurance-management/internal/repository"
 	"github.com/unified-insurance/reinsurance-management/internal/service"
-	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -17,7 +17,7 @@ func main() {
 	if port == "" {
 		port = "8093"
 	}
-	db, err := gorm.Open(postgres.Open(getPostgresDSN()), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("reinsurance.db"), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}

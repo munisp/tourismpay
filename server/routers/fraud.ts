@@ -1,5 +1,4 @@
 import { TRPCError } from "@trpc/server";
-import { logger } from "../_core/logger";
 import { indexFraudAlert } from "../_core/opensearch";
 import { z } from "zod";
 import { sql, gte, eq, count, and } from "drizzle-orm";
@@ -145,7 +144,7 @@ export const fraudRouter = router({
             })
           )
           .catch((e: unknown) =>
-            logger.error("[Fluvio] Fraud alert event failed:", e)
+            console.error("[Fluvio] Fraud alert event failed:", e)
           );
 
         return { success: true, alertId: alert.id };

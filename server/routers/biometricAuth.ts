@@ -1,6 +1,5 @@
 // Sprint 90: Production biometric auth router with real microservice integration
 import { z } from "zod";
-import { logger } from "../_core/logger";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { kycSessions } from "../../drizzle/schema";
@@ -35,7 +34,7 @@ async function callService(
     if (!resp.ok) throw new Error(`Service returned ${resp.status}`);
     return await resp.json();
   } catch (err: any) {
-    logger.warn(
+    console.warn(
       `[biometricAuth] Service call failed: ${url} — ${err.message}`
     );
     return null;
@@ -287,7 +286,7 @@ export const biometricAuthRouter = router({
               })
               .where(eq(kycSessions.sessionRef, input.sessionRef));
           } catch (err) {
-            logger.warn(
+            console.warn(
               "[biometricAuth] Failed to persist to kycSessions:",
               err
             );

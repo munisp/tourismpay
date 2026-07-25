@@ -266,12 +266,10 @@ func (s *BankPartnerService) CreateVirtualIBAN(userID string, provider BankPartn
 	}
 
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-			ref, userID, userID, string(provider), iban.AccountNumber, 0.0, currency, iban.IBAN, "active",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+		ref, userID, userID, string(provider), iban.AccountNumber, 0.0, currency, iban.IBAN, "active",
+	)
 
 	return iban, nil
 }
@@ -381,12 +379,10 @@ func (s *BankPartnerService) InitiateTransfer(userID string, quote *BankPartnerQ
 	}
 
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-			id, userID, senderName, string(quote.Provider), "", quote.SourceAmount, quote.SourceCurrency, id, "awaiting_funds",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO bank_transfers (id, user_id, beneficiary_name, bank_code, account_number, amount, currency, reference, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+		id, userID, senderName, string(quote.Provider), "", quote.SourceAmount, quote.SourceCurrency, id, "awaiting_funds",
+	)
 
 	bankPartnerTransfersTotal.WithLabelValues(string(quote.Provider), "awaiting_funds").Inc()
 	bankPartnerVolumeUSD.WithLabelValues(string(quote.Provider)).Add(quote.SourceAmount)
@@ -424,32 +420,28 @@ func (s *BankPartnerService) CreditWallet(transferID string) (*BankPartnerTransf
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if database.DB == nil {
-		return nil, fmt.Errorf("transfer not found: %s", transferID)
+	if database.DB != nil {
+		var status string
+		database.DB.QueryRow("SELECT status FROM bank_transfers WHERE id=$1", transferID).Scan(&status)
+		if status != "funds_received" {
+			return nil, fmt.Errorf("transfer not in funds_received state: %s", status)
+		}
+		database.DB.Exec("UPDATE bank_transfers SET status='credited' WHERE id=$1", transferID)
 	}
-	var status string
-	database.DB.QueryRow("SELECT status FROM bank_transfers WHERE id=$1", transferID).Scan(&status)
-	if status != "funds_received" {
-		return nil, fmt.Errorf("transfer not in funds_received state: %s", status)
-	}
-	database.DB.Exec("UPDATE bank_transfers SET status='credited' WHERE id=$1", transferID)
-	// Inline GetTransfer to avoid deadlock
-	t := &BankPartnerTransfer{}
-	var providerStr string
-	err := database.DB.QueryRow(
-		"SELECT id, user_id, beneficiary_name, bank_code, amount, currency, reference, status, created_at FROM bank_transfers WHERE id=$1",
-		transferID,
-	).Scan(&t.ID, &t.UserID, &t.SenderName, &providerStr, &t.SourceAmount, &t.SourceCurrency, &t.SWIFTRef, &t.Status, &t.CreatedAt)
+
+	transfer, err := s.GetTransfer(transferID)
 	if err != nil {
-		return nil, fmt.Errorf("transfer not found: %s", transferID)
+		return nil, err
 	}
-	t.Provider = BankPartnerProvider(providerStr)
+
 	now := time.Now().UTC()
-	t.Status = "credited"
-	t.CreditedAt = &now
-	bankPartnerTransfersTotal.WithLabelValues(string(t.Provider), "credited").Inc()
-	bankPartnerLatency.WithLabelValues(string(t.Provider)).Observe(now.Sub(t.CreatedAt).Seconds())
-	return t, nil
+	transfer.Status = "credited"
+	transfer.CreditedAt = &now
+
+	bankPartnerTransfersTotal.WithLabelValues(string(transfer.Provider), "credited").Inc()
+	bankPartnerLatency.WithLabelValues(string(transfer.Provider)).Observe(now.Sub(transfer.CreatedAt).Seconds())
+
+	return transfer, nil
 }
 
 // ListTransfers returns all bank partner transfers for a user

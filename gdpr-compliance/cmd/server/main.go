@@ -8,7 +8,7 @@ import (
 	"github.com/munisp/NGApp/gdpr-compliance/internal/handlers"
 	"github.com/munisp/NGApp/gdpr-compliance/internal/repository"
 	"github.com/munisp/NGApp/gdpr-compliance/internal/service"
-	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -17,7 +17,7 @@ func main() {
 	if port == "" {
 		port = "8104"
 	}
-	db, err := gorm.Open(postgres.Open(getPostgresDSN()), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open("gdpr.db"), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}

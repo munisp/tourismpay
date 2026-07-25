@@ -13,7 +13,6 @@
  */
 
 import { z } from "zod";
-import { logger } from "../_core/logger";
 import { protectedProcedure, router } from "../_core/trpc";
 import { notifyOwner } from "../_core/notification";
 import { ENV } from "../_core/env";
@@ -40,7 +39,7 @@ if (ENV.vapidPublicKey && ENV.vapidPrivateKey) {
     ENV.vapidPrivateKey
   );
 } else {
-  logger.warn(
+  console.warn(
     "[WebPush] VAPID keys not configured — push notifications disabled. Set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in production."
   );
 }
@@ -844,7 +843,7 @@ export const resilienceRouter = router({
             s => !s.lastAlertedAt || s.lastAlertedAt < throttleWindow
           );
           if (eligibleSubs.length === 0) {
-            logger.info(
+            console.log(
               `[alertOnPoorConnectivity] Agent ${input.agentCode}: throttled — all subs alerted within 30 min`
             );
             return { alerted: false, reason: "throttled" as const, uptimePct };
@@ -898,10 +897,10 @@ export const resilienceRouter = router({
               .where(eq(agentPushSubscriptions.agentCode, input.agentCode));
           }
         } catch (err) {
-          logger.warn("[alertOnPoorConnectivity] VAPID push error:", err);
+          console.warn("[alertOnPoorConnectivity] VAPID push error:", err);
         }
 
-        logger.info(
+        console.log(
           `[alertOnPoorConnectivity] Agent ${input.agentCode}: ${uptimePct}% uptime — ` +
             `ownerNotified=${ownerNotified}, pushCount=${pushCount}`
         );

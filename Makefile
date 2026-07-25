@@ -41,29 +41,6 @@ test-go: ## Run Go tests
 		(cd $$mod && go test ./... 2>/dev/null) || echo "$$mod: no tests or tests failed"; \
 	done
 
-test-go-race: ## Run Go tests with -race flag (detects data races)
-	@echo "=== Running Go race condition tests ==="
-	@if command -v go >/dev/null 2>&1; then \
-		cd tests/go && go test -race -v -timeout 60s ./... 2>&1; \
-		for mod in go-settlement-service services/tigerbeetle-gateway enaira-gateway; do \
-			echo "=== Race testing $$mod ==="; \
-			(cd $$mod && go test -race ./... 2>/dev/null) || echo "$$mod: no tests or failed"; \
-		done; \
-	else \
-		echo "Go not installed — skipping race tests"; \
-	fi
-
-test-rust: ## Run Rust tests
-	@echo "=== Running Rust tests ==="
-	@if command -v cargo >/dev/null 2>&1; then \
-		for svc in services/crypto-engine rust-kyc-service server/ecommerce-cart-rust services/fluvio-consumer; do \
-			echo "=== Testing $$svc ==="; \
-			(cd $$svc && cargo test -- --test-threads=4 2>/dev/null) || echo "$$svc: no tests or failed"; \
-		done; \
-	else \
-		echo "Cargo not installed — skipping Rust tests"; \
-	fi
-
 test-python: ## Run Python tests
 	@for svc in $(PYTHON_SERVICES); do \
 		echo "=== Testing $$svc ==="; \

@@ -16,7 +16,6 @@
  *  - Erasure requests are queued (status: 'pending') and processed by a background job.
  */
 import { TRPCError } from "@trpc/server";
-import { logger } from "../_core/logger";
 import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
 import { getDb, writeAuditLog } from "../db";
@@ -232,7 +231,7 @@ export const gdprRouter = router({
           title: `NDPR Erasure Request: Agent ${agent.agentCode}`,
           content: `Agent ${agent.name} (${agent.agentCode}) has submitted a data erasure request.\n\nReason: ${input.reason}\n\nAction required: Review and process within 30 days per NDPR Article 2.1(1)(c).\n\nNote: Financial transaction records must be retained for 7 years per CBN AML regulations.`,
         }).catch((e: unknown) =>
-          logger.error("[GDPR] Erasure notification failed:", e)
+          console.error("[GDPR] Erasure notification failed:", e)
         );
 
         return {

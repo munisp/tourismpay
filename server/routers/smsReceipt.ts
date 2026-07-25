@@ -3,7 +3,6 @@
  * Falls back to console log when TERMII_API_KEY is not configured.
  */
 import { TRPCError } from "@trpc/server";
-import { logger } from "../_core/logger";
 import { z } from "zod";
 import { getDb, writeAuditLog } from "../db";
 import { transactions } from "../../drizzle/schema";
@@ -22,7 +21,7 @@ async function sendTermiiSMS(
 
   if (!apiKey) {
     // Graceful fallback — log receipt to console for demo purposes
-    logger.info(`[SMS Fallback] To: ${to}\nMessage: ${message}`);
+    console.log(`[SMS Fallback] To: ${to}\nMessage: ${message}`);
     return { success: true, messageId: `DEMO-${Date.now()}` };
   }
 

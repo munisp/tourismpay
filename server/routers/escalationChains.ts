@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { logger } from "../_core/logger";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { auditLog } from "../../drizzle/schema";
@@ -268,7 +267,7 @@ export function dispatchEscalation(
   },
   alertMessage: string
 ) {
-  logger.info(
+  console.log(
     `[Escalation] Dispatching via ${level.recipientType} to ${level.recipient}: ${alertMessage}`
   );
   return {
@@ -284,7 +283,7 @@ export function checkAndEscalate() {
     if (event.status === "escalating") escalated++;
     if (event.status === "acknowledged") acknowledged++;
   }
-  logger.info(
+  console.log(
     `[EscalationCheck] escalated=${escalated}, acknowledged=${acknowledged}`
   );
   return { escalated, acknowledged };

@@ -3,7 +3,6 @@
  * Requires agent_session cookie with role === "admin".
  */
 import { TRPCError } from "@trpc/server";
-import { logger } from "../_core/logger";
 import { z } from "zod";
 import { getDb } from "../db.js";
 import { agents, floatTopUpRequests } from "../../drizzle/schema.js";
@@ -313,7 +312,7 @@ export const agentManagementRouter = router({
             })
           )
           .catch((e: unknown) =>
-            logger.error("[Fluvio] Float event failed:", e)
+            console.error("[Fluvio] Float event failed:", e)
           );
 
         // ── VAPID push notification to agent (fire-and-forget) ──────────────────
@@ -338,7 +337,7 @@ export const agentManagementRouter = router({
               });
             }
           } catch (e) {
-            logger.error("[Push] Float approval notification failed:", e);
+            console.error("[Push] Float approval notification failed:", e);
           }
         })();
 

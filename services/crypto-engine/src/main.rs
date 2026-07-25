@@ -19,7 +19,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 use std::env;
-use sqlx::PgPool;
 use std::net::SocketAddr;
 
 use axum::{
@@ -270,16 +269,6 @@ fn build_router() -> Router {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-
-
-
-async fn get_db_pool() -> PgPool {
-    let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/tourismpay".to_string());
-    PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect to PostgreSQL")
-}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

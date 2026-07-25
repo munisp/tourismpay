@@ -7,27 +7,6 @@ from enum import Enum
 from typing import Optional
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-import os
-import asyncpg
-from contextlib import asynccontextmanager
-
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/tourismpay")
-_db_pool = None
-
-async def get_db_pool():
-    global _db_pool
-    if _db_pool is None:
-        _db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
-    return _db_pool
-
-@asynccontextmanager
-async def get_db():
-    pool = await get_db_pool()
-    async with pool.acquire() as conn:
-        yield conn
-
-
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ai-claims-engine")
 

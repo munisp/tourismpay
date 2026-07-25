@@ -8,7 +8,7 @@ import (
 	"github.com/unified-insurance/pfa-integration/internal/handlers"
 	"github.com/unified-insurance/pfa-integration/internal/repository"
 	"github.com/unified-insurance/pfa-integration/internal/service"
-	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -22,7 +22,7 @@ func main() {
 		dbPath = "pfa.db"
 	}
 
-	db, err := gorm.Open(postgres.Open(getPostgresDSN()), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}

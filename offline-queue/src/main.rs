@@ -18,7 +18,6 @@ use axum::{
     Router,
 };
 use chrono::Utc;
-use sqlx::PgPool;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -235,18 +234,6 @@ async fn health(State(db): State<Db>) -> Json<HealthResponse> {
         status: "ok".to_string(), service: "offline-queue".to_string(),
         pending_count: pending, timestamp: Utc::now().to_rfc3339(),
     })
-}
-
-
-use sqlx::PgPool;
-use std::env;
-
-async fn get_db_pool() -> PgPool {
-    let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/tourismpay".to_string());
-    PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect to PostgreSQL")
 }
 
 #[tokio::main]

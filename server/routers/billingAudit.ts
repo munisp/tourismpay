@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { logger } from "../_core/logger";
 import { publishEvent, TOPICS } from "../_core/kafka";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
@@ -76,7 +75,7 @@ export async function recordBillingAudit(params: {
   if (kafkaUrl) {
     try {
       // In production, use kafkajs producer
-      logger.info(`[BillingAudit] Kafka publish: billing.audit.${action}`, {
+      console.log(`[BillingAudit] Kafka publish: billing.audit.${action}`, {
         auditId: entry.id,
         tenantId: ctx.tenantId,
         userId: ctx.userId,
@@ -86,7 +85,7 @@ export async function recordBillingAudit(params: {
         timestamp: entry.createdAt,
       } as any);
     } catch (e) {
-      logger.warn(
+      console.warn(
         "[BillingAudit] Kafka publish failed:",
         (e as Error).message
       );
@@ -143,7 +142,7 @@ async function sendBillingNotifications(
         .set({ notificationSent: true })
         .where(eq(billingAuditLog.id, entry.id));
     } catch (e) {
-      logger.warn("[BillingAudit] Notification failed:", (e as Error).message);
+      console.warn("[BillingAudit] Notification failed:", (e as Error).message);
     }
   }
 }

@@ -5,16 +5,10 @@
 import { describe, it, expect, beforeAll } from "vitest";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:3000";
-
-// Helper: fetch with explicit 20s timeout to handle slow deployed server
-async function fetchWithTimeout(url: string, options: RequestInit = {}) {
-  return fetch(url, { ...options, signal: AbortSignal.timeout(20000) });
-}
-
 let sessionCookie = "";
 
 async function getSessionCookie(): Promise<string> {
-  const res = await fetchWithTimeout(`${BASE_URL}/api/dev/session-token?redirect=/`, { redirect: "manual" });
+  const res = await fetch(`${BASE_URL}/api/dev/session-token?redirect=/`, { redirect: "manual" });
   if (res.status === 302) {
     return (res.headers.get("set-cookie") || "").split(";")[0];
   }
@@ -30,7 +24,7 @@ async function trpcQuery(procedure: string, input?: unknown) {
 }
 
 async function trpcMutation(procedure: string, input: unknown) {
-  const res = await fetchWithTimeout(`${BASE_URL}/api/trpc/${procedure}`, {
+  const res = await fetch(`${BASE_URL}/api/trpc/${procedure}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", cookie: sessionCookie },
     body: JSON.stringify({ json: input }),
@@ -86,7 +80,7 @@ describe("BIS Operations", () => {
 
 describe("BIS Security", () => {
   it("rejects unauthenticated access", async () => {
-    const res = await fetchWithTimeout(`${BASE_URL}/api/trpc/bis.list?input=${encodeURIComponent(JSON.stringify({ json: { limit: 10, offset: 0 } }))}`);
+    const res = await fetch(`${BASE_URL}/api/trpc/bis.list?input=${encodeURIComponent(JSON.stringify({ json: { limit: 10, offset: 0 } }))}`);
     expect(res.status).toBe(401);
   });
 });

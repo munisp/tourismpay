@@ -275,7 +275,7 @@ export const disputeWorkflowEngineRouter = router({
           .from(sla_breaches)
           .orderBy(desc(sla_breaches.createdAt))
           .limit(20);
-      } catch (err) { logger.error("[disputeWorkflowEngine] operation failed:", err); }
+      } catch (err) { console.error("[disputeWorkflowEngine] operation failed:", err); }
       return {
         items: breaches.map((b, i) => ({
           id: b.id ?? i + 1,

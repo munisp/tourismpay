@@ -264,16 +264,9 @@ func (s *CryptoService) CreateWallet(userID string) *CryptoWallet {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Check if wallet already exists in DB (inline to avoid RLock deadlock)
-	if database.DB != nil {
-		var existingID string
-		err := database.DB.QueryRow(
-			"SELECT id FROM crypto_transactions WHERE user_id=$1 AND tx_type='wallet_created' LIMIT 1",
-			userID,
-		).Scan(&existingID)
-		if err == nil && existingID != "" {
-			return &CryptoWallet{WalletID: existingID, UserID: userID, Balances: make(map[string]float64), Addresses: make(map[string]string), CreatedAt: time.Now()}
-		}
+	// Check if wallet already exists in DB
+	if existing := s.GetWalletByUser(userID); existing != nil {
+		return existing
 	}
 
 	walletID := s.generateID("CW")
@@ -301,12 +294,10 @@ func (s *CryptoService) CreateWallet(userID string) *CryptoWallet {
 	}
 
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-			walletID, userID, "wallet_created", 0.0, "MULTI", "multi", "completed",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+		walletID, userID, "wallet_created", 0.0, "MULTI", "multi", "completed",
+	)
 
 	return wallet
 }
@@ -379,18 +370,7 @@ func (s *CryptoService) SimulateDeposit(walletID, coin string, amount float64) D
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Inline wallet lookup to avoid deadlock (GetWallet acquires RLock while we hold Lock)
-	var wallet *CryptoWallet
-	if database.DB != nil {
-		var userID string
-		err := database.DB.QueryRow(
-			"SELECT user_id FROM crypto_transactions WHERE id=$1 AND tx_type='wallet_created'",
-			walletID,
-		).Scan(&userID)
-		if err == nil {
-			wallet = &CryptoWallet{WalletID: walletID, UserID: userID, Balances: make(map[string]float64), Addresses: make(map[string]string), CreatedAt: time.Now()}
-		}
-	}
+	wallet := s.GetWallet(walletID)
 	if wallet == nil {
 		return DepositResult{Success: false, Error: "wallet not found"}
 	}
@@ -414,12 +394,10 @@ func (s *CryptoService) SimulateDeposit(walletID, coin string, amount float64) D
 	address := s.generateAddress(coinInfo.Network, wallet.UserID)
 
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO crypto_transactions (id, user_id, wallet_address, tx_type, amount, token, chain, tx_hash, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-			txID, wallet.UserID, address, "deposit", amount, coin, coinInfo.Network, blockchainTxn, "confirmed",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO crypto_transactions (id, user_id, wallet_address, tx_type, amount, token, chain, tx_hash, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+		txID, wallet.UserID, address, "deposit", amount, coin, coinInfo.Network, blockchainTxn, "confirmed",
+	)
 
 	return DepositResult{
 		Success: true,
@@ -448,18 +426,7 @@ func (s *CryptoService) Withdraw(walletID, coin, toAddress string, amount float6
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Inline wallet lookup to avoid deadlock
-	var wallet *CryptoWallet
-	if database.DB != nil {
-		var userID string
-		err := database.DB.QueryRow(
-			"SELECT user_id FROM crypto_transactions WHERE id=$1 AND tx_type='wallet_created'",
-			walletID,
-		).Scan(&userID)
-		if err == nil {
-			wallet = &CryptoWallet{WalletID: walletID, UserID: userID, Balances: make(map[string]float64), Addresses: make(map[string]string), CreatedAt: time.Now()}
-		}
-	}
+	wallet := s.GetWallet(walletID)
 	if wallet == nil {
 		return WithdrawResult{Success: false, Error: "wallet not found"}
 	}
@@ -481,12 +448,10 @@ func (s *CryptoService) Withdraw(walletID, coin, toAddress string, amount float6
 	blockchainTxn := "0x" + hex.EncodeToString(txHash[:])
 
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO crypto_transactions (id, user_id, wallet_address, tx_type, amount, token, chain, tx_hash, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
-			txID, wallet.UserID, toAddress, "withdraw", amount, coin, coinInfo.Network, blockchainTxn, "confirmed",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO crypto_transactions (id, user_id, wallet_address, tx_type, amount, token, chain, tx_hash, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+		txID, wallet.UserID, toAddress, "withdraw", amount, coin, coinInfo.Network, blockchainTxn, "confirmed",
+	)
 
 	return WithdrawResult{
 		Success:       true,
@@ -544,18 +509,7 @@ func (s *CryptoService) Swap(walletID, fromCoin, toCoin string, fromAmount float
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Inline wallet lookup to avoid deadlock
-	var wallet *CryptoWallet
-	if database.DB != nil {
-		var userID string
-		err := database.DB.QueryRow(
-			"SELECT user_id FROM crypto_transactions WHERE id=$1 AND tx_type='wallet_created'",
-			walletID,
-		).Scan(&userID)
-		if err == nil {
-			wallet = &CryptoWallet{WalletID: walletID, UserID: userID, Balances: make(map[string]float64), Addresses: make(map[string]string), CreatedAt: time.Now()}
-		}
-	}
+	wallet := s.GetWallet(walletID)
 	if wallet == nil {
 		return SwapResult{Success: false, Error: "wallet not found"}
 	}
@@ -600,12 +554,10 @@ func (s *CryptoService) Swap(walletID, fromCoin, toCoin string, fromAmount float
 	swap.CompletedAt = &now
 
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-			swapID, wallet.UserID, "swap", fromAmount, fromCoin+"->" +toCoin, "internal", "completed",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+		swapID, wallet.UserID, "swap", fromAmount, fromCoin+"->"+toCoin, "internal", "completed",
+	)
 
 	return SwapResult{
 		Success:      true,
@@ -639,18 +591,7 @@ func (s *CryptoService) PayWithCrypto(walletID, bookingID, coin string, fiatAmou
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Inline wallet lookup to avoid deadlock
-	var wallet *CryptoWallet
-	if database.DB != nil {
-		var userID string
-		err := database.DB.QueryRow(
-			"SELECT user_id FROM crypto_transactions WHERE id=$1 AND tx_type='wallet_created'",
-			walletID,
-		).Scan(&userID)
-		if err == nil {
-			wallet = &CryptoWallet{WalletID: walletID, UserID: userID, Balances: make(map[string]float64), Addresses: make(map[string]string), CreatedAt: time.Now()}
-		}
-	}
+	wallet := s.GetWallet(walletID)
 	if wallet == nil {
 		return PaymentResult{Success: false, Error: "wallet not found"}
 	}
@@ -689,12 +630,10 @@ func (s *CryptoService) PayWithCrypto(walletID, bookingID, coin string, fiatAmou
 
 	// Record payment transaction
 	txID := s.generateID("PTX")
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-			txID, wallet.UserID, "payment", cryptoAmount, coin, "internal", "completed",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO crypto_transactions (id, user_id, tx_type, amount, token, chain, status) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+		txID, wallet.UserID, "payment", cryptoAmount, coin, "internal", "completed",
+	)
 
 	return PaymentResult{
 		Success:      true,

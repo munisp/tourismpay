@@ -526,7 +526,7 @@ function PaymentLinksTab() {
 
   const handleCreate = () => {
     if (!description) { toast.error("Add a description"); return; }
-    const linkId = crypto.randomUUID().replace(/-/g, "").slice(0, 10);
+    const linkId = Math.random().toString(36).substring(2, 10);
     setGeneratedLink(`https://pay.tourismpay.com/p/${linkId}`);
     toast.success("Payment link created!");
   };

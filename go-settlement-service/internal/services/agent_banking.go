@@ -263,12 +263,10 @@ func (s *AgentBankingService) ExecuteLoad(agentID, touristUserID, cashCurrency, 
 	}
 
 	// Persist to PostgreSQL
-	if database.DB != nil {
-		database.DB.Exec(
-			"INSERT INTO agent_transactions (id, agent_id, customer_id, transaction_type, amount, currency, commission, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-			orderID, agentID, touristUserID, "cash_load", cashAmount, cashCurrency, agentComm, "completed",
-		)
-	}
+	database.DB.Exec(
+		"INSERT INTO agent_transactions (id, agent_id, customer_id, transaction_type, amount, currency, commission, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+		orderID, agentID, touristUserID, "cash_load", cashAmount, cashCurrency, agentComm, "completed",
+	)
 
 	// Deduct from agent float
 	agent.FloatBalances[cashCurrency] -= cashAmount
@@ -355,20 +353,9 @@ func (s *AgentBankingService) RefundFloat(orderID string) (*CashLoadOrder, error
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Inline order lookup to avoid deadlock (GetOrder acquires RLock while we hold Lock)
-	var order *CashLoadOrder
-	if database.DB != nil {
-		o := &CashLoadOrder{}
-		err := database.DB.QueryRow(
-			"SELECT id, agent_id, customer_id, transaction_type, amount, currency, commission, status, created_at FROM agent_transactions WHERE id=$1",
-			orderID,
-		).Scan(&o.ID, &o.AgentID, &o.TouristUserID, &o.Status, &o.CashAmount, &o.CashCurrency, &o.AgentCommission, &o.Status, &o.CreatedAt)
-		if err == nil {
-			order = o
-		}
-	}
-	if order == nil {
-		return nil, fmt.Errorf("order not found: %s", orderID)
+	order, err := s.GetOrder(orderID)
+	if err != nil {
+		return nil, err
 	}
 	if order.Status != "loaded" && order.Status != "completed" {
 		return nil, fmt.Errorf("order cannot be reversed (current: %s)", order.Status)

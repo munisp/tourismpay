@@ -6,14 +6,8 @@ import { describe, it, expect, beforeAll } from "vitest";
 
 const BASE_URL = process.env.TEST_BASE_URL || "http://localhost:3000";
 
-// Helper: fetch with explicit 20s timeout to handle slow deployed server
-async function fetchWithTimeout(url: string, options: RequestInit = {}) {
-  return fetch(url, { ...options, signal: AbortSignal.timeout(20000) });
-}
-
-
 async function fetchJson(path: string) {
-  const res = await fetchWithTimeout(`${BASE_URL}${path}`);
+  const res = await fetch(`${BASE_URL}${path}`);
   const contentType = res.headers.get("content-type") || "";
   const body = contentType.includes("application/json") ? await res.json() : await res.text();
   return { status: res.status, body, headers: res.headers };
@@ -57,7 +51,7 @@ describe("Health & Monitoring Endpoints", () => {
   });
 
   it("GET /metrics returns Prometheus format", async () => {
-    const res = await fetchWithTimeout(`${BASE_URL}/metrics`);
+    const res = await fetch(`${BASE_URL}/metrics`);
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(typeof text).toBe("string");
@@ -69,7 +63,7 @@ describe("Health & Monitoring Endpoints", () => {
 
 describe("Rate Limiting", () => {
   it("returns X-RateLimit headers on API requests", async () => {
-    const res = await fetchWithTimeout(`${BASE_URL}/health`);
+    const res = await fetch(`${BASE_URL}/health`);
     // Server responds correctly — rate limit headers present on configured routes
     expect([200, 503]).toContain(res.status);
   });
@@ -77,14 +71,14 @@ describe("Rate Limiting", () => {
 
 describe("Security Headers", () => {
   it("returns X-Request-ID on all responses", async () => {
-    const res = await fetchWithTimeout(`${BASE_URL}/health`);
+    const res = await fetch(`${BASE_URL}/health`);
     expect([200, 503]).toContain(res.status);
     // X-Request-ID is injected by middleware — verify server responds
     expect(res.headers.get("content-type")).toBeTruthy();
   });
 
   it("returns security headers (helmet)", async () => {
-    const res = await fetchWithTimeout(`${BASE_URL}/health`);
+    const res = await fetch(`${BASE_URL}/health`);
     expect([200, 503]).toContain(res.status);
     // Helmet headers present in production; may vary in dev/sandbox
     expect(res.headers.get("content-type")).toBeTruthy();

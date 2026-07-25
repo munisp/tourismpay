@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -22,7 +22,7 @@ func main() {
 		dbPath = "bancassurance.db"
 	}
 
-	db, err := gorm.Open(postgres.Open(getPostgresDSN()), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
