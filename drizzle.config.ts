@@ -2,6 +2,7 @@ import { defineConfig } from "drizzle-kit";
 
 // LOCAL_DATABASE_URL takes precedence — allows switching from TiDB to local PostgreSQL
 const connectionString = process.env.LOCAL_DATABASE_URL ?? process.env.DATABASE_URL;
+const isCi = process.env.CI === "true";
 if (!connectionString) {
   throw new Error("DATABASE_URL (or LOCAL_DATABASE_URL) is required to run drizzle commands");
 }
@@ -42,10 +43,10 @@ export default defineConfig({
   breakpoints: true,
 
   // ─── Safety & Diagnostics ─────────────────────────────────────────────────
-  // verbose: prints every SQL statement before applying it
-  verbose: true,
-  // strict: prompts for confirmation before applying destructive changes
-  strict: true,
+  // CI runs against an ephemeral PostgreSQL service and cannot answer prompts.
+  // Interactive local and production invocations retain the confirmation gate.
+  verbose: !isCi,
+  strict: !isCi,
 
   // ─── Migration Table ──────────────────────────────────────────────────────
   migrations: {
