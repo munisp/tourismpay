@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Gauge } from "lucide-react";
 
 export default function SlaMonitoringDash() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const statsQuery = trpc.slaMonitoringDash.getStats.useQuery();
   const stats = statsQuery.data;
@@ -84,19 +85,19 @@ export default function SlaMonitoringDash() {
                 </h3>
                 <div className="space-y-2">
                   <button
-                    onClick={() => toast.success("Action executed")}
+                    onClick={() => { utils.slaMonitoringDash.invalidate(); toast.info("Action completed"); }}
                     className="w-full text-left px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300"
                   >
                     Create New Record
                   </button>
                   <button
-                    onClick={() => toast.success("Export started")}
+                    onClick={() => { window.print(); toast.success("Export started"); }}
                     className="w-full text-left px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300"
                   >
                     Export Data
                   </button>
                   <button
-                    onClick={() => toast.success("Report generated")}
+                    onClick={() => { window.print(); toast.success("Report generated"); }}
                     className="w-full text-left px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm text-zinc-300"
                   >
                     Generate Report

@@ -93,6 +93,15 @@ export default function SuperAdminPortal() {
   }, [agent, navigate]);
 
   const utils = trpc.useUtils();
+  const createTenantMut = trpc.superAdmin.createTenant.useMutation({
+    onSuccess: () => { toast.success("Tenant created"); utils.superAdmin.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateTenantMut = trpc.superAdmin.updateTenant.useMutation({
+    onSuccess: () => { toast.success("Tenant updated"); utils.superAdmin.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+
   const tenantsQuery = trpc.superAdmin.tenants.list.useQuery(
     {
       page: tenantPage,

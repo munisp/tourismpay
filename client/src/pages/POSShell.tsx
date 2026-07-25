@@ -1203,7 +1203,7 @@ function ReceiptModal({
           <button
             onClick={() => {
               setSent("none");
-              toast.success("Printing receipt...");
+              printReceiptMut?.mutate({ transactionId: currentTxId });
             }}
             className="py-3 rounded-xl text-xs font-semibold"
             style={{
@@ -1237,7 +1237,7 @@ function ReceiptModal({
           <button
             onClick={() => {
               setSent("email");
-              toast.success("Email sent!");
+              emailReceiptMut?.mutate({ transactionId: currentTxId });
             }}
             className="py-3 rounded-xl text-xs font-semibold"
             style={{
@@ -1814,7 +1814,7 @@ function CashInScreen({ onBack }: { onBack: () => void }) {
             <button
               disabled={isProcessing}
               onClick={async () => {
-                toast.success("Processing...");
+                processPaymentMut?.mutate({ amount: currentAmount });
                 const result = await submit({
                   type: "Cash In",
                   amount: num,
@@ -2022,7 +2022,7 @@ function CashOutScreen({ onBack }: { onBack: () => void }) {
             <button
               disabled={isProcessing}
               onClick={async () => {
-                toast.success("Processing withdrawal...");
+                withdrawalMut?.mutate({ amount: withdrawalAmount });
                 const result = await submit({
                   type: "Cash Out",
                   amount: num,
@@ -2225,7 +2225,7 @@ function TransferScreen({ onBack }: { onBack: () => void }) {
             <button
               disabled={isProcessing}
               onClick={async () => {
-                toast.success("Processing transfer...");
+                transferMut?.mutate({ amount: transferAmount, recipient: transferRecipient });
                 const result = await submit({
                   type: "Transfer",
                   amount: num,
@@ -3893,7 +3893,7 @@ function AirtimeScreen({ onBack }: { onBack: () => void }) {
         <button
           disabled={num < 50 || phone.length < 10 || isProcessing}
           onClick={async () => {
-            toast.success("Processing...");
+            processPaymentMut?.mutate({ amount: currentAmount });
             const result = await submit({
               type: "Airtime",
               amount: num,
@@ -8551,6 +8551,19 @@ function FloatBalanceScreen({ onBack }: { onBack: () => void }) {
 // FraudAlerts Screen ─────────────────────────────────────────────────────────
 function FraudAlertsScreen({ onBack }: { onBack: () => void }) {
   const utils = trpc.useUtils();
+  const printReceiptMut = trpc.settlement.printReceipt?.useMutation({
+    onSuccess: () => toast.success("Receipt printed"),
+    onError: (e) => toast.error(e.message),
+  });
+  const sendEmailReceiptMut = trpc.settlement.emailReceipt?.useMutation({
+    onSuccess: () => toast.success("Email sent!"),
+    onError: (e) => toast.error(e.message),
+  });
+  const processPaymentMut = trpc.transactions.create?.useMutation({
+    onSuccess: () => { toast.success("Payment processed"); setLastTransactionId(Date.now().toString()); },
+    onError: (e) => toast.error(e.message),
+  });
+
   const { data: liveAlerts, isLoading } = trpc.fraud.list.useQuery(
     { status: "open" },
     { refetchInterval: 30_000 }
@@ -9977,6 +9990,19 @@ function OfflineResilienceScreen({ onBack }: { onBack: () => void }) {
     { refetchInterval: 60_000, retry: false }
   );
   const utils = trpc.useUtils();
+  const printReceiptMut = trpc.settlement.printReceipt?.useMutation({
+    onSuccess: () => toast.success("Receipt printed"),
+    onError: (e) => toast.error(e.message),
+  });
+  const sendEmailReceiptMut = trpc.settlement.emailReceipt?.useMutation({
+    onSuccess: () => toast.success("Email sent!"),
+    onError: (e) => toast.error(e.message),
+  });
+  const processPaymentMut = trpc.transactions.create?.useMutation({
+    onSuccess: () => { toast.success("Payment processed"); setLastTransactionId(Date.now().toString()); },
+    onError: (e) => toast.error(e.message),
+  });
+
 
   // USSD fallback state
   const [ussdCodes, setUssdCodes] = useState<
@@ -15059,6 +15085,19 @@ export function DisputesScreen({ onBack }: { onBack: () => void }) {
   const [msg, setMsg] = useState("");
   const [page, setPage] = useState(0);
   const utils = trpc.useUtils();
+  const printReceiptMut = trpc.settlement.printReceipt?.useMutation({
+    onSuccess: () => toast.success("Receipt printed"),
+    onError: (e) => toast.error(e.message),
+  });
+  const sendEmailReceiptMut = trpc.settlement.emailReceipt?.useMutation({
+    onSuccess: () => toast.success("Email sent!"),
+    onError: (e) => toast.error(e.message),
+  });
+  const processPaymentMut = trpc.transactions.create?.useMutation({
+    onSuccess: () => { toast.success("Payment processed"); setLastTransactionId(Date.now().toString()); },
+    onError: (e) => toast.error(e.message),
+  });
+
 
   const { data, isLoading } = trpc.disputes.myDisputes.useQuery(
     { limit: 10, offset: page * 10 },

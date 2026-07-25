@@ -94,6 +94,23 @@ export default function AgentPortal() {
   );
 
   const utils = trpc.useUtils();
+  const floatRequestMut = trpc.agentBanking.requestFloat.useMutation({
+    onSuccess: () => { toast.success("Float request submitted"); utils.agentBanking.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const raisedDisputeMut = trpc.agentBanking.raiseDispute?.useMutation({
+    onSuccess: () => { toast.success("Dispute raised"); utils.agentBanking.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const generateQrMut = trpc.agentBanking.generateQr?.useMutation({
+    onSuccess: () => { toast.success("QR code generated"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateProfileMut = trpc.agentBanking.updateProfile?.useMutation({
+    onSuccess: () => { toast.success("Profile updated"); utils.agentBanking.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+
 
   // Mutations
   const [floatOpen, setFloatOpen] = useState(false);

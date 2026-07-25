@@ -146,6 +146,15 @@ export default function WeeklyReports() {
   const [newRecipientRole, setNewRecipientRole] = useState("admin");
 
   const utils = trpc.useUtils();
+  const generateReportMut = trpc.weeklyReports.generate.useMutation({
+    onSuccess: () => { toast.success("Weekly report generated"); utils.weeklyReports.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const updateScheduleMut = trpc.weeklyReports.updateSchedule?.useMutation({
+    onSuccess: () => { toast.success("Schedule updated"); utils.weeklyReports.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+
 
   // Queries
   const listQ = trpc.weeklyReports.list.useQuery({ limit: 20, offset: 0 });

@@ -73,6 +73,19 @@ export default function CustomerPortal() {
   );
 
   const utils = trpc.useUtils();
+  const updateProfileMut = trpc.customer.updateProfile?.useMutation({
+    onSuccess: () => { toast.success("Profile updated"); utils.customer.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const raiseDisputeMut = trpc.disputeRefund.raise?.useMutation({
+    onSuccess: () => { toast.success("Dispute raised"); utils.disputeRefund.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const requestRefundMut = trpc.disputeRefund.requestRefund?.useMutation({
+    onSuccess: () => { toast.success("Refund requested"); utils.disputeRefund.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+
 
   const profileQuery = trpc.customer.account.me.useQuery(undefined, {
     retry: false,

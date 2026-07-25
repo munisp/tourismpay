@@ -81,6 +81,19 @@ export default function RateAlerts() {
   const [note, setNote] = useState("");
 
   const utils = trpc.useUtils();
+  const createAlertMut = trpc.rateAlerts.create.useMutation({
+    onSuccess: () => { toast.success("Rate alert created"); utils.rateAlerts.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const deleteAlertMut = trpc.rateAlerts.delete.useMutation({
+    onSuccess: () => { toast.success("Alert deleted"); utils.rateAlerts.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const rearmAlertMut = trpc.rateAlerts.rearm?.useMutation({
+    onSuccess: () => { toast.success("Alert re-armed"); utils.rateAlerts.invalidate(); },
+    onError: (e) => toast.error(e.message),
+  });
+
 
   const { data: alertsData, isLoading } = trpc.rateAlerts.list.useQuery({
     // status: filter,

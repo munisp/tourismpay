@@ -807,7 +807,7 @@ export const groupActivities = {
     splitMethod: string;
   }): Promise<string> {
     const id = crypto.randomUUID();
-    const shareCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const shareCode = crypto.randomUUID().slice(0, 6).toUpperCase();
     await db().execute(sql`
       INSERT INTO group_bookings (id, organizer_tourist_profile_id, booking_type, reference_id, group_name, total_participants, total_amount_ngn, split_method, status, share_code, created_at)
       VALUES (${id}, ${params.organizerTouristProfileId}, ${params.bookingType}, ${params.referenceId}, ${params.groupName}, ${params.totalParticipants}, ${params.totalAmountNgn}, ${params.splitMethod}, 'pending', ${shareCode}, ${now()})
