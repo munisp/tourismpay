@@ -231,10 +231,20 @@ function Router() {
             <Route path="/admin/training">{() => <ProtectedRoute roles={["admin"]}><TrainingCertification /></ProtectedRoute>}</Route>
             <Route path="/admin/tx-velocity">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><TxVelocityMonitor /></ProtectedRoute>}</Route>
             <Route component={NotFound} />
-          </Switch>
+          
+              <Route path="/tourist/itinerary" component={lazy(() => import("./pages/ItineraryManager"))} />
+              <Route path="/journey/merchant-onboarding" component={lazy(() => import("./pages/MerchantOnboardingWizard"))} />
+              <Route path="/journey/tourist" component={lazy(() => import("./pages/TouristJourneyDashboard"))} />
+              <Route path="/admin/journey-dashboard" component={lazy(() => import("./pages/JourneyAdminDashboard"))} />
+              </Switch>
         </AppShell>
       </Route>
-    </Switch>
+    
+              <Route path="/tourist/itinerary" component={lazy(() => import("./pages/ItineraryManager"))} />
+              <Route path="/journey/merchant-onboarding" component={lazy(() => import("./pages/MerchantOnboardingWizard"))} />
+              <Route path="/journey/tourist" component={lazy(() => import("./pages/TouristJourneyDashboard"))} />
+              <Route path="/admin/journey-dashboard" component={lazy(() => import("./pages/JourneyAdminDashboard"))} />
+              </Switch>
   );
 }
 

@@ -105,7 +105,27 @@ export type WorkflowType =
   | "EscrowReleaseWorkflow"
   | "LiquidityRebalanceWorkflow"
   | "CbdcBridgeWorkflow"
-  | "ComplianceCheckWorkflow";
+  | "ComplianceCheckWorkflow"
+  | "MerchantOnboardingWorkflow"
+  | "TouristArrivalWorkflow"
+  | "WalletTopupWorkflow"
+  | "TouristPaymentWorkflow"
+  | "AiTripPlannerWorkflow"
+  | "GroupBookingWorkflow"
+  | "HighValueTransactionWorkflow"
+  | "SosAlertWorkflow"
+  | "BusinessTravelerWorkflow"
+  | "NightlifeJourneyWorkflow"
+  | "CulturalTourismWorkflow"
+  | "FashionWeekWorkflow"
+  | "SportsJourneyWorkflow"
+  | "FineDiningWorkflow"
+  | "LuxuryHotelWorkflow"
+  | "AiConciergeWorkflow"
+  | "MultiCurrencyStatementWorkflow"
+  | "PrivateChefWorkflow"
+  | "StablecoinConversionWorkflow"
+  | "ExtendedStayWorkflow";
 
 export interface WorkflowStartResult {
   workflowId: string;
