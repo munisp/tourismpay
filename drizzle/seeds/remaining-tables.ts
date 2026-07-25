@@ -8,6 +8,7 @@ function randomDate(daysBack: number) {
   return d;
 }
 function randomElement<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+function unixTs(date: Date): number { return Math.floor(date.getTime() / 1000); }
 
 const NIGERIAN_NAMES = ["Emeka Okafor", "Ngozi Adeyemi", "Chukwudi Eze", "Amaka Nwosu", "Tunde Bakare", "Funmilayo Osei", "Babatunde Adewale", "Chioma Obi"];
 const COUNTRIES = ["NG", "KE", "ZA", "GH", "TZ", "RW", "ET", "EG", "MA", "SN", "CI", "UG"];
@@ -29,7 +30,7 @@ export async function seedRemainingTables(db: any, schema: any) {
     const types = ["send","receive","swap","deposit","withdraw","fee"];
     const currencies = ["USDC","CBDC-NG","XLM"];
     for (let i = 0; i < 25; i++) {
-      await db.insert(schema.walletTransactions).values({ id: uuid(), userId: "demo_admin_001", type: randomElement(types), currency: randomElement(currencies), amount: (randomInt(100,50000)/100).toFixed(6), fee: (randomInt(1,100)/100).toFixed(6), status: randomElement(["completed","completed","completed","pending","failed"]), reference: `WT-${Date.now()}-${i}`, counterparty: randomElement(NIGERIAN_NAMES), note: randomElement(["Hotel payment","Safari booking","Restaurant tip","Transport","Tour guide"]), createdAt: randomDate(60), updatedAt: new Date() }).onConflictDoNothing();
+      await db.insert(schema.walletTransactions).values({ id: uuid(), userId: "demo_admin_001", type: randomElement(types), fromCurrency: randomElement(currencies), toCurrency: randomElement(currencies), amount: (randomInt(100,50000)/100).toFixed(6), fee: (randomInt(1,100)/100).toFixed(6), status: randomElement(["completed","completed","completed","pending","failed"]), reference: `WT-${Date.now()}-${i}`, counterparty: randomElement(NIGERIAN_NAMES), note: randomElement(["Hotel payment","Safari booking","Restaurant tip","Transport","Tour guide"]), createdAt: unixTs(randomDate(60)) }).onConflictDoNothing();
     }
     console.log("    ✓ walletTransactions: 25 records");
   });

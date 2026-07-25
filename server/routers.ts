@@ -1,3 +1,9 @@
+import { aiChatRouter } from './routers/aiChat';
+import { backupDrRouter } from './routers/backupDr';
+import { remittanceDedicatedRouter } from './routers/remittanceDedicated';
+import { sprint27ExportRouter } from './routers/sprint27Export';
+import { sysConfigRouter } from './routers/sysConfig';
+import { userNotifPrefsRouter } from './routers/userNotifPrefs';
 import { z } from "zod";
 import crypto from "node:crypto";
 import { COOKIE_NAME } from "@shared/const";
@@ -1560,6 +1566,17 @@ adminDashboard: adminDashboardRouter,
   whatsappChannel: whatsappChannelRouter,
   workflowAutomation: workflowAutomationRouter,
   workflows: workflowsRouter,
+  ai: aiChatRouter,
+  backupDr: backupDrRouter,
+  remittanceDedicated: remittanceDedicatedRouter,
+  sprint27Export: sprint27ExportRouter,
+  sysConfig: sysConfigRouter,
+  userNotifPrefs: userNotifPrefsRouter,
+  // ─── Frontend-expected aliases ─────────────────────────────────────────────
+  activityAuditLog: activityAuditLogRouter,
+  billingLedger: billingLedgerRouter,
+  lakehouseAi: lakehouseAiIntegrationRouter,
+  settlementRecon: settlementReconciliationRouter,
 });
 
 
