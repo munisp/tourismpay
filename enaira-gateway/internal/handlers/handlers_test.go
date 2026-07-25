@@ -42,7 +42,7 @@ func newMockSvc() *mockSvc {
 			ID:             uuid.New().String(),
 			UserID:         "user-test-001",
 			CBNWalletID:    "cbn-wallet-abc",
-			WalletAddress:  "eNGNabc123",
+			CBNWalletAddress:  "eNGNabc123",
 			WalletType:     models.WalletTypeTourist,
 			Status:         models.WalletStatusActive,
 			BalanceKobo:    500000,
@@ -53,7 +53,7 @@ func newMockSvc() *mockSvc {
 		},
 		tx: &models.ENairaTransaction{
 			ID:              uuid.New().String(),
-			CBNTxRef:        "CBN-TXN-test",
+			CBNTransactionRef:        "CBN-TXN-test",
 			AmountKobo:      100000,
 			Status:          models.TxStatusCompleted,
 			TransactionType: models.TxTypePayment,

@@ -272,8 +272,6 @@ fn build_router() -> Router {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 
-use sqlx::PgPool;
-use std::env;
 
 async fn get_db_pool() -> PgPool {
     let database_url = env::var("DATABASE_URL")

@@ -1,5 +1,4 @@
 //! pos-middleware-bridge — Rust sidecar for 54Link POS Shell
-mod auth;
 //!
 //! High-performance middleware bridge providing:
 //! 1. Kafka event publishing (batch + single)
@@ -12,6 +11,7 @@ mod auth;
 //! 8. Health check endpoint
 //!
 //! Listens on port 9100 (configurable via RUST_BRIDGE_PORT).
+mod auth;
 
 use actix_web::{web, App, HttpServer, HttpResponse};
 use sqlx::PgPool;
@@ -316,8 +316,6 @@ async fn stats(state: web::Data<Arc<AppState>>) -> HttpResponse {
 
 #[actix_web::main]
 
-use sqlx::PgPool;
-use std::env;
 
 async fn get_db_pool() -> PgPool {
     let database_url = env::var("DATABASE_URL")

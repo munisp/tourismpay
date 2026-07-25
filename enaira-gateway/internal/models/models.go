@@ -135,3 +135,16 @@ type WalletBalanceResponse struct {
 	Currency    string `json:"currency"`
 	AsOf        string `json:"as_of"`
 }
+
+
+// ─── Extended wallet type constants (CBN eNaira spec) ────────────────────────
+const (
+// WalletTypeTourist is the tourist/visitor wallet tier for foreign visitors
+WalletTypeTourist  WalletType = "tourist"
+// WalletTypePersonal is the personal consumer wallet tier
+WalletTypePersonal WalletType = "personal"
+// WalletStatusFrozen indicates a wallet frozen by compliance action
+WalletStatusFrozen WalletStatus = "frozen"
+// TxTypePayment is an alias for merchant payment transactions
+TxTypePayment = TxTypeMerchantPay
+)

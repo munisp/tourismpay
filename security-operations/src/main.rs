@@ -1,3 +1,4 @@
+use std::env;
 use actix_web::{web, App, HttpServer, HttpResponse, middleware};
 use sqlx::PgPool;
 mod auth;
@@ -213,9 +214,6 @@ async fn get_threat_intel(data: web::Data<Arc<AppState>>) -> HttpResponse {
 }
 
 #[actix_web::main]
-
-use sqlx::PgPool;
-use std::env;
 
 async fn get_db_pool() -> PgPool {
     let database_url = env::var("DATABASE_URL")
