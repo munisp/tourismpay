@@ -1,3 +1,5 @@
+import { globalJourneyOrchestratorRouter } from "./routers/globalJourneyOrchestrator";
+import { globalRegistryRouter } from "./routers/globalRegistry";
 import { bisInvestigationRouter } from "./routers/bisInvestigation";
 import { aiChatRouter } from './routers/aiChat';
 import { backupDrRouter } from './routers/backupDr';
