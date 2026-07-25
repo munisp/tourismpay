@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { getDb } from "../db";
+import { sql } from "drizzle-orm";
 import {
   publicProcedure as openProcedure,
   protectedProcedure,
@@ -52,3 +54,20 @@ export const middlewareServiceManagerRouter = router({
       updatedAt: new Date().toISOString(),
     })),
 });
+
+
+  restart: adminProcedure
+    .input(z.object({ serviceId: z.string() }))
+    .mutation(async ({ input }) => {
+      // Log the restart request
+      const db = getDb();
+      await db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, created_at) VALUES (${crypto.randomUUID()}, 'system', 'middleware.restart', 'service', ${input.serviceId}, ${Math.floor(Date.now()/1000)})`);
+      return { success: true, message: `Restart signal sent to ${input.serviceId}` };
+    }),
+  updateConfig: adminProcedure
+    .input(z.object({ serviceId: z.string(), config: z.record(z.any()) }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.execute(sql`INSERT INTO platform_settings (key, value, updated_at) VALUES (${'middleware_config_' + input.serviceId}, ${JSON.stringify(input.config)}, ${Math.floor(Date.now()/1000)}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`);
+      return { success: true };
+    }),

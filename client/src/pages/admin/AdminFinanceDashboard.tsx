@@ -99,6 +99,11 @@ interface DetailDialogProps {
 
 function DetailDialog({ request, onClose, onStatusChange, isUpdating }: DetailDialogProps) {
   const [note, setNote] = useState("");
+  const [osSearchQuery, setOsSearchQuery] = useState("");
+  const osSearchResult = trpc.openSearch.transactions.useQuery(
+    { query: osSearchQuery, limit: 20 },
+    { enabled: osSearchQuery.length >= 2 }
+  );
 
   if (!request) return null;
 

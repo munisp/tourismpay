@@ -3,6 +3,11 @@ import { trpc } from "@/lib/trpc";
 
 export default function EcommerceOrderManagement() {
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [osSearchQuery, setOsSearchQuery] = useState("");
+  const osSearchResult = trpc.openSearch.orders.useQuery(
+    { query: osSearchQuery, limit: 20 },
+    { enabled: osSearchQuery.length >= 2 }
+  );
   const [page, setPage] = useState(0);
   const [selectedOrder, setSelectedOrder] = useState<number | null>(null);
   const limit = 20;

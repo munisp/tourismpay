@@ -1,5 +1,6 @@
 // Sprint 87: Upgraded from mock data to real DB queries — agentPerformanceAnalytics
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { agents } from "../../drizzle/schema";
@@ -218,3 +219,20 @@ export const agentPerformanceAnalyticsRouter = router({
   getRegionalComparison,
   setTargets,
 });
+
+
+  recordScore: adminProcedure
+    .input(z.object({ agentId: z.string(), period: z.string(), score: z.number(), metrics: z.any().optional() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const id = crypto.randomUUID();
+      await db.execute(sql`INSERT INTO agent_performance_scores (id, agent_id, period, score, metrics, created_at) VALUES (${id}, ${input.agentId}, ${input.period}, ${input.score}, ${JSON.stringify(input.metrics ?? {})}, ${Math.floor(Date.now()/1000)}) ON CONFLICT (agent_id, period) DO UPDATE SET score = EXCLUDED.score, metrics = EXCLUDED.metrics`);
+      return { id };
+    }),
+  exportReport: protectedProcedure
+    .input(z.object({ period: z.string().optional(), format: z.enum(["csv","json"]).default("csv") }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const rows = await db.execute(sql`SELECT * FROM agent_performance_scores WHERE (${ input.period ? sql`period = ${input.period}` : sql`1=1`}) ORDER BY score DESC LIMIT 1000`);
+      return { format: input.format, count: (rows as any[]).length, data: rows };
+    }),

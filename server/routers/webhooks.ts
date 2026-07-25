@@ -6,6 +6,7 @@
  */
 
 import crypto from "crypto";
+import { indexDocument, EXTENDED_INDICES } from "../_core/opensearch";
 import { z } from "zod";
 import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";

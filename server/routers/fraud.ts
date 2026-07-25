@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { indexFraudAlert } from "../_core/opensearch";
 import { z } from "zod";
 import { sql, gte, eq, count, and } from "drizzle-orm";
 import {

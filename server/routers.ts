@@ -863,6 +863,7 @@ export const appRouter = router({
   notifPrefs: notificationPreferencesRouter,
   auditLogs: auditLogsRouter,
   search: searchRouter,
+  openSearch: openSearchRouter,
   bisModuleEditor: bisModuleEditorRouter,
   kybCompliance: kybComplianceRouter,
   csvExport: csvExportRouter,

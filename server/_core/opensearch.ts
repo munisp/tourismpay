@@ -256,3 +256,157 @@ export { INDICES };
 export function isOpenSearchEnabled(): boolean {
   return !!process.env.OPENSEARCH_URL && !connectionFailed;
 }
+
+// ─── Extended Indices for All Search Components ───────────────────────────────
+export const EXTENDED_INDICES = {
+  TRANSACTIONS: "tourismpay-transactions",
+  SETTLEMENTS: "tourismpay-settlements",
+  MERCHANTS: "tourismpay-merchants",
+  AGENTS: "tourismpay-agents",
+  WEBHOOKS: "tourismpay-webhooks",
+  NOTIFICATIONS: "tourismpay-notifications",
+  BULK_JOBS: "tourismpay-bulk-jobs",
+  USSD_SESSIONS: "tourismpay-ussd-sessions",
+  FRAUD_ALERTS: "tourismpay-fraud-alerts",
+  BIS_INVESTIGATIONS: "tourismpay-bis-investigations",
+  CUSTOMERS: "tourismpay-customers",
+  ORDERS: "tourismpay-orders",
+} as const;
+
+// ─── Universal Search ─────────────────────────────────────────────────────────
+export interface UniversalSearchResult {
+  id: string;
+  index: string;
+  score: number;
+  source: Record<string, unknown>;
+}
+
+export async function universalSearch(
+  query: string,
+  indices: string[],
+  options?: { from?: number; size?: number; filters?: Record<string, string> }
+): Promise<{ hits: UniversalSearchResult[]; total: number; source: "opensearch" | "unavailable" }> {
+  const os = getClient();
+  if (!os) {
+    return { hits: [], total: 0, source: "unavailable" };
+  }
+
+  try {
+    const must: Record<string, unknown>[] = [
+      {
+        multi_match: {
+          query,
+          fields: ["*"],
+          type: "best_fields",
+          fuzziness: "AUTO",
+          minimum_should_match: "75%",
+        },
+      },
+    ];
+
+    if (options?.filters) {
+      for (const [field, value] of Object.entries(options.filters)) {
+        must.push({ term: { [field]: value } });
+      }
+    }
+
+    const response = await os.search({
+      index: indices.join(","),
+      body: {
+        query: { bool: { must } },
+        from: options?.from ?? 0,
+        size: options?.size ?? 20,
+        highlight: {
+          fields: { "*": {} },
+          pre_tags: ["<mark>"],
+          post_tags: ["</mark>"],
+        },
+      },
+    });
+
+    const hits = (response.body.hits?.hits ?? []).map((h: any) => ({
+      id: h._id,
+      index: h._index,
+      score: h._score,
+      source: { ...h._source, _highlights: h.highlight },
+    }));
+
+    return {
+      hits,
+      total: response.body.hits?.total?.value ?? hits.length,
+      source: "opensearch",
+    };
+  } catch (err) {
+    logger.warn(`[OpenSearch] universalSearch failed: ${(err as Error).message}`);
+    return { hits: [], total: 0, source: "unavailable" };
+  }
+}
+
+// ─── Domain-Specific Search Functions ────────────────────────────────────────
+export async function searchTransactions(query: string, filters?: { status?: string; currency?: string }, options?: { from?: number; size?: number }) {
+  return search(EXTENDED_INDICES.TRANSACTIONS, {
+    multi_match: { query, fields: ["id^3", "reference^2", "merchantName", "description", "fromCurrency", "toCurrency"], fuzziness: "AUTO" },
+  }, options);
+}
+
+export async function searchSettlements(query: string, options?: { from?: number; size?: number }) {
+  return search(EXTENDED_INDICES.SETTLEMENTS, {
+    multi_match: { query, fields: ["batchId^3", "status^2", "merchantId", "currency"], fuzziness: "AUTO" },
+  }, options);
+}
+
+export async function searchMerchants(query: string, options?: { from?: number; size?: number }) {
+  return search(EXTENDED_INDICES.MERCHANTS, {
+    multi_match: { query, fields: ["businessName^3", "email^2", "phone", "registrationNumber", "country"], fuzziness: "AUTO" },
+  }, options);
+}
+
+export async function searchAgents(query: string, options?: { from?: number; size?: number }) {
+  return search(EXTENDED_INDICES.AGENTS, {
+    multi_match: { query, fields: ["name^3", "agentCode^2", "phone", "email", "region"], fuzziness: "AUTO" },
+  }, options);
+}
+
+export async function searchFraudAlerts(query: string, options?: { from?: number; size?: number }) {
+  return search(EXTENDED_INDICES.FRAUD_ALERTS, {
+    multi_match: { query, fields: ["alertType^2", "transactionId", "merchantId", "userId", "status"], fuzziness: "AUTO" },
+  }, options);
+}
+
+export async function searchOrders(query: string, options?: { from?: number; size?: number }) {
+  return search(EXTENDED_INDICES.ORDERS, {
+    multi_match: { query, fields: ["orderId^3", "customerName^2", "customerEmail", "status", "productName"], fuzziness: "AUTO" },
+  }, options);
+}
+
+export async function searchWebhooks(query: string, options?: { from?: number; size?: number }) {
+  return search(EXTENDED_INDICES.WEBHOOKS, {
+    multi_match: { query, fields: ["url^3", "events^2", "status"], fuzziness: "AUTO" },
+  }, options);
+}
+
+export async function searchUssdSessions(query: string, options?: { from?: number; size?: number }) {
+  return search(EXTENDED_INDICES.USSD_SESSIONS, {
+    multi_match: { query, fields: ["sessionId^3", "msisdn^2", "menu", "status"], fuzziness: "AUTO" },
+  }, options);
+}
+
+// ─── Index Document Helpers ───────────────────────────────────────────────────
+export async function indexTransaction(tx: Record<string, unknown>) {
+  return indexDocument(EXTENDED_INDICES.TRANSACTIONS, String(tx.id), tx);
+}
+export async function indexSettlement(s: Record<string, unknown>) {
+  return indexDocument(EXTENDED_INDICES.SETTLEMENTS, String(s.id), s);
+}
+export async function indexMerchant(m: Record<string, unknown>) {
+  return indexDocument(EXTENDED_INDICES.MERCHANTS, String(m.id), m);
+}
+export async function indexAgent(a: Record<string, unknown>) {
+  return indexDocument(EXTENDED_INDICES.AGENTS, String(a.id), a);
+}
+export async function indexFraudAlert(f: Record<string, unknown>) {
+  return indexDocument(EXTENDED_INDICES.FRAUD_ALERTS, String(f.id), f);
+}
+export async function indexOrder(o: Record<string, unknown>) {
+  return indexDocument(EXTENDED_INDICES.ORDERS, String(o.id), o);
+}

@@ -85,6 +85,11 @@ function MetricCard({
 // ── TigerBeetle Tab ──────────────────────────────────────────────────────────
 function TigerBeetleTab() {
   const [agentCode, setAgentCode] = useState("");
+  const [osSearchQuery, setOsSearchQuery] = useState("");
+  const osSearchResult = trpc.openSearch.universal.useQuery(
+    { query: osSearchQuery, limit: 20 },
+    { enabled: osSearchQuery.length >= 2 }
+  );
   const summary = trpc.ledger.summary.useQuery();
   const accounts = trpc.ledger.listAccounts.useQuery({ limit: 20 });
   const syncStatus = trpc.ledger.syncStatus.useQuery();

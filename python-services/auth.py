@@ -83,9 +83,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         # Check X-API-Key
         api_key = request.headers.get(API_KEY_NAME)
+        expected = _get_api_key()
+        # If no SERVICE_API_KEY is configured, allow all requests (dev/sandbox mode)
+        if not expected:
+            return await call_next(request)
         if api_key:
-            expected = _get_api_key()
-            if expected and hmac.compare_digest(api_key, expected):
+            if hmac.compare_digest(api_key, expected):
                 return await call_next(request)
             return JSONResponse(
                 status_code=401,

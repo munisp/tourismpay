@@ -1439,6 +1439,7 @@ async def gds_occupancy_benchmark(
         "low_season_expected": round(base * season_data["mult_low"] * 100, 1),
         "current_expected": round(min(98, current_expected * 100), 1),
         "industry_top_quartile": round(min(95, base * 1.3 * 100), 1),
+    }
 
 # ─── Government Tax Remittance & Compliance ─────────────────────────────────
 
@@ -1720,7 +1721,7 @@ async def reconcile_remittance(
         "discrepancy_pct": round((total_actual - total_expected) / total_expected * 100, 2) if total_expected > 0 else 0,
         "status": "matched" if abs(total_actual - total_expected) < total_expected * 0.01 else ("underpaid" if total_actual < total_expected else "overpaid"),
         "line_items": expected_items,
-        "reconciled_at": datetime.utcnow().isoformat(),)
+        "reconciled_at": datetime.utcnow().isoformat(),
     }
 
 

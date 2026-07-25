@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import {
@@ -142,4 +143,22 @@ export const platformFeatureFlagsRouter = router({
       };
     }
   }),
+
+  create: adminProcedure
+    .input(z.object({ name: z.string(), description: z.string().optional(), enabled: z.boolean().default(false), rolloutPercentage: z.number().min(0).max(100).default(0) }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const id = crypto.randomUUID();
+      await db.execute(sql`INSERT INTO platform_feature_flags (id, name, description, enabled, rollout_percentage, created_at) VALUES (${id}, ${input.name}, ${input.description ?? ''}, ${input.enabled}, ${input.rolloutPercentage}, ${Math.floor(Date.now()/1000)})`);
+      return { id };
+    }),
+  update: adminProcedure
+    .input(z.object({ id: z.string(), enabled: z.boolean().optional(), rolloutPercentage: z.number().min(0).max(100).optional() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      if (input.enabled !== undefined) await db.execute(sql`UPDATE platform_feature_flags SET enabled = ${input.enabled}, updated_at = ${Math.floor(Date.now()/1000)} WHERE id = ${input.id}`);
+      if (input.rolloutPercentage !== undefined) await db.execute(sql`UPDATE platform_feature_flags SET rollout_percentage = ${input.rolloutPercentage}, updated_at = ${Math.floor(Date.now()/1000)} WHERE id = ${input.id}`);
+      return { success: true };
+    }),
+
 });

@@ -4,6 +4,11 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 export default function TxMonitorPage() {
   const [severityFilter, setSeverityFilter] = useState("all");
+  const [osSearchQuery, setOsSearchQuery] = useState("");
+  const osSearchResult = trpc.openSearch.transactions.useQuery(
+    { query: osSearchQuery, limit: 20 },
+    { enabled: osSearchQuery.length >= 2 }
+  );
 
   const alerts = [
     {

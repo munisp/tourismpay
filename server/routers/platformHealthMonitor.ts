@@ -1,5 +1,6 @@
 // Sprint 87: Upgraded from mock data to real DB queries — platformHealthMonitor
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { platformSettings } from "../../drizzle/schema";
@@ -269,3 +270,19 @@ export const platformHealthMonitorRouter = router({
   getUptimeReport,
   createIncident,
 });
+
+
+  acknowledgeAlert: adminProcedure
+    .input(z.object({ alertId: z.string(), notes: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.execute(sql`UPDATE platform_health_alerts SET acknowledged = true, acknowledged_at = ${Math.floor(Date.now()/1000)}, notes = ${input.notes ?? ''} WHERE id = ${input.alertId}`);
+      return { success: true };
+    }),
+  setThreshold: adminProcedure
+    .input(z.object({ metric: z.string(), warningThreshold: z.number(), criticalThreshold: z.number() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.execute(sql`INSERT INTO platform_settings (key, value, updated_at) VALUES (${'health_threshold_' + input.metric}, ${JSON.stringify({ warning: input.warningThreshold, critical: input.criticalThreshold })}, ${Math.floor(Date.now()/1000)}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`);
+      return { success: true };
+    }),

@@ -4,6 +4,11 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 export default function UssdSessionReplayPage() {
   const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  const [osSearchQuery, setOsSearchQuery] = useState("");
+  const osSearchResult = trpc.openSearch.ussdSessions.useQuery(
+    { query: osSearchQuery, limit: 20 },
+    { enabled: osSearchQuery.length >= 2 }
+  );
   const [replayStep, setReplayStep] = useState(0);
   const [filter, setFilter] = useState("all");
 

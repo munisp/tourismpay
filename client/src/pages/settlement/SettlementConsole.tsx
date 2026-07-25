@@ -67,6 +67,11 @@ function fmt(n: number) {
 export default function SettlementConsole() {
   const utils = trpc.useUtils();
   const [statusFilter, setStatusFilter] = useState<SettlementStatus | "all">("all");
+  const [osSearchQuery, setOsSearchQuery] = useState("");
+  const osSearchResult = trpc.openSearch.settlements.useQuery(
+    { query: osSearchQuery, limit: 20 },
+    { enabled: osSearchQuery.length >= 2 }
+  );
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectId, setRejectId] = useState<string | null>(null);

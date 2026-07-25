@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { fraudAlerts } from "../../drizzle/schema";
@@ -167,4 +168,20 @@ export const fraudCaseManagementRouter = router({
       });
     }
   }),
+
+  updateStatus: protectedProcedure
+    .input(z.object({ id: z.string(), status: z.enum(["open","investigating","resolved","dismissed"]), notes: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.execute(sql`UPDATE fraud_alerts SET status = ${input.status}, updated_at = ${Math.floor(Date.now()/1000)} WHERE id = ${input.id}`);
+      return { success: true };
+    }),
+  addNote: protectedProcedure
+    .input(z.object({ id: z.string(), note: z.string() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.execute(sql`UPDATE fraud_alerts SET notes = COALESCE(notes, '') || E'\n' || ${input.note}, updated_at = ${Math.floor(Date.now()/1000)} WHERE id = ${input.id}`);
+      return { success: true };
+    }),
+
 });

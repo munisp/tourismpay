@@ -114,6 +114,11 @@ const EMPTY_FORM: NewCheckForm = {
 export default function MerchantEmployeeBIS() {
   const { user } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [osSearchQuery, setOsSearchQuery] = useState("");
+  const osSearchResult = trpc.openSearch.agents.useQuery(
+    { query: osSearchQuery, limit: 20 },
+    { enabled: osSearchQuery.length >= 2 }
+  );
   const [form, setForm] = useState<NewCheckForm>(EMPTY_FORM);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "processing" | "completed" | "flagged" | "failed">("all");
 

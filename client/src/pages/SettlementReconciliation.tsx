@@ -34,6 +34,11 @@ import {
 export default function SettlementReconciliation() {
   const { loading, isAuthenticated } = useAuth();
   const [page, setPage] = useState(1);
+  const [osSearchQuery, setOsSearchQuery] = useState("");
+  const osSearchResult = trpc.openSearch.settlements.useQuery(
+    { query: osSearchQuery, limit: 20 },
+    { enabled: osSearchQuery.length >= 2 }
+  );
   const [statusFilter, setStatusFilter] = useState("all");
   const [reconcileDate, setReconcileDate] = useState(
     new Date().toISOString().split("T")[0]

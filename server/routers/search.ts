@@ -96,3 +96,144 @@ export const searchRouter = router({
       };
     }),
 });
+
+// ─── Extended OpenSearch-backed search procedures ─────────────────────────────
+import {
+  searchTransactions as osSearchTransactions,
+  searchSettlements as osSearchSettlements,
+  searchMerchants as osSearchMerchants,
+  searchAgents as osSearchAgents,
+  searchFraudAlerts as osSearchFraudAlerts,
+  searchOrders as osSearchOrders,
+  searchWebhooks as osSearchWebhooks,
+  searchUssdSessions as osSearchUssdSessions,
+  universalSearch,
+  EXTENDED_INDICES,
+} from "../_core/opensearch";
+import { getDb } from "../db";
+import { sql } from "drizzle-orm";
+
+// Extend the searchRouter with OpenSearch procedures
+// These are exported separately and merged in routers.ts
+export const openSearchRouter = router({
+  // Universal multi-index search
+  universal: protectedProcedure
+    .input(z.object({
+      query: z.string().min(2).max(200),
+      indices: z.array(z.string()).optional(),
+      filters: z.record(z.string()).optional(),
+      page: z.number().int().min(1).default(1),
+      limit: z.number().int().min(1).max(50).default(20),
+    }))
+    .query(async ({ input }) => {
+      const targetIndices = input.indices ?? Object.values(EXTENDED_INDICES);
+      const result = await universalSearch(input.query, targetIndices, {
+        from: (input.page - 1) * input.limit,
+        size: input.limit,
+        filters: input.filters,
+      });
+      return result;
+    }),
+
+  // Transactions search
+  transactions: protectedProcedure
+    .input(z.object({ query: z.string().min(2), status: z.string().optional(), currency: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+    .query(async ({ input }) => {
+      const osResult = await osSearchTransactions(input.query, { status: input.status, currency: input.currency }, { from: (input.page - 1) * input.limit, size: input.limit });
+      if (osResult) return { hits: osResult.hits, total: osResult.total, source: "opensearch" as const };
+      // PostgreSQL fallback
+      const db = getDb();
+      const rows = await db.execute(sql`SELECT id, reference, amount, currency, status, created_at FROM wallet_transactions WHERE reference ILIKE ${'%' + input.query + '%'} OR id::text ILIKE ${'%' + input.query + '%'} LIMIT ${input.limit} OFFSET ${(input.page - 1) * input.limit}`);
+      return { hits: (rows as any[]).map(r => ({ id: r.id, index: "transactions", score: 1, source: r })), total: (rows as any[]).length, source: "postgres" as const };
+    }),
+
+  // Settlements search
+  settlements: protectedProcedure
+    .input(z.object({ query: z.string().min(2), page: z.number().default(1), limit: z.number().default(20) }))
+    .query(async ({ input }) => {
+      const osResult = await osSearchSettlements(input.query, { from: (input.page - 1) * input.limit, size: input.limit });
+      if (osResult) return { hits: osResult.hits, total: osResult.total, source: "opensearch" as const };
+      const db = getDb();
+      const rows = await db.execute(sql`SELECT id, batch_id, status, total_amount, currency, created_at FROM settlement_batches WHERE batch_id ILIKE ${'%' + input.query + '%'} OR status ILIKE ${'%' + input.query + '%'} LIMIT ${input.limit}`);
+      return { hits: (rows as any[]).map(r => ({ id: r.id, index: "settlements", score: 1, source: r })), total: (rows as any[]).length, source: "postgres" as const };
+    }),
+
+  // Merchants search
+  merchants: protectedProcedure
+    .input(z.object({ query: z.string().min(2), page: z.number().default(1), limit: z.number().default(20) }))
+    .query(async ({ input }) => {
+      const osResult = await osSearchMerchants(input.query, { from: (input.page - 1) * input.limit, size: input.limit });
+      if (osResult) return { hits: osResult.hits, total: osResult.total, source: "opensearch" as const };
+      const db = getDb();
+      const rows = await db.execute(sql`SELECT id, business_name, email, phone, country, status FROM merchants WHERE business_name ILIKE ${'%' + input.query + '%'} OR email ILIKE ${'%' + input.query + '%'} LIMIT ${input.limit}`);
+      return { hits: (rows as any[]).map(r => ({ id: r.id, index: "merchants", score: 1, source: r })), total: (rows as any[]).length, source: "postgres" as const };
+    }),
+
+  // Agents search
+  agents: protectedProcedure
+    .input(z.object({ query: z.string().min(2), page: z.number().default(1), limit: z.number().default(20) }))
+    .query(async ({ input }) => {
+      const osResult = await osSearchAgents(input.query, { from: (input.page - 1) * input.limit, size: input.limit });
+      if (osResult) return { hits: osResult.hits, total: osResult.total, source: "opensearch" as const };
+      const db = getDb();
+      const rows = await db.execute(sql`SELECT id, name, agent_code, phone, email, region, status FROM agents WHERE name ILIKE ${'%' + input.query + '%'} OR agent_code ILIKE ${'%' + input.query + '%'} OR phone ILIKE ${'%' + input.query + '%'} LIMIT ${input.limit}`);
+      return { hits: (rows as any[]).map(r => ({ id: r.id, index: "agents", score: 1, source: r })), total: (rows as any[]).length, source: "postgres" as const };
+    }),
+
+  // Fraud alerts search
+  fraudAlerts: protectedProcedure
+    .input(z.object({ query: z.string().min(2), status: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+    .query(async ({ input }) => {
+      const osResult = await osSearchFraudAlerts(input.query, { from: (input.page - 1) * input.limit, size: input.limit });
+      if (osResult) return { hits: osResult.hits, total: osResult.total, source: "opensearch" as const };
+      const db = getDb();
+      const rows = await db.execute(sql`SELECT id, alert_type, transaction_id, status, risk_score, created_at FROM fraud_alerts WHERE alert_type ILIKE ${'%' + input.query + '%'} OR transaction_id ILIKE ${'%' + input.query + '%'} LIMIT ${input.limit}`);
+      return { hits: (rows as any[]).map(r => ({ id: r.id, index: "fraud_alerts", score: 1, source: r })), total: (rows as any[]).length, source: "postgres" as const };
+    }),
+
+  // Orders search
+  orders: protectedProcedure
+    .input(z.object({ query: z.string().min(2), status: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+    .query(async ({ input }) => {
+      const osResult = await osSearchOrders(input.query, { from: (input.page - 1) * input.limit, size: input.limit });
+      if (osResult) return { hits: osResult.hits, total: osResult.total, source: "opensearch" as const };
+      const db = getDb();
+      const rows = await db.execute(sql`SELECT id, order_id, customer_name, customer_email, status, total_amount FROM ecommerce_orders WHERE order_id ILIKE ${'%' + input.query + '%'} OR customer_name ILIKE ${'%' + input.query + '%'} OR customer_email ILIKE ${'%' + input.query + '%'} LIMIT ${input.limit}`);
+      return { hits: (rows as any[]).map(r => ({ id: r.id, index: "orders", score: 1, source: r })), total: (rows as any[]).length, source: "postgres" as const };
+    }),
+
+  // USSD sessions search
+  ussdSessions: protectedProcedure
+    .input(z.object({ query: z.string().min(2), page: z.number().default(1), limit: z.number().default(20) }))
+    .query(async ({ input }) => {
+      const osResult = await osSearchUssdSessions(input.query, { from: (input.page - 1) * input.limit, size: input.limit });
+      if (osResult) return { hits: osResult.hits, total: osResult.total, source: "opensearch" as const };
+      const db = getDb();
+      const rows = await db.execute(sql`SELECT id, session_id, msisdn, status, created_at FROM ussd_sessions WHERE session_id ILIKE ${'%' + input.query + '%'} OR msisdn ILIKE ${'%' + input.query + '%'} LIMIT ${input.limit}`);
+      return { hits: (rows as any[]).map(r => ({ id: r.id, index: "ussd_sessions", score: 1, source: r })), total: (rows as any[]).length, source: "postgres" as const };
+    }),
+
+  // Webhooks search
+  webhooks: protectedProcedure
+    .input(z.object({ query: z.string().min(2), page: z.number().default(1), limit: z.number().default(20) }))
+    .query(async ({ input }) => {
+      const osResult = await osSearchWebhooks(input.query, { from: (input.page - 1) * input.limit, size: input.limit });
+      if (osResult) return { hits: osResult.hits, total: osResult.total, source: "opensearch" as const };
+      const db = getDb();
+      const rows = await db.execute(sql`SELECT id, url, events, enabled, created_at FROM webhook_endpoints WHERE url ILIKE ${'%' + input.query + '%'} LIMIT ${input.limit}`);
+      return { hits: (rows as any[]).map(r => ({ id: r.id, index: "webhooks", score: 1, source: r })), total: (rows as any[]).length, source: "postgres" as const };
+    }),
+
+  // Audit logs search
+  auditLogs: protectedProcedure
+    .input(z.object({ query: z.string().min(2), action: z.string().optional(), page: z.number().default(1), limit: z.number().default(20) }))
+    .query(async ({ input }) => {
+      const osResult = await search(INDICES.AUDIT_LOGS, {
+        multi_match: { query: input.query, fields: ["action^3", "actorName^2", "entityType", "entityId"], fuzziness: "AUTO" },
+      }, { from: (input.page - 1) * input.limit, size: input.limit });
+      if (osResult) return { hits: osResult.hits, total: osResult.total, source: "opensearch" as const };
+      const db = getDb();
+      const rows = await db.execute(sql`SELECT id, action, actor_name, entity_type, entity_id, created_at FROM audit_logs WHERE action ILIKE ${'%' + input.query + '%'} OR actor_name ILIKE ${'%' + input.query + '%'} LIMIT ${input.limit}`);
+      return { hits: (rows as any[]).map(r => ({ id: r.id, index: "audit_logs", score: 1, source: r })), total: (rows as any[]).length, source: "postgres" as const };
+    }),
+});

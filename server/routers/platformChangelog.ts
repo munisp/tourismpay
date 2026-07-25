@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { auditLog } from "../../drizzle/schema";
@@ -119,4 +120,14 @@ export const platformChangelogRouter = router({
       };
     }
   }),
+
+  create: adminProcedure
+    .input(z.object({ version: z.string(), title: z.string(), description: z.string(), type: z.enum(["feature","bugfix","security","breaking"]).default("feature") }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      const id = crypto.randomUUID();
+      await db.execute(sql`INSERT INTO platform_changelog (id, version, title, description, type, created_at) VALUES (${id}, ${input.version}, ${input.title}, ${input.description}, ${input.type}, ${Math.floor(Date.now()/1000)})`);
+      return { id };
+    }),
+
 });

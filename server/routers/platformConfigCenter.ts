@@ -1,5 +1,6 @@
 // Sprint 87: Upgraded from mock data to real DB queries — platformConfigCenter
 import { z } from "zod";
+import { sql } from "drizzle-orm";
 import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { platform_incidents } from "../../drizzle/schema";
@@ -266,3 +267,21 @@ export const platformConfigCenterRouter = router({
   updateParam,
   createAbTest,
 });
+
+
+  update: adminProcedure
+    .input(z.object({ key: z.string(), value: z.any() }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      await db.execute(sql`INSERT INTO platform_settings (key, value, updated_at) VALUES (${input.key}, ${JSON.stringify(input.value)}, ${Math.floor(Date.now()/1000)}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`);
+      return { success: true };
+    }),
+  bulkUpdate: adminProcedure
+    .input(z.object({ settings: z.array(z.object({ key: z.string(), value: z.any() })) }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      for (const s of input.settings) {
+        await db.execute(sql`INSERT INTO platform_settings (key, value, updated_at) VALUES (${s.key}, ${JSON.stringify(s.value)}, ${Math.floor(Date.now()/1000)}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`);
+      }
+      return { updated: input.settings.length };
+    }),

@@ -90,6 +90,11 @@ function statusBadge(status: string) {
 export default function BISAutoFlagHistory() {
   const [, navigate] = useLocation();
   const [page, setPage] = useState(0);
+  const [osSearchQuery, setOsSearchQuery] = useState("");
+  const osSearchResult = trpc.openSearch.fraudAlerts.useQuery(
+    { query: osSearchQuery, limit: 20 },
+    { enabled: osSearchQuery.length >= 2 }
+  );
   const [currencyFilter, setCurrencyFilter] = useState<string>("all");
   const [reasonFilter, setReasonFilter] = useState<string>("all");
 
