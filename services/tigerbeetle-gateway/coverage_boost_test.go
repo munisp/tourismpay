@@ -52,10 +52,11 @@ func TestNewAccountMapStore_InvalidDSN(t *testing.T) {
 }
 
 func TestRecordAccount_NilStore(t *testing.T) {
-	var store *AccountMapStore
+	// RecordAccount checks s.db == nil, not s == nil; use a store with nil db
+	store := &AccountMapStore{db: nil}
 	err := store.RecordAccount("user", 1, "NGN", 12345, 1, 1)
 	if err != nil {
-		t.Errorf("RecordAccount on nil store should return nil error, got: %v", err)
+		t.Errorf("RecordAccount on nil db should return nil error, got: %v", err)
 	}
 }
 
@@ -68,10 +69,11 @@ func TestRecordAccount_NilDB(t *testing.T) {
 }
 
 func TestRecordTransfer_NilStore(t *testing.T) {
-	var store *AccountMapStore
+	// RecordTransfer checks s.db == nil, not s == nil; use a store with nil db
+	store := &AccountMapStore{db: nil}
 	err := store.RecordTransfer(1, 2, 3, 1000, "NGN", 1, 1, "booking", "ref-001")
 	if err != nil {
-		t.Errorf("RecordTransfer on nil store should return nil error, got: %v", err)
+		t.Errorf("RecordTransfer on nil db should return nil error, got: %v", err)
 	}
 }
 

@@ -268,7 +268,7 @@ func (s *Server) handleCreateAccounts(w http.ResponseWriter, r *http.Request) {
 	}
 	// Persist to account map
 	for i, acc := range req {
-		if results[i] == 0 { // success
+		if results[i] == 0 && s.store != nil { // success
 			_ = s.store.RecordAccount("manual", int64(acc.UserData64), "NGN", acc.ID, int(acc.Ledger), int(acc.Code))
 		}
 	}
@@ -310,7 +310,7 @@ func (s *Server) handleCreateTransfers(w http.ResponseWriter, r *http.Request) {
 	}
 	// Persist to transfer log
 	for i, t := range req {
-		if results[i] == 0 {
+		if results[i] == 0 && s.store != nil {
 			_ = s.store.RecordTransfer(t.ID, t.DebitAccountID, t.CreditAccountID, t.Amount, "NGN", int(t.Ledger), int(t.Code), "api", "")
 		}
 	}
