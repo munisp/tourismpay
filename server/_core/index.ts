@@ -208,7 +208,7 @@ async function startServer() {
         const { sdk } = await import("./sdk");
         const { ENV } = await import("./env");
         const token = await sdk.createSessionToken(ENV.ownerOpenId, { name: "Patrick Munis" });
-        res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; SameSite=Lax`);
+        res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; ${req.secure || req.headers["x-forwarded-proto"] === "https" ? "Secure; SameSite=None" : "SameSite=Lax"}`);
         const redirect = (_req as any).query?.redirect || "/tourist/onboarding";
         res.redirect(302, redirect as string);
       } catch (e: any) {
@@ -245,7 +245,7 @@ async function startServer() {
         }
 
         const token = await sdk.createSessionToken("demo_merchant_002", { name: "Ama Owusu" });
-        res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; SameSite=Lax`);
+        res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; ${req.secure || req.headers["x-forwarded-proto"] === "https" ? "Secure; SameSite=None" : "SameSite=Lax"}`);
         res.redirect(302, "/restaurant-onboarding");
       } catch (e: any) {
         res.status(500).json({ error: e.message });
@@ -321,7 +321,7 @@ async function startServer() {
         }
 
         const token = await sdk.createSessionToken("demo_merchant_001", { name: "Kofi Mensah" });
-        res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; SameSite=Lax`);
+        res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; ${req.secure || req.headers["x-forwarded-proto"] === "https" ? "Secure; SameSite=None" : "SameSite=Lax"}`);
         const redirect = (_req as any).query?.redirect || "/merchant/revenue";
         res.redirect(302, redirect as string);
       } catch (e: any) {
@@ -344,7 +344,7 @@ async function startServer() {
           role: "tourist" as any,
         });
         const token = await sdk.createSessionToken("demo_tourist_001", { name: "Amara Diallo" });
-        res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; SameSite=Lax`);
+        res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; ${req.secure || req.headers["x-forwarded-proto"] === "https" ? "Secure; SameSite=None" : "SameSite=Lax"}`);
         const redirect = (_req as any).query?.redirect || "/tourist/onboarding";
         res.redirect(302, redirect as string);
       } catch (e: any) {
@@ -379,7 +379,7 @@ async function startServer() {
             .where(eq(users.openId, "demo_admin_001"));
         }
         const token = await sdk.createSessionToken("demo_admin_001", { name: "Patrick Munis" });
-        res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; SameSite=Lax`);
+        res.setHeader("Set-Cookie", `app_session_id=${token}; Path=/; Max-Age=31536000; ${req.secure || req.headers["x-forwarded-proto"] === "https" ? "Secure; SameSite=None" : "SameSite=Lax"}`);
         const redirect = (_req as any).query?.redirect || "/";
         res.redirect(302, redirect as string);
       } catch (e: any) {

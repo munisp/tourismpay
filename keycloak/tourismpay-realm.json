@@ -2,7 +2,7 @@
   "realm": "tourismpay",
   "displayName": "TourismPay Platform",
   "enabled": true,
-  "sslRequired": "external",
+  "sslRequired": "all",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
@@ -27,19 +27,58 @@
   "defaultSignatureAlgorithm": "RS256",
   "roles": {
     "realm": [
-      { "name": "admin", "description": "TourismPay platform administrator" },
-      { "name": "tourist", "description": "Tourist/traveler user" },
-      { "name": "merchant", "description": "Merchant/establishment owner" },
-      { "name": "agent", "description": "Agency banking agent" },
-      { "name": "supervisor", "description": "Agent supervisor" },
-      { "name": "noc_operator", "description": "Network operations center operator" },
-      { "name": "compliance_officer", "description": "Regulatory compliance officer" },
-      { "name": "settlement_officer", "description": "Settlement processing officer" },
-      { "name": "bis_analyst", "description": "Business intelligence and security analyst" },
-      { "name": "underwriter", "description": "Insurance underwriting specialist" },
-      { "name": "claims_adjuster", "description": "Claims processing and adjudication specialist" },
-      { "name": "actuary", "description": "Actuarial and risk assessment specialist" },
-      { "name": "user", "description": "Standard authenticated user" }
+      {
+        "name": "admin",
+        "description": "TourismPay platform administrator"
+      },
+      {
+        "name": "tourist",
+        "description": "Tourist/traveler user"
+      },
+      {
+        "name": "merchant",
+        "description": "Merchant/establishment owner"
+      },
+      {
+        "name": "agent",
+        "description": "Agency banking agent"
+      },
+      {
+        "name": "supervisor",
+        "description": "Agent supervisor"
+      },
+      {
+        "name": "noc_operator",
+        "description": "Network operations center operator"
+      },
+      {
+        "name": "compliance_officer",
+        "description": "Regulatory compliance officer"
+      },
+      {
+        "name": "settlement_officer",
+        "description": "Settlement processing officer"
+      },
+      {
+        "name": "bis_analyst",
+        "description": "Business intelligence and security analyst"
+      },
+      {
+        "name": "underwriter",
+        "description": "Insurance underwriting specialist"
+      },
+      {
+        "name": "claims_adjuster",
+        "description": "Claims processing and adjudication specialist"
+      },
+      {
+        "name": "actuary",
+        "description": "Actuarial and risk assessment specialist"
+      },
+      {
+        "name": "user",
+        "description": "Standard authenticated user"
+      }
     ]
   },
   "clients": [
@@ -147,7 +186,12 @@
         "tourismpay://auth/callback",
         "http://localhost:8081/auth/callback"
       ],
-      "webOrigins": ["*"],
+      "webOrigins": [
+        "https://tourismpay.servers.upi.dev",
+        "http://localhost:3000",
+        "capacitor://localhost",
+        "ionic://localhost"
+      ],
       "protocol": "openid-connect",
       "attributes": {
         "pkce.code.challenge.method": "S256"
@@ -162,27 +206,52 @@
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": true,
-      "protocol": "openid-connect"
+      "protocol": "openid-connect",
+      "attributes": {
+        "access.token.lifespan": "300"
+      }
     }
   ],
   "identityProviders": [],
   "userFederationProviders": [],
   "internationalizationEnabled": true,
-  "supportedLocales": ["en", "fr", "ar", "sw", "yo", "ha", "ig"],
+  "supportedLocales": [
+    "en",
+    "fr",
+    "ar",
+    "sw",
+    "yo",
+    "ha",
+    "ig"
+  ],
   "defaultLocale": "en",
   "eventsEnabled": true,
   "eventsExpiration": 2592000,
   "adminEventsEnabled": true,
   "adminEventsDetailsEnabled": true,
   "enabledEventTypes": [
-    "LOGIN", "LOGIN_ERROR", "LOGOUT", "REGISTER", "REGISTER_ERROR",
-    "TOKEN_EXCHANGE", "CLIENT_LOGIN", "CLIENT_LOGIN_ERROR",
-    "CODE_TO_TOKEN", "CODE_TO_TOKEN_ERROR", "REFRESH_TOKEN",
-    "REFRESH_TOKEN_ERROR", "INTROSPECT_TOKEN", "INTROSPECT_TOKEN_ERROR",
-    "UPDATE_PASSWORD", "UPDATE_PASSWORD_ERROR", "UPDATE_PROFILE",
-    "UPDATE_EMAIL", "RESET_PASSWORD", "RESET_PASSWORD_ERROR"
+    "LOGIN",
+    "LOGIN_ERROR",
+    "LOGOUT",
+    "REGISTER",
+    "REGISTER_ERROR",
+    "TOKEN_EXCHANGE",
+    "CLIENT_LOGIN",
+    "CLIENT_LOGIN_ERROR",
+    "CODE_TO_TOKEN",
+    "CODE_TO_TOKEN_ERROR",
+    "REFRESH_TOKEN",
+    "REFRESH_TOKEN_ERROR",
+    "INTROSPECT_TOKEN",
+    "INTROSPECT_TOKEN_ERROR",
+    "UPDATE_PASSWORD",
+    "UPDATE_PASSWORD_ERROR",
+    "UPDATE_PROFILE",
+    "UPDATE_EMAIL",
+    "RESET_PASSWORD",
+    "RESET_PASSWORD_ERROR"
   ],
-  "passwordPolicy": "length(8) and upperCase(1) and lowerCase(1) and digits(1) and notUsername(undefined)",
+  "passwordPolicy": "length(10) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername(undefined) and notEmail(undefined) and passwordHistory(5)",
   "otpPolicyType": "totp",
   "otpPolicyAlgorithm": "HmacSHA1",
   "otpPolicyInitialCounter": 0,
