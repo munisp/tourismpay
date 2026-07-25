@@ -193,3 +193,27 @@ func (c *CBNClient) get(ctx context.Context, path string, out interface{}) error
 	}
 	return json.Unmarshal(respBody, out)
 }
+
+// WithHTTPClient returns a new CBNClient with a custom http.Client.
+// Used in tests to inject an httptest.Server transport.
+func (c *CBNClient) WithHTTPClient(client *http.Client) *CBNClient {
+return &CBNClient{
+baseURL:    c.baseURL,
+apiKey:     c.apiKey,
+merchantID: c.merchantID,
+httpClient: client,
+logger:     c.logger,
+}
+}
+
+// WithBaseURL returns a new CBNClient pointing at a different base URL.
+// Used in tests to redirect calls to an httptest.Server.
+func (c *CBNClient) WithBaseURL(baseURL string) *CBNClient {
+return &CBNClient{
+baseURL:    baseURL,
+apiKey:     c.apiKey,
+merchantID: c.merchantID,
+httpClient: c.httpClient,
+logger:     c.logger,
+}
+}
