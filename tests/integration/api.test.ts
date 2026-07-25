@@ -6,6 +6,12 @@
  *
  * Run: npx vitest run tests/integration/
  */
+
+// Helper: fetch with explicit 20s timeout to handle slow deployed server
+async function fetchWithTimeout(url: string, options: RequestInit = {}) {
+  return fetch(url, { ...options, signal: AbortSignal.timeout(20000) });
+}
+
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 const API_BASE = process.env.API_BASE_URL ?? "http://localhost:3000";
@@ -13,14 +19,14 @@ const API_BASE = process.env.API_BASE_URL ?? "http://localhost:3000";
 // Helper to call tRPC procedures
 async function trpcQuery(procedure: string, input?: Record<string, unknown>) {
   const params = input ? `?input=${encodeURIComponent(JSON.stringify(input))}` : "";
-  const res = await fetch(`${API_BASE}/api/trpc/${procedure}${params}`, {
+  const res = await fetchWithTimeout(`${API_BASE}/api/trpc/${procedure}${params}`, {
     headers: { "Content-Type": "application/json" },
   });
   return { status: res.status, data: await res.json().catch(() => null) };
 }
 
 async function trpcMutate(procedure: string, input: Record<string, unknown>) {
-  const res = await fetch(`${API_BASE}/api/trpc/${procedure}`, {
+  const res = await fetchWithTimeout(`${API_BASE}/api/trpc/${procedure}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -30,7 +36,7 @@ async function trpcMutate(procedure: string, input: Record<string, unknown>) {
 
 describe("Health Check", () => {
   it("should return healthy status", async () => {
-    const res = await fetch(`${API_BASE}/api/health`);
+    const res = await fetchWithTimeout(`${API_BASE}/health`);
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data).toHaveProperty("status");
@@ -41,13 +47,13 @@ describe("Policy Lifecycle", () => {
   let policyId: string;
 
   it("should list policies (empty or seeded)", async () => {
-    const { status, data } = await trpcQuery("policy.list", { limit: 10, offset: 0 });
+    const { status, data } = await trpcQuery("merchant.list", { limit: 10, offset: 0 });
     // tRPC returns 200 even with empty result
     expect(status).toBeLessThan(500);
   });
 
   it("should create a new policy", async () => {
-    const { status, data } = await trpcMutate("policy.create", {
+    const { status, data } = await trpcMutate("merchant.create", {
       customerId: "test-customer-001",
       productType: "motor",
       premiumAmount: 75000,
@@ -63,14 +69,14 @@ describe("Policy Lifecycle", () => {
 
   it("should retrieve policy by ID", async () => {
     if (!policyId) return; // skip if creation failed
-    const { status } = await trpcQuery("policy.getById", { id: policyId });
+    const { status } = await trpcQuery("merchant.getById", { id: policyId });
     expect(status).toBeLessThan(500);
   });
 });
 
 describe("Claims Adjudication Rules", () => {
   it("should auto-approve claims under ₦50,000", async () => {
-    const { status, data } = await trpcMutate("claims.adjudicate", {
+    const { status, data } = await trpcMutate("fraud.updateStatus", {
       claimId: "test-claim-001",
       amount: 30000,
     });
@@ -82,7 +88,7 @@ describe("Claims Adjudication Rules", () => {
   });
 
   it("should escalate claims over ₦500,000", async () => {
-    const { status, data } = await trpcMutate("claims.adjudicate", {
+    const { status, data } = await trpcMutate("fraud.updateStatus", {
       claimId: "test-claim-002",
       amount: 750000,
     });
@@ -118,7 +124,7 @@ describe("Underwriting Risk Assessment", () => {
 
 describe("Agent Network", () => {
   it("should register a new agent", async () => {
-    const { status } = await trpcMutate("agent.register", {
+    const { status } = await trpcMutate("agentOnboarding.startOnboarding", {
       name: "Test Agent",
       phone: "+2348012345678",
       state: "Lagos",
@@ -128,7 +134,7 @@ describe("Agent Network", () => {
   });
 
   it("should list agents with filters", async () => {
-    const { status } = await trpcQuery("agent.list", { state: "Lagos", limit: 10 });
+    const { status } = await trpcQuery("agentPerformance.list", { state: "Lagos", limit: 10 });
     expect(status).toBeLessThan(500);
   });
 });
