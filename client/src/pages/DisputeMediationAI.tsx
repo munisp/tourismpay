@@ -19,7 +19,7 @@ export default function DisputeMediationAI() {
             AI-powered transaction dispute resolution
           </p>
         </div>
-        <Button onClick={() => toast.success("Action triggered")}>
+        <Button onClick={() => utils.invalidate(); toast.success("Action triggered")}>
           New Entry
         </Button>
       </div>

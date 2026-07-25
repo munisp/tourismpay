@@ -121,6 +121,23 @@ export const platformCostAllocatorRouter = router({
       z.object({ id: z.union([z.number(), z.string()]).optional() }).optional()
     )
     .mutation(async () => {
+      const db = getDb();
+      const now = Math.floor(Date.now() / 1000);
+      await db.execute(sql`
+        INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at)
+        VALUES (
+          ${crypto.randomUUID()},
+          0,
+          'cost_allocator_action',
+          'audit_logs',
+          'system',
+          'Action performed via platformCostAllocator',
+          ${now}
+        ) ON CONFLICT DO NOTHING
+      `);
+      const _db = getDb();
+      const _now = Math.floor(Date.now() / 1000);
+      await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'platformCostAllocator_action', 'system', 'system', 'Action via platformCostAllocator', ${_now}) ON CONFLICT DO NOTHING`);
       return { success: true };
     }),
 

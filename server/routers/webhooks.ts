@@ -8,7 +8,7 @@
 import crypto from "crypto";
 import { indexDocument, EXTENDED_INDICES } from "../_core/opensearch";
 import { z } from "zod";
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../_core/trpc";
 import { getDb, type DrizzleDb } from "../db";
@@ -491,6 +491,9 @@ export const webhooksRouter = router({
         .where(eq(psWebhookDeliveries.deliveryId, input.deliveryId));
       // Trigger an immediate retry via the engine (handles endpoint lookup internally)
       retryDelivery(input.deliveryId).catch(() => null);
+      const _db = getDb();
+      const _now = Math.floor(Date.now() / 1000);
+      await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'webhooks_action', 'system', 'system', 'Action via webhooks', ${_now}) ON CONFLICT DO NOTHING`);
       return { success: true };
     }),
 

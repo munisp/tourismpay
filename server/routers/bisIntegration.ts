@@ -21,7 +21,7 @@ import {
   bisAutoFlags,
   bisKillSwitchActivations,
 } from "../../drizzle/schema";
-import { eq, desc, and, gte } from "drizzle-orm";
+import { eq, desc, and, gte, sql } from "drizzle-orm";
 import { createBisInvestigation } from "../db";
 import { TRPCError } from "@trpc/server";
 import { logger } from "../_core/logger";
@@ -260,6 +260,9 @@ export const bisIntegrationRouter = router({
             updatedAt: now,
           },
         });
+      const _db = getDb();
+      const _now = Math.floor(Date.now() / 1000);
+      await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'bisIntegration_action', 'system', 'system', 'Action via bisIntegration', ${_now}) ON CONFLICT DO NOTHING`);
       return { success: true };
     }),
 

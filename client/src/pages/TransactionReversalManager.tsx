@@ -37,7 +37,7 @@ export default function TransactionReversalManager() {
             <button
               onClick={() => {
                 refetch();
-                toast.success("Data refreshed");
+                utils.invalidate(); toast.success("Data refreshed");
               }}
               className="flex items-center gap-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm hover:bg-gray-700 transition-colors"
             >

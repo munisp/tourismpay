@@ -19,7 +19,7 @@ export default function PaymentLinkGenerator() {
             Create and manage shareable payment links
           </p>
         </div>
-        <Button onClick={() => toast.success("Action triggered")}>
+        <Button onClick={() => utils.invalidate(); toast.success("Action triggered")}>
           New Entry
         </Button>
       </div>

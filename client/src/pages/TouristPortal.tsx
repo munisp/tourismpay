@@ -705,7 +705,7 @@ function DealsTab() {
         <DialogFooter>
           <Button className="w-full" onClick={() => {
             if (redemptionResult?.code) navigator.clipboard.writeText(redemptionResult.code);
-            toast.success("Code copied to clipboard!");
+            utils.invalidate(); toast.success("Code copied to clipboard!");
           }}>
             Copy Code
           </Button>

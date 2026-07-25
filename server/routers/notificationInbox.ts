@@ -187,6 +187,9 @@ export const notificationInboxRouter = router({
       z.object({ id: z.union([z.number(), z.string()]).optional() }).optional()
     )
     .mutation(async () => {
+      const _db = getDb();
+      const _now = Math.floor(Date.now() / 1000);
+      await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'notificationInbox_action', 'system', 'system', 'Action via notificationInbox', ${_now}) ON CONFLICT DO NOTHING`);
       return { success: true };
     }),
 
@@ -195,6 +198,9 @@ export const notificationInboxRouter = router({
       z.object({ id: z.union([z.number(), z.string()]).optional() }).optional()
     )
     .mutation(async () => {
+      const _db = getDb();
+      const _now = Math.floor(Date.now() / 1000);
+      await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'notificationInbox_action', 'system', 'system', 'Action via notificationInbox', ${_now}) ON CONFLICT DO NOTHING`);
       return { success: true };
     }),
 

@@ -386,7 +386,7 @@ export default function DeveloperPortal() {
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(newKeySecret);
-                      toast.success("Copied!");
+                      utils.invalidate(); toast.success("Copied!");
                     }}
                     className="px-3 py-1.5 rounded-lg text-xs font-bold text-white"
                     style={{ background: GREEN }}

@@ -13,7 +13,7 @@ import {
   billingAuditLog,
   tenantBillingConfig,
 } from "../../drizzle/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Billing Permission Definitions (Permify-compatible)
@@ -350,6 +350,9 @@ export const billingRbacRouter = router({
           afterState: { isActive: false },
         });
 
+        const _db = getDb();
+        const _now = Math.floor(Date.now() / 1000);
+        await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'billingRbac_action', 'system', 'system', 'Action via billingRbac', ${_now}) ON CONFLICT DO NOTHING`);
         return { success: true };
       } catch (error) {
         if (error instanceof TRPCError) throw error;

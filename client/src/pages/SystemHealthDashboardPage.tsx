@@ -15,6 +15,7 @@ import {
 
 export default function SystemHealthDashboardPage() {
   // @ts-ignore Sprint 85 — Sprint 85: pre-existing type mismatch from router/page interface
+  const utils = trpc.useUtils();
   const { data, isLoading, refetch } =
     // @ts-ignore Sprint 85
     trpc.systemHealthDashboard.getHealth.useQuery();
@@ -38,7 +39,7 @@ export default function SystemHealthDashboardPage() {
         <Button
           onClick={() => {
             refetch();
-            toast.success("Refreshed");
+            utils.invalidate(); toast.success("Refreshed");
           }}
         >
           <RefreshCw className="w-4 h-4 mr-1" /> Refresh

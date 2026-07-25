@@ -14,7 +14,7 @@ import {
   billingAuditLog,
   tenants,
 } from "../../drizzle/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { requireBillingPermission } from "./billingRbac";
 import { recordBillingAudit } from "./billingAudit";
 import { Client, Connection } from "@temporalio/client";
@@ -502,6 +502,9 @@ export const tenantBillingOnboardingRouter = router({
           afterState: updates,
         });
 
+        const _db = getDb();
+        const _now = Math.floor(Date.now() / 1000);
+        await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'tenantBillingOnboarding_action', 'system', 'system', 'Action via tenantBillingOnboarding', ${_now}) ON CONFLICT DO NOTHING`);
         return { success: true };
       } catch (error) {
         if (error instanceof TRPCError) throw error;
@@ -633,6 +636,9 @@ export const tenantBillingOnboardingRouter = router({
           afterState: { status: "inactive", reason: input.reason },
         });
 
+        const _db = getDb();
+        const _now = Math.floor(Date.now() / 1000);
+        await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'tenantBillingOnboarding_action', 'system', 'system', 'Action via tenantBillingOnboarding', ${_now}) ON CONFLICT DO NOTHING`);
         return { success: true };
       } catch (error) {
         if (error instanceof TRPCError) throw error;

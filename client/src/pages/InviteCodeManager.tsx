@@ -263,7 +263,7 @@ export default function InviteCodeManager() {
                               className="h-6 w-6"
                               onClick={() => {
                                 navigator.clipboard.writeText(c.code);
-                                toast.success("Copied!");
+                                utils.invalidate(); toast.success("Copied!");
                               }}
                             >
                               <Copy className="h-3 w-3" />

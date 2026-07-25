@@ -253,6 +253,9 @@ export const ollamaLLMRouter = router({
     .input(z.object({}))
     .mutation(async () => {
       try {
+        const _db = getDb();
+        const _now = Math.floor(Date.now() / 1000);
+        await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'ollamaLLM_action', 'system', 'system', 'Action via ollamaLLM', ${_now}) ON CONFLICT DO NOTHING`);
         return { success: true };
       } catch (error) {
         if (error instanceof TRPCError) throw error;

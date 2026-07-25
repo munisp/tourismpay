@@ -201,6 +201,9 @@ export const settlementRouter = router({
       try {
         pushSettlementUpdate({ ids: [input.id], newStatus: "failed", count: 1, actorName: ctx.user.name || String(ctx.user.id) });
       } catch { /* non-critical */ }
+      const _db = getDb();
+      const _now = Math.floor(Date.now() / 1000);
+      await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'settlement_action', 'system', 'system', 'Action via settlement', ${_now}) ON CONFLICT DO NOTHING`);
       return { success: true };
     }),
 
@@ -433,6 +436,9 @@ export const settlementRouter = router({
       try {
         pushSettlementUpdate({ ids: [input.id], newStatus: "disputed", count: 1, actorName: ctx.user.name || String(ctx.user.id) });
       } catch { /* non-critical */ }
+      const _db = getDb();
+      const _now = Math.floor(Date.now() / 1000);
+      await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'settlement_action', 'system', 'system', 'Action via settlement', ${_now}) ON CONFLICT DO NOTHING`);
       return { success: true };
     }),
 

@@ -19,7 +19,7 @@ export default function RealtimeWebSocketFeeds() {
             Live transaction streaming via WebSocket channels
           </p>
         </div>
-        <Button onClick={() => toast.success("Action triggered")}>
+        <Button onClick={() => utils.invalidate(); toast.success("Action triggered")}>
           New Entry
         </Button>
       </div>

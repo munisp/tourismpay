@@ -88,7 +88,7 @@ export default function E2ETestFramework() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Recent Activity</CardTitle>
-              <Button size="sm" onClick={() => toast.success("Data refreshed")}>
+              <Button size="sm" onClick={() => utils.invalidate(); toast.success("Data refreshed")}>
                 Refresh
               </Button>
             </div>

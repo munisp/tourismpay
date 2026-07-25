@@ -71,7 +71,7 @@ export default function FinancialReportingSuite() {
             />
             <Button
               onClick={() =>
-                toast.success("Action triggered: Processing your request...")
+                utils.invalidate(); toast.success("Action triggered: Processing your request...")
               }
             >
               Refresh

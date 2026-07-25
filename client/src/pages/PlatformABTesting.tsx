@@ -19,7 +19,7 @@ export default function PlatformABTesting() {
             Feature experimentation and A/B testing framework
           </p>
         </div>
-        <Button onClick={() => toast.success("Action triggered")}>
+        <Button onClick={() => utils.invalidate(); toast.success("Action triggered")}>
           New Entry
         </Button>
       </div>

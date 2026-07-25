@@ -465,7 +465,7 @@ export default function WebhookManager() {
                 className="h-7 w-7 shrink-0"
                 onClick={() => {
                   navigator.clipboard.writeText(showSecret?.secret ?? "");
-                  toast.success("Copied!");
+                  utils.invalidate(); toast.success("Copied!");
                 }}
               >
                 <Copy className="w-4 h-4" />

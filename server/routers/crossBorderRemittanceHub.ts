@@ -174,6 +174,23 @@ export const crossBorderRemittanceHubRouter = router({
     )
     .mutation(async () => {
       try {
+        const db = getDb();
+        const now = Math.floor(Date.now() / 1000);
+        await db.execute(sql`
+          INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at)
+          VALUES (
+            ${crypto.randomUUID()},
+            0,
+            'remittance_transfer',
+            'wallet_transactions',
+            'system',
+            'Action performed via crossBorderRemittanceHub',
+            ${now}
+          ) ON CONFLICT DO NOTHING
+        `);
+        const _db = getDb();
+        const _now = Math.floor(Date.now() / 1000);
+        await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'crossBorderRemittanceHub_action', 'system', 'system', 'Action via crossBorderRemittanceHub', ${_now}) ON CONFLICT DO NOTHING`);
         return { success: true };
       } catch (error) {
         if (error instanceof TRPCError) throw error;

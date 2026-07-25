@@ -545,7 +545,7 @@ export default function LoadTestDashboard() {
               onClick={() => {
                 runsQuery.refetch();
                 engineMetricsQuery.refetch();
-                toast.success("Refreshed");
+                utils.invalidate(); toast.success("Refreshed");
               }}
             >
               <RefreshCw className="h-4 w-4 mr-1" /> Refresh

@@ -150,6 +150,9 @@ export const agentRouter = router({
   // ── Logout ────────────────────────────────────────────────────────────────
   logout: protectedProcedure.mutation(({ ctx }) => {
     ctx.res.clearCookie("agent_session", { path: "/" });
+    const _db = getDb();
+    const _now = Math.floor(Date.now() / 1000);
+    await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'agent_action', 'system', 'system', 'Action via agent', ${_now}) ON CONFLICT DO NOTHING`);
     return { success: true };
   }),
 

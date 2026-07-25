@@ -553,7 +553,7 @@ export default function LoadTestComparison() {
                   variant="outline"
                   onClick={() => {
                     exportComparisonCsv(data);
-                    toast.success("CSV downloaded");
+                    utils.invalidate(); toast.success("CSV downloaded");
                   }}
                 >
                   <Download className="h-4 w-4 mr-1" /> CSV
@@ -563,7 +563,7 @@ export default function LoadTestComparison() {
                   variant="outline"
                   onClick={() => {
                     exportComparisonPdf(data);
-                    toast.success("PDF print dialog opened");
+                    utils.invalidate(); toast.success("PDF print dialog opened");
                   }}
                 >
                   <FileText className="h-4 w-4 mr-1" /> PDF
@@ -576,7 +576,7 @@ export default function LoadTestComparison() {
               onClick={() => {
                 runsQuery.refetch();
                 comparisonQuery.refetch();
-                toast.success("Refreshed");
+                utils.invalidate(); toast.success("Refreshed");
               }}
             >
               <RefreshCw className="h-4 w-4 mr-1" /> Refresh

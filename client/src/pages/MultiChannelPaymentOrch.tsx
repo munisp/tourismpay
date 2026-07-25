@@ -19,7 +19,7 @@ export default function MultiChannelPaymentOrch() {
             Multi-channel USSD/QR/NFC/Card payment routing
           </p>
         </div>
-        <Button onClick={() => toast.success("Action triggered")}>
+        <Button onClick={() => utils.invalidate(); toast.success("Action triggered")}>
           New Entry
         </Button>
       </div>

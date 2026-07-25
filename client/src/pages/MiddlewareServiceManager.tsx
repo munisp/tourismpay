@@ -60,7 +60,7 @@ export default function MiddlewareServiceManager() {
             />
             <Button
               onClick={() =>
-                toast.success("Action triggered: Processing your request...")
+                utils.invalidate(); toast.success("Action triggered: Processing your request...")
               }
             >
               Refresh

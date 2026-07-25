@@ -135,7 +135,7 @@ export default function GdprDashboard() {
               <Button
                 onClick={() => {
                   exportQ.refetch();
-                  toast.success("Export initiated");
+                  utils.invalidate(); toast.success("Export initiated");
                 }}
                 className="bg-blue-600 hover:bg-blue-700"
               >

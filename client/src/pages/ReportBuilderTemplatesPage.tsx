@@ -39,7 +39,7 @@ export default function ReportBuilderTemplatesPage() {
               className="w-64"
             />
             <Button
-              onClick={() => toast.success("Data refreshed successfully")}
+              onClick={() => utils.invalidate(); toast.success("Data refreshed successfully")}
             >
               Refresh
             </Button>
@@ -145,7 +145,7 @@ export default function ReportBuilderTemplatesPage() {
                   </p>
                   <Button
                     variant="outline"
-                    onClick={() => toast.success("Configuration updated")}
+                    onClick={() => utils.invalidate(); toast.success("Configuration updated")}
                   >
                     Save Settings
                   </Button>

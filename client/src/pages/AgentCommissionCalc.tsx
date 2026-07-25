@@ -63,7 +63,7 @@ export default function AgentCommissionCalc() {
               onClick={() => {
                 statsQuery.refetch();
                 tiersQuery.refetch();
-                toast.success("Data refreshed");
+                utils.invalidate(); toast.success("Data refreshed");
               }}
             >
               <RefreshCw className="h-4 w-4 mr-1" /> Refresh

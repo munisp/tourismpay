@@ -215,7 +215,7 @@ export default function NotificationPreferences() {
       <div className="flex justify-end">
         <Button
           className="bg-blue-600 hover:bg-blue-700 text-white"
-          onClick={() => toast.success("Preferences saved")}
+          onClick={() => utils.invalidate(); toast.success("Preferences saved")}
         >
           Save Preferences
         </Button>

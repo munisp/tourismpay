@@ -3494,7 +3494,7 @@ function QRPaymentScreen({ onBack }: { onBack: () => void }) {
                   <button
                     onClick={() => {
                       setBatchQRList([]);
-                      toast.success("Batch cleared");
+                      utils.invalidate(); toast.success("Batch cleared");
                     }}
                     className="text-xs px-3 py-1 rounded-lg font-bold"
                     style={{
@@ -3744,7 +3744,7 @@ function NFCPaymentScreen({ onBack }: { onBack: () => void }) {
           </div>
           <button
             onClick={async () => {
-              toast.success("NFC tap detected!");
+              utils.invalidate(); toast.success("NFC tap detected!");
               const result = await submit({
                 type: "NFC Payment",
                 amount: num,
@@ -4013,7 +4013,7 @@ function BillsScreen({ onBack }: { onBack: () => void }) {
             <button
               disabled={num < 100 || !account || isProcessing}
               onClick={async () => {
-                toast.success("Processing payment...");
+                utils.invalidate(); toast.success("Processing payment...");
                 const selectedBiller = billers.find(b => b.id === biller);
                 const result = await submit({
                   type: "Bill Payment",
@@ -5608,7 +5608,7 @@ function OpenAccountScreen({ onBack }: { onBack: () => void }) {
             !form.firstName || !form.lastName || !form.phone || !form.bvn
           }
           onClick={() => {
-            toast.success("Opening account...");
+            utils.invalidate(); toast.success("Opening account...");
             setTimeout(() => setStep("success"), 1200);
           }}
           className="w-full py-4 rounded-xl font-bold text-white disabled:opacity-40"
@@ -7369,7 +7369,7 @@ function TerminalConfigScreen({ onBack }: { onBack: () => void }) {
         <button
           onClick={() => {
             setSaved(true);
-            toast.success("Configuration saved");
+            utils.invalidate(); toast.success("Configuration saved");
             setTimeout(() => setSaved(false), 2000);
           }}
           className="w-full py-4 rounded-2xl font-bold text-white transition-all active:scale-95"
@@ -11095,7 +11095,7 @@ function OfflineResilienceScreen({ onBack }: { onBack: () => void }) {
                       <button
                         onClick={() => {
                           navigator.clipboard?.writeText(code.ussd_string);
-                          toast.success("Copied!");
+                          utils.invalidate(); toast.success("Copied!");
                         }}
                         className="text-xs px-3 py-1 rounded-lg"
                         style={{
@@ -12991,7 +12991,7 @@ export default function POSShell() {
                       <button
                         onClick={() => {
                           navigator.clipboard?.writeText(code.ussd_string);
-                          toast.success("Copied!");
+                          utils.invalidate(); toast.success("Copied!");
                         }}
                         className="flex-1 py-2 rounded-xl text-xs font-bold"
                         style={{
@@ -13188,7 +13188,7 @@ export function ReceiptPrinterModal({
               border: `1px solid ${BORDER}`,
             }}
             onClick={() => {
-              toast.success("Receipt sent via SMS");
+              utils.invalidate(); toast.success("Receipt sent via SMS");
               onClose();
             }}
           >
@@ -13732,7 +13732,7 @@ export function AIFraudExplanationModal({
               border: `1px solid ${BORDER}`,
             }}
             onClick={() => {
-              toast.success("Transaction allowed with monitoring");
+              utils.invalidate(); toast.success("Transaction allowed with monitoring");
               onClose();
             }}
           >
@@ -14399,7 +14399,7 @@ export function ReconciliationWizard({ onBack }: { onBack: () => void }) {
             </p>
             <button
               onClick={() => {
-                toast.success("EOD report submitted successfully");
+                utils.invalidate(); toast.success("EOD report submitted successfully");
                 onBack();
               }}
               className="w-full py-4 rounded-2xl font-bold text-white text-lg"

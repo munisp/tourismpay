@@ -1045,7 +1045,7 @@ export default function LiveChatSupport({ onBack }: { onBack?: () => void }) {
                     onClick={() => {
                       setRating(s);
                       setRated(true);
-                      toast.success("Thank you for your feedback!");
+                      utils.invalidate(); toast.success("Thank you for your feedback!");
                     }}
                     className="text-2xl transition-all hover:scale-110"
                   >

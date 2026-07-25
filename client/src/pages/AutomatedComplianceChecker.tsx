@@ -9,6 +9,7 @@ import { trpc } from "@/lib/trpc";
 export default function AutomatedComplianceChecker() {
   const [tab, setTab] = useState("overview");
   // @ts-ignore Sprint 85 — Sprint 85: pre-existing type mismatch from router/page interface
+  const utils = trpc.useUtils();
   const { data: _liveData } = trpc.automatedComplianceChecker.list.useQuery(
     undefined,
     { retry: 1 }
@@ -93,7 +94,7 @@ export default function AutomatedComplianceChecker() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Recent Activity</CardTitle>
-              <Button size="sm" onClick={() => toast.success("Data refreshed")}>
+              <Button size="sm" onClick={() => utils.invalidate(); toast.success("Data refreshed")}>
                 Refresh
               </Button>
             </div>

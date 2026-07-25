@@ -10,6 +10,7 @@ export default function ApiRateLimiterDash() {
   const [tab, setTab] = useState("overview");
   // Sprint 87: Wired to rateLimitDashboard router
   // @ts-ignore Sprint 85
+  const utils = trpc.useUtils();
   const { data, isLoading } = trpc.rateLimitDashboard.getStatus.useQuery({
     page: 1,
     limit: 10,
@@ -94,7 +95,7 @@ export default function ApiRateLimiterDash() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Recent Activity</CardTitle>
-              <Button size="sm" onClick={() => toast.success("Data refreshed")}>
+              <Button size="sm" onClick={() => utils.invalidate(); toast.success("Data refreshed")}>
                 Refresh
               </Button>
             </div>

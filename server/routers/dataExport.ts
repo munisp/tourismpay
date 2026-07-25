@@ -9,7 +9,7 @@ import {
   disputes,
   auditLog,
 } from "../../drizzle/schema";
-import { gte, lte, and, desc } from "drizzle-orm";
+import { gte, lte, and, desc, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 
 export const dataExportRouter = router({
@@ -169,6 +169,23 @@ export const dataExportRouter = router({
     .input(z.object({}))
     .mutation(async ({ ctx, input }) => {
       try {
+        const db = getDb();
+        const now = Math.floor(Date.now() / 1000);
+        await db.execute(sql`
+          INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at)
+          VALUES (
+            ${crypto.randomUUID()},
+            0,
+            'data_export',
+            'audit_logs',
+            'system',
+            'Action performed via dataExport',
+            ${now}
+          ) ON CONFLICT DO NOTHING
+        `);
+        const _db = getDb();
+        const _now = Math.floor(Date.now() / 1000);
+        await _db.execute(sql`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, description, created_at) VALUES (${crypto.randomUUID()}, 0, 'dataExport_action', 'system', 'system', 'Action via dataExport', ${_now}) ON CONFLICT DO NOTHING`);
         return { success: true };
       } catch (error) {
         if (error instanceof TRPCError) throw error;
