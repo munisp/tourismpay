@@ -261,3 +261,58 @@ export async function seedRemainingTables(db: any, schema: any) {
 
   console.log(`  ✓ Seeded ${seededCount} additional table groups`);
 }
+
+// ─── Journey Seed Data ────────────────────────────────────────────────────────
+export async function seedJourneyData(db: any) {
+  const now = Math.floor(Date.now() / 1000);
+
+  // Merchant onboarding applications for all 6 types
+  const merchantApps = [
+    { id: crypto.randomUUID(), merchant_type: "hotel", business_name: "Eko Hotel & Suites", owner_name: "Adebayo Okonkwo", owner_email: "info@ekohotel.com", owner_phone: "+2348012345678", business_address: "Plot 1415 Adetokunbo Ademola Street, Victoria Island, Lagos", lga: "Eti-Osa", state: "Lagos", status: "approved", onboarding_step: 7, kyb_score: 92 },
+    { id: crypto.randomUUID(), merchant_type: "restaurant", business_name: "Nok by Alara", owner_name: "Temi Alara", owner_email: "info@nokbyalara.com", owner_phone: "+2348023456789", business_address: "12A Akin Adesola Street, Victoria Island, Lagos", lga: "Eti-Osa", state: "Lagos", status: "approved", onboarding_step: 7, kyb_score: 88 },
+    { id: crypto.randomUUID(), merchant_type: "airbnb", business_name: "Ikoyi Luxury Apartments", owner_name: "Chidi Eze", owner_email: "host@ikoyilux.com", owner_phone: "+2348034567890", business_address: "15 Bourdillon Road, Ikoyi, Lagos", lga: "Eti-Osa", state: "Lagos", status: "approved", onboarding_step: 7, kyb_score: 85 },
+    { id: crypto.randomUUID(), merchant_type: "concert", business_name: "Afrobeats Festival Lagos", owner_name: "Funmi Adeyemi", owner_email: "events@afrobeatsfest.ng", owner_phone: "+2348045678901", business_address: "Eko Convention Centre, Victoria Island, Lagos", lga: "Eti-Osa", state: "Lagos", status: "kyb_review", onboarding_step: 3, kyb_score: null },
+    { id: crypto.randomUUID(), merchant_type: "transport", business_name: "Lagos Premium Rides", owner_name: "Emeka Obi", owner_email: "ops@lagospremium.com", owner_phone: "+2348056789012", business_address: "14 Bode Thomas Street, Surulere, Lagos", lga: "Surulere", state: "Lagos", status: "approved", onboarding_step: 7, kyb_score: 90 },
+    { id: crypto.randomUUID(), merchant_type: "nightclub", business_name: "Quilox Club Lagos", owner_name: "Shina Peller", owner_email: "vip@quilox.com", owner_phone: "+2348067890123", business_address: "Plot 1, Block 94 Ozumba Mbadiwe Avenue, Victoria Island, Lagos", lga: "Eti-Osa", state: "Lagos", status: "pending", onboarding_step: 1, kyb_score: null },
+  ];
+
+  for (const app of merchantApps) {
+    await db.execute(`
+      INSERT INTO merchant_onboarding_applications (id, merchant_type, business_name, owner_name, owner_email, owner_phone, business_address, lga, state, status, onboarding_step, kyb_score, onboarding_data, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      ON CONFLICT DO NOTHING
+    `, [app.id, app.merchant_type, app.business_name, app.owner_name, app.owner_email, app.owner_phone, app.business_address, app.lga, app.state, app.status, app.onboarding_step, app.kyb_score, '{}', now, now]);
+  }
+
+  // Tourist profiles for all 3 journey types
+  const touristProfiles = [
+    { id: crypto.randomUUID(), first_name: "Emeka", last_name: "Johnson", email: "emeka.johnson@gmail.com", phone: "+12025551234", nationality: "US", residence_country: "US", preferred_currency: "USD", profile_type: "diaspora", kyc_status: "verified" },
+    { id: crypto.randomUUID(), first_name: "Ngozi", last_name: "Williams", email: "ngozi.williams@outlook.com", phone: "+447911123456", nationality: "GB", residence_country: "GB", preferred_currency: "GBP", profile_type: "diaspora", kyc_status: "verified" },
+    { id: crypto.randomUUID(), first_name: "Marco", last_name: "Rossi", email: "marco.rossi@fashionweek.it", phone: "+393401234567", nationality: "IT", residence_country: "IT", preferred_currency: "USD", profile_type: "business", kyc_status: "verified" },
+  ];
+
+  for (const profile of touristProfiles) {
+    await db.execute(`
+      INSERT INTO tourist_profiles (id, first_name, last_name, email, phone, nationality, residence_country, preferred_currency, profile_type, kyc_status, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ON CONFLICT (email) DO NOTHING
+    `, [profile.id, profile.first_name, profile.last_name, profile.email, profile.phone, profile.nationality, profile.residence_country, profile.preferred_currency, profile.profile_type, profile.kyc_status, now, now]);
+  }
+
+  // Wallet topups for each tourist profile
+  const topups = [
+    { source_currency: "USD", source_amount: 10000, target_amount: 15702000, fx_rate: 1580, topup_method: "wire_transfer", status: "completed" },
+    { source_currency: "GBP", source_amount: 5000, target_amount: 9949500, fx_rate: 2010, topup_method: "swift", status: "completed" },
+    { source_currency: "USDC", source_amount: 10000, target_amount: 15464000, fx_rate: 1580, topup_method: "crypto", status: "completed" },
+  ];
+
+  for (const topup of topups) {
+    await db.execute(`
+      INSERT INTO wallet_topups (id, source_currency, source_amount, target_currency, target_amount, fx_rate, fx_fee_percent, fx_fee_amount, topup_method, status, created_at, completed_at)
+      VALUES ($1, $2, $3, 'NGN', $4, $5, 1.5, $6, $7, $8, $9, $9)
+      ON CONFLICT DO NOTHING
+    `, [crypto.randomUUID(), topup.source_currency, topup.source_amount, topup.target_amount, topup.fx_rate, topup.source_amount * topup.fx_rate * 0.015, topup.topup_method, topup.status, now]);
+  }
+
+  console.log("✅ Journey seed data inserted");
+}

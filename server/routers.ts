@@ -703,6 +703,7 @@ import { whatsappChannelRouter } from './routers/whatsappChannel';
 import { workflowAutomationRouter } from './routers/workflowAutomation';
 import { workflowsRouter } from './routers/workflows';
 import {
+import { journeyOrchestratorRouter } from './routers/journeyOrchestrator';
   rateAlertsRouter,
   twoFactorRouter,
   trustedDeviceRouter,
@@ -864,6 +865,7 @@ export const appRouter = router({
   auditLogs: auditLogsRouter,
   search: searchRouter,
   openSearch: openSearchRouter,
+  journeyOrchestrator: journeyOrchestratorRouter,
   bisModuleEditor: bisModuleEditorRouter,
   kybCompliance: kybComplianceRouter,
   csvExport: csvExportRouter,

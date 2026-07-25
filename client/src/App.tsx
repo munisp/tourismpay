@@ -110,6 +110,9 @@ import RevenueLeakageDetector from "./pages/RevenueLeakageDetector";
 import SystemConfigManager from "./pages/SystemConfigManager";
 import TrainingCertification from "./pages/TrainingCertification";
 import TxVelocityMonitor from "./pages/TxVelocityMonitor";
+import MerchantOnboardingWizard from "@/pages/MerchantOnboardingWizard";
+import TouristJourneyDashboard from "@/pages/TouristJourneyDashboard";
+import JourneyAdminDashboard from "@/pages/JourneyAdminDashboard";
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -251,4 +254,7 @@ function App() {
   );
 }
 
-export default App;
+export default App;          <Route path="/onboarding/merchant" element={<MerchantOnboardingWizard />} />
+          <Route path="/tourist/journey" element={<TouristJourneyDashboard />} />
+          <Route path="/admin/journey-dashboard" element={<JourneyAdminDashboard />} />
+          

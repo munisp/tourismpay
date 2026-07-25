@@ -3806,3 +3806,4 @@ export * from "./schema-platform";
 
 // Missing tables (added to resolve TS errors)
 export * from './schema-missing';
+export * from "./schema-journeys";
