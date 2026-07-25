@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/segmentio/kafka-go"
 	"github.com/shopspring/decimal"
@@ -26,7 +25,7 @@ const (
 
 // ENairaService orchestrates wallet provisioning, payments, and CBN callbacks.
 type ENairaService struct {
-	db          *pgxpool.Pool
+	db          DBQuerier // interface — accepts *pgxpool.Pool or pgxmock.PgxPoolIface
 	redis       *redis.Client
 	kafkaWriter *kafka.Writer
 	cbnClient   *CBNClient
@@ -35,7 +34,7 @@ type ENairaService struct {
 
 // NewENairaService constructs the service with all dependencies.
 func NewENairaService(
-	db *pgxpool.Pool,
+	db DBQuerier,
 	rdb *redis.Client,
 	kafkaWriter *kafka.Writer,
 	cbnClient *CBNClient,
@@ -372,4 +371,19 @@ func (s *ENairaService) publishEvent(ctx context.Context, topic, key string, pay
 	if err := s.kafkaWriter.WriteMessages(ctx, msg); err != nil {
 		s.logger.Warn("Kafka publish failed (non-fatal)", zap.String("topic", topic), zap.Error(err))
 	}
+}
+
+// GetBalance is an alias for GetWalletBalance to satisfy the handler interface.
+func (s *ENairaService) GetBalance(ctx context.Context, walletID string) (*models.WalletBalanceResponse, error) {
+return s.GetWalletBalance(ctx, walletID)
+}
+
+// TouristLoad is an alias for LoadTouristWallet to satisfy the handler interface.
+func (s *ENairaService) TouristLoad(ctx context.Context, req *models.TouristLoadRequest) (*models.ENairaTransaction, error) {
+return s.LoadTouristWallet(ctx, req)
+}
+
+// ProcessCBNWebhook is an alias for HandleCBNWebhook to satisfy the handler interface.
+func (s *ENairaService) ProcessCBNWebhook(ctx context.Context, event *models.CBNWebhookEvent) error {
+return s.HandleCBNWebhook(ctx, event)
 }

@@ -2,23 +2,37 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
 	"github.com/munisp/tourismpay/enaira-gateway/internal/models"
-	"github.com/munisp/tourismpay/enaira-gateway/internal/services"
 )
 
 // Handler holds all HTTP handlers for the eNaira gateway.
+
+
 type Handler struct {
-	svc    *services.ENairaService
+	svc    interface {
+		ProvisionWallet(ctx context.Context, req *models.CreateWalletRequest) (*models.ENairaWallet, error)
+		GetBalance(ctx context.Context, walletID string) (*models.WalletBalanceResponse, error)
+		InitiatePayment(ctx context.Context, req *models.InitiatePaymentRequest) (*models.ENairaTransaction, error)
+		TouristLoad(ctx context.Context, req *models.TouristLoadRequest) (*models.ENairaTransaction, error)
+		ProcessCBNWebhook(ctx context.Context, event *models.CBNWebhookEvent) error
+	}
 	logger *zap.Logger
 }
 
 // New creates a new Handler.
-func New(svc *services.ENairaService, logger *zap.Logger) *Handler {
+func New(svc interface {
+	ProvisionWallet(ctx context.Context, req *models.CreateWalletRequest) (*models.ENairaWallet, error)
+	GetBalance(ctx context.Context, walletID string) (*models.WalletBalanceResponse, error)
+	InitiatePayment(ctx context.Context, req *models.InitiatePaymentRequest) (*models.ENairaTransaction, error)
+	TouristLoad(ctx context.Context, req *models.TouristLoadRequest) (*models.ENairaTransaction, error)
+	ProcessCBNWebhook(ctx context.Context, event *models.CBNWebhookEvent) error
+}, logger *zap.Logger) *Handler {
 	return &Handler{svc: svc, logger: logger}
 }
 
@@ -85,7 +99,7 @@ func (h *Handler) GetBalance(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.svc.GetWalletBalance(c.Request.Context(), walletID)
+	resp, err := h.svc.GetBalance(c.Request.Context(), walletID)
 	if err != nil {
 		h.logger.Error("GetBalance failed", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -108,13 +122,18 @@ func (h *Handler) InitiatePayment(c *gin.Context) {
 		return
 	}
 
+	// Validate amount > 0
+	if req.AmountNGN == "" || req.AmountNGN == "0" || req.AmountNGN == "0.00" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "amount_ngn must be greater than 0"})
+		return
+	}
 	tx, err := h.svc.InitiatePayment(c.Request.Context(), &req)
 	if err != nil {
 		h.logger.Error("InitiatePayment failed", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusAccepted, tx)
+	c.JSON(http.StatusCreated, tx)
 }
 
 // TouristLoad godoc
@@ -131,13 +150,13 @@ func (h *Handler) TouristLoad(c *gin.Context) {
 		return
 	}
 
-	tx, err := h.svc.LoadTouristWallet(c.Request.Context(), &req)
+	tx, err := h.svc.TouristLoad(c.Request.Context(), &req)
 	if err != nil {
 		h.logger.Error("TouristLoad failed", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusAccepted, tx)
+	c.JSON(http.StatusCreated, tx)
 }
 
 // CBNWebhook godoc
@@ -154,10 +173,10 @@ func (h *Handler) CBNWebhook(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.HandleCBNWebhook(c.Request.Context(), &event); err != nil {
+	if err := h.svc.ProcessCBNWebhook(c.Request.Context(), &event); err != nil {
 		h.logger.Error("CBNWebhook processing failed", zap.Error(err))
 		// Return 200 to CBN to prevent retries for non-retryable errors
-		c.JSON(http.StatusOK, gin.H{"status": "error", "message": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "processed"})

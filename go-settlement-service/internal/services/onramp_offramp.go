@@ -385,10 +385,12 @@ func (s *OnrampOfframpService) ExecuteOnramp(req OnrampRequest) (*OnrampOrder, e
 	s.mu.Unlock()
 
 	// Persist to PostgreSQL
-	database.DB.Exec(
-		"INSERT INTO onramp_offramp_transactions (id, user_id, direction, rail, fiat_amount, fiat_currency, crypto_amount, crypto_token, fee, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
-		order.ID, req.UserID, "onramp", string(req.PaymentRail), req.SourceAmount, req.SourceCurrency, targetAmount, req.TargetStablecoin, fee, "completed",
-	)
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO onramp_offramp_transactions (id, user_id, direction, rail, fiat_amount, fiat_currency, crypto_amount, crypto_token, fee, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+			order.ID, req.UserID, "onramp", string(req.PaymentRail), req.SourceAmount, req.SourceCurrency, targetAmount, req.TargetStablecoin, fee, "completed",
+		)
+	}
 
 	// Credit stablecoin to user's crypto wallet
 	wallet := s.cryptoService.GetWalletByUser(req.UserID)
@@ -535,10 +537,12 @@ func (s *OnrampOfframpService) ExecuteOfframp(req OfframpReq) (*OfframpRequest, 
 	now := time.Now()
 	offramp.CompletedAt = &now
 	// Persist to PostgreSQL
-	database.DB.Exec(
-		"INSERT INTO onramp_offramp_transactions (id, user_id, direction, rail, fiat_amount, fiat_currency, crypto_amount, crypto_token, fee, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
-		offramp.ID, req.UserID, "offramp", string(req.PayoutRail), targetAmount, req.TargetCurrency, req.SourceAmount, req.SourceStablecoin, fee, "completed",
-	)
+	if database.DB != nil {
+		database.DB.Exec(
+			"INSERT INTO onramp_offramp_transactions (id, user_id, direction, rail, fiat_amount, fiat_currency, crypto_amount, crypto_token, fee, status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+			offramp.ID, req.UserID, "offramp", string(req.PayoutRail), targetAmount, req.TargetCurrency, req.SourceAmount, req.SourceStablecoin, fee, "completed",
+		)
+	}
 	s.dailyVolume[req.UserID] += amountUSD
 	s.mu.Unlock()
 
