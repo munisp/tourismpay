@@ -17,6 +17,7 @@ import { trpc } from "@/lib/trpc";
  * - Threshold override controls
  */
 export default function AdminLivenessDeviceAnalytics() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [minAttempts, setMinAttempts] = useState(5);
   const [maxSuccessRate, setMaxSuccessRate] = useState(0.5);
@@ -100,7 +101,7 @@ export default function AdminLivenessDeviceAnalytics() {
                 deviceHistories.refetch();
                 problematicDevices.refetch();
                 cooldowns.refetch();
-                toast.info("Refreshing data...");
+                utils.invalidate(); toast.info("Refreshing data...");
               }}
               variant="outline"
             >

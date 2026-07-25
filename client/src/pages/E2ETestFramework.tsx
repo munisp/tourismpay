@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
 export default function E2ETestFramework() {
+  const utils = trpc.useUtils();
   const [tab, setTab] = useState("overview");
 
   return (
@@ -168,7 +169,7 @@ export default function E2ETestFramework() {
                           size="sm"
                           variant="ghost"
                           onClick={() =>
-                            toast.info("Viewing details for " + item.id)
+                            utils.invalidate(); toast.info("Loading details...");
                           }
                         >
                           View

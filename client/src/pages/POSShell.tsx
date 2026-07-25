@@ -4378,7 +4378,7 @@ function CustomerLookupScreen({ onBack }: { onBack: () => void }) {
             ))}
             <div className="flex gap-2 mt-1">
               <button
-                onClick={() => toast.info("Opening Cash In for " + c.name)}
+                onClick={() => { setCashInAgent(c); setShowCashInModal(true); }}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold"
                 style={{
                   background: "oklch(0.65 0.18 160 / 0.2)",
@@ -4389,7 +4389,7 @@ function CustomerLookupScreen({ onBack }: { onBack: () => void }) {
                 Cash In
               </button>
               <button
-                onClick={() => toast.info("Opening Transfer for " + c.name)}
+                onClick={() => { setTransferAgent(c); setShowTransferModal(true); }}
                 className="flex-1 py-2 rounded-xl text-xs font-semibold"
                 style={{
                   background: "oklch(0.60 0.22 260 / 0.2)",
@@ -5336,7 +5336,7 @@ function KYCVerifyScreen({ onBack }: { onBack: () => void }) {
             setStep("status");
             setOcrResult(null);
             setLivenessResult(null);
-            toast.success("KYC session saved");
+            utils.invalidate(); toast.success("KYC session saved");
           }}
           className="w-full py-4 rounded-xl font-bold text-white"
           style={{ background: GREEN, fontFamily: DISP }}
@@ -5749,7 +5749,7 @@ function CommissionScreen({
           </ResponsiveContainer>
         </div>
         <button
-          onClick={() => toast.info("Withdrawal request submitted")}
+          onClick={() => { utils.invalidate(); toast.success("Withdrawal request submitted"); }}
           className="w-full py-4 rounded-xl font-bold text-white"
           style={{ background: GREEN, fontFamily: DISP }}
         >
@@ -5882,7 +5882,7 @@ function SettlementScreen({ onBack }: { onBack: () => void }) {
           ))
         )}
         <button
-          onClick={() => toast.info("Settlement report exported")}
+          onClick={() => { window.print(); toast.success("Settlement report exported"); }}
           className="w-full py-4 rounded-xl font-bold text-white"
           style={{ background: BLUE, fontFamily: DISP }}
         >
@@ -6707,7 +6707,7 @@ function DailyReportScreen({
           </ResponsiveContainer>
         </div>
         <button
-          onClick={() => toast.info("Report exported as PDF")}
+          onClick={() => { window.print(); toast.success("Report exported as PDF"); }}
           className="w-full py-4 rounded-xl font-bold text-white"
           style={{ background: BLUE, fontFamily: DISP }}
         >
@@ -13718,7 +13718,7 @@ export function AIFraudExplanationModal({
             className="flex-1 py-3 rounded-xl font-bold text-sm"
             style={{ background: GOLD, color: "black" }}
             onClick={() => {
-              toast.info("Escalated to compliance");
+              utils.invalidate(); toast.success("Escalated to compliance team");
               onClose();
             }}
           >

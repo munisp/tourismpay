@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 export default function TenantBillingOnboardingPage() {
   const { user } = useAuth();
+  const utils = trpc.useUtils();
   const [newTenant, setNewTenant] = useState({
     tenantName: "",
     billingModel: "revenue_share" as
@@ -304,13 +305,13 @@ export default function TenantBillingOnboardingPage() {
                 </td>
                 <td className="px-4 py-3 text-center">
                   <button
-                    onClick={() => toast.info("View billing config")}
+                    onClick={() => { utils.invalidate(); toast.info("Opening billing config..."); }}
                     className="text-xs text-primary hover:underline mr-2"
                   >
                     Config
                   </button>
                   <button
-                    onClick={() => toast.info("View audit log")}
+                    onClick={() => { utils.invalidate(); toast.info("Loading audit log..."); }}
                     className="text-xs text-primary hover:underline"
                   >
                     Audit

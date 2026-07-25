@@ -21,6 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function PlatformHealthPage() {
+  const utils = trpc.useUtils();
   const [tab, setTab] = useState<"overview" | "services" | "metrics">(
     "overview"
   );
@@ -98,7 +99,7 @@ export default function PlatformHealthPage() {
             healthQuery.refetch();
             servicesQuery.refetch();
             metricsQuery.refetch();
-            toast.success("Refreshed");
+            utils.invalidate(); toast.success("Refreshed");
           }}
           className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm"
         >

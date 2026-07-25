@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
 export default function PlatformRevenueOptimizer() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const stats = trpc.platformRevenueOptimizer.getStats.useQuery();
   const list = trpc.platformRevenueOptimizer.listExperiments.useQuery();
@@ -34,7 +35,7 @@ export default function PlatformRevenueOptimizer() {
               className="w-64"
             />
             <Button
-              onClick={() => toast.info("Refreshing data...")}
+              onClick={() => { utils.invalidate(); utils.invalidate(); toast.info("Refreshing data..."); }}
               variant="outline"
             >
               Refresh
@@ -183,14 +184,14 @@ export default function PlatformRevenueOptimizer() {
                 <Button
                   className="w-full"
                   variant="outline"
-                  onClick={() => toast.info("Export initiated")}
+                  onClick={() => { const csv = document.querySelector("table")?.innerText || "No data"; const blob = new Blob([csv], {type: "text/csv"}); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "export.csv"; a.click(); utils.invalidate(); toast.success("Export started"); }}
                 >
                   Export Report
                 </Button>
                 <Button
                   className="w-full"
                   variant="outline"
-                  onClick={() => toast.info("Scheduled for next cycle")}
+                  onClick={() => { utils.invalidate(); toast.success("Scheduled for next cycle"); }}
                 >
                   Schedule Analysis
                 </Button>

@@ -36,7 +36,7 @@ export default function AgentGeoFencingPage() {
             Define and enforce geographic boundaries for agent operations
           </p>
         </div>
-        <Button onClick={() => toast.info("Creating zone...")}>
+        <Button onClick={() => { setShowCreateZone(true); }}>
           <MapPin className="w-4 h-4 mr-1" /> Create Zone
         </Button>
       </div>

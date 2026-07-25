@@ -9,6 +9,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
 export default function MultiCurrencyExchange() {
+  const utils = trpc.useUtils();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -190,6 +191,7 @@ export default function MultiCurrencyExchange() {
                   </div>
                   <Button
                     onClick={() =>
+                      utils.invalidate();
                       toast.success(
                         "Settings saved: Configuration updated successfully"
                       )

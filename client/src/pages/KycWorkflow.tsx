@@ -35,6 +35,7 @@ import {
 import { toast } from "sonner";
 
 export default function KycWorkflow() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedApp, setSelectedApp] = useState<any>(null);
@@ -276,7 +277,8 @@ export default function KycWorkflow() {
                                     size="sm"
                                     className="bg-green-600 hover:bg-green-700 text-white"
                                     onClick={() =>
-                                      toast.info(
+                                      utils.invalidate();
+                      toast.info(
                                         `Review session #${a.id} — use document verification flow`
                                       )
                                     }

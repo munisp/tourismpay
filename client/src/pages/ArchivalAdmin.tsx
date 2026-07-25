@@ -161,7 +161,7 @@ export default function ArchivalAdmin() {
                 utils.archivalAdmin.getStats.invalidate();
                 // @ts-ignore Sprint 85
                 utils.archivalAdmin.getHistory.invalidate();
-                toast.success("Refreshed");
+                utils.invalidate(); toast.success("Refreshed");
               }}
             >
               <RefreshCw className="h-4 w-4 mr-1" /> Refresh

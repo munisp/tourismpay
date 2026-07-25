@@ -44,6 +44,7 @@ export default function AdminSystemHealth() {
   } = trpc.adminDashboard.getSystemHealth.useQuery(undefined, {
     refetchInterval: 30000,
   });
+  const utils = trpc.useUtils();
   const { data: stats } = trpc.adminDashboard.getSystemStats.useQuery();
   const { data: pipeline } = trpc.analyticsQuery.getPipelineHealth.useQuery();
 
@@ -80,7 +81,7 @@ export default function AdminSystemHealth() {
             size="sm"
             onClick={() => {
               refetch();
-              toast.info("Refreshed");
+              utils.invalidate(); toast.info("Refreshed");
             }}
           >
             <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh

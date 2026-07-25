@@ -32,6 +32,7 @@ import { toast } from "sonner";
 
 export default function Payments() {
   const { user } = useAuth();
+  const utils = trpc.useUtils();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [loadingProduct, setLoadingProduct] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -407,7 +408,7 @@ export default function Payments() {
               size="sm"
               onClick={() => {
                 refetchHistory();
-                toast.info("Refreshed");
+                utils.invalidate(); toast.info("Refreshed");
               }}
             >
               <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh

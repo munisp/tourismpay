@@ -22,6 +22,13 @@ const mockTransactions = []; // Populated by trpc.openSearch queries
 const mockCustomers = []; // Populated by trpc.openSearch queries
 
 export default function GlobalSearchPage() {
+  const { data: searchResults, isLoading: searchLoading } = trpc.openSearch.universal.useQuery(
+    { query, indices: ["tourismpay-agents", "tourismpay-transactions", "tourismpay-merchants"] },
+    { enabled: query.length >= 2 }
+  );
+  const mockAgents = searchResults?.filter(r => r._index?.includes("agents")) ?? [];
+  const mockTransactions = searchResults?.filter(r => r._index?.includes("transactions")) ?? [];
+  const mockCustomers = searchResults?.filter(r => r._index?.includes("merchants")) ?? [];
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
 

@@ -21,6 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function MerchantPayoutSettlementPage() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedPayout, setSelectedPayout] = useState<any>(null);
@@ -112,7 +113,7 @@ export default function MerchantPayoutSettlementPage() {
           onClick={() => {
             payoutsQuery.refetch();
             statsQuery.refetch();
-            utils.invalidate(); toast.success("Refreshed");
+            utils.invalidate(); utils.invalidate(); toast.success("Refreshed");
           }}
           className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm"
         >

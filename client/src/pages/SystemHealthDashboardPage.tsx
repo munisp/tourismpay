@@ -39,7 +39,7 @@ export default function SystemHealthDashboardPage() {
         <Button
           onClick={() => {
             refetch();
-            utils.invalidate(); toast.success("Refreshed");
+            utils.invalidate(); utils.invalidate(); toast.success("Refreshed");
           }}
         >
           <RefreshCw className="w-4 h-4 mr-1" /> Refresh

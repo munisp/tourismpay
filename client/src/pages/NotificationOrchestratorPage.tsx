@@ -22,6 +22,7 @@ const CHANNEL_ICONS: Record<string, any> = {
 };
 
 export default function NotificationOrchestratorPage() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState("all");
   const [showCreate, setShowCreate] = useState(false);
@@ -112,7 +113,7 @@ export default function NotificationOrchestratorPage() {
             onClick={() => {
               templatesQuery.refetch();
               statsQuery.refetch();
-              utils.invalidate(); toast.success("Refreshed");
+              utils.invalidate(); utils.invalidate(); toast.success("Refreshed");
             }}
             className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg text-sm"
           >

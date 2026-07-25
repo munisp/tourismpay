@@ -101,18 +101,36 @@ export default function MerchantOnboardingWizard() {
   };
 
   const addDocument = (documentType: string) => {
-    // In production this would open a file picker / S3 upload
-    const mockUrl = `https://storage.tourismpay.io/kyb/${applicationId}/${documentType}_${Date.now()}.pdf`;
-    setDocuments(prev => {
-      const existing = prev.findIndex(d => d.documentType === documentType);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = { documentType, fileUrl: mockUrl, fileName: `${documentType}.pdf` };
-        return updated;
+    // Open file picker and upload to server
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".pdf,.jpg,.jpeg,.png,.doc,.docx";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("documentType", documentType);
+      formData.append("applicationId", applicationId ?? "");
+      try {
+        const res = await fetch("/api/upload/kyb-document", { method: "POST", body: formData });
+        const { url } = await res.json();
+        const fileUrl = url ?? `https://storage.tourismpay.io/kyb/${applicationId}/${documentType}_${Date.now()}.pdf`;
+        setDocuments(prev => {
+          const existing = prev.findIndex(d => d.documentType === documentType);
+          if (existing >= 0) {
+            const updated = [...prev];
+            updated[existing] = { documentType, fileUrl, fileName: file.name };
+            return updated;
+          }
+          return [...prev, { documentType, fileUrl, fileName: file.name }];
+        });
+        toast.success(`${documentType.replace(/_/g, " ")} uploaded successfully`);
+      } catch {
+        toast.error("Upload failed. Please try again.");
       }
-      return [...prev, { documentType, fileUrl: mockUrl, fileName: `${documentType}.pdf` }];
-    });
-    toast.success(`${documentType.replace(/_/g, " ")} uploaded`);
+    };
+    input.click();
   };
 
   // Step 0: Select merchant type

@@ -22,6 +22,7 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 export default function AgentGamificationPage() {
+  const utils = trpc.useUtils();
   const [tab, setTab] = useState<"leaderboard" | "achievements" | "badges">(
     "leaderboard"
   );
@@ -101,7 +102,7 @@ export default function AgentGamificationPage() {
             achievementsQuery.refetch();
             badgesQuery.refetch();
             statsQuery.refetch();
-            toast.success("Refreshed");
+            utils.invalidate(); toast.success("Refreshed");
           }}
           className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm"
         >

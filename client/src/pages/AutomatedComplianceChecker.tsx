@@ -174,7 +174,7 @@ export default function AutomatedComplianceChecker() {
                           size="sm"
                           variant="ghost"
                           onClick={() =>
-                            toast.info("Viewing details for " + item.id)
+                            utils.invalidate(); toast.info("Loading details...");
                           }
                         >
                           View

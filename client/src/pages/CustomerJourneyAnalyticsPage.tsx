@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 export default function CustomerJourneyAnalyticsPage() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
 
@@ -98,7 +99,7 @@ export default function CustomerJourneyAnalyticsPage() {
             eventsQuery.refetch();
             funnelQuery.refetch();
             statsQuery.refetch();
-            toast.success("Refreshed");
+            utils.invalidate(); toast.success("Refreshed");
           }}
           className="flex items-center gap-2 px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg text-sm"
         >

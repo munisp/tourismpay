@@ -30,6 +30,7 @@ import { toast } from "sonner";
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const utils = trpc.useUtils();
   const [userFilter, setUserFilter] = useState<"admin" | "user" | undefined>(
     undefined
   );
@@ -105,7 +106,7 @@ export default function AdminDashboard() {
             onClick={() => {
               refetchStats();
               refetchUsers();
-              toast.info("Refreshed");
+              utils.invalidate(); toast.info("Refreshed");
             }}
           >
             <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh

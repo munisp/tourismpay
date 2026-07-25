@@ -339,7 +339,7 @@ export default function GeofenceZoneEditor() {
                         size="icon"
                         variant="ghost"
                         className="h-6 w-6 text-blue-400"
-                        onClick={() => toast.info(`Zone: ${z.name}`)}
+                        onClick={() => { setSelectedZone(z); }}
                       >
                         <Eye className="w-3 h-3" />
                       </Button>

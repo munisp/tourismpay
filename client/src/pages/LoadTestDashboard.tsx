@@ -137,6 +137,7 @@ function formatMs(ms: number): string {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function LoadTestDashboard() {
+  const utils = trpc.useUtils();
   const [selectedRun, setSelectedRun] = useState<string | null>(null);
   const [showRunDialog, setShowRunDialog] = useState(false);
   const [testConfig, setTestConfig] = useState({
@@ -545,7 +546,7 @@ export default function LoadTestDashboard() {
               onClick={() => {
                 runsQuery.refetch();
                 engineMetricsQuery.refetch();
-                utils.invalidate(); toast.success("Refreshed");
+                utils.invalidate(); utils.invalidate(); toast.success("Refreshed");
               }}
             >
               <RefreshCw className="h-4 w-4 mr-1" /> Refresh
@@ -606,7 +607,7 @@ export default function LoadTestDashboard() {
                       variant="ghost"
                       onClick={() => {
                         setCompareRunA(null);
-                        toast.info("Comparison cancelled");
+                        utils.invalidate(); toast.info("Comparison cancelled");
                       }}
                     >
                       Cancel

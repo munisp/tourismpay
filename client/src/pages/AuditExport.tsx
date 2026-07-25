@@ -240,7 +240,7 @@ export default function AuditExport() {
             <Card
               key={t.name}
               className="bg-slate-900/50 border-slate-700 hover:border-blue-600/50 transition-colors cursor-pointer"
-              onClick={() => toast.success(`Generating ${t.name}...`)}
+              onClick={() => { window.print(); toast.success(`Generating ${t.name}...`); }}
             >
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">

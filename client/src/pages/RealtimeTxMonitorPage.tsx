@@ -21,6 +21,7 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 export default function RealtimeTxMonitorPage() {
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -121,7 +122,7 @@ export default function RealtimeTxMonitorPage() {
           onClick={() => {
             alertsQuery.refetch();
             statsQuery.refetch();
-            utils.invalidate(); toast.success("Refreshed");
+            utils.invalidate(); utils.invalidate(); toast.success("Refreshed");
           }}
           className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium"
         >

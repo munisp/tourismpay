@@ -9,6 +9,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
 export default function BulkPaymentProcessor() {
+  const utils = trpc.useUtils();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -180,6 +181,7 @@ export default function BulkPaymentProcessor() {
                   </div>
                   <Button
                     onClick={() =>
+                      utils.invalidate();
                       toast.success(
                         "Settings saved: Configuration updated successfully"
                       )

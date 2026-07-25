@@ -480,6 +480,7 @@ function exportComparisonPdf(data: any) {
 }
 
 export default function LoadTestComparison() {
+  const utils = trpc.useUtils();
   const [runIdA, setRunIdA] = useState<string | null>(null);
   const [runIdB, setRunIdB] = useState<string | null>(null);
 
@@ -576,7 +577,7 @@ export default function LoadTestComparison() {
               onClick={() => {
                 runsQuery.refetch();
                 comparisonQuery.refetch();
-                utils.invalidate(); toast.success("Refreshed");
+                utils.invalidate(); utils.invalidate(); toast.success("Refreshed");
               }}
             >
               <RefreshCw className="h-4 w-4 mr-1" /> Refresh

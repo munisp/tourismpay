@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 export default function InvoiceManagementPage() {
   const { user } = useAuth();
+  const utils = trpc.useUtils();
   const [tenantId, setTenantId] = useState(1);
   const [billingModel, setBillingModel] = useState<
     "revenue_share" | "subscription"
@@ -232,7 +233,7 @@ export default function InvoiceManagementPage() {
                   </button>
                   <button
                     onClick={() => {
-                      toast.success(`Payment reminder sent to ${inv.customer}`);
+                      utils.invalidate(); toast.success(`Payment reminder sent to ${inv.customer}`);
                     }}
                     className="text-xs text-primary hover:underline"
                   >

@@ -27,6 +27,7 @@ import { toast } from "sonner";
 
 export default function TransactionAnalytics() {
   const { user } = useAuth();
+  const utils = trpc.useUtils();
   const [days, setDays] = useState(30);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -88,7 +89,7 @@ export default function TransactionAnalytics() {
               size="sm"
               onClick={() => {
                 refetchMetrics();
-                toast.info("Refreshed");
+                utils.invalidate(); toast.info("Refreshed");
               }}
             >
               <RefreshCw className="h-3.5 w-3.5" />
