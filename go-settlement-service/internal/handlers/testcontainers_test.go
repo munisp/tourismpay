@@ -5,8 +5,9 @@
 // requiring a pre-existing database or mocking the database layer.
 //
 // Architecture:
-//   TestMain → starts PostgreSQL container → runs schema migrations →
-//   sets database.DB → runs all tests → tears down container
+//
+//	TestMain → starts PostgreSQL container → runs schema migrations →
+//	sets database.DB → runs all tests → tears down container
 //
 // Coverage targets (DB-dependent handlers):
 //   - CreateAccount (with real DB persistence check)
@@ -35,10 +36,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/lib/pq"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
-	_ "github.com/lib/pq"
 
 	"github.com/tourismpay/settlement-service/internal/database"
 	"github.com/tourismpay/settlement-service/internal/services"
@@ -130,7 +131,6 @@ func skipIfNoContainer(t *testing.T) {
 // setupDBRouter creates a gin router with real DB-backed services.
 func setupDBRouter(t *testing.T) (*gin.Engine, *Handlers) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	ledger := services.NewTigerBeetleLedgerService(0)
 	mojaloop := services.NewMojaloopDFSPService("tourismpay-dfsp")
@@ -257,9 +257,9 @@ func TestDB_CreateAndGetSettlementBatch(t *testing.T) {
 
 	// Step 1: Create a settlement batch for a hotel merchant
 	createBody := map[string]interface{}{
-		"merchant_id":      "merchant-eko-hotel-001",
-		"currency":         "NGN",
-		"settlement_date":  time.Now().Format("2006-01-02"),
+		"merchant_id":     "merchant-eko-hotel-001",
+		"currency":        "NGN",
+		"settlement_date": time.Now().Format("2006-01-02"),
 	}
 	data, _ := json.Marshal(createBody)
 	createReq := httptest.NewRequest(http.MethodPost, "/settlement/batches", bytes.NewReader(data))
@@ -459,14 +459,14 @@ func TestDB_VirtualCard_IssueAndList(t *testing.T) {
 
 	// Step 1: Issue a virtual card for the fashion week entrepreneur
 	issueBody := map[string]interface{}{
-		"user_id":     "tourist-fashion-week-001",
-		"card_type":   "visa",
-		"currency":    "USD",
-		"fund_amount": 10000.00,
-		"label":       "Lagos Fashion Week Card",
+		"user_id":      "tourist-fashion-week-001",
+		"card_type":    "visa",
+		"currency":     "USD",
+		"fund_amount":  10000.00,
+		"label":        "Lagos Fashion Week Card",
 		"allow_online": true,
-		"allow_pos":   true,
-		"allow_intl":  true,
+		"allow_pos":    true,
+		"allow_intl":   true,
 	}
 	data, _ := json.Marshal(issueBody)
 	issueReq := httptest.NewRequest(http.MethodPost, "/cards", bytes.NewReader(data))
@@ -497,12 +497,12 @@ func TestDB_Mojaloop_CreateAndGetQuote(t *testing.T) {
 
 	// Create a Mojaloop quote for cross-border payment
 	createBody := map[string]interface{}{
-		"payer_fsp":  "tourismpay",
-		"payee_fsp":  "access-bank-ng",
-		"amount":     "50000",
-		"currency":   "NGN",
-		"payer_id":   "tourist-dc-001",
-		"payee_id":   "merchant-hotel-001",
+		"payer_fsp": "tourismpay",
+		"payee_fsp": "access-bank-ng",
+		"amount":    "50000",
+		"currency":  "NGN",
+		"payer_id":  "tourist-dc-001",
+		"payee_id":  "merchant-hotel-001",
 	}
 	data, _ := json.Marshal(createBody)
 	createReq := httptest.NewRequest(http.MethodPost, "/mojaloop/quotes", bytes.NewReader(data))
@@ -563,10 +563,10 @@ func TestDB_Settlement_T1Cycle_HotelMerchant(t *testing.T) {
 
 	// Hotel merchant should get T+1 settlement
 	body := map[string]interface{}{
-		"merchant_id":      "merchant-hotel-eko-001",
-		"currency":         "NGN",
-		"settlement_date":  time.Now().Add(24 * time.Hour).Format("2006-01-02"), // T+1
-		"merchant_type":    "hotel",
+		"merchant_id":     "merchant-hotel-eko-001",
+		"currency":        "NGN",
+		"settlement_date": time.Now().Add(24 * time.Hour).Format("2006-01-02"), // T+1
+		"merchant_type":   "hotel",
 	}
 	data, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/settlement/batches", bytes.NewReader(data))
@@ -586,10 +586,10 @@ func TestDB_Settlement_T3Cycle_ConcertMerchant(t *testing.T) {
 	r.POST("/settlement/batches", h.CreateSettlementBatch)
 
 	body := map[string]interface{}{
-		"merchant_id":      "merchant-concert-afrobeats-001",
-		"currency":         "NGN",
-		"settlement_date":  time.Now().Add(3 * 24 * time.Hour).Format("2006-01-02"), // T+3
-		"merchant_type":    "concert",
+		"merchant_id":     "merchant-concert-afrobeats-001",
+		"currency":        "NGN",
+		"settlement_date": time.Now().Add(3 * 24 * time.Hour).Format("2006-01-02"), // T+3
+		"merchant_type":   "concert",
 	}
 	data, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/settlement/batches", bytes.NewReader(data))
@@ -617,8 +617,7 @@ func TestDB_ConcurrentSettlementBatchCreation(t *testing.T) {
 			r.POST("/settlement/batches", h.CreateSettlementBatch)
 
 			body := map[string]interface{}{
-				"merchant_id":     fmt.Sprintf("merchant-concurrent-%d", idx),
-				"currency":        "NGN",
+				"provider_id":     fmt.Sprintf("provider-concurrent-%d", idx),
 				"settlement_date": time.Now().Format("2006-01-02"),
 			}
 			data, _ := json.Marshal(body)

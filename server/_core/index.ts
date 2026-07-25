@@ -152,7 +152,7 @@ async function startServer() {
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many requests, please try again later." },
-    skip: (req) => req.path === "/health" || req.path === "/livez" || req.path === "/readyz" || req.path === "/metrics" || req.path.startsWith("/api/dev/"),
+    skip: (req) => req.path === "/health" || req.path === "/api/health" || req.path === "/livez" || req.path === "/readyz" || req.path === "/metrics" || req.path.startsWith("/api/dev/"),
   });
   app.use("/api", apiLimiter);
   app.use("/trpc", apiLimiter);
@@ -161,6 +161,7 @@ async function startServer() {
   let serviceReady = false;
 
   app.get("/health", healthHandler);
+  app.get("/api/health", healthHandler);
   app.get("/health/deep", healthHandler);
   app.get("/livez", livenessHandler);
   app.get("/readyz", readinessHandler);
