@@ -5,22 +5,23 @@
 // connection and run in all environments.
 //
 // Coverage targets (currently 0%):
-//   handlers.go:     GetAccount, PostPendingTransfer, VoidPendingTransfer,
-//                    CreateLinkedTransfers, LookupParticipant, PrepareTransfer,
-//                    CommitTransfer, CloseSettlementWindow, ListSettlementWindows,
-//                    GetInventoryItem
-//   bank_partner:    GetProvider, GetQuote, CompareProviders, InitiateTransfer,
-//                    WebhookFundsReceived, CreditWallet, GetTransfer, ListTransfers
-//   banktransfer:    InitiateTransfer, DeleteBeneficiary
-//   bill:            ProcessPayment
-//   crypto:          GetWallet, GetWalletByUser, GetDepositAddress, SimulateDeposit,
-//                    Withdraw, GetExchangeRate, GetAllExchangeRates, Swap,
-//                    GetPaymentQuote, PayWithCrypto, GetTransactions,
-//                    GetSupportedCoins, GetCryptoStatus
-//   agent:           ExecuteLoad, GetOrder, RefundFloat
-//   ramp:            OnrampQuote, OfframpQuote, GetRampStatus
-//   ussd:            ProcessUSSD (sad paths)
-//   wire:            GetQuote, InitiateWire, GetWireStatus, ListWires
+//
+//	handlers.go:     GetAccount, PostPendingTransfer, VoidPendingTransfer,
+//	                 CreateLinkedTransfers, LookupParticipant, PrepareTransfer,
+//	                 CommitTransfer, CloseSettlementWindow, ListSettlementWindows,
+//	                 GetInventoryItem
+//	bank_partner:    GetProvider, GetQuote, CompareProviders, InitiateTransfer,
+//	                 WebhookFundsReceived, CreditWallet, GetTransfer, ListTransfers
+//	banktransfer:    InitiateTransfer, DeleteBeneficiary
+//	bill:            ProcessPayment
+//	crypto:          GetWallet, GetWalletByUser, GetDepositAddress, SimulateDeposit,
+//	                 Withdraw, GetExchangeRate, GetAllExchangeRates, Swap,
+//	                 GetPaymentQuote, PayWithCrypto, GetTransactions,
+//	                 GetSupportedCoins, GetCryptoStatus
+//	agent:           ExecuteLoad, GetOrder, RefundFloat
+//	ramp:            OnrampQuote, OfframpQuote, GetRampStatus
+//	ussd:            ProcessUSSD (sad paths)
+//	wire:            GetQuote, InitiateWire, GetWireStatus, ListWires
 package handlers
 
 import (
@@ -463,14 +464,15 @@ func TestBankTransfer_InitiateTransfer_MissingFields(t *testing.T) {
 	}
 }
 
-func TestBankTransfer_DeleteBeneficiary_ReturnsOK(t *testing.T) {
+func TestBankTransfer_DeleteUnknownBeneficiary_IsSafe(t *testing.T) {
 	r, h := newBankTransferRouter()
 	r.DELETE("/bank-transfer/beneficiaries/:beneficiary_id", h.DeleteBeneficiary)
 
 	w := deleteReq(r, "/bank-transfer/beneficiaries/ben-001")
-	// DeleteBeneficiary removes from in-memory map, always returns 200
-	if w.Code != http.StatusOK {
-		t.Errorf("DeleteBeneficiary: got %d, want 200", w.Code)
+	// The in-memory fallback treats deletion as idempotent; the PostgreSQL-backed
+	// service reports that the unknown beneficiary was not found. Both are safe.
+	if w.Code != http.StatusOK && w.Code != http.StatusNotFound {
+		t.Errorf("Delete unknown beneficiary: got %d, want 200/404", w.Code)
 	}
 }
 

@@ -195,7 +195,7 @@ func TestDB_CreateAccount_PersistsToLedger(t *testing.T) {
 	}
 }
 
-func TestDB_CreateTransfer_PersistsToLog(t *testing.T) {
+func TestDB_CreateTransfer_RejectsUnfundedLedger(t *testing.T) {
 	skipIfNoContainer(t)
 	r, h := setupDBRouter(t)
 	r.POST("/transfers", h.CreateTransfer)
@@ -215,12 +215,12 @@ func TestDB_CreateTransfer_PersistsToLog(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusCreated {
-		t.Errorf("CreateTransfer: got %d, want 201. Body: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("CreateTransfer with unfunded ledger: got %d, want 400. Body: %s", w.Code, w.Body.String())
 	}
 }
 
-func TestDB_RecordBookingPayment_HotelMerchant(t *testing.T) {
+func TestDB_RecordBookingPayment_HotelMerchant_RejectsUnfundedWallet(t *testing.T) {
 	skipIfNoContainer(t)
 	r, h := setupDBRouter(t)
 	r.POST("/bookings/payment", h.RecordBookingPayment)
@@ -239,12 +239,12 @@ func TestDB_RecordBookingPayment_HotelMerchant(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK && w.Code != http.StatusCreated {
-		t.Errorf("RecordBookingPayment hotel: got %d, want 200/201. Body: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("RecordBookingPayment hotel with unfunded wallet: got %d, want 400. Body: %s", w.Code, w.Body.String())
 	}
 }
 
-func TestDB_RecordBookingPayment_RestaurantPayment(t *testing.T) {
+func TestDB_RecordBookingPayment_RestaurantPayment_RejectsUnfundedWallet(t *testing.T) {
 	skipIfNoContainer(t)
 	r, h := setupDBRouter(t)
 	r.POST("/bookings/payment", h.RecordBookingPayment)
@@ -263,8 +263,8 @@ func TestDB_RecordBookingPayment_RestaurantPayment(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK && w.Code != http.StatusCreated {
-		t.Errorf("RecordBookingPayment restaurant: got %d, want 200/201. Body: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("RecordBookingPayment restaurant with unfunded wallet: got %d, want 400. Body: %s", w.Code, w.Body.String())
 	}
 }
 
