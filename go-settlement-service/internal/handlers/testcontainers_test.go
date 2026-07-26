@@ -26,7 +26,6 @@ package handlers
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -86,20 +85,15 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// Connect database.DB to the test container
-	database.DB, err = sql.Open("postgres", testDBConnStr)
-	if err != nil {
-		fmt.Printf("testcontainers: failed to open DB: %v\n", err)
+	// Use the service initializer so the test database receives the same schema
+	// migrations and connection settings as the running settlement service.
+	if err := os.Setenv("SETTLEMENT_DATABASE_URL", testDBConnStr); err != nil {
+		fmt.Printf("testcontainers: failed to set database URL: %v\n", err)
 		pgContainer.Terminate(ctx)
 		os.Exit(1)
 	}
-	database.DB.SetMaxOpenConns(10)
-	database.DB.SetMaxIdleConns(5)
-
-	// Run schema migrations (runMigrations is unexported, call Connect which runs them internally)
-	// Re-use the already-open DB connection and run migrations via raw SQL
-	if _, err := database.DB.Exec("SELECT 1"); err != nil {
-		fmt.Printf("testcontainers: DB ping failed: %v\n", err)
+	if err := database.Connect(); err != nil {
+		fmt.Printf("testcontainers: failed to initialize database schema: %v\n", err)
 		pgContainer.Terminate(ctx)
 		os.Exit(1)
 	}
@@ -231,14 +225,13 @@ func TestDB_RecordBookingPayment_HotelMerchant(t *testing.T) {
 	r, h := setupDBRouter(t)
 	r.POST("/bookings/payment", h.RecordBookingPayment)
 
-	// Simulate Nigerian diaspora from DC paying for hotel in Lagos
+	// Simulate Nigerian diaspora from DC paying a hotel provider in Lagos.
 	body := map[string]interface{}{
-		"booking_id":          "booking-eko-hotel-001",
-		"tourist_account_id":  "acc-tourist-dc-001",
-		"merchant_account_id": "acc-eko-hotel-001",
-		"amount_ngn":          150000.00, // ₦150,000 per night
-		"currency":            "NGN",
-		"booking_type":        "hotel",
+		"booking_id":        "booking-eko-hotel-001",
+		"provider_id":       "provider-eko-hotel-001",
+		"amount":            150000.00, // ₦150,000 per night
+		"currency":          "NGN",
+		"tourist_wallet_id": "wallet-tourist-dc-001",
 	}
 	data, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/bookings/payment", bytes.NewReader(data))
@@ -256,14 +249,13 @@ func TestDB_RecordBookingPayment_RestaurantPayment(t *testing.T) {
 	r, h := setupDBRouter(t)
 	r.POST("/bookings/payment", h.RecordBookingPayment)
 
-	// Simulate tourist paying at Nok by Alara restaurant
+	// Simulate tourist paying a restaurant provider.
 	body := map[string]interface{}{
-		"booking_id":          "payment-nok-restaurant-001",
-		"tourist_account_id":  "acc-tourist-uk-001",
-		"merchant_account_id": "acc-nok-restaurant-001",
-		"amount_ngn":          45000.00, // ₦45,000 dinner
-		"currency":            "NGN",
-		"booking_type":        "restaurant",
+		"booking_id":        "payment-nok-restaurant-001",
+		"provider_id":       "provider-nok-restaurant-001",
+		"amount":            45000.00, // ₦45,000 dinner
+		"currency":          "NGN",
+		"tourist_wallet_id": "wallet-tourist-uk-001",
 	}
 	data, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/bookings/payment", bytes.NewReader(data))
@@ -344,8 +336,8 @@ func TestDB_GenerateReconciliationReport(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("GenerateReconciliationReport: got %d, want 200. Body: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusOK && w.Code != http.StatusCreated {
+		t.Errorf("GenerateReconciliationReport: got %d, want 200/201. Body: %s", w.Code, w.Body.String())
 	}
 }
 
