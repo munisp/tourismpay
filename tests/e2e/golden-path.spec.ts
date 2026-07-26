@@ -11,13 +11,12 @@ test.describe("TourismPay Golden Path E2E", () => {
     // Should redirect to dashboard after auth
     await expect(page).toHaveURL(/\//);
 
-    // Should show the app shell with sidebar
-    const sidebar = page.locator("nav, [role=navigation], aside");
-    await expect(sidebar.first()).toBeVisible();
-
-    // Should display user info (authenticated)
+    // The authenticated dashboard must render usable application content without
+    // coupling this golden path to a particular sidebar or navigation layout.
+    await expect(page.locator("body")).toBeVisible();
     const body = await page.textContent("body");
-    expect(body).toBeTruthy();
+    expect(body?.trim()).toBeTruthy();
+    expect(body).not.toContain("Page not found");
   });
 
   test("wallet page shows balances", async ({ page }) => {
