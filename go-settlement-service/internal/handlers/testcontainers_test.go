@@ -140,6 +140,34 @@ func setupDBRouter(t *testing.T) (*gin.Engine, *Handlers) {
 	return r, h
 }
 
+func seedPendingSettlement(t *testing.T, providerID, bookingID string) {
+	t.Helper()
+	_, err := database.DB.Exec(
+		`INSERT INTO pending_settlements (provider_id, booking_id, amount, platform_fee, processing_fee, currency)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		providerID, bookingID, 1000.0, 0.0, 0.0, "NGN",
+	)
+	if err != nil {
+		t.Fatalf("seed pending settlement for %s: %v", providerID, err)
+	}
+}
+
+func seedInventoryItem(t *testing.T, itemID, providerID string) {
+	t.Helper()
+	_, err := database.DB.Exec(
+		`INSERT INTO inventory_items (item_id, provider_id, item_type, name, available_quantity, reserved_quantity, price, currency)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 ON CONFLICT (item_id) DO UPDATE
+		 SET available_quantity = EXCLUDED.available_quantity,
+		     reserved_quantity = 0,
+		     price = EXCLUDED.price`,
+		itemID, providerID, "room", "Test inventory item", 10, 0, 10000.0, "NGN",
+	)
+	if err != nil {
+		t.Fatalf("seed inventory item %s: %v", itemID, err)
+	}
+}
+
 // ─── DB-Dependent Handler Tests ───────────────────────────────────────────────
 
 func TestDB_CreateAccount_PersistsToLedger(t *testing.T) {
@@ -255,10 +283,11 @@ func TestDB_CreateAndGetSettlementBatch(t *testing.T) {
 	r.GET("/settlement/batches/:id", h.GetSettlementBatch)
 	r.GET("/settlement/batches", h.ListSettlementBatches)
 
-	// Step 1: Create a settlement batch for a hotel merchant
+	// Step 1: Create a settlement batch for a provider with qualifying pending funds.
+	providerID := "provider-eko-hotel-001"
+	seedPendingSettlement(t, providerID, "booking-eko-hotel-001")
 	createBody := map[string]interface{}{
-		"merchant_id":     "merchant-eko-hotel-001",
-		"currency":        "NGN",
+		"provider_id":     providerID,
 		"settlement_date": time.Now().Format("2006-01-02"),
 	}
 	data, _ := json.Marshal(createBody)
@@ -306,8 +335,8 @@ func TestDB_GenerateReconciliationReport(t *testing.T) {
 	r.POST("/settlement/reconcile", h.GenerateReconciliationReport)
 
 	body := map[string]interface{}{
-		"date":     time.Now().Format("2006-01-02"),
-		"currency": "NGN",
+		"period_start": time.Now().Add(-24 * time.Hour).Format("2006-01-02"),
+		"period_end":   time.Now().Format("2006-01-02"),
 	}
 	data, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/settlement/reconcile", bytes.NewReader(data))
@@ -331,8 +360,8 @@ func TestDB_USSD_ProcessRequest_MainMenu(t *testing.T) {
 	body := map[string]interface{}{
 		"session_id":   "ussd-sess-test-001",
 		"phone_number": "+2348012345678",
-		"text":         "",
-		"network_code": "62120",
+		"input":        "",
+		"service_code": "*123#",
 	}
 	data, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/ussd", bytes.NewReader(data))
@@ -347,7 +376,7 @@ func TestDB_USSD_ProcessRequest_MainMenu(t *testing.T) {
 	// Verify the response contains a menu
 	var resp map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp["response"] == nil && resp["text"] == nil {
+	if resp["message"] == nil {
 		t.Error("USSD response should contain menu text")
 	}
 }
@@ -499,7 +528,7 @@ func TestDB_Mojaloop_CreateAndGetQuote(t *testing.T) {
 	createBody := map[string]interface{}{
 		"payer_fsp": "tourismpay",
 		"payee_fsp": "access-bank-ng",
-		"amount":    "50000",
+		"amount":    50000.0,
 		"currency":  "NGN",
 		"payer_id":  "tourist-dc-001",
 		"payee_id":  "merchant-hotel-001",
@@ -534,13 +563,13 @@ func TestDB_Inventory_ReserveAndRelease(t *testing.T) {
 	r.POST("/inventory/reserve", h.ReserveInventory)
 	r.POST("/inventory/release", h.ReleaseReservation)
 
-	// Reserve a hotel room for the UK diaspora tourist
+	// Reserve a seeded hotel room for the UK diaspora tourist.
+	itemID := "room-deluxe-eko-hotel-001"
+	seedInventoryItem(t, itemID, "provider-eko-hotel-001")
 	reserveBody := map[string]interface{}{
-		"item_id":   "room-deluxe-eko-hotel-001",
-		"quantity":  1,
-		"user_id":   "tourist-uk-001",
-		"check_in":  time.Now().Add(24 * time.Hour).Format("2006-01-02"),
-		"check_out": time.Now().Add(5 * 24 * time.Hour).Format("2006-01-02"),
+		"item_id":     itemID,
+		"quantity":    1,
+		"booking_ref": "booking-uk-eko-hotel-001",
 	}
 	data, _ := json.Marshal(reserveBody)
 	reserveReq := httptest.NewRequest(http.MethodPost, "/inventory/reserve", bytes.NewReader(data))
@@ -561,12 +590,12 @@ func TestDB_Settlement_T1Cycle_HotelMerchant(t *testing.T) {
 	r, h := setupDBRouter(t)
 	r.POST("/settlement/batches", h.CreateSettlementBatch)
 
-	// Hotel merchant should get T+1 settlement
+	// Hotel providers should receive a T+1 batch once qualifying funds are pending.
+	providerID := "provider-hotel-eko-001"
+	seedPendingSettlement(t, providerID, "booking-hotel-eko-t1-001")
 	body := map[string]interface{}{
-		"merchant_id":     "merchant-hotel-eko-001",
-		"currency":        "NGN",
+		"provider_id":     providerID,
 		"settlement_date": time.Now().Add(24 * time.Hour).Format("2006-01-02"), // T+1
-		"merchant_type":   "hotel",
 	}
 	data, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/settlement/batches", bytes.NewReader(data))
@@ -585,11 +614,11 @@ func TestDB_Settlement_T3Cycle_ConcertMerchant(t *testing.T) {
 	r, h := setupDBRouter(t)
 	r.POST("/settlement/batches", h.CreateSettlementBatch)
 
+	providerID := "provider-concert-afrobeats-001"
+	seedPendingSettlement(t, providerID, "booking-concert-t3-001")
 	body := map[string]interface{}{
-		"merchant_id":     "merchant-concert-afrobeats-001",
-		"currency":        "NGN",
+		"provider_id":     providerID,
 		"settlement_date": time.Now().Add(3 * 24 * time.Hour).Format("2006-01-02"), // T+3
-		"merchant_type":   "concert",
 	}
 	data, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, "/settlement/batches", bytes.NewReader(data))
@@ -612,6 +641,11 @@ func TestDB_ConcurrentSettlementBatchCreation(t *testing.T) {
 	errs := make(chan error, goroutines)
 
 	for i := 0; i < goroutines; i++ {
+		providerID := fmt.Sprintf("provider-concurrent-%d", i)
+		seedPendingSettlement(t, providerID, fmt.Sprintf("booking-concurrent-%d", i))
+	}
+
+	for i := 0; i < goroutines; i++ {
 		go func(idx int) {
 			r, h := setupDBRouter(t)
 			r.POST("/settlement/batches", h.CreateSettlementBatch)
@@ -627,7 +661,7 @@ func TestDB_ConcurrentSettlementBatchCreation(t *testing.T) {
 			r.ServeHTTP(w, req)
 
 			if w.Code != http.StatusOK && w.Code != http.StatusCreated {
-				errs <- fmt.Errorf("goroutine %d: got %d, want 200/201", idx, w.Code)
+				errs <- fmt.Errorf("goroutine %d: got %d, want 200/201. Body: %s", idx, w.Code, w.Body.String())
 			} else {
 				errs <- nil
 			}
