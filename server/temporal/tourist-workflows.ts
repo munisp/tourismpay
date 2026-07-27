@@ -64,6 +64,8 @@ import {
   highValueActivities,
 } from "./journey-activities";
 import { logger } from "../_core/logger";
+import { getDb } from "../db";
+import { sql } from "drizzle-orm";
 
 // ─── Helper: generate workflow ID ────────────────────────────────────────────
 
@@ -632,8 +634,8 @@ export async function startGroupBookingWorkflow(params: {
   });
 
   // Extract share code from DB
-  const db = (await import("../db")).getDb();
-  const rows = await db.execute(require("drizzle-orm").sql`SELECT share_code FROM group_bookings WHERE id = ${groupBookingId} LIMIT 1`);
+  const db = (await getDb())!;
+  const rows = await db.execute(sql`SELECT share_code FROM group_bookings WHERE id = ${groupBookingId} LIMIT 1`);
   const shareCode = (rows as any[])[0]?.share_code ?? "UNKNOWN";
 
   return { workflowId, groupBookingId, shareCode };
@@ -857,8 +859,7 @@ export async function startAiConciergeWorkflow(params: {
   });
 
   // Create concierge session
-  const db = (await import("../db")).getDb();
-  const { sql } = await import("drizzle-orm");
+  const db = (await getDb())!;
   await db.execute(sql`
     INSERT INTO ai_concierge_sessions (id, tourist_profile_id, user_id, session_type, context, total_messages, status, created_at)
     VALUES (${sessionId}, ${params.touristProfileId}, ${params.userId}, ${params.sessionType}, ${JSON.stringify(params.context)}, 1, 'active', ${Math.floor(Date.now() / 1000)})
@@ -1095,8 +1096,7 @@ export async function startMultiCurrencyStatementWorkflow(params: {
   const workflowId = wfId("multi-currency-statement");
   const statementId = crypto.randomUUID();
 
-  const db = (await import("../db")).getDb();
-  const { sql } = await import("drizzle-orm");
+  const db = (await getDb())!;
 
   // Aggregate spend by category
   const payments = await db.execute(sql`

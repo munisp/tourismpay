@@ -113,6 +113,7 @@ import TxVelocityMonitor from "./pages/TxVelocityMonitor";
 import MerchantOnboardingWizard from "@/pages/MerchantOnboardingWizard";
 import TouristJourneyDashboard from "@/pages/TouristJourneyDashboard";
 import JourneyAdminDashboard from "@/pages/JourneyAdminDashboard";
+import ItineraryManager from "@/pages/ItineraryManager";
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -230,21 +231,16 @@ function Router() {
             <Route path="/admin/system-config">{() => <ProtectedRoute roles={["admin"]}><SystemConfigManager /></ProtectedRoute>}</Route>
             <Route path="/admin/training">{() => <ProtectedRoute roles={["admin"]}><TrainingCertification /></ProtectedRoute>}</Route>
             <Route path="/admin/tx-velocity">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><TxVelocityMonitor /></ProtectedRoute>}</Route>
+            {/* Tourist Journey (Temporal workflows) */}
+            <Route path="/journey/itinerary">{() => <ProtectedRoute roles={["tourist", "admin"]}><ItineraryManager /></ProtectedRoute>}</Route>
+            <Route path="/journey/merchant-onboarding">{() => <ProtectedRoute roles={["merchant", "admin"]}><MerchantOnboardingWizard /></ProtectedRoute>}</Route>
+            <Route path="/journey/tourist">{() => <ProtectedRoute roles={["tourist", "admin"]}><TouristJourneyDashboard /></ProtectedRoute>}</Route>
+            <Route path="/admin/journey-dashboard">{() => <ProtectedRoute roles={["admin"]}><JourneyAdminDashboard /></ProtectedRoute>}</Route>
             <Route component={NotFound} />
-          
-              <Route path="/tourist/itinerary" component={lazy(() => import("./pages/ItineraryManager"))} />
-              <Route path="/journey/merchant-onboarding" component={lazy(() => import("./pages/MerchantOnboardingWizard"))} />
-              <Route path="/journey/tourist" component={lazy(() => import("./pages/TouristJourneyDashboard"))} />
-              <Route path="/admin/journey-dashboard" component={lazy(() => import("./pages/JourneyAdminDashboard"))} />
-              </Switch>
+          </Switch>
         </AppShell>
       </Route>
-    
-              <Route path="/tourist/itinerary" component={lazy(() => import("./pages/ItineraryManager"))} />
-              <Route path="/journey/merchant-onboarding" component={lazy(() => import("./pages/MerchantOnboardingWizard"))} />
-              <Route path="/journey/tourist" component={lazy(() => import("./pages/TouristJourneyDashboard"))} />
-              <Route path="/admin/journey-dashboard" component={lazy(() => import("./pages/JourneyAdminDashboard"))} />
-              </Switch>
+    </Switch>
   );
 }
 
