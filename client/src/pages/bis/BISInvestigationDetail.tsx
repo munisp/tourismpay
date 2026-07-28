@@ -311,32 +311,7 @@ export default function BISInvestigationDetail() {
     }
   );
 
-  if (!id || isNaN(id)) {
-    return (
-      <div className="min-h-screen bg-[#0a0f1e] flex items-center justify-center text-slate-400">
-        Invalid investigation ID.
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#0a0f1e] flex items-center justify-center text-slate-400">
-        <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-        Loading investigation…
-      </div>
-    );
-  }
-
-  if (!inv) {
-    return (
-      <div className="min-h-screen bg-[#0a0f1e] flex items-center justify-center text-slate-400">
-        Investigation not found.
-      </div>
-    );
-  }
-
-  const moduleResults = (inv.moduleResults ?? {}) as Record<string, Record<string, unknown>>;
+  // ── All hooks MUST be declared before any early returns (Rules of Hooks) ──
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [showEditor, setShowEditor] = useState(false);
@@ -348,15 +323,15 @@ export default function BISInvestigationDetail() {
   const utils = trpc.useUtils();
   const { data: timelineData } = trpc.bis.getTimeline.useQuery(
     {
-      investigationId: inv.id,
+      investigationId: inv?.id ?? 0,
       eventType: timelineEventTypeFilter !== "all" ? (timelineEventTypeFilter as any) : undefined,
       severity: timelineSeverityFilter !== "all" ? (timelineSeverityFilter as any) : undefined,
     },
-    { enabled: showTimeline }
+    { enabled: showTimeline && !!inv }
   );
   const addEventMut = trpc.bis.addTimelineEvent.useMutation({
     onSuccess: () => {
-      utils.bis.getTimeline.invalidate({ investigationId: inv.id });
+      if (inv) utils.bis.getTimeline.invalidate({ investigationId: inv.id });
       setAddingEvent(false);
       setEventForm({ eventType: "note", title: "", description: "", severity: "info" });
       toast.success("Timeline event added");
@@ -364,13 +339,13 @@ export default function BISInvestigationDetail() {
     onError: (e) => toast.error(e.message),
   });
   const deleteEventMut = trpc.bis.deleteTimelineEvent.useMutation({
-    onSuccess: () => { utils.bis.getTimeline.invalidate({ investigationId: inv.id }); toast.success("Event removed"); },
+    onSuccess: () => { if (inv) utils.bis.getTimeline.invalidate({ investigationId: inv.id }); toast.success("Event removed"); },
     onError: (e) => toast.error(e.message),
   });
   const [exportingTimeline, setExportingTimeline] = useState(false);
   const exportTimelineQuery = trpc.bis.exportTimeline.useQuery(
     {
-      investigationId: inv.id,
+      investigationId: inv?.id ?? 0,
       eventType: timelineEventTypeFilter !== "all" ? (timelineEventTypeFilter as any) : undefined,
       severity: timelineSeverityFilter !== "all" ? (timelineSeverityFilter as any) : undefined,
     },
@@ -403,8 +378,8 @@ export default function BISInvestigationDetail() {
   const [noteContent, setNoteContent] = useState("");
   const [noteIsInternal, setNoteIsInternal] = useState(false);
   const { data: notesData, refetch: refetchNotes } = trpc.bis.getNotes.useQuery(
-    { investigationId: inv.id, includeInternal: isAdmin },
-    { enabled: showNotes }
+    { investigationId: inv?.id ?? 0, includeInternal: isAdmin },
+    { enabled: showNotes && !!inv }
   );
   const addNoteMut = trpc.bis.addNote.useMutation({
     onSuccess: () => {
@@ -422,7 +397,7 @@ export default function BISInvestigationDetail() {
   // ─── Export Notes ─────────────────────────────────────────────────────────
   const [exportingNotes, setExportingNotes] = useState(false);
   const exportNotesQuery = trpc.bis.exportNotes.useQuery(
-    { investigationId: inv.id, includeInternal: isAdmin },
+    { investigationId: inv?.id ?? 0, includeInternal: isAdmin },
     { enabled: false }
   );
   const handleDownloadNotes = async () => {
@@ -468,12 +443,38 @@ export default function BISInvestigationDetail() {
   const assignMut = trpc.bis.assignInvestigation.useMutation({
     onSuccess: (data) => {
       refetch();
-      utils.bis.getTimeline.invalidate({ investigationId: inv.id });
+      if (inv) utils.bis.getTimeline.invalidate({ investigationId: inv.id });
       toast.success(data.assigneeName ? `Assigned to ${data.assigneeName}` : "Investigation unassigned");
       setShowAssignee(false);
     },
     onError: (e) => toast.error(e.message),
   });
+
+  // ── Early returns AFTER all hooks ──
+  if (!id || isNaN(id)) {
+    return (
+      <div className="min-h-screen bg-[#0a0f1e] flex items-center justify-center text-slate-400">
+        Invalid investigation ID.
+      </div>
+    );
+  }
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#0a0f1e] flex items-center justify-center text-slate-400">
+        <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+        Loading investigation…
+      </div>
+    );
+  }
+  if (!inv) {
+    return (
+      <div className="min-h-screen bg-[#0a0f1e] flex items-center justify-center text-slate-400">
+        Investigation not found.
+      </div>
+    );
+  }
+
+  const moduleResults = (inv.moduleResults ?? {}) as Record<string, Record<string, unknown>>;
 
   return (
     <div className="min-h-screen bg-[#0a0f1e] text-white p-6">

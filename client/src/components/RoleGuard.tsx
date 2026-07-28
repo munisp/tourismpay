@@ -11,7 +11,7 @@
  *   </RoleGuard>
  */
 import { useRole, UserRole } from "@/hooks/useRole";
-import { ShieldOff } from "lucide-react";
+import { Loader2, ShieldOff } from "lucide-react";
 import { ReactNode } from "react";
 
 interface RoleGuardProps {
@@ -44,7 +44,15 @@ function DefaultAccessDenied() {
 export function RoleGuard({ roles, permission, fallback, children }: RoleGuardProps) {
   const { hasRole, can, loading, isAuthenticated } = useRole();
 
-  if (loading) return null;
+  // Show spinner while auth state is being determined (prevents blank page flash)
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   if (!isAuthenticated) return fallback ?? <DefaultAccessDenied />;
 
   // Check role-based access
