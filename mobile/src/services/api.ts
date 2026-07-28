@@ -83,6 +83,15 @@ async function refreshToken(): Promise<string | null> {
 
 // ─── Auth API ────────────────────────────────────────────────────────────────
 
+
+// ─── Generic API request helper (used by AR and other screens) ───────────────
+export async function apiRequest<T = any>(
+  endpoint: string,
+  options: { method?: "GET" | "POST"; body?: object } = {}
+): Promise<T> {
+  return request<T>(endpoint, options);
+}
+
 export const authAPI = {
   login: (email: string, password: string) =>
     request<{ token: string; refreshToken: string; user: UserProfile }>("auth.login", {
