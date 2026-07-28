@@ -661,6 +661,20 @@ import { workflowAutomationRouter } from './routers/workflowAutomation';
 import { workflowsRouter } from './routers/workflows';
 import { journeyOrchestratorRouter } from './routers/journeyOrchestrator';
 import { arTourismRouter } from './routers/arTourism';
+import { bnplRouter } from "./routers/bnpl";
+import { directBookingRouter } from "./routers/directBooking";
+import { groupTravelRouter } from "./routers/groupTravel";
+import { eVisaRouter } from "./routers/eVisa";
+import { dccRouter } from "./routers/dcc";
+import { pmsIntegrationRouter } from "./routers/pmsIntegration";
+import { agenticAIRouter } from "./routers/agenticAI";
+import { revenueManagementRouter } from "./routers/revenueManagement";
+import { tourismIntelligenceRouter } from "./routers/tourismIntelligence";
+import { openBankingRouter } from "./routers/openBanking";
+import { travelInsuranceRouter } from "./routers/travelInsurance";
+import { diasporaGiftsRouter } from "./routers/diasporaGifts";
+import { geospatialAnalyticsRouter } from "./routers/geospatialAnalytics";
+import { lakehouseEtlRouter as lakehouseEtlGapRouter } from "./routers/lakehouseEtl";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -1492,6 +1506,21 @@ adminDashboard: adminDashboardRouter,
   billingLedger: billingLedgerRouter,
   lakehouseAi: lakehouseAiIntegrationRouter,
   settlementRecon: settlementReconciliationRouter,
+  // ─── Gap Services (15 new microservices) ──────────────────────────────────
+  bnpl: bnplRouter,
+  directBooking: directBookingRouter,
+  groupTravel: groupTravelRouter,
+  eVisa: eVisaRouter,
+  dcc: dccRouter,
+  pmsIntegration: pmsIntegrationRouter,
+  agenticAI: agenticAIRouter,
+  revenueManagement: revenueManagementRouter,
+  tourismIntelligence: tourismIntelligenceRouter,
+  openBanking: openBankingRouter,
+  travelInsurance: travelInsuranceRouter,
+  diasporaGifts: diasporaGiftsRouter,
+  geospatialAnalytics: geospatialAnalyticsRouter,
+  lakehouseEtlGap: lakehouseEtlGapRouter,
 });
 
 

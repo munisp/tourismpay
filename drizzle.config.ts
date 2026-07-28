@@ -18,6 +18,7 @@ export default defineConfig({
     "./drizzle/schema-extended.ts",
     "./drizzle/schema-platform.ts",
     "./drizzle/views.ts",
+    "./drizzle/schema-gap-services.ts",
   ],
   // schema-constraints.ts is intentionally excluded: it's unused by the running
   // app (only generates ALTER TABLE ADD CONSTRAINT statements for migration

@@ -1,236 +1,186 @@
-// services/dcc-service/main.go
-// TourismPay Dcc Service — Go microservice
-//
-// Dynamic Currency Conversion at Point of Sale
-//
-// HTTP endpoints (port 8095):
-//   POST /dcc/quote — get DCC quote for amount in tourist currency
-//   POST /dcc/confirm — confirm DCC transaction
-//   GET  /dcc/rates — get current DCC exchange rates
-//   GET  /dcc/history/:merchantId — merchant DCC transaction history
-//   POST /dcc/cashier/display — format amount for cashier display
-//
-// Middleware: Dapr pub/sub, Redis cache, PostgreSQL
 package main
 
 import (
-"context"
-"encoding/json"
-"fmt"
-"log"
-"net/http"
-"os"
-"os/signal"
-"syscall"
-"time"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"log"
+	"math"
+	"net/http"
+	"os"
+	"time"
 
-"github.com/go-chi/chi/v5"
-"github.com/go-chi/chi/v5/middleware"
-"github.com/jackc/pgx/v5/pgxpool"
-"github.com/prometheus/client_golang/prometheus"
-"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	_ "github.com/lib/pq"
 )
 
-type Config struct {
-Port        string
-DatabaseURL string
-DaprPort    string
-}
-
-func loadConfig() Config {
-return Config{
-       getEnv("PORT", "8095"),
-getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/tourismpay"),
-   getEnv("DAPR_HTTP_PORT", "3500"),
-}
-}
+type Server struct{ db *sql.DB }
 
 func getEnv(key, fallback string) string {
-if v := os.Getenv(key); v != "" {
- v
-}
-return fallback
-}
-
-var (
-requestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-ame: "dcc_service_requests_total",
-"Total requests to Dcc Service",
-}, []string{"method", "path", "status"})
-requestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-ame:    "dcc_service_request_duration_seconds",
-   "Request duration for Dcc Service",
-prometheus.DefBuckets,
-}, []string{"method", "path"})
-)
-
-func init() {
-prometheus.MustRegister(requestsTotal, requestDuration)
-}
-
-type Server struct {
-cfg    Config
-db     *pgxpool.Pool
-router *chi.Mux
-}
-
-func NewServer(cfg Config, db *pgxpool.Pool) *Server {
-s := &Server{cfg: cfg, db: db, router: chi.NewRouter()}
-s.setupRoutes()
-return s
-}
-
-func (s *Server) setupRoutes() {
-s.router.Use(middleware.RequestID)
-s.router.Use(middleware.RealIP)
-s.router.Use(middleware.Logger)
-s.router.Use(middleware.Recoverer)
-s.router.Use(middleware.Timeout(30 * time.Second))
-
-s.router.Get("/health", s.handleHealth)
-s.router.Handle("/metrics", promhttp.Handler())
-
-// Service-specific routes
-	s.router.Post("/dcc/quote", s.handleDccQuote)
-	s.router.Post("/dcc/confirm", s.handleDccConfirm)
-	s.router.Get("/dcc/rates", s.handleDccRates)
-	s.router.Get("/dcc/history/{merchantId}", s.handleDccHistoryMerchantid)
-	s.router.Post("/dcc/cashier/display", s.handleDccCashierDisplay)
-}
-
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-writeJSON(w, http.StatusOK, map[string]string{
- "healthy",
-"dcc-service",
-": "1.0.0",
-})
-}
-
-func (s *Server) handleDccQuote(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"service": "dcc-service",
-		"endpoint": "/dcc/quote",
-		"status": "ok",
-		"timestamp": time.Now(),
-	})
-}
-
-func (s *Server) handleDccConfirm(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"service": "dcc-service",
-		"endpoint": "/dcc/confirm",
-		"status": "ok",
-		"timestamp": time.Now(),
-	})
-}
-
-func (s *Server) handleDccRates(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"service": "dcc-service",
-		"endpoint": "/dcc/rates",
-		"status": "ok",
-		"timestamp": time.Now(),
-	})
-}
-
-func (s *Server) handleDccHistoryMerchantid(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"service": "dcc-service",
-		"endpoint": "/dcc/history/:merchantId",
-		"status": "ok",
-		"timestamp": time.Now(),
-	})
-}
-
-func (s *Server) handleDccCashierDisplay(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"service": "dcc-service",
-		"endpoint": "/dcc/cashier/display",
-		"status": "ok",
-		"timestamp": time.Now(),
-	})
-}
-
-func (s *Server) publishEvent(ctx context.Context, topic string, data interface{}) {
-payload, _ := json.Marshal(map[string]interface{}{"data": data, "datacontenttype": "application/json"})
-url := fmt.Sprintf("http://localhost:%s/v1.0/publish/tourismpay-pubsub/%s", s.cfg.DaprPort, topic)
-req, err := http.NewRequestWithContext(ctx, "POST", url, bytesReader(payload))
-if err != nil {
-
-}
-req.Header.Set("Content-Type", "application/json")
-client := &http.Client{Timeout: 3 * time.Second}
-resp, err := client.Do(req)
-if err != nil {
-tf("[Dapr] publish failed topic=%s: %v", topic, err)
-
-}
-defer resp.Body.Close()
+	if v := os.Getenv(key); v != "" { return v }
+	return fallback
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
-w.Header().Set("Content-Type", "application/json")
-w.WriteHeader(status)
-json.NewEncoder(w).Encode(v)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
-writeJSON(w, status, map[string]string{"error": msg})
+	writeJSON(w, status, map[string]string{"error": msg})
 }
 
-func generateID() string {
-return fmt.Sprintf("%d", time.Now().UnixNano())
+func NewServer() (*Server, error) {
+	dbURL := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/tourismpay?sslmode=disable")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil { return nil, err }
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	if err := ensureTables(db); err != nil {
+		log.Printf("WARN: ensure tables: %v", err)
+	}
+	return &Server{db: db}, nil
 }
 
-type bytesReaderImpl struct {
-data []byte
-pos  int
+func ensureTables(db *sql.DB) error {
+	_, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS dcc_transactions (
+			id VARCHAR(64) PRIMARY KEY, merchant_id VARCHAR(64) NOT NULL,
+			original_amount_ngn DECIMAL(15,2) NOT NULL, converted_amount DECIMAL(15,2) NOT NULL,
+			home_currency VARCHAR(3) NOT NULL, exchange_rate DECIMAL(12,6) NOT NULL,
+			spread_pct DECIMAL(5,2) NOT NULL DEFAULT 3.0, spread_revenue_ngn DECIMAL(15,2) NOT NULL,
+			decision VARCHAR(10) NOT NULL, wallet_transaction_id VARCHAR(128),
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(), decided_at TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS dcc_merchant_idx ON dcc_transactions(merchant_id);
+		CREATE INDEX IF NOT EXISTS dcc_created_idx ON dcc_transactions(created_at);
+`)
+	return err
 }
 
-func bytesReader(b []byte) *bytesReaderImpl {
-return &bytesReaderImpl{data: b}
+func (s *Server) health(w http.ResponseWriter, r *http.Request) {
+	if err := s.db.PingContext(r.Context()); err != nil {
+		writeJSON(w, 503, map[string]string{"status": "unhealthy", "error": err.Error()})
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "healthy", "service": "dcc-service", "version": "1.0.0"})
 }
 
-func (r *bytesReaderImpl) Read(p []byte) (n int, err error) {
-if r.pos >= len(r.data) {
- 0, fmt.Errorf("EOF")
+
+const spreadPct = 3.0
+
+var fallbackRates = map[string]float64{
+	"USD": 0.00065, "GBP": 0.00051, "EUR": 0.00059, "CAD": 0.00088, "AUD": 0.00098,
+	"JPY": 0.098, "CHF": 0.00058, "SEK": 0.0067, "NOK": 0.0069, "DKK": 0.0044,
 }
-n = copy(p, r.data[r.pos:])
-r.pos += n
-return n, nil
+
+func (s *Server) getQuote(w http.ResponseWriter, r *http.Request) {
+	amountNgnStr := r.URL.Query().Get("amount_ngn")
+	homeCurrency := r.URL.Query().Get("home_currency")
+	var amountNgn float64
+	fmt.Sscanf(amountNgnStr, "%f", &amountNgn)
+	if amountNgn <= 0 { writeError(w, 400, "amount_ngn must be positive"); return }
+	if len(homeCurrency) != 3 { writeError(w, 400, "home_currency must be 3-letter ISO code"); return }
+	// Try to get live rate from DB
+	var rate float64
+	row := s.db.QueryRowContext(r.Context(), `SELECT rate FROM exchange_rate_overrides WHERE from_currency='NGN' AND to_currency=$1 AND is_active=true ORDER BY updated_at DESC LIMIT 1`, homeCurrency)
+	row.Scan(&rate)
+	if rate <= 0 {
+		var ok bool
+		rate, ok = fallbackRates[homeCurrency]
+		if !ok { rate = 0.00065 }
+	}
+	spreadRate := rate * (1 - spreadPct/100)
+	convertedAmount := amountNgn * spreadRate
+	spreadRevenueNgn := amountNgn * (spreadPct / 100)
+	writeJSON(w, 200, map[string]interface{}{
+		"amount_ngn": amountNgn, "home_currency": homeCurrency,
+		"converted_amount": math.Round(convertedAmount*100)/100,
+		"exchange_rate": spreadRate, "market_rate": rate, "spread_pct": spreadPct,
+		"spread_revenue_ngn": math.Round(spreadRevenueNgn*100)/100,
+		"quote_expires_in": 60,
+	})
 }
+
+func (s *Server) recordDecision(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		MerchantID          string  `json:"merchant_id"`
+		AmountNgn           float64 `json:"amount_ngn"`
+		ConvertedAmount     float64 `json:"converted_amount"`
+		HomeCurrency        string  `json:"home_currency"`
+		ExchangeRate        float64 `json:"exchange_rate"`
+		SpreadRevenueNgn    float64 `json:"spread_revenue_ngn"`
+		Decision            string  `json:"decision"`
+		WalletTransactionID string  `json:"wallet_transaction_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { writeError(w, 400, "invalid request body"); return }
+	if req.Decision != "accepted" && req.Decision != "declined" { writeError(w, 400, "decision must be accepted or declined"); return }
+	txID := fmt.Sprintf("DCC-%d", time.Now().UnixNano())
+	_, err := s.db.ExecContext(r.Context(),
+		`INSERT INTO dcc_transactions (id,merchant_id,original_amount_ngn,converted_amount,home_currency,exchange_rate,spread_pct,spread_revenue_ngn,decision,wallet_transaction_id,created_at,decided_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),NOW())`,
+		txID, req.MerchantID, req.AmountNgn, req.ConvertedAmount, req.HomeCurrency,
+		req.ExchangeRate, spreadPct, req.SpreadRevenueNgn, req.Decision, req.WalletTransactionID,
+	)
+	if err != nil { writeError(w, 500, "failed to record decision"); return }
+	msg := "Tourist chose to pay in NGN"
+	if req.Decision == "accepted" { msg = fmt.Sprintf("Tourist charged %s %.2f", req.HomeCurrency, req.ConvertedAmount) }
+	writeJSON(w, 201, map[string]interface{}{"transaction_id": txID, "decision": req.Decision, "message": msg})
+}
+
+func (s *Server) merchantAnalytics(w http.ResponseWriter, r *http.Request) {
+	merchantID := chi.URLParam(r, "merchantID")
+	daysStr := r.URL.Query().Get("days")
+	days := 30
+	fmt.Sscanf(daysStr, "%d", &days)
+	rows, err := s.db.QueryContext(r.Context(),
+		fmt.Sprintf(`SELECT COUNT(*) as total, SUM(CASE WHEN decision='accepted' THEN 1 ELSE 0 END) as accepted, SUM(CASE WHEN decision='accepted' THEN spread_revenue_ngn ELSE 0 END) as spread_revenue, home_currency, COUNT(*) as currency_count FROM dcc_transactions WHERE merchant_id=$1 AND created_at>NOW()-INTERVAL '%d days' GROUP BY home_currency ORDER BY currency_count DESC`, days),
+		merchantID)
+	if err != nil { writeError(w, 500, "database error"); return }
+	defer rows.Close()
+	type CurrencyRow struct { Currency string `json:"currency"`; Count int `json:"count"` }
+	var total, accepted int
+	var spreadRevenue float64
+	var currencies []CurrencyRow
+	for rows.Next() {
+		var t, a, cc int
+		var sr float64
+		var currency string
+		rows.Scan(&t, &a, &sr, &currency, &cc)
+		total += t; accepted += a; spreadRevenue += sr
+		currencies = append(currencies, CurrencyRow{currency, cc})
+	}
+	if currencies == nil { currencies = []CurrencyRow{} }
+	acceptanceRate := 0
+	if total > 0 { acceptanceRate = int(float64(accepted)/float64(total)*100) }
+	writeJSON(w, 200, map[string]interface{}{
+		"total_transactions": total, "acceptance_rate": acceptanceRate,
+		"total_spread_revenue_ngn": math.Round(spreadRevenue*100)/100, "top_currencies": currencies,
+	})
+}
+
 
 func main() {
-cfg := loadConfig()
+	srv, err := NewServer()
+	if err != nil { log.Fatalf("Failed to create server: %v", err) }
+	defer srv.db.Close()
 
-var db *pgxpool.Pool
-if cfg.DatabaseURL != "" {
-err error
-err = pgxpool.New(context.Background(), cfg.DatabaseURL)
-err != nil {
-tf("Warning: could not connect to PostgreSQL: %v", err)
-else {
-db.Close()
-tf("Connected to PostgreSQL")
-:= NewServer(cfg, db)
+	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.RequestID)
+	r.Get("/health", srv.health)
 
-httpServer := &http.Server{
-        ":" + cfg.Port,
-dler:      srv.router,
- 15 * time.Second,
-15 * time.Second,
- 60 * time.Second,
-}
+	r.Get("/dcc/quote", srv.getQuote)
+	r.Post("/dcc/decision", srv.recordDecision)
+	r.Get("/dcc/analytics/{merchantID}", srv.merchantAnalytics)
 
-go func() {
-tf("TourismPay Dcc Service listening on :%s", cfg.Port)
-err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-server error: %v", err)
-:= make(chan os.Signal, 1)
-signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-<-quit
-log.Println("Shutting down Dcc Service...")
-ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-defer cancel()
-httpServer.Shutdown(ctx)
+
+	port := getEnv("PORT", "8095")
+	log.Printf("DCC at POS Service starting on :%s", port)
+	if err := http.ListenAndServe(":"+port, r); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
 }

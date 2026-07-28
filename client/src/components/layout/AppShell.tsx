@@ -68,6 +68,12 @@ const navItems: NavItem[] = [
   { label: "AR Tourism", icon: Scan, href: "/ar", section: "tourist", roles: ["tourist", "admin"] },
   { label: "DID Identity", icon: Cpu, href: "/identity", section: "tourist", roles: ["tourist", "admin"] },
   { label: "Sustainability", icon: Leaf, href: "/sustainability", section: "tourist", roles: ["tourist", "admin"] },
+  { label: "BNPL Plans", icon: CreditCard, href: "/tourist/bnpl", section: "tourist", roles: ["tourist", "admin"] },
+  { label: "e-Visa Payment", icon: FileText, href: "/tourist/evisa", section: "tourist", roles: ["tourist", "admin"] },
+  { label: "Open Banking", icon: Landmark, href: "/tourist/open-banking", section: "tourist", roles: ["tourist", "admin"] },
+  { label: "Travel Insurance", icon: ShieldCheck, href: "/tourist/insurance", section: "tourist", roles: ["tourist", "admin"] },
+  { label: "Gift Tourism", icon: Gift, href: "/tourist/gifts", section: "tourist", roles: ["tourist", "admin"] },
+  { label: "AI Travel Agent", icon: Bot, href: "/tourist/ai-agent", section: "tourist", roles: ["tourist", "admin"] },
 
   // ─── Merchant (merchant + admin) ─────────────────────────────────────────────
   { label: "Business Onboarding", icon: Building2, href: "/restaurant-onboarding", section: "merchant", roles: ["merchant", "admin"] },
@@ -85,6 +91,11 @@ const navItems: NavItem[] = [
   { label: "KPI Leaderboard", icon: BarChart2, href: "/merchant/leaderboard", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Availability Calendar", icon: CalendarDays, href: "/merchant/availability", section: "merchant", roles: ["merchant", "admin"] },
   { label: "BIS Compliance", icon: Shield, href: "/merchant/bis-status", section: "merchant", roles: ["merchant", "admin"] },
+  { label: "PMS Integration", icon: Building2, href: "/merchant/pms", section: "merchant", roles: ["merchant", "admin"] },
+  { label: "Direct Booking", icon: CalendarCheck, href: "/merchant/direct-booking", section: "merchant", roles: ["merchant", "admin"] },
+  { label: "Group Travel", icon: Users, href: "/merchant/group-travel", section: "merchant", roles: ["merchant", "admin"] },
+  { label: "DCC at POS", icon: ArrowLeftRight, href: "/merchant/dcc", section: "merchant", roles: ["merchant", "admin"] },
+  { label: "Revenue Management", icon: TrendingUp, href: "/merchant/revenue-management", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Digital Wallet", icon: Wallet, href: "/wallet", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Stablecoin Swap", icon: ArrowDownUp, href: "/wallet/stablecoin", section: "merchant", roles: ["merchant", "admin"] },
   { label: "Embedded Finance", icon: TrendingUp, href: "/finance", section: "merchant", roles: ["merchant", "admin"] },
@@ -138,6 +149,10 @@ const navItems: NavItem[] = [
   { label: "BIS Settings", icon: Settings, href: "/admin/bis-settings", section: "admin", roles: ["admin"] },
   { label: "Auto-Flag Thresholds", icon: Zap, href: "/admin/bis-auto-flag-settings", section: "admin", roles: ["admin"] },
   { label: "Provider Onboarding", icon: Globe, href: "/admin/provider-onboarding", section: "admin", roles: ["admin"] },
+  { label: "Tourism Intelligence", icon: BarChart3, href: "/admin/tourism-intelligence", section: "admin", roles: ["admin", "compliance_officer", "noc_operator"] },
+  { label: "Geospatial Analytics", icon: MapPin, href: "/admin/geospatial", section: "admin", roles: ["admin", "noc_operator"] },
+  { label: "Lakehouse ETL", icon: Database, href: "/admin/lakehouse", section: "admin", roles: ["admin"] },
+  { label: "White Label", icon: Layers, href: "/admin/white-label", section: "admin", roles: ["admin"] },
   { label: "API Health Monitor", icon: Activity, href: "/admin/api-health", badge: "Live", badgeVariant: "green", section: "admin", roles: ["admin", "noc_operator"] },
 
   // ─── Settings (all authenticated users) ─────────────────────────────────────

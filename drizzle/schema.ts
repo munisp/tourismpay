@@ -3904,3 +3904,4 @@ export * from "./schema-platform";
 export * from './schema-missing';
 export * from "./schema-journeys";
 export * from "./schema-journeys-extended";
+export * from "./schema-gap-services";
