@@ -217,6 +217,7 @@ function TouristNavigator() {
   return (
     <TouristStack.Navigator screenOptions={headerOptions}>
       <TouristStack.Screen name="TouristHome" component={TouristHome} options={{ title: "Discover" }} />
+      <TouristStack.Screen name="TouristExperience" component={TouristExperience} options={{ title: "Experiences" }} />
       <TouristStack.Screen name="Portal" component={TouristPortal} options={{ title: "Tourist Portal" }} />
       <TouristStack.Screen name="Catalog" component={ProductCatalog} options={{ title: "Experiences" }} />
       <TouristStack.Screen name="OrderConfirm" component={OrderConfirm} options={{ title: "Confirm Order" }} />
@@ -294,6 +295,25 @@ function MoreNavigator() {
 }
 
 // ─── Helper Screens ──────────────────────────────────────────────────────────
+
+
+// New screens — parity with PWA
+import { TouristExperience } from "../screens/tourist/TouristExperience";
+import { LocalPayments } from "../screens/tourist/LocalPayments";
+import { PreTravelReadiness } from "../screens/tourist/PreTravelReadiness";
+import { TripPlanner } from "../screens/tourist/TripPlanner";
+import { StablecoinSwap } from "../screens/tourist/StablecoinSwap";
+import { TippingTax } from "../screens/tourist/TippingTax";
+import { AICopilot } from "../screens/other/AICopilot";
+import { NewBISInvestigation } from "../screens/bis/NewBISInvestigation";
+import { MLServices } from "../screens/admin/MLServices";
+import { BISQueue } from "../screens/admin/BISQueue";
+import { BISSettings } from "../screens/admin/BISSettings";
+import { HAStatus } from "../screens/admin/HAStatus";
+import { ApiHealth } from "../screens/admin/ApiHealth";
+import { LoyaltyAdmin } from "../screens/admin/LoyaltyAdmin";
+import { ProviderOnboarding } from "../screens/admin/ProviderOnboarding";
+import { KYBDocuments } from "../screens/admin/KYBDocuments";
 
 import { MoreHomeScreen } from "../screens/MoreHomeScreen";
 import { SecurityHome } from "../screens/security/SecurityHome";

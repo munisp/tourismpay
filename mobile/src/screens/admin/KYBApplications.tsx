@@ -12,10 +12,14 @@ import { biometricService } from "../../services/biometrics";
 export function KYBApplications() {
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
-    try { const data = await adminAPI.getKYBApplications(); setApplications(data); } catch {} finally { setLoading(false); }
+    setError(null);
+    try { const data = await adminAPI.getKYBApplications(); setApplications(data); } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);

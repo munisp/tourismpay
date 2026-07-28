@@ -11,11 +11,15 @@ import { merchantAPI } from "../../services/api";
 export function MerchantQRCodes() {
   const [qrCodes, setQrCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [generating, setGenerating] = useState(false);
 
   const loadData = useCallback(async () => {
-    try { const data = await merchantAPI.getQRCodes(); setQrCodes(data); } catch {} finally { setLoading(false); }
+    setError(null);
+    try { const data = await merchantAPI.getQRCodes(); setQrCodes(data); } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);

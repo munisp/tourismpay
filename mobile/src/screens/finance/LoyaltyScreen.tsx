@@ -1,51 +1,64 @@
 /**
- * LoyaltyScreen — Wired to tRPC API
+ * Loyalty & Rewards Screen — wired to tRPC API via useApiData hook.
  */
 import React from "react";
-import { View, Text, ScrollView, RefreshControl, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from "react-native";
 import { useApiData } from "../../hooks/useApiData";
 
 export function LoyaltyScreen({ navigation }: any) {
   const { data, loading, error, refresh, refreshing } = useApiData<any>({
     endpoint: "loyalty.getPoints",
-    defaultValue: { points: 0, tier: "Bronze", nextTier: 0, rewards: 0 },
+    defaultValue: { items: [] },
   });
-
-  if (loading && !error) return <View style={s.loadingContainer}><ActivityIndicator size="large" color="#6366f1" /></View>;
-  if (error) return <View style={s.loadingContainer}><Text style={{color:"#ef4444",textAlign:"center",padding:16}}>{error}</Text></View>;
-
+  const items: any[] = data?.items ?? (Array.isArray(data) ? data : []);
+  if (loading && !error) return <View style={s.center}><ActivityIndicator size="large" color="#6c63ff" /></View>;
+  if (error) return <View style={s.center}><Text style={s.errorText}>{error}</Text></View>;
   return (
-    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#6366f1" />}>
-      <Text style={s.title}>Loyalty</Text>
-      {error && <Text style={s.error}>{error}</Text>}
-      <View style={s.statsRow}>
-        <View style={s.stat}><Text style={s.statNum}>{String(data?.points ?? "—")}</Text><Text style={s.statLabel}>Points</Text></View>
-        <View style={s.stat}><Text style={s.statNum}>{String(data?.tier ?? "—")}</Text><Text style={s.statLabel}>Tier</Text></View>
-        <View style={s.stat}><Text style={s.statNum}>{String(data?.nextTier ?? "—")}</Text><Text style={s.statLabel}>Next Tier</Text></View>
-        <View style={s.stat}><Text style={s.statNum}>{String(data?.rewards ?? "—")}</Text><Text style={s.statLabel}>Rewards</Text></View>
+    <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#6c63ff" />}>
+      <View style={s.headerRow}>
+        <Text style={s.title}>Loyalty & Rewards</Text>
+        
       </View>
+      
+      {items.length === 0 ? (
+        <View style={s.empty}>
+          <Text style={s.emptyEmoji}>🏆</Text>
+          <Text style={s.emptyText}>No rewards available</Text>
+        </View>
+      ) : (
+        items.map((item: any, idx: number) => (
+          <View key={item.id ?? idx} style={s.card}>
+            <View style={s.cardRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.cardTitle}>{item.name ?? item.rewardName ?? "Reward"}</Text>
+                <Text style={s.cardSub}>{item.pointsCost ?? item.points ?? "—"} pts · {item.category ?? ""}</Text>
+              </View>
+              <Text style={[s.badge, s.badgeGreen]}>{item.available !== false ? "Available" : "Unavailable"}</Text>
+            </View>
+          </View>
+        ))
+      )}
       <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
-
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f0f1a", padding: 16 },
-  loadingContainer: { flex: 1, backgroundColor: "#0f0f1a", justifyContent: "center", alignItems: "center" },
-  title: { fontSize: 22, fontWeight: "700", color: "#fff", marginTop: 12, marginBottom: 16 },
-  error: { color: "#ef4444", fontSize: 12, marginBottom: 8 },
-  section: { fontSize: 16, fontWeight: "600", color: "#fff", marginTop: 16, marginBottom: 12 },
-  statsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
-  stat: { flex: 1, minWidth: "45%", backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, alignItems: "center" },
-  statNum: { fontSize: 16, fontWeight: "700", color: "#fff" },
-  statLabel: { fontSize: 10, color: "#888", marginTop: 4 },
+  center: { flex: 1, backgroundColor: "#0f0f1a", justifyContent: "center", alignItems: "center" },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: 16 },
+  title: { fontSize: 22, fontWeight: "700", color: "#fff" },
+  errorText: { color: "#ef4444", textAlign: "center", padding: 16 },
+  empty: { backgroundColor: "#1a1a2e", borderRadius: 14, padding: 30, alignItems: "center", marginTop: 40 },
+  emptyEmoji: { fontSize: 36, marginBottom: 8 },
+  emptyText: { color: "#888", fontSize: 14 },
   card: { backgroundColor: "#1a1a2e", borderRadius: 12, padding: 14, marginBottom: 10 },
-  cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  cardTitle: { fontSize: 14, fontWeight: "600", color: "#fff", flex: 1 },
+  cardTitle: { fontSize: 14, fontWeight: "600", color: "#fff" },
   cardSub: { fontSize: 12, color: "#888", marginTop: 4 },
-  cardDate: { fontSize: 10, color: "#666", marginTop: 4 },
-  cardAmount: { fontSize: 14, fontWeight: "700", color: "#6366f1" },
-  statusBadge: { fontSize: 10, color: "#f59e0b", fontWeight: "600", backgroundColor: "#f59e0b20", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, overflow: "hidden" },
-  statusGreen: { color: "#10b981", backgroundColor: "#10b98120" },
-  badge: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#6366f1", marginLeft: 8 },
+  cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  badge: { fontSize: 10, color: "#6c63ff", fontWeight: "600", backgroundColor: "#6c63ff20", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, overflow: "hidden" },
+  badgeGreen: { color: "#22c55e", backgroundColor: "#22c55e20" },
+  badgeRed: { color: "#ef4444", backgroundColor: "#ef444420" },
+  badgeAmber: { color: "#f59e0b", backgroundColor: "#f59e0b20" },
+  actionBtn: { backgroundColor: "#6c63ff", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
+  actionBtnText: { color: "#fff", fontSize: 12, fontWeight: "600" },
 });

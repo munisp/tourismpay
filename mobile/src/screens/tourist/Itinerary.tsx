@@ -8,10 +8,14 @@ import { touristAPI } from "../../services/api";
 export function Itinerary() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
-    try { const data = await touristAPI.getItinerary(); setItems(data); } catch {} finally { setLoading(false); }
+    setError(null);
+    try { const data = await touristAPI.getItinerary(); setItems(data); } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);

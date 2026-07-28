@@ -9,10 +9,14 @@ export function TripSummary({ route }: any) {
   const { shareToken } = route.params ?? {};
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
-    try { const data = await touristAPI.getTripSummary(shareToken); setSummary(data); } catch {} finally { setLoading(false); }
+    setError(null);
+    try { const data = await touristAPI.getTripSummary(shareToken); setSummary(data); } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally { setLoading(false); }
   }, [shareToken]);
 
   useEffect(() => { loadData(); }, [loadData]);

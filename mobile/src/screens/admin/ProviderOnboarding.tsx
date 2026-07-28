@@ -1,13 +1,13 @@
 /**
- * KYB Documents Screen — wired to tRPC API via useApiData hook.
+ * Provider Onboarding Screen — wired to tRPC API via useApiData hook.
  */
 import React from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator } from "react-native";
 import { useApiData } from "../../hooks/useApiData";
 
-export function KYBDocuments({ navigation }: any) {
+export function ProviderOnboarding({ navigation }: any) {
   const { data, loading, error, refresh, refreshing } = useApiData<any>({
-    endpoint: "kyb.listDocuments",
+    endpoint: "providerOnboarding.list",
     defaultValue: { items: [] },
   });
   const items: any[] = data?.items ?? (Array.isArray(data) ? data : []);
@@ -16,24 +16,24 @@ export function KYBDocuments({ navigation }: any) {
   return (
     <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#6c63ff" />}>
       <View style={s.headerRow}>
-        <Text style={s.title}>KYB Documents</Text>
+        <Text style={s.title}>Provider Onboarding</Text>
         
       </View>
       
       {items.length === 0 ? (
         <View style={s.empty}>
-          <Text style={s.emptyEmoji}>📄</Text>
-          <Text style={s.emptyText}>No KYB documents pending</Text>
+          <Text style={s.emptyEmoji}>🏢</Text>
+          <Text style={s.emptyText}>No providers onboarded</Text>
         </View>
       ) : (
         items.map((item: any, idx: number) => (
           <View key={item.id ?? idx} style={s.card}>
             <View style={s.cardRow}>
               <View style={{ flex: 1 }}>
-                <Text style={s.cardTitle}>{item.businessName ?? item.business_name ?? "Business"}</Text>
-                <Text style={s.cardSub}>{item.documentType ?? item.document_type ?? ""} · {item.status ?? ""}</Text>
+                <Text style={s.cardTitle}>{item.providerName ?? item.name ?? "Provider"}</Text>
+                <Text style={s.cardSub}>{item.type ?? ""} · {item.country ?? ""}</Text>
               </View>
-              <Text style={[s.badge, item.status === "approved" ? s.badgeGreen : item.status === "rejected" ? s.badgeRed : s.badgeAmber]}>{item.status ?? "—"}</Text>
+              <Text style={[s.badge, item.status === "approved" ? s.badgeGreen : s.badgeAmber]}>{item.status ?? "—"}</Text>
             </View>
           </View>
         ))

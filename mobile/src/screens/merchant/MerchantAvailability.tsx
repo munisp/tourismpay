@@ -8,10 +8,14 @@ import { merchantAPI } from "../../services/api";
 export function MerchantAvailability() {
   const [availability, setAvailability] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
-    try { const data = await merchantAPI.getAvailability(); setAvailability(data); } catch {} finally { setLoading(false); }
+    setError(null);
+    try { const data = await merchantAPI.getAvailability(); setAvailability(data); } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);

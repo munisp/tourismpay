@@ -13,15 +13,19 @@ export function ProductCatalog({ route, navigation }: any) {
   const { token, experienceId } = route.params ?? {};
   const [experience, setExperience] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [booking, setBooking] = useState(false);
 
   const loadData = useCallback(async () => {
+    setError(null);
     try {
       if (experienceId) {
         const data = await touristAPI.getEstablishmentDetail(experienceId);
         setExperience(data);
       }
-    } catch {} finally { setLoading(false); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally { setLoading(false); }
   }, [experienceId]);
 
   useEffect(() => { loadData(); }, [loadData]);

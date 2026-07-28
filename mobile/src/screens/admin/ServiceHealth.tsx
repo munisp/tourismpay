@@ -8,10 +8,14 @@ import { adminAPI } from "../../services/api";
 export function ServiceHealth() {
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
-    try { const data = await adminAPI.getServiceHealth(); setServices(Array.isArray(data) ? data : []); } catch {} finally { setLoading(false); }
+    setError(null);
+    try { const data = await adminAPI.getServiceHealth(); setServices(Array.isArray(data) ? data : []); } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
