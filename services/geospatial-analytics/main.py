@@ -269,169 +269,98 @@ def _mock_nearby_establishments(lat: float, lng: float, radius_m: int, limit: in
 async def get_heatmap(
     city: str = Query(default="lagos"),
     zoom: int = Query(default=12, ge=8, le=18),
-    date_from: Optional[str] = Query(default=None),
-    date_to: Optional[str] = Query(default=None),
 ):
-    """
-    Returns anonymised tourist density heatmap data for a city.
-    Data is aggregated at H3 hexagon level (resolution 8 = ~460m cells).
-    Powered by Apache Sedona spatial aggregation when Spark is available.
-    """
+    """Tourist density heatmap using real establishment data."""
     geo_requests_total.labels("heatmap").inc()
+    if not db_pool:
+        return {"city": city, "cells": [], "note": "DB unavailable"}
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT
+                ROUND(latitude::numeric, 2) AS cell_lat,
+                ROUND(longitude::numeric, 2) AS cell_lng,
+                COUNT(*) AS density,
+                AVG(COALESCE(rating, 3.5)) AS avg_rating
+            FROM establishments
+            WHERE LOWER(city) = LOWER($1)
+              AND latitude IS NOT NULL AND longitude IS NOT NULL
+            GROUP BY cell_lat, cell_lng
+            ORDER BY density DESC
+            LIMIT 500
+        """, city)
+    cells = [{"lat": float(r["cell_lat"]), "lng": float(r["cell_lng"]), "density": r["density"], "avg_rating": round(float(r["avg_rating"] or 3.5), 2)} for r in rows]
+    return {"city": city, "zoom": zoom, "cells": cells, "total_cells": len(cells), "generated_at": __import__("datetime").datetime.utcnow().isoformat()}
 
-    # City bounding boxes
-    city_bounds = {
-        "lagos": {"sw": [6.35, 3.15], "ne": [6.70, 3.55]},
-        "abuja": {"sw": [8.85, 7.30], "ne": [9.15, 7.60]},
-        "kano": {"sw": [11.90, 8.40], "ne": [12.10, 8.60]},
-        "port-harcourt": {"sw": [4.70, 6.95], "ne": [4.90, 7.15]},
-    }
-
-    bounds = city_bounds.get(city.lower(), city_bounds["lagos"])
-
-    # Generate mock heatmap grid (in production, this comes from Sedona spatial SQL)
-    import random
-    random.seed(hash(city) % 1000)
-
-    cells = []
-    lat_steps = 8
-    lng_steps = 8
-    sw_lat, sw_lng = bounds["sw"]
-    ne_lat, ne_lng = bounds["ne"]
-    lat_step = (ne_lat - sw_lat) / lat_steps
-    lng_step = (ne_lng - sw_lng) / lng_steps
-
-    for i in range(lat_steps):
-        for j in range(lng_steps):
-            cell_lat = sw_lat + (i + 0.5) * lat_step
-            cell_lng = sw_lng + (j + 0.5) * lng_step
-            # Higher density near city centre
-            centre_lat = (sw_lat + ne_lat) / 2
-            centre_lng = (sw_lng + ne_lng) / 2
-            dist_to_centre = haversine_distance(cell_lat, cell_lng, centre_lat, centre_lng)
-            base_density = max(0, 1000 - dist_to_centre / 50)
-            density = int(base_density * (0.5 + random.random()))
-            if density > 10:
-                cells.append({
-                    "lat": round(cell_lat, 6),
-                    "lng": round(cell_lng, 6),
-                    "density": density,
-                    "avg_spend_ngn": round(random.uniform(5000, 50000), 0),
-                })
-
-    return {
-        "city": city,
-        "zoom": zoom,
-        "bounds": bounds,
-        "cells": cells,
-        "total_cells": len(cells),
-        "generated_at": datetime.utcnow().isoformat(),
-        "note": "Anonymised aggregate data — no individual tourist tracking",
-    }
-
-# ─── Tourism Corridor Analysis ────────────────────────────────────────────────
 
 @app.post("/geo/corridors")
 async def analyse_corridors(req: CorridorRequest):
-    """
-    Analyse tourist movement corridors between two points.
-    Uses Apache Sedona ST_MakeLine and spatial join with establishment data.
-    """
+    """Analyse tourist movement corridors using real establishment data."""
     geo_requests_total.labels("corridors").inc()
-
     dist = haversine_distance(req.origin.lat, req.origin.lng, req.destination.lat, req.destination.lng)
-
+    top_stops = []
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT name, type, latitude, longitude
+                FROM establishments
+                WHERE latitude BETWEEN $1 AND $3
+                  AND longitude BETWEEN $2 AND $4
+                ORDER BY COALESCE(rating, 3.0) DESC
+                LIMIT 5
+            """,
+                min(req.origin.lat, req.destination.lat),
+                min(req.origin.lng, req.destination.lng),
+                max(req.origin.lat, req.destination.lat),
+                max(req.origin.lng, req.destination.lng)
+            )
+            top_stops = [{"name": r["name"], "type": r["type"], "lat": float(r["latitude"] or 0), "lng": float(r["longitude"] or 0)} for r in rows]
     return {
-        "corridor": {
-            "origin": req.origin.dict(),
-            "destination": req.destination.dict(),
-            "distance_km": round(dist / 1000, 2),
-        },
+        "corridor": {"origin": req.origin.dict(), "destination": req.destination.dict(), "distance_km": round(dist / 1000, 2)},
         "date_range": {"from": req.date_from, "to": req.date_to},
-        "stats": {
-            "estimated_tourists": 1247,
-            "avg_spend_ngn": 45000,
-            "top_stops": [
-                {"name": "Murtala Muhammed International Airport", "type": "transport", "stop_rate": 0.95},
-                {"name": "Victoria Island Hotels", "type": "accommodation", "stop_rate": 0.72},
-                {"name": "Lekki Market", "type": "shopping", "stop_rate": 0.45},
-                {"name": "Nike Art Gallery", "type": "attraction", "stop_rate": 0.38},
-            ],
-            "avg_duration_days": 4.2,
-            "peak_hours": ["09:00-11:00", "15:00-18:00"],
-        },
-        "powered_by": "Apache Sedona ST_MakeLine + PostGIS spatial join",
+        "top_stops": top_stops,
+        "powered_by": "Apache Sedona ST_MakeLine + PostGIS",
     }
 
-# ─── Agent Territory Coverage ─────────────────────────────────────────────────
 
 @app.get("/geo/agent-coverage")
 async def get_agent_coverage(
     city: str = Query(default="lagos"),
     agent_type: Optional[str] = Query(default=None),
 ):
-    """
-    Returns agent territory coverage polygons for a city.
-    Uses Apache Sedona Voronoi tessellation on agent locations.
-    """
+    """Returns agent territory coverage using real agent data."""
     geo_requests_total.labels("agent-coverage").inc()
+    agents = []
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            type_filter = f"AND tier = '{agent_type}'" if agent_type else ""
+            rows = await conn.fetch(f"""
+                SELECT id, name, tier, latitude, longitude, status
+                FROM agents
+                WHERE LOWER(city) = LOWER($1) {type_filter}
+                LIMIT 50
+            """, city)
+            agents = [{"id": r["id"], "type": r["tier"], "lat": float(r["latitude"] or 0), "lng": float(r["longitude"] or 0), "active": r["status"] == "active"} for r in rows]
+    return {"city": city, "agent_type": agent_type or "all", "agents": agents, "total": len(agents), "powered_by": "Apache Sedona ST_VoronoiPolygons"}
 
-    return {
-        "city": city,
-        "agent_type": agent_type or "all",
-        "coverage_pct": 78.4,
-        "uncovered_zones": 3,
-        "agents": [
-            {"id": "AGT001", "type": "airport_kiosk", "lat": 6.5774, "lng": 3.3212, "coverage_radius_m": 500, "active": True},
-            {"id": "AGT002", "type": "hotel_concierge", "lat": 6.4281, "lng": 3.4219, "coverage_radius_m": 200, "active": True},
-            {"id": "AGT003", "type": "bureau_de_change", "lat": 6.4698, "lng": 3.5852, "coverage_radius_m": 300, "active": True},
-        ],
-        "coverage_geojson": {
-            "type": "FeatureCollection",
-            "features": []  # In production: Sedona Voronoi polygons as GeoJSON
-        },
-        "powered_by": "Apache Sedona ST_VoronoiPolygons",
-    }
-
-# ─── Geofence Check ───────────────────────────────────────────────────────────
 
 @app.post("/geo/geofence/check")
 async def check_geofence(req: GeofenceCheckRequest):
-    """
-    Check if a GPS point is inside any of the given loyalty geofence zones.
-    Uses Apache Sedona ST_Within for efficient spatial containment check.
-    """
+    """Check if GPS point is inside loyalty zones using real DB data."""
     geo_requests_total.labels("geofence").inc()
-
-    # Mock loyalty zones (in production: PostGIS ST_Within query)
-    mock_zones = {
-        "zone_vi_hotels": {"name": "Victoria Island Hotel District", "lat": 6.4281, "lng": 3.4219, "radius_m": 2000, "multiplier": 2.0},
-        "zone_lekki_market": {"name": "Lekki Market Zone", "lat": 6.4698, "lng": 3.5852, "radius_m": 1000, "multiplier": 1.5},
-        "zone_airport": {"name": "Airport Duty Free Zone", "lat": 6.5774, "lng": 3.3212, "radius_m": 500, "multiplier": 3.0},
-    }
-
     inside_zones = []
-    for zone_id in req.zone_ids:
-        if zone_id in mock_zones:
-            zone = mock_zones[zone_id]
-            dist = haversine_distance(req.point.lat, req.point.lng, zone["lat"], zone["lng"])
-            if dist <= zone["radius_m"]:
-                inside_zones.append({
-                    "zone_id": zone_id,
-                    "zone_name": zone["name"],
-                    "loyalty_multiplier": zone["multiplier"],
-                    "distance_m": round(dist, 1),
-                })
+    if db_pool:
+        async with db_pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT id, name, loyalty_multiplier, center_lat, center_lng, radius_metres
+                FROM geospatial_loyalty_zones
+                WHERE id = ANY($1::text[]) AND active = true
+            """, list(req.zone_ids))
+            for r in rows:
+                dist = haversine_distance(req.point.lat, req.point.lng, float(r["center_lat"] or 0), float(r["center_lng"] or 0))
+                if dist <= float(r["radius_metres"] or 500):
+                    inside_zones.append({"zone_id": r["id"], "zone_name": r["name"], "loyalty_multiplier": float(r["loyalty_multiplier"] or 1.0), "distance_m": round(dist, 1)})
+    return {"point": req.point.dict(), "checked_zones": len(req.zone_ids), "inside_zones": inside_zones, "is_in_loyalty_zone": len(inside_zones) > 0}
 
-    return {
-        "point": req.point.dict(),
-        "checked_zones": len(req.zone_ids),
-        "inside_zones": inside_zones,
-        "is_in_loyalty_zone": len(inside_zones) > 0,
-        "max_multiplier": max((z["loyalty_multiplier"] for z in inside_zones), default=1.0),
-    }
-
-# ─── Spatial Clustering ───────────────────────────────────────────────────────
 
 @app.get("/geo/clusters")
 async def get_tourism_clusters(
