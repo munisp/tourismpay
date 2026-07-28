@@ -1,4 +1,4 @@
-module github.com/insureportal/nigerian_bank_integrations
+module github.com/tourismpay/nigerian_bank_integrations
 
 go 1.22.0
 

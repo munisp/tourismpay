@@ -1,0 +1,364 @@
+# infra/apisix/routes/gap-services-routes.yaml
+# APISIX routes for TourismPay Gap Services (15 new microservices)
+# All routes are protected by JWT auth (except public booking page)
+# OpenAppsec WAF is applied to all routes via the openappsec plugin
+
+routes:
+  # ─── PMS Integration (Go, port 8090) ─────────────────────────────────────
+  - id: pms-connect
+    uri: /api/pms/connect
+    methods: [POST]
+    upstream_id: pms-integration
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 10, burst: 20, key: consumer_name }
+
+  - id: pms-status
+    uri: /api/pms/status/*
+    methods: [GET]
+    upstream_id: pms-integration
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+
+  - id: pms-folio
+    uri: /api/pms/folio/*
+    methods: [POST]
+    upstream_id: pms-integration
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 50, burst: 100, key: consumer_name }
+
+  - id: pms-reservations
+    uri: /api/pms/reservations/*
+    methods: [GET]
+    upstream_id: pms-integration
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+
+  - id: pms-sync
+    uri: /api/pms/sync/*
+    methods: [POST]
+    upstream_id: pms-integration
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+
+  - id: pms-webhook
+    uri: /api/pms/webhook
+    methods: [POST]
+    upstream_id: pms-integration
+    plugins:
+      # Webhook from PMS providers - no JWT, use HMAC signature verification
+      openappsec: { mode: prevent }
+      limit-req: { rate: 100, burst: 200, key: remote_addr }
+
+  # ─── BNPL Service (Go, port 8091) ────────────────────────────────────────
+  - id: bnpl-plans
+    uri: /api/bnpl/*
+    methods: [GET, POST]
+    upstream_id: bnpl-service
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 30, burst: 60, key: consumer_name }
+
+  # ─── Direct Booking Engine (Go, port 8092) ───────────────────────────────
+  - id: direct-booking-public
+    uri: /book/*
+    methods: [GET, POST]
+    upstream_id: direct-booking-engine
+    plugins:
+      # Public booking page - no auth required
+      openappsec: { mode: prevent }
+      limit-req: { rate: 100, burst: 200, key: remote_addr }
+      cors:
+        allow_origins: "*"
+        allow_methods: "GET,POST"
+
+  - id: direct-booking-manage
+    uri: /api/booking/*
+    methods: [GET, POST]
+    upstream_id: direct-booking-engine
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+
+  # ─── Group Travel Service (Go, port 8093) ────────────────────────────────
+  - id: group-travel
+    uri: /api/group/*
+    methods: [GET, POST]
+    upstream_id: group-travel-service
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 20, burst: 40, key: consumer_name }
+
+  # ─── e-Visa Payment Service (Go, port 8094) ──────────────────────────────
+  - id: evisa-payment
+    uri: /api/evisa/*
+    methods: [GET, POST]
+    upstream_id: evisa-payment-service
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 10, burst: 20, key: consumer_name }
+
+  - id: evisa-webhook
+    uri: /api/evisa/webhook
+    methods: [POST]
+    upstream_id: evisa-payment-service
+    plugins:
+      openappsec: { mode: prevent }
+
+  # ─── DCC Service (Go, port 8095) ─────────────────────────────────────────
+  - id: dcc-service
+    uri: /api/dcc/*
+    methods: [GET, POST]
+    upstream_id: dcc-service
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 200, burst: 400, key: consumer_name }
+
+  # ─── Agentic AI Service (Python, port 8096) ──────────────────────────────
+  - id: agentic-ai
+    uri: /api/agent/*
+    methods: [GET, POST, DELETE]
+    upstream_id: agentic-ai-service
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 10, burst: 20, key: consumer_name }
+      # AI endpoints get longer timeout
+      proxy-rewrite: {}
+
+  # ─── Revenue Management Service (Python, port 8097) ─────────────────────
+  - id: revenue-management
+    uri: /api/revenue/*
+    methods: [GET, POST]
+    upstream_id: revenue-management-service
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 30, burst: 60, key: consumer_name }
+
+  # ─── Tourism Intelligence API (Python, port 8098) ────────────────────────
+  - id: tourism-intelligence
+    uri: /api/intelligence/*
+    methods: [GET, POST]
+    upstream_id: tourism-intelligence-api
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 60, burst: 120, key: consumer_name }
+      response-cache:
+        cache_ttl: 300  # 5 min cache for intelligence data
+
+  # ─── Open Banking Service (Python, port 8099) ────────────────────────────
+  - id: open-banking
+    uri: /api/openbanking/*
+    methods: [GET, POST, DELETE]
+    upstream_id: open-banking-service
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 20, burst: 40, key: consumer_name }
+
+  # ─── Travel Insurance Service (Rust, port 8100) ──────────────────────────
+  - id: travel-insurance
+    uri: /api/insurance/*
+    methods: [GET, POST]
+    upstream_id: travel-insurance-service
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 30, burst: 60, key: consumer_name }
+
+  # ─── Diaspora Gift Service (Rust, port 8101) ─────────────────────────────
+  - id: diaspora-gifts
+    uri: /api/gifts/*
+    methods: [GET, POST]
+    upstream_id: diaspora-gift-service
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 20, burst: 40, key: consumer_name }
+
+  # ─── White Label Engine (Rust, port 8102) ────────────────────────────────
+  - id: white-label
+    uri: /api/whitelabel/*
+    methods: [GET, POST, PUT]
+    upstream_id: white-label-engine
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 10, burst: 20, key: consumer_name }
+
+  # ─── Accessibility Service (Rust, port 8103) ─────────────────────────────
+  - id: accessibility
+    uri: /api/accessibility/*
+    methods: [GET, POST]
+    upstream_id: accessibility-service
+    plugins:
+      jwt-auth: {}
+      openappsec: { mode: prevent }
+      limit-req: { rate: 30, burst: 60, key: consumer_name }
+
+upstreams:
+  - id: pms-integration
+    type: roundrobin
+    nodes:
+      - host: pms-integration
+        port: 8090
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 10
+
+  - id: bnpl-service
+    type: roundrobin
+    nodes:
+      - host: bnpl-service
+        port: 8091
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 10
+
+  - id: direct-booking-engine
+    type: roundrobin
+    nodes:
+      - host: direct-booking-engine
+        port: 8092
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 10
+
+  - id: group-travel-service
+    type: roundrobin
+    nodes:
+      - host: group-travel-service
+        port: 8093
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 10
+
+  - id: evisa-payment-service
+    type: roundrobin
+    nodes:
+      - host: evisa-payment-service
+        port: 8094
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 10
+
+  - id: dcc-service
+    type: roundrobin
+    nodes:
+      - host: dcc-service
+        port: 8095
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 10
+
+  - id: agentic-ai-service
+    type: roundrobin
+    nodes:
+      - host: agentic-ai-service
+        port: 8096
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 15
+
+  - id: revenue-management-service
+    type: roundrobin
+    nodes:
+      - host: revenue-management-service
+        port: 8097
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 15
+
+  - id: tourism-intelligence-api
+    type: roundrobin
+    nodes:
+      - host: tourism-intelligence-api
+        port: 8098
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 15
+
+  - id: open-banking-service
+    type: roundrobin
+    nodes:
+      - host: open-banking-service
+        port: 8099
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 10
+
+  - id: travel-insurance-service
+    type: roundrobin
+    nodes:
+      - host: travel-insurance-service
+        port: 8100
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 10
+
+  - id: diaspora-gift-service
+    type: roundrobin
+    nodes:
+      - host: diaspora-gift-service
+        port: 8101
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 10
+
+  - id: white-label-engine
+    type: roundrobin
+    nodes:
+      - host: white-label-engine
+        port: 8102
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 10
+
+  - id: accessibility-service
+    type: roundrobin
+    nodes:
+      - host: accessibility-service
+        port: 8103
+        weight: 1
+    health_checks:
+      active:
+        http_path: /health
+        interval: 10

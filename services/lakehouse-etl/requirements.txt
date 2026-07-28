@@ -5,3 +5,9 @@ pyarrow==17.0.0
 # pyiceberg[s3]==0.7.1
 # deltalake==0.18.2
 # boto3==1.35.0
+# Apache Iceberg Python SDK
+pyiceberg[s3]==0.6.0
+# MinIO S3 client
+boto3==1.34.0
+# Apache Sedona integration
+apache-sedona==1.5.1

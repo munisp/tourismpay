@@ -1,4 +1,4 @@
-module github.com/insureportal/notification_service
+module github.com/tourismpay/notification_service
 
 go 1.22.0
 

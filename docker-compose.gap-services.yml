@@ -1,0 +1,418 @@
+# docker-compose.gap-services.yml
+# TourismPay Gap Services — 15 new microservices
+# Usage: docker compose -f docker-compose.yml -f docker-compose.gap-services.yml up -d
+#
+# Language breakdown:
+#   Go:     pms-integration, bnpl-service, direct-booking-engine, group-travel-service, evisa-payment-service, dcc-service
+#   Python: agentic-ai-service, revenue-management-service, tourism-intelligence-api, open-banking-service, geospatial-analytics, lakehouse-etl
+#   Rust:   travel-insurance-service, diaspora-gift-service, white-label-engine, accessibility-service, offline-sync-service
+
+services:
+  # ─── Go: PMS Integration (port 8090) ────────────────────────────────────────
+  pms-integration:
+    build:
+      context: ./services/pms-integration
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      DAPR_HTTP_PORT: "3500"
+      PORT: "8090"
+    ports:
+      - "8090:8090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "tourismpay.service=pms-integration"
+      - "tourismpay.language=go"
+
+  # ─── Go: BNPL Service (port 8091) ───────────────────────────────────────────
+  bnpl-service:
+    build:
+      context: ./services/bnpl-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      TIGERBEETLE_ADDRESS: tigerbeetle:3000
+      PORT: "8091"
+    ports:
+      - "8091:8091"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8091/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "tourismpay.service=bnpl-service"
+      - "tourismpay.language=go"
+
+  # ─── Go: Direct Booking Engine (port 8092) ──────────────────────────────────
+  direct-booking-engine:
+    build:
+      context: ./services/direct-booking-engine
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      PORT: "8092"
+    ports:
+      - "8092:8092"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8092/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "tourismpay.service=direct-booking-engine"
+      - "tourismpay.language=go"
+
+  # ─── Go: Group Travel Service (port 8093) ───────────────────────────────────
+  group-travel-service:
+    build:
+      context: ./services/group-travel-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      PORT: "8093"
+    ports:
+      - "8093:8093"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8093/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "tourismpay.service=group-travel-service"
+      - "tourismpay.language=go"
+
+  # ─── Go: e-Visa Payment Service (port 8094) ─────────────────────────────────
+  evisa-payment-service:
+    build:
+      context: ./services/evisa-payment-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      NIS_API_URL: ${NIS_API_URL:-https://portal.immigration.gov.ng/api}
+      NIS_API_KEY: ${NIS_API_KEY:-}
+      PORT: "8094"
+    ports:
+      - "8094:8094"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8094/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "tourismpay.service=evisa-payment-service"
+      - "tourismpay.language=go"
+
+  # ─── Go: DCC Service (port 8095) ────────────────────────────────────────────
+  dcc-service:
+    build:
+      context: ./services/dcc-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      FX_RATES_URL: ${FX_RATES_URL:-https://api.exchangerate-api.com/v4/latest/NGN}
+      PORT: "8095"
+    ports:
+      - "8095:8095"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8095/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "tourismpay.service=dcc-service"
+      - "tourismpay.language=go"
+
+  # ─── Python: Agentic AI Service (port 8096) ─────────────────────────────────
+  agentic-ai-service:
+    build:
+      context: ./services/agentic-ai-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_BASE: ${OPENAI_API_BASE:-https://api.openai.com/v1}
+      PORT: "8096"
+    ports:
+      - "8096:8096"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8096/health').raise_for_status()"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "tourismpay.service=agentic-ai-service"
+      - "tourismpay.language=python"
+
+  # ─── Python: Revenue Management Service (port 8097) ─────────────────────────
+  revenue-management-service:
+    build:
+      context: ./services/revenue-management-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PORT: "8097"
+    ports:
+      - "8097:8097"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8097/health').raise_for_status()"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "tourismpay.service=revenue-management-service"
+      - "tourismpay.language=python"
+
+  # ─── Python: Tourism Intelligence API (port 8098) ───────────────────────────
+  tourism-intelligence-api:
+    build:
+      context: ./services/tourism-intelligence-api
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      OPENSEARCH_URL: http://opensearch:9200
+      PORT: "8098"
+    ports:
+      - "8098:8098"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8098/health').raise_for_status()"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "tourismpay.service=tourism-intelligence-api"
+      - "tourismpay.language=python"
+
+  # ─── Python: Open Banking Service (port 8099) ───────────────────────────────
+  open-banking-service:
+    build:
+      context: ./services/open-banking-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      MONO_SECRET_KEY: ${MONO_SECRET_KEY:-}
+      OKRA_SECRET_KEY: ${OKRA_SECRET_KEY:-}
+      PORT: "8099"
+    ports:
+      - "8099:8099"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8099/health').raise_for_status()"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "tourismpay.service=open-banking-service"
+      - "tourismpay.language=python"
+
+  # ─── Rust: Travel Insurance Service (port 8100) ─────────────────────────────
+  travel-insurance-service:
+    build:
+      context: ./services/travel-insurance-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      INSURER_API_URL: ${INSURER_API_URL:-}
+      INSURER_API_KEY: ${INSURER_API_KEY:-}
+      PORT: "8100"
+    ports:
+      - "8100:8100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8100/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "tourismpay.service=travel-insurance-service"
+      - "tourismpay.language=rust"
+
+  # ─── Rust: Diaspora Gift Service (port 8101) ────────────────────────────────
+  diaspora-gift-service:
+    build:
+      context: ./services/diaspora-gift-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      TIGERBEETLE_ADDRESS: tigerbeetle:3000
+      PORT: "8101"
+    ports:
+      - "8101:8101"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8101/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "tourismpay.service=diaspora-gift-service"
+      - "tourismpay.language=rust"
+
+  # ─── Rust: White Label Engine (port 8102) ───────────────────────────────────
+  white-label-engine:
+    build:
+      context: ./services/white-label-engine
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      PORT: "8102"
+    ports:
+      - "8102:8102"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8102/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "tourismpay.service=white-label-engine"
+      - "tourismpay.language=rust"
+
+  # ─── Rust: Accessibility Service (port 8103) ────────────────────────────────
+  accessibility-service:
+    build:
+      context: ./services/accessibility-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      PORT: "8103"
+    ports:
+      - "8103:8103"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8103/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    labels:
+      - "tourismpay.service=accessibility-service"
+      - "tourismpay.language=rust"
+
+  # ─── Python: Geospatial Analytics (port 8104) ───────────────────────────────
+  geospatial-analytics:
+    build:
+      context: ./services/geospatial-analytics
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      REDIS_URL: redis://redis:6379
+      SEDONA_SPARK_MASTER: local[2]
+      GEOLIBRE_ENABLED: "false"
+      PORT: "8104"
+    ports:
+      - "8104:8104"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8104/health').raise_for_status()"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+    labels:
+      - "tourismpay.service=geospatial-analytics"
+      - "tourismpay.language=python"
+
+  # ─── Python: Lakehouse ETL (port 8105) ──────────────────────────────────────
+  lakehouse-etl-gap:
+    build:
+      context: ./services/lakehouse-etl
+      dockerfile: Dockerfile
+    environment:
+      PG_DSN: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+      LAKEHOUSE_PATH: /data/lakehouse
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      ICEBERG_CATALOG: tourismpay_catalog
+      ICEBERG_WAREHOUSE: s3://tourismpay-lakehouse/
+      PORT: "8105"
+    ports:
+      - "8105:8105"
+    volumes:
+      - lakehouse_data:/data/lakehouse
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8105/health').raise_for_status()"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+    labels:
+      - "tourismpay.service=lakehouse-etl"
+      - "tourismpay.language=python"
+
+volumes:
+  lakehouse_data:
+    driver: local

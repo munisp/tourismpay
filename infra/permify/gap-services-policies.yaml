@@ -1,0 +1,183 @@
+# infra/permify/gap-services-policies.yaml
+# Permify authorization policies for TourismPay Gap Services
+# These extend the existing core policies with new resources and permissions
+
+schema: |
+  # ─── PMS Integration ─────────────────────────────────────────────────────
+  entity pms_connection {
+    relation hotel @establishment
+    relation manager @user
+    
+    action connect = manager or hotel.owner
+    action view_status = manager or hotel.owner or role:admin
+    action charge_folio = manager or hotel.owner
+    action settle_folio = manager or hotel.owner or role:settlement_officer
+    action view_reservations = manager or hotel.owner or role:admin
+    action sync = manager or hotel.owner or role:admin
+  }
+
+  # ─── BNPL Plans ──────────────────────────────────────────────────────────
+  entity bnpl_plan {
+    relation tourist @user
+    relation merchant @establishment
+    
+    action create = tourist
+    action view = tourist or merchant.owner or role:admin or role:settlement_officer
+    action pay_instalment = tourist
+    action cancel = tourist or role:admin
+    action view_all = role:admin or role:settlement_officer or role:compliance_officer
+  }
+
+  # ─── Direct Bookings ─────────────────────────────────────────────────────
+  entity direct_booking {
+    relation guest @user
+    relation hotel @establishment
+    
+    action create = guest or public
+    action view = guest or hotel.owner or role:admin
+    action cancel = guest or hotel.owner or role:admin
+    action process_payment = guest
+    action view_all = role:admin or role:settlement_officer
+  }
+
+  # ─── Group Bookings ───────────────────────────────────────────────────────
+  entity group_booking {
+    relation organizer @user
+    relation hotel @establishment
+    
+    action create = organizer or role:merchant
+    action view = organizer or hotel.owner or role:admin
+    action pay_deposit = organizer
+    action settle = organizer or role:settlement_officer
+    action generate_invoice = organizer or hotel.owner or role:admin
+    action calculate_attrition = hotel.owner or role:settlement_officer
+  }
+
+  # ─── e-Visa Payments ─────────────────────────────────────────────────────
+  entity evisa_payment {
+    relation tourist @user
+    
+    action create = tourist
+    action view = tourist or role:admin or role:compliance_officer
+    action view_all = role:admin or role:compliance_officer
+  }
+
+  # ─── DCC Transactions ────────────────────────────────────────────────────
+  entity dcc_transaction {
+    relation tourist @user
+    relation merchant @establishment
+    
+    action get_quote = tourist or merchant.owner
+    action confirm = tourist
+    action view = tourist or merchant.owner or role:admin
+    action view_history = merchant.owner or role:admin or role:settlement_officer
+  }
+
+  # ─── AI Booking Sessions ─────────────────────────────────────────────────
+  entity ai_session {
+    relation owner @user
+    
+    action create = owner
+    action view = owner or role:admin
+    action delete = owner or role:admin
+    action view_all = role:admin
+  }
+
+  # ─── Revenue Management ───────────────────────────────────────────────────
+  entity revenue_recommendation {
+    relation hotel @establishment
+    
+    action view = hotel.owner or role:admin
+    action apply = hotel.owner
+    action view_all = role:admin
+  }
+
+  # ─── Tourism Intelligence ─────────────────────────────────────────────────
+  entity intelligence_report {
+    action view = role:admin or role:compliance_officer or role:noc_operator or role:bis_analyst
+    action view_public = public
+    action subscribe = role:admin or role:compliance_officer
+    action export = role:admin
+  }
+
+  # ─── Open Banking Accounts ───────────────────────────────────────────────
+  entity bank_connection {
+    relation owner @user
+    
+    action connect = owner
+    action view = owner or role:admin
+    action topup = owner
+    action disconnect = owner or role:admin
+    action view_statement = owner or role:compliance_officer
+  }
+
+  # ─── Travel Insurance ────────────────────────────────────────────────────
+  entity insurance_policy {
+    relation policyholder @user
+    
+    action purchase = policyholder
+    action view = policyholder or role:admin or role:compliance_officer
+    action file_claim = policyholder
+    action view_claim = policyholder or role:admin or role:compliance_officer
+    action view_all = role:admin or role:compliance_officer
+  }
+
+  # ─── Diaspora Gifts ───────────────────────────────────────────────────────
+  entity diaspora_gift {
+    relation sender @user
+    relation recipient @user
+    
+    action create = sender
+    action view = sender or recipient or role:admin
+    action redeem = recipient
+    action notify = sender or role:admin
+    action view_all = role:admin
+  }
+
+  # ─── White Label Tenants ─────────────────────────────────────────────────
+  entity whitelabel_tenant {
+    relation owner @user
+    
+    action create = role:admin
+    action view = owner or role:admin
+    action update_branding = owner or role:admin
+    action configure_corridors = owner or role:admin
+    action deploy = role:admin
+    action view_status = owner or role:admin
+    action view_all = role:admin
+  }
+
+  # ─── Accessibility Sessions ───────────────────────────────────────────────
+  entity accessibility_session {
+    relation user @user
+    
+    action create = user or public
+    action voice_payment = user
+    action view = user or role:admin
+  }
+
+  # ─── Geospatial Data ─────────────────────────────────────────────────────
+  entity geospatial_data {
+    action view_nearby = public
+    action view_heatmap = role:admin or role:noc_operator or role:compliance_officer
+    action view_corridors = role:admin or role:compliance_officer or role:bis_analyst
+    action view_clusters = role:admin or role:noc_operator
+    action view_agent_coverage = role:admin or role:noc_operator
+  }
+
+  # ─── Lakehouse Data ───────────────────────────────────────────────────────
+  entity lakehouse_table {
+    action read_bronze = role:admin
+    action read_silver = role:admin or role:compliance_officer
+    action read_gold = role:admin or role:compliance_officer or role:noc_operator
+    action trigger_pipeline = role:admin
+    action view_lineage = role:admin or role:compliance_officer
+    action view_quality = role:admin or role:noc_operator
+  }
+
+relationships:
+  # Role assignments for gap service resources
+  # These are evaluated at runtime based on the authenticated user's role
+  - resource: intelligence_report:public_summary
+    relation: view_public
+    subject: public

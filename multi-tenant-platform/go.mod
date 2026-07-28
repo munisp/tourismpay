@@ -1,4 +1,4 @@
-module github.com/insureportal/multi_tenant_platform
+module github.com/tourismpay/multi_tenant_platform
 
 go 1.22.0
 

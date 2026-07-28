@@ -83,3 +83,78 @@ create_topic "tourismpay.dlq.notifications"        3   604800000
 echo ""
 echo "[Kafka] ✅ All topics provisioned"
 kafka-topics.sh --bootstrap-server "${KAFKA_BROKERS}" --list | grep "tourismpay\." | wc -l | xargs -I{} echo "[Kafka] Total tourismpay topics: {}"
+
+# ─── TourismPay Gap Services Topics (added 2026-07-28) ───────────────────────
+
+NEW_GAP_TOPICS=(
+  # PMS Integration
+  "tourismpay.pms.events"
+  "tourismpay.pms.folio.charges"
+  "tourismpay.pms.folio.settlements"
+  "tourismpay.pms.reservations.sync"
+  # BNPL
+  "tourismpay.bnpl.plans.created"
+  "tourismpay.bnpl.instalments.due"
+  "tourismpay.bnpl.instalments.paid"
+  "tourismpay.bnpl.plans.defaulted"
+  # Direct Booking
+  "tourismpay.booking.direct.created"
+  "tourismpay.booking.direct.confirmed"
+  "tourismpay.booking.direct.cancelled"
+  # Group Travel / MICE
+  "tourismpay.group.bookings.created"
+  "tourismpay.group.bookings.settled"
+  "tourismpay.group.attrition.charged"
+  # e-Visa
+  "tourismpay.evisa.payment.initiated"
+  "tourismpay.evisa.payment.confirmed"
+  "tourismpay.evisa.payment.failed"
+  # DCC
+  "tourismpay.dcc.quotes.issued"
+  "tourismpay.dcc.transactions.confirmed"
+  # Agentic AI
+  "tourismpay.ai.booking.requested"
+  "tourismpay.ai.booking.completed"
+  "tourismpay.ai.booking.failed"
+  # Revenue Management
+  "tourismpay.revenue.recommendations.generated"
+  "tourismpay.revenue.pricing.applied"
+  # Tourism Intelligence
+  "tourismpay.intelligence.snapshots.daily"
+  "tourismpay.intelligence.fx.inflows"
+  # Open Banking
+  "tourismpay.openbanking.account.connected"
+  "tourismpay.openbanking.topup.initiated"
+  "tourismpay.openbanking.topup.completed"
+  # Travel Insurance
+  "tourismpay.insurance.policy.purchased"
+  "tourismpay.insurance.claim.filed"
+  "tourismpay.insurance.claim.settled"
+  # Diaspora Gifts
+  "tourismpay.gifts.created"
+  "tourismpay.gifts.redeemed"
+  "tourismpay.gifts.expired"
+  # White Label
+  "tourismpay.whitelabel.tenant.created"
+  "tourismpay.whitelabel.tenant.deployed"
+  # Accessibility
+  "tourismpay.accessibility.voice.payment.completed"
+  # Offline Sync
+  "tourismpay.offline.queue.flushed"
+  "tourismpay.offline.payment.synced"
+)
+
+echo "[Kafka] Creating gap service topics..."
+for TOPIC in "${NEW_GAP_TOPICS[@]}"; do
+  kafka-topics.sh \
+    --bootstrap-server "${KAFKA_BROKERS}" \
+    --create \
+    --if-not-exists \
+    --topic "${TOPIC}" \
+    --partitions 6 \
+    --replication-factor "${REPLICATION_FACTOR:-1}" \
+    --config retention.ms=604800000 \
+    --config cleanup.policy=delete
+  echo "[Kafka] Created topic: ${TOPIC}"
+done
+echo "[Kafka] Gap service topics created successfully"

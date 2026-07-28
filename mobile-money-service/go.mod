@@ -1,4 +1,4 @@
-module github.com/insureportal/mobile_money_service
+module github.com/tourismpay/mobile_money_service
 
 go 1.22.0
 

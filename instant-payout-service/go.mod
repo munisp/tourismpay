@@ -1,4 +1,4 @@
-module github.com/insureportal/instant_payout_service
+module github.com/tourismpay/instant_payout_service
 
 go 1.22.0
 

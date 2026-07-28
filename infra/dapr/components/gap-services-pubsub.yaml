@@ -1,0 +1,115 @@
+# infra/dapr/components/gap-services-pubsub.yaml
+# Dapr pub/sub subscriptions for TourismPay Gap Services
+# All services use the shared Kafka-backed pubsub component
+
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: pms-events-subscription
+spec:
+  topic: tourismpay.pms.events
+  route: /dapr/subscribe/pms-events
+  pubsubname: tourismpay-pubsub
+scopes:
+  - pms-integration
+  - go-settlement-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: bnpl-instalments-due-subscription
+spec:
+  topic: tourismpay.bnpl.instalments.due
+  route: /dapr/subscribe/bnpl-due
+  pubsubname: tourismpay-pubsub
+scopes:
+  - bnpl-service
+  - notification-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: direct-booking-confirmed-subscription
+spec:
+  topic: tourismpay.booking.direct.confirmed
+  route: /dapr/subscribe/booking-confirmed
+  pubsubname: tourismpay-pubsub
+scopes:
+  - direct-booking-engine
+  - notification-service
+  - pms-integration
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: evisa-confirmed-subscription
+spec:
+  topic: tourismpay.evisa.payment.confirmed
+  route: /dapr/subscribe/evisa-confirmed
+  pubsubname: tourismpay-pubsub
+scopes:
+  - evisa-payment-service
+  - notification-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: insurance-policy-purchased-subscription
+spec:
+  topic: tourismpay.insurance.policy.purchased
+  route: /dapr/subscribe/insurance-purchased
+  pubsubname: tourismpay-pubsub
+scopes:
+  - travel-insurance-service
+  - notification-service
+  - go-settlement-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: gifts-redeemed-subscription
+spec:
+  topic: tourismpay.gifts.redeemed
+  route: /dapr/subscribe/gift-redeemed
+  pubsubname: tourismpay-pubsub
+scopes:
+  - diaspora-gift-service
+  - notification-service
+  - go-settlement-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: intelligence-daily-snapshot-subscription
+spec:
+  topic: tourismpay.intelligence.snapshots.daily
+  route: /dapr/subscribe/intelligence-snapshot
+  pubsubname: tourismpay-pubsub
+scopes:
+  - tourism-intelligence-api
+  - lakehouse-etl
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: openbanking-topup-completed-subscription
+spec:
+  topic: tourismpay.openbanking.topup.completed
+  route: /dapr/subscribe/topup-completed
+  pubsubname: tourismpay-pubsub
+scopes:
+  - open-banking-service
+  - go-settlement-service
+  - notification-service
+---
+apiVersion: dapr.io/v1alpha1
+kind: Subscription
+metadata:
+  name: offline-payment-synced-subscription
+spec:
+  topic: tourismpay.offline.payment.synced
+  route: /dapr/subscribe/offline-synced
+  pubsubname: tourismpay-pubsub
+scopes:
+  - offline-queue
+  - go-settlement-service

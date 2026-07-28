@@ -112,6 +112,23 @@ import MerchantOnboardingWizard from "@/pages/MerchantOnboardingWizard";
 import TouristJourneyDashboard from "@/pages/TouristJourneyDashboard";
 import JourneyAdminDashboard from "@/pages/JourneyAdminDashboard";
 import ItineraryManager from "@/pages/ItineraryManager";
+// Gap Service Pages
+import PMSIntegration from "@/pages/merchant/PMSIntegration";
+import BNPLPlans from "@/pages/tourist/BNPLPlans";
+import DirectBooking from "@/pages/merchant/DirectBooking";
+import GroupTravel from "@/pages/merchant/GroupTravel";
+import EVisaPayment from "@/pages/tourist/EVisaPayment";
+import DCCAtPOS from "@/pages/merchant/DCCAtPOS";
+import AgenticAI from "@/pages/tourist/AgenticAI";
+import RevenueManagement from "@/pages/merchant/RevenueManagement";
+import TourismIntelligence from "@/pages/admin/TourismIntelligence";
+import OpenBanking from "@/pages/tourist/OpenBanking";
+import TravelInsurance from "@/pages/tourist/TravelInsurance";
+import DiasporaGifts from "@/pages/tourist/DiasporaGifts";
+import WhiteLabel from "@/pages/admin/WhiteLabel";
+import GeospatialAnalytics from "@/pages/admin/GeospatialAnalytics";
+import LakehouseETL from "@/pages/admin/LakehouseETL";
+
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
@@ -233,6 +250,23 @@ function Router() {
             <Route path="/journey/tourist">{() => <ProtectedRoute roles={["tourist", "admin"]}><TouristJourneyDashboard /></ProtectedRoute>}</Route>
             <Route path="/admin/journey-dashboard">{() => <ProtectedRoute roles={["admin"]}><JourneyAdminDashboard /></ProtectedRoute>}</Route>
             <Route component={NotFound} />
+
+            {/* Gap Service Routes */}
+            <Route path="/merchant/pms">{() => <ProtectedRoute roles={["merchant", "admin"]}><PMSIntegration /></ProtectedRoute>}</Route>
+            <Route path="/tourist/bnpl">{() => <ProtectedRoute roles={["tourist", "admin"]}><BNPLPlans /></ProtectedRoute>}</Route>
+            <Route path="/merchant/direct-booking">{() => <ProtectedRoute roles={["merchant", "admin"]}><DirectBooking /></ProtectedRoute>}</Route>
+            <Route path="/merchant/group-travel">{() => <ProtectedRoute roles={["merchant", "admin"]}><GroupTravel /></ProtectedRoute>}</Route>
+            <Route path="/tourist/evisa">{() => <ProtectedRoute roles={["tourist", "admin"]}><EVisaPayment /></ProtectedRoute>}</Route>
+            <Route path="/merchant/dcc">{() => <ProtectedRoute roles={["merchant", "admin"]}><DCCAtPOS /></ProtectedRoute>}</Route>
+            <Route path="/tourist/ai-agent">{() => <ProtectedRoute roles={["tourist", "admin"]}><AgenticAI /></ProtectedRoute>}</Route>
+            <Route path="/merchant/revenue-management">{() => <ProtectedRoute roles={["merchant", "admin"]}><RevenueManagement /></ProtectedRoute>}</Route>
+            <Route path="/admin/tourism-intelligence">{() => <ProtectedRoute roles={["admin", "compliance_officer", "noc_operator"]}><TourismIntelligence /></ProtectedRoute>}</Route>
+            <Route path="/tourist/open-banking">{() => <ProtectedRoute roles={["tourist", "admin"]}><OpenBanking /></ProtectedRoute>}</Route>
+            <Route path="/tourist/insurance">{() => <ProtectedRoute roles={["tourist", "admin"]}><TravelInsurance /></ProtectedRoute>}</Route>
+            <Route path="/tourist/gifts">{() => <ProtectedRoute roles={["tourist", "admin"]}><DiasporaGifts /></ProtectedRoute>}</Route>
+            <Route path="/admin/white-label">{() => <ProtectedRoute roles={["admin"]}><WhiteLabel /></ProtectedRoute>}</Route>
+            <Route path="/admin/geospatial">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><GeospatialAnalytics /></ProtectedRoute>}</Route>
+            <Route path="/admin/lakehouse">{() => <ProtectedRoute roles={["admin"]}><LakehouseETL /></ProtectedRoute>}</Route>
           </Switch>
         </AppShell>
       </Route>

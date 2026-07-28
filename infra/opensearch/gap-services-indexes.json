@@ -1,0 +1,136 @@
+{
+  "indexes": [
+    {
+      "name": "tourismpay-pms-reservations",
+      "settings": { "number_of_shards": 2, "number_of_replicas": 1 },
+      "mappings": {
+        "properties": {
+          "id": { "type": "keyword" },
+          "hotelId": { "type": "keyword" },
+          "guestName": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
+          "checkIn": { "type": "date" },
+          "checkOut": { "type": "date" },
+          "roomType": { "type": "keyword" },
+          "status": { "type": "keyword" },
+          "totalAmount": { "type": "double" },
+          "currency": { "type": "keyword" },
+          "balanceDue": { "type": "double" },
+          "provider": { "type": "keyword" },
+          "syncedAt": { "type": "date" }
+        }
+      }
+    },
+    {
+      "name": "tourismpay-bnpl-plans",
+      "settings": { "number_of_shards": 2, "number_of_replicas": 1 },
+      "mappings": {
+        "properties": {
+          "id": { "type": "keyword" },
+          "touristId": { "type": "keyword" },
+          "hotelId": { "type": "keyword" },
+          "totalAmount": { "type": "double" },
+          "currency": { "type": "keyword" },
+          "instalments": { "type": "integer" },
+          "status": { "type": "keyword" },
+          "createdAt": { "type": "date" },
+          "nextDueDate": { "type": "date" }
+        }
+      }
+    },
+    {
+      "name": "tourismpay-direct-bookings",
+      "settings": { "number_of_shards": 3, "number_of_replicas": 1 },
+      "mappings": {
+        "properties": {
+          "id": { "type": "keyword" },
+          "hotelSlug": { "type": "keyword" },
+          "hotelId": { "type": "keyword" },
+          "guestName": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
+          "guestEmail": { "type": "keyword" },
+          "checkIn": { "type": "date" },
+          "checkOut": { "type": "date" },
+          "roomType": { "type": "keyword" },
+          "totalAmount": { "type": "double" },
+          "currency": { "type": "keyword" },
+          "status": { "type": "keyword" },
+          "source": { "type": "keyword" },
+          "createdAt": { "type": "date" }
+        }
+      }
+    },
+    {
+      "name": "tourismpay-group-bookings",
+      "settings": { "number_of_shards": 2, "number_of_replicas": 1 },
+      "mappings": {
+        "properties": {
+          "id": { "type": "keyword" },
+          "groupName": { "type": "text" },
+          "hotelId": { "type": "keyword" },
+          "organizerId": { "type": "keyword" },
+          "eventType": { "type": "keyword" },
+          "paxCount": { "type": "integer" },
+          "checkIn": { "type": "date" },
+          "checkOut": { "type": "date" },
+          "totalAmount": { "type": "double" },
+          "depositPaid": { "type": "double" },
+          "status": { "type": "keyword" },
+          "createdAt": { "type": "date" }
+        }
+      }
+    },
+    {
+      "name": "tourismpay-intelligence-snapshots",
+      "settings": { "number_of_shards": 3, "number_of_replicas": 1 },
+      "mappings": {
+        "properties": {
+          "snapshotDate": { "type": "date" },
+          "totalArrivals": { "type": "long" },
+          "totalSpendNGN": { "type": "double" },
+          "avgSpendPerVisit": { "type": "double" },
+          "fxInflowUSD": { "type": "double" },
+          "topOriginCountries": { "type": "nested" },
+          "topEstablishments": { "type": "nested" },
+          "occupancyByCity": { "type": "nested" },
+          "spendByCategory": { "type": "nested" }
+        }
+      }
+    },
+    {
+      "name": "tourismpay-insurance-policies",
+      "settings": { "number_of_shards": 2, "number_of_replicas": 1 },
+      "mappings": {
+        "properties": {
+          "id": { "type": "keyword" },
+          "touristId": { "type": "keyword" },
+          "productType": { "type": "keyword" },
+          "coverageAmount": { "type": "double" },
+          "premiumAmount": { "type": "double" },
+          "currency": { "type": "keyword" },
+          "startDate": { "type": "date" },
+          "endDate": { "type": "date" },
+          "status": { "type": "keyword" },
+          "destination": { "type": "keyword" },
+          "purchasedAt": { "type": "date" }
+        }
+      }
+    },
+    {
+      "name": "tourismpay-diaspora-gifts",
+      "settings": { "number_of_shards": 2, "number_of_replicas": 1 },
+      "mappings": {
+        "properties": {
+          "id": { "type": "keyword" },
+          "senderId": { "type": "keyword" },
+          "recipientId": { "type": "keyword" },
+          "giftType": { "type": "keyword" },
+          "amountNGN": { "type": "double" },
+          "establishmentId": { "type": "keyword" },
+          "message": { "type": "text" },
+          "status": { "type": "keyword" },
+          "createdAt": { "type": "date" },
+          "redeemedAt": { "type": "date" }
+        }
+      }
+    }
+  ]
+}

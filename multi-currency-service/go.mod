@@ -1,4 +1,4 @@
-module github.com/insureportal/multi_currency_service
+module github.com/tourismpay/multi_currency_service
 
 go 1.22.0
 

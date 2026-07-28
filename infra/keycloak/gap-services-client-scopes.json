@@ -1,0 +1,72 @@
+{
+  "clientScopes": [
+    {
+      "name": "pms:write",
+      "description": "Write access to PMS Integration API",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    },
+    {
+      "name": "bnpl:write",
+      "description": "Create and manage BNPL plans",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    },
+    {
+      "name": "booking:write",
+      "description": "Create direct bookings",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    },
+    {
+      "name": "group:write",
+      "description": "Create and manage group bookings",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    },
+    {
+      "name": "evisa:write",
+      "description": "Process e-Visa fee payments",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    },
+    {
+      "name": "insurance:write",
+      "description": "Purchase travel insurance and file claims",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    },
+    {
+      "name": "gifts:write",
+      "description": "Create and redeem diaspora gifts",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    },
+    {
+      "name": "intelligence:read",
+      "description": "Read tourism intelligence data",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    },
+    {
+      "name": "openbanking:write",
+      "description": "Connect bank accounts and initiate top-ups",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    },
+    {
+      "name": "whitelabel:admin",
+      "description": "Manage white-label tenants (admin only)",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    }
+  ],
+  "roleToScopeMapping": {
+    "tourist": ["bnpl:write", "booking:write", "evisa:write", "insurance:write", "gifts:write", "openbanking:write"],
+    "merchant": ["pms:write", "group:write", "booking:write"],
+    "admin": ["pms:write", "bnpl:write", "booking:write", "group:write", "evisa:write", "insurance:write", "gifts:write", "intelligence:read", "openbanking:write", "whitelabel:admin"],
+    "compliance_officer": ["intelligence:read"],
+    "settlement_officer": ["bnpl:write", "intelligence:read"],
+    "noc_operator": ["intelligence:read"]
+  }
+}
