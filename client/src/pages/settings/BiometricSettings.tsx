@@ -131,10 +131,13 @@ export default function BiometricSettings() {
   const [lockoutCountdown, setLockoutCountdown] = useState(0);
 
   // Queries
-  const { data: enrollments = [], isLoading: loadingList, refetch: refetchList } =
-    trpc.biometric.list.useQuery();
-  const { data: stats, isLoading: loadingStats } =
-    trpc.biometric.stats.useQuery();
+  const { data: enrollments = [], isLoading: loadingListRaw, isFetched: listFetched, isError: listError, refetch: refetchList } =
+    trpc.biometric.list.useQuery(undefined, { retry: 1 });
+  const { data: stats, isLoading: loadingStatsRaw, isFetched: statsFetched, isError: statsError } =
+    trpc.biometric.stats.useQuery(undefined, { retry: 1 });
+  // Only show loading skeleton on first fetch — not on background refetches or errors
+  const loadingList = loadingListRaw && !listFetched && !listError;
+  const loadingStats = loadingStatsRaw && !statsFetched && !statsError;
   const { data: checkData } =
     trpc.biometric.checkEnabled.useQuery();
   const { data: lockoutStatus, refetch: refetchLockout } =

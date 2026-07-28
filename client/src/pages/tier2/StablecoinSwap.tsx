@@ -217,36 +217,39 @@ export default function StablecoinSwap() {
     onError: (err) => { toast.error(err.message); setCreatingAlert(false); },
   });
 
-  const tabs: { id: TabType; label: string; icon: typeof DollarSign }[] = [
-    { id: "buy", label: "Buy (On-Ramp)", icon: ArrowRight },
-    { id: "sell", label: "Sell (Off-Ramp)", icon: ArrowDownUp },
-    { id: "swap", label: "Swap", icon: RefreshCw },
-    { id: "yield", label: "Earn Yield", icon: PiggyBank },
-    { id: "limits", label: "Limit Orders", icon: Timer },
-    { id: "dca", label: "DCA", icon: Repeat },
-    { id: "alerts", label: "Alerts", icon: Bell },
-    { id: "portfolio", label: "Portfolio", icon: PieChart },
-    { id: "compliance", label: "Compliance", icon: ShieldCheck },
-    { id: "history", label: "History", icon: Clock },
+  const tabs: { id: TabType; label: string; shortLabel: string; icon: typeof DollarSign }[] = [
+    { id: "buy", label: "Buy (On-Ramp)", shortLabel: "Buy", icon: ArrowRight },
+    { id: "sell", label: "Sell (Off-Ramp)", shortLabel: "Sell", icon: ArrowDownUp },
+    { id: "swap", label: "Swap", shortLabel: "Swap", icon: RefreshCw },
+    { id: "yield", label: "Earn Yield", shortLabel: "Earn", icon: PiggyBank },
+    { id: "limits", label: "Limit Orders", shortLabel: "Limits", icon: Timer },
+    { id: "dca", label: "DCA", shortLabel: "DCA", icon: Repeat },
+    { id: "alerts", label: "Alerts", shortLabel: "Alerts", icon: Bell },
+    { id: "portfolio", label: "Portfolio", shortLabel: "Portfolio", icon: PieChart },
+    { id: "compliance", label: "Compliance", shortLabel: "Compliance", icon: ShieldCheck },
+    { id: "history", label: "History", shortLabel: "History", icon: Clock },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 min-h-full space-y-6">
       <PageHeader title="Stablecoin Swap" subtitle="Buy and sell stablecoins with African payment rails" />
 
-      {/* Tab Navigation — scrollable on mobile, full width on desktop */}
-      <div className="flex gap-1 p-1 bg-muted rounded-lg overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-1">
+      {/* Tab Navigation — always scrollable horizontally */}
+      <div
+        className="flex gap-1 p-1 bg-muted rounded-lg overflow-x-auto"
+        style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
+      >
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-2 rounded-md text-xs sm:text-sm font-medium whitespace-nowrap transition-colors touch-manipulation ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium whitespace-nowrap transition-colors touch-manipulation shrink-0 ${
               tab === t.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <t.icon className="h-4 w-4 shrink-0" />
-            <span className="hidden xs:inline sm:inline">{t.label}</span>
-            <span className="xs:hidden">{t.label.split(" ")[0]}</span>
+            <t.icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="hidden sm:inline">{t.label}</span>
+            <span className="sm:hidden">{t.shortLabel}</span>
           </button>
         ))}
       </div>

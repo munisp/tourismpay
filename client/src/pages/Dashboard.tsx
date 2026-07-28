@@ -22,16 +22,17 @@ const statusConfig = {
 export default function Dashboard() {
   const [, navigate] = useLocation();
 
-  const { data: dashStats, isLoading: dashLoading } = trpc.africa.dashboardStats.useQuery(undefined, { refetchInterval: 60_000 });
-  const { data: bisStats, isLoading: bisLoading } = trpc.bis.stats.useQuery(undefined, { refetchInterval: 60_000 });
-  const { data: fraudStats } = trpc.fraud.stats.useQuery(undefined, { refetchInterval: 60_000 });
-  const { data: socStats } = trpc.soc.stats.useQuery(undefined, { refetchInterval: 60_000 });
-  const { data: recentBis } = trpc.bis.list.useQuery({ limit: 5 }, { refetchInterval: 30_000 });
-  const { data: recentFraud } = trpc.fraud.list.useQuery({ limit: 2 }, { refetchInterval: 30_000 });
-  const { data: txData = [] } = trpc.africa.txVolume.useQuery(undefined, { refetchInterval: 60_000 });
-  const { data: countryData = [] } = trpc.africa.countryBreakdown.useQuery(undefined, { refetchInterval: 60_000 });
+  const { data: dashStats, isLoading: dashLoading, isFetched: dashFetched } = trpc.africa.dashboardStats.useQuery(undefined, { refetchInterval: 60_000, retry: 1 });
+  const { data: bisStats, isLoading: bisLoading, isFetched: bisFetched } = trpc.bis.stats.useQuery(undefined, { refetchInterval: 60_000, retry: 1 });
+  const { data: fraudStats } = trpc.fraud.stats.useQuery(undefined, { refetchInterval: 60_000, retry: 1 });
+  const { data: socStats } = trpc.soc.stats.useQuery(undefined, { refetchInterval: 60_000, retry: 1 });
+  const { data: recentBis } = trpc.bis.list.useQuery({ limit: 5 }, { refetchInterval: 30_000, retry: 1 });
+  const { data: recentFraud } = trpc.fraud.list.useQuery({ limit: 2 }, { refetchInterval: 30_000, retry: 1 });
+  const { data: txData = [] } = trpc.africa.txVolume.useQuery(undefined, { refetchInterval: 60_000, retry: 1 });
+  const { data: countryData = [] } = trpc.africa.countryBreakdown.useQuery(undefined, { refetchInterval: 60_000, retry: 1 });
 
-  const isLoading = dashLoading || bisLoading;
+  // Only show loading skeleton on the very first fetch — not on background refetches
+  const isLoading = (dashLoading && !dashFetched) || (bisLoading && !bisFetched);
   const maxTxns = Math.max(...countryData.map(c => c.txns), 1);
 
   const activityFeed = [

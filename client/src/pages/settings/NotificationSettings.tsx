@@ -203,7 +203,9 @@ export default function NotificationSettings() {
 
   const utils = trpc.useUtils();
 
-  const { data, isLoading } = trpc.notifPrefs.get.useQuery();
+  const { data, isLoading, isFetched, isError } = trpc.notifPrefs.get.useQuery(undefined, { retry: 1 });
+  // Only show spinner on the very first load — not on background refetches or errors
+  const showLoading = isLoading && !isFetched && !isError;
 
   const updateMutation = trpc.notifPrefs.update.useMutation({
     onSuccess: () => {
@@ -334,7 +336,7 @@ export default function NotificationSettings() {
         }
       />
 
-      {isLoading ? (
+      {showLoading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 className="w-5 h-5 animate-spin mr-2" />
           <span className="text-sm">Loading preferences...</span>

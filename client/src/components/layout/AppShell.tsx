@@ -228,8 +228,8 @@ export default function AppShell({ children }: AppShellProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "hidden lg:flex flex-col h-full transition-all duration-300 ease-out border-r border-border",
-          "bg-sidebar relative z-20",
+          "hidden lg:flex flex-col h-screen min-h-0 transition-all duration-300 ease-out border-r border-border",
+          "bg-sidebar relative z-20 shrink-0",
           collapsed ? "w-16" : "w-64"
         )}
       >
@@ -275,7 +275,7 @@ export default function AppShell({ children }: AppShellProps) {
         )}
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
+        <nav className="flex-1 overflow-y-auto min-h-0 py-3 px-2 space-y-4">
           {Object.entries(sections).map(([section, items]) => (
             <div key={section}>
               {!collapsed && (
@@ -435,8 +435,8 @@ export default function AppShell({ children }: AppShellProps) {
         <FXRateTicker />
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
-          {children}
+        <main className="flex-1 overflow-y-auto pb-16 lg:pb-0 flex flex-col">
+          <div className="flex-1 flex flex-col">{children}</div>
         </main>
       </div>
       {/* Mobile bottom nav */}

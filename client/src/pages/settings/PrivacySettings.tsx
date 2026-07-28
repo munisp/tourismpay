@@ -10,7 +10,9 @@ export default function PrivacySettings() {
   const utils = trpc.useUtils();
 
   // Fetch unified privacy settings (leaderboard opt-out + hide transaction history)
-  const { data: privacyData, isLoading } = trpc.loyalty.getPrivacySettings.useQuery();
+  const { data: privacyData, isLoading: privacyLoading, isFetched: privacyFetched, isError: privacyError } = trpc.loyalty.getPrivacySettings.useQuery(undefined, { retry: 1 });
+  // Only show spinner on first load — not on background refetches or when query errors
+  const isLoading = privacyLoading && !privacyFetched && !privacyError;
 
   const [leaderboardOptOut, setLeaderboardOptOut] = useState(false);
   const [hideTransactionHistory, setHideTransactionHistory] = useState(false);
