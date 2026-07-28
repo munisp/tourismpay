@@ -675,6 +675,7 @@ import { travelInsuranceRouter } from "./routers/travelInsurance";
 import { diasporaGiftsRouter } from "./routers/diasporaGifts";
 import { geospatialAnalyticsRouter } from "./routers/geospatialAnalytics";
 import { lakehouseEtlRouter as lakehouseEtlGapRouter } from "./routers/lakehouseEtl";
+import { whiteLabelRouter } from "./routers/whiteLabel";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -1520,6 +1521,7 @@ adminDashboard: adminDashboardRouter,
   travelInsurance: travelInsuranceRouter,
   diasporaGifts: diasporaGiftsRouter,
   geospatialAnalytics: geospatialAnalyticsRouter,
+  whiteLabel: whiteLabelRouter,
   lakehouseEtlGap: lakehouseEtlGapRouter,
 });
 

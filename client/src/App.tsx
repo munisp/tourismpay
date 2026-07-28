@@ -124,6 +124,7 @@ import RevenueManagement from "@/pages/merchant/RevenueManagement";
 import TourismIntelligence from "@/pages/admin/TourismIntelligence";
 import OpenBanking from "@/pages/tourist/OpenBanking";
 import TravelInsurance from "@/pages/tourist/TravelInsurance";
+import AITravelAgent from "@/pages/tourist/AITravelAgent";
 import DiasporaGifts from "@/pages/tourist/DiasporaGifts";
 import WhiteLabel from "@/pages/admin/WhiteLabel";
 import GeospatialAnalytics from "@/pages/admin/GeospatialAnalytics";
@@ -263,6 +264,7 @@ function Router() {
             <Route path="/admin/tourism-intelligence">{() => <ProtectedRoute roles={["admin", "compliance_officer", "noc_operator"]}><TourismIntelligence /></ProtectedRoute>}</Route>
             <Route path="/tourist/open-banking">{() => <ProtectedRoute roles={["tourist", "admin"]}><OpenBanking /></ProtectedRoute>}</Route>
             <Route path="/tourist/insurance">{() => <ProtectedRoute roles={["tourist", "admin"]}><TravelInsurance /></ProtectedRoute>}</Route>
+            <Route path="/tourist/ai-agent">{() => <ProtectedRoute roles={["tourist", "admin"]}><AITravelAgent /></ProtectedRoute>}</Route>
             <Route path="/tourist/gifts">{() => <ProtectedRoute roles={["tourist", "admin"]}><DiasporaGifts /></ProtectedRoute>}</Route>
             <Route path="/admin/white-label">{() => <ProtectedRoute roles={["admin"]}><WhiteLabel /></ProtectedRoute>}</Route>
             <Route path="/admin/geospatial">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><GeospatialAnalytics /></ProtectedRoute>}</Route>

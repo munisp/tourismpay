@@ -5,11 +5,11 @@ import { toast } from "sonner";
 import { BarChart3, Globe, TrendingUp, Users, DollarSign, RefreshCw } from "lucide-react";
 
 export default function TourismIntelligence() {
-  const { data: dashboard, isLoading, refetch } = trpc.tourismIntelligence.getDashboard.useQuery({ country: "NG", days: 30 });
-  const { data: snapshots } = trpc.tourismIntelligence.listSnapshots.useQuery({ country: "NG", limit: 30 });
-  const { data: report } = trpc.tourismIntelligence.getMarketReport.useQuery({ country: "NG" });
+  const { data: dashboard, isLoading, refetch } = trpc.tourismIntelligence.getLatestSnapshot.useQuery({ country: "NG", days: 30 });
+  const { data: snapshots } = trpc.tourismIntelligence.getHistory.useQuery({ country: "NG", limit: 30 });
+  const { data: report } = trpc.tourismIntelligence.getCBNReport.useQuery({ country: "NG" });
 
-  const snapshotMut = trpc.tourismIntelligence.createSnapshot.useMutation({
+  const snapshotMut = trpc.tourismIntelligence.generateSnapshot.useMutation({
     onSuccess: () => { toast.success("Snapshot created"); refetch(); },
     onError: (e) => toast.error("Failed", { description: e.message }),
   });

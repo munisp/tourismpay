@@ -15,7 +15,7 @@ export default function BNPLPlans() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ hotel_id: "", total_amount: "", currency: "NGN", instalments: "3" });
 
-  const { data: plans, isLoading, refetch } = trpc.bnpl.listPlans.useQuery(
+  const { data: plans, isLoading, refetch } = trpc.bnpl.myPlans.useQuery(
     { touristId: user?.id ?? "" },
     { enabled: !!user?.id }
   );

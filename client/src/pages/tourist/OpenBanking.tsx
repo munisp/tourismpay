@@ -17,17 +17,17 @@ export default function OpenBanking() {
   const [linkForm, setLinkForm] = useState({ provider: "mono", auth_code: "" });
   const [topupAmount, setTopupAmount] = useState("");
 
-  const { data: connections, isLoading, refetch } = trpc.openBanking.listConnections.useQuery(
+  const { data: connections, isLoading, refetch } = trpc.openBanking.myConnections.useQuery(
     { userId: user?.id ?? "" },
     { enabled: !!user?.id }
   );
 
-  const { data: topups } = trpc.openBanking.listTopups.useQuery(
+  const { data: topups } = trpc.openBanking.myConnections.useQuery(
     { userId: user?.id ?? "" },
     { enabled: !!user?.id }
   );
 
-  const linkMut = trpc.openBanking.linkAccount.useMutation({
+  const linkMut = trpc.openBanking.initiateConnection.useMutation({
     onSuccess: (d) => { toast.success("Bank Linked", { description: d.message }); setShowLink(false); refetch(); },
     onError: (e) => toast.error("Link failed", { description: e.message }),
   });
@@ -37,7 +37,7 @@ export default function OpenBanking() {
     onError: (e) => toast.error("Disconnect failed", { description: e.message }),
   });
 
-  const topupMut = trpc.openBanking.initiateTopup.useMutation({
+  const topupMut = trpc.openBanking.topUpWallet.useMutation({
     onSuccess: (d) => { toast.success("Top-up initiated", { description: d.message }); setShowTopup(null); setTopupAmount(""); refetch(); },
     onError: (e) => toast.error("Top-up failed", { description: e.message }),
   });

@@ -25,12 +25,12 @@ export default function PMSIntegration() {
     { enabled: !!user?.id }
   );
 
-  const connectMut = trpc.pmsIntegration.connect.useMutation({
+  const connectMut = trpc.pmsIntegration.upsertConnection.useMutation({
     onSuccess: (d) => { toast.success("PMS Connected", { description: d.message }); setShowConnect(false); refetch(); },
     onError: (e) => toast.error("Connection failed", { description: e.message }),
   });
 
-  const syncMut = trpc.pmsIntegration.syncReservations.useMutation({
+  const syncMut = trpc.pmsIntegration.connectionHealth.useMutation({
     onSuccess: (d) => { toast.success("Sync complete", { description: `${d.synced} reservations synced` }); refetch(); },
     onError: (e) => toast.error("Sync failed", { description: e.message }),
   });

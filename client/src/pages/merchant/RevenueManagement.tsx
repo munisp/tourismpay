@@ -15,12 +15,12 @@ export default function RevenueManagement() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ room_type: "standard", current_rate: "", occupancy_pct: "60", days_ahead: "7" });
 
-  const { data: recommendations, isLoading, refetch } = trpc.revenueManagement.listRecommendations.useQuery(
+  const { data: recommendations, isLoading, refetch } = trpc.revenueManagement.getRecommendations.useQuery(
     { hotelId: user?.id ?? "" },
     { enabled: !!user?.id }
   );
 
-  const createMut = trpc.revenueManagement.createRecommendation.useMutation({
+  const createMut = trpc.revenueManagement.generateRecommendations.useMutation({
     onSuccess: (d) => { toast.success("Recommendation Generated", { description: d.reason }); setShowCreate(false); refetch(); },
     onError: (e) => toast.error("Failed", { description: e.message }),
   });

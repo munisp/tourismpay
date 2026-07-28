@@ -416,3 +416,38 @@ services:
 volumes:
   lakehouse_data:
     driver: local
+
+  diaspora-gifts-service:
+    build:
+      context: ./services/diaspora-gifts-service
+      dockerfile: Dockerfile
+    ports:
+      - "8101:8101"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - KAFKA_BROKERS=${KAFKA_BROKERS}
+      - PORT=8101
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8101/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  white-label-service:
+    build:
+      context: ./services/white-label-service
+      dockerfile: Dockerfile
+    ports:
+      - "8105:8105"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - PORT=8105
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8105/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

@@ -320,6 +320,21 @@ import { WalletExtras } from "../screens/finance/WalletExtras";
 import { MoreHomeScreen } from "../screens/MoreHomeScreen";
 import { SecurityHome } from "../screens/security/SecurityHome";
 import { SettingsHome } from "../screens/settings/SettingsHome";
+import BNPLPlansScreen from "../screens/tourist/BNPLPlans";
+import EVisaPaymentScreen from "../screens/tourist/EVisaPayment";
+import OpenBankingScreen from "../screens/tourist/OpenBanking";
+import TravelInsuranceScreen from "../screens/tourist/TravelInsurance";
+import DiasporaGiftsScreen from "../screens/tourist/DiasporaGifts";
+import AITravelAgentScreen from "../screens/other/AITravelAgent";
+import PMSIntegrationScreen from "../screens/merchant/PMSIntegration";
+import DirectBookingScreen from "../screens/merchant/DirectBooking";
+import GroupTravelScreen from "../screens/merchant/GroupTravel";
+import DCCatPOSScreen from "../screens/merchant/DCCatPOS";
+import RevenueManagementScreen from "../screens/merchant/RevenueManagement";
+import TourismIntelligenceScreen from "../screens/admin/TourismIntelligence";
+import GeospatialAnalyticsScreen from "../screens/admin/GeospatialAnalytics";
+import LakehouseETLScreen from "../screens/admin/LakehouseETL";
+import WhiteLabelScreen from "../screens/admin/WhiteLabel";
 
 // ─── Bottom Tab Navigator ────────────────────────────────────────────────────
 

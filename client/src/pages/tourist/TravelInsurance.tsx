@@ -14,30 +14,27 @@ export default function TravelInsurance() {
   const { user } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
   const [showClaim, setShowClaim] = useState<string | null>(null);
-  const [form, setForm] = useState({ policy_type: "comprehensive", destination_country: "NG", trip_duration_days: "7", start_date: "", end_date: "", trip_cost: "500000" });
-  const [claimForm, setClaimForm] = useState({ claim_type: "medical", amount_claimed: "", description: "" });
+  const [form, setForm] = useState({ productId: "standard", destination: "NG", travelDays: "7", travelStartDate: "", tripCostUsd: "500" });
+  const [claimForm, setClaimForm] = useState({ claimType: "medical" as "cancellation"|"medical"|"baggage"|"delay"|"liability", incidentDate: "", description: "" });
+
+  const { data: products } = trpc.travelInsurance.getProducts.useQuery();
 
   const { data: quote } = trpc.travelInsurance.getQuote.useQuery(
-    { policyType: form.policy_type, tripDurationDays: parseInt(form.trip_duration_days), destinationCountry: form.destination_country, tripCost: parseFloat(form.trip_cost) },
+    { productId: form.productId as "basic"|"standard"|"premium", tripCostUsd: parseFloat(form.tripCostUsd) || 500, travelDays: parseInt(form.travelDays) || 7, travellers: 1 },
     { enabled: true }
   );
 
-  const { data: policies, isLoading, refetch } = trpc.travelInsurance.listPolicies.useQuery(
-    { touristId: user?.id ?? "" },
+  const { data: policies, isLoading, refetch } = trpc.travelInsurance.myPolicies.useQuery(
+    undefined,
     { enabled: !!user?.id }
   );
 
-  const { data: claims } = trpc.travelInsurance.listClaims.useQuery(
-    { touristId: user?.id ?? "" },
-    { enabled: !!user?.id }
-  );
-
-  const createMut = trpc.travelInsurance.createPolicy.useMutation({
-    onSuccess: (d) => { toast.success("Policy Created", { description: d.message }); setShowCreate(false); refetch(); },
+  const createMut = trpc.travelInsurance.purchasePolicy.useMutation({
+    onSuccess: (d) => { toast.success("Policy Created", { description: `Policy ${d.policyId} active` }); setShowCreate(false); refetch(); },
     onError: (e) => toast.error("Failed", { description: e.message }),
   });
 
-  const claimMut = trpc.travelInsurance.createClaim.useMutation({
+  const claimMut = trpc.travelInsurance.fileClaim.useMutation({
     onSuccess: (d) => { toast.success("Claim Submitted", { description: d.message }); setShowClaim(null); refetch(); },
     onError: (e) => toast.error("Failed", { description: e.message }),
   });
@@ -54,9 +51,9 @@ export default function TravelInsurance() {
       {quote && (
         <Card className="border-green-200 bg-green-50">
           <CardContent className="p-4 grid grid-cols-3 gap-4">
-            <div><p className="text-xs text-green-700">Premium</p><p className="text-xl font-bold text-green-900">USD {quote.premium_amount}</p></div>
-            <div><p className="text-xs text-green-700">Coverage</p><p className="text-xl font-bold text-green-900">USD {Number(quote.coverage_amount).toLocaleString()}</p></div>
-            <div><p className="text-xs text-green-700">Type</p><p className="text-xl font-bold text-green-900 capitalize">{quote.policy_type}</p></div>
+            <div><p className="text-xs text-green-700">Premium</p><p className="text-xl font-bold text-green-900">USD {quote.totalPremiumUsd}</p></div>
+            <div><p className="text-xs text-green-700">Coverage</p><p className="text-xl font-bold text-green-900">USD {Number(quote.coverageUsd).toLocaleString()}</p></div>
+            <div><p className="text-xs text-green-700">Type</p><p className="text-xl font-bold text-green-900 capitalize">{form.productId}</p></div>
           </CardContent>
         </Card>
       )}
@@ -67,19 +64,18 @@ export default function TravelInsurance() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Policy Type</Label>
-                <Select value={form.policy_type} onValueChange={v => setForm(f => ({...f, policy_type: v}))}>
+                <Select value={form.productId} onValueChange={v => setForm(f => ({...f, productId: v}))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{[["comprehensive","Comprehensive"],["medical","Medical Only"],["cancellation","Trip Cancellation"],["baggage","Baggage"]].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+                  <SelectContent>{[["basic","Basic Trip Protection"],["standard","Standard Coverage"],["premium","Premium Protection"]].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Destination</Label><Input value={form.destination_country} onChange={e => setForm(f => ({...f, destination_country: e.target.value}))} placeholder="NG" maxLength={2} /></div>
-              <div><Label>Start Date</Label><Input type="date" value={form.start_date} onChange={e => setForm(f => ({...f, start_date: e.target.value}))} /></div>
-              <div><Label>End Date</Label><Input type="date" value={form.end_date} onChange={e => setForm(f => ({...f, end_date: e.target.value}))} /></div>
-              <div><Label>Duration (days)</Label><Input type="number" value={form.trip_duration_days} onChange={e => setForm(f => ({...f, trip_duration_days: e.target.value}))} /></div>
-              <div><Label>Trip Cost (NGN)</Label><Input type="number" value={form.trip_cost} onChange={e => setForm(f => ({...f, trip_cost: e.target.value}))} /></div>
+              <div><Label>Destination</Label><Input value={form.destination} onChange={e => setForm(f => ({...f, destination: e.target.value}))} placeholder="NG" /></div>
+              <div><Label>Travel Start Date</Label><Input type="date" value={form.travelStartDate} onChange={e => setForm(f => ({...f, travelStartDate: e.target.value}))} /></div>
+              <div><Label>Duration (days)</Label><Input type="number" value={form.travelDays} onChange={e => setForm(f => ({...f, travelDays: e.target.value}))} /></div>
+              <div><Label>Trip Cost (USD)</Label><Input type="number" value={form.tripCostUsd} onChange={e => setForm(f => ({...f, tripCostUsd: e.target.value}))} /></div>
             </div>
             <div className="flex gap-2">
-              <Button onClick={() => createMut.mutate({ touristId: user?.id ?? "", ...form, tripDurationDays: parseInt(form.trip_duration_days), tripCost: parseFloat(form.trip_cost) })} disabled={createMut.isPending}>{createMut.isPending ? "Creating..." : "Purchase Policy"}</Button>
+              <Button onClick={() => createMut.mutate({ productId: form.productId as "basic"|"standard"|"premium", tripCostUsd: parseFloat(form.tripCostUsd), travelDays: parseInt(form.travelDays), travellers: 1, totalPremiumUsd: quote?.totalPremiumUsd ?? 0, travelStartDate: form.travelStartDate, destination: form.destination })} disabled={createMut.isPending}>{createMut.isPending ? "Creating..." : "Purchase Policy"}</Button>
               <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
             </div>
           </CardContent>
@@ -94,31 +90,31 @@ export default function TravelInsurance() {
           <Card key={p.id}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
-                <div><p className="font-medium capitalize">{p.policy_type} Insurance</p><p className="text-sm text-gray-500">{p.policy_number} · {p.provider}</p></div>
+                <div><p className="font-medium capitalize">{p.productId} Insurance</p><p className="text-sm text-gray-500">{p.policyNumber}</p></div>
                 <div className="flex items-center gap-2">
                   <Badge className={statusColor(p.status)}>{p.status}</Badge>
                   {p.status === "active" && <Button size="sm" variant="outline" onClick={() => setShowClaim(p.id)}>File Claim</Button>}
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3 text-sm">
-                <div><p className="text-gray-500">Coverage</p><p className="font-medium">USD {Number(p.coverage_amount).toLocaleString()}</p></div>
-                <div><p className="text-gray-500">Premium</p><p className="font-medium">USD {p.premium_amount}</p></div>
-                <div><p className="text-gray-500">Valid</p><p className="font-medium">{p.start_date} – {p.end_date}</p></div>
+                <div><p className="text-gray-500">Coverage</p><p className="font-medium">USD {Number(p.coverageUsd).toLocaleString()}</p></div>
+                <div><p className="text-gray-500">Premium</p><p className="font-medium">USD {p.premiumPaid}</p></div>
+                <div><p className="text-gray-500">Destination</p><p className="font-medium">{p.destination}</p></div>
               </div>
               {showClaim === p.id && (
                 <div className="mt-3 space-y-3 border-t pt-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Claim Type</Label>
-                      <Select value={claimForm.claim_type} onValueChange={v => setClaimForm(f => ({...f, claim_type: v}))}>
+                      <Select value={claimForm.claimType} onValueChange={v => setClaimForm(f => ({...f, claimType: v as any}))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>{[["medical","Medical"],["cancellation","Cancellation"],["baggage","Baggage"],["delay","Flight Delay"]].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+                        <SelectContent>{[["medical","Medical"],["cancellation","Cancellation"],["baggage","Baggage"],["delay","Flight Delay"],["liability","Liability"]].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
-                    <div><Label>Amount (USD)</Label><Input type="number" value={claimForm.amount_claimed} onChange={e => setClaimForm(f => ({...f, amount_claimed: e.target.value}))} /></div>
+                    <div><Label>Incident Date</Label><Input type="date" value={claimForm.incidentDate} onChange={e => setClaimForm(f => ({...f, incidentDate: e.target.value}))} /></div>
                   </div>
                   <div><Label>Description</Label><Input value={claimForm.description} onChange={e => setClaimForm(f => ({...f, description: e.target.value}))} placeholder="Describe what happened..." /></div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => claimMut.mutate({ policyId: p.id, touristId: user?.id ?? "", claimType: claimForm.claim_type, amountClaimed: parseFloat(claimForm.amount_claimed), description: claimForm.description })} disabled={claimMut.isPending}>{claimMut.isPending ? "Submitting..." : "Submit Claim"}</Button>
+                    <Button size="sm" onClick={() => claimMut.mutate({ policyId: p.id, claimType: claimForm.claimType, incidentDate: claimForm.incidentDate, description: claimForm.description, claimAmountUsd: 0 })} disabled={claimMut.isPending}>{claimMut.isPending ? "Submitting..." : "Submit Claim"}</Button>
                     <Button size="sm" variant="outline" onClick={() => setShowClaim(null)}>Cancel</Button>
                   </div>
                 </div>

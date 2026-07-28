@@ -10,17 +10,17 @@ import { MapPin, Navigation, Layers, Search } from "lucide-react";
 export default function GeospatialAnalytics() {
   const [coords, setCoords] = useState({ lat: "6.5244", lng: "3.3792", radius: "5000" });
 
-  const { data: nearby, isLoading, refetch } = trpc.geospatialAnalytics.getNearbyEstablishments.useQuery(
+  const { data: nearby, isLoading, refetch } = trpc.geospatialAnalytics.nearbyEstablishments.useQuery(
     { lat: parseFloat(coords.lat), lng: parseFloat(coords.lng), radiusMeters: parseInt(coords.radius) },
     { enabled: true }
   );
 
-  const { data: heatmap } = trpc.geospatialAnalytics.getTransactionHeatmap.useQuery(
+  const { data: heatmap } = trpc.geospatialAnalytics.densityHeatmap.useQuery(
     { lat: parseFloat(coords.lat), lng: parseFloat(coords.lng), radiusMeters: parseInt(coords.radius) },
     { enabled: true }
   );
 
-  const { data: zones } = trpc.geospatialAnalytics.getLoyaltyZones.useQuery(
+  const { data: zones } = trpc.geospatialAnalytics.nearbyLoyaltyZones.useQuery(
     { lat: parseFloat(coords.lat), lng: parseFloat(coords.lng) },
     { enabled: true }
   );

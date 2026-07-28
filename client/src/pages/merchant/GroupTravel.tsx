@@ -15,7 +15,7 @@ export default function GroupTravel() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ group_name: "", organizer_email: "", event_type: "conference", pax_count: "20", rooms_required: "10", check_in: "", check_out: "", nights: "2", rate_per_room_per_night: "", currency: "NGN", attrition_pct: "20", notes: "" });
 
-  const { data: bookings, isLoading, refetch } = trpc.groupTravel.listGroupBookings.useQuery(
+  const { data: bookings, isLoading, refetch } = trpc.groupTravel.hotelGroupBookings.useQuery(
     { hotelId: user?.id ?? "" },
     { enabled: !!user?.id }
   );

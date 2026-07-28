@@ -14,7 +14,7 @@ export default function DirectBooking() {
   const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const { data: bookings, isLoading, refetch } = trpc.directBooking.listHotelBookings.useQuery(
+  const { data: bookings, isLoading, refetch } = trpc.directBooking.myHotelBookings.useQuery(
     { hotelId: user?.id ?? "", status: statusFilter === "all" ? undefined : statusFilter },
     { enabled: !!user?.id }
   );
@@ -24,7 +24,7 @@ export default function DirectBooking() {
     onError: (e) => toast.error("Failed", { description: e.message }),
   });
 
-  const cancelMut = trpc.directBooking.cancelBooking.useMutation({
+  const cancelMut = trpc.directBooking.confirmBooking.useMutation({
     onSuccess: () => { toast.success("Booking cancelled"); refetch(); },
     onError: (e) => toast.error("Failed", { description: e.message }),
   });

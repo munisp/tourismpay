@@ -15,7 +15,7 @@ export default function DCCatPOS() {
   const [currency, setCurrency] = useState("USD");
   const [quote, setQuote] = useState<any>(null);
 
-  const { data: analytics } = trpc.dcc.getMerchantAnalytics.useQuery(
+  const { data: analytics } = trpc.dcc.merchantAnalytics.useQuery(
     { merchantId: user?.id ?? "", days: 30 },
     { enabled: !!user?.id }
   );

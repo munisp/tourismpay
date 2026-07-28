@@ -15,7 +15,7 @@ export default function EVisaPayment() {
   const [form, setForm] = useState({ passport_number: "", nationality: "GB", visa_type: "tourist", duration_days: "30" });
   const [showForm, setShowForm] = useState(false);
 
-  const { data: fee } = trpc.eVisa.getFee.useQuery(
+  const { data: fee } = trpc.eVisa.getVisaFee.useQuery(
     { nationality: form.nationality, visaType: form.visa_type },
     { enabled: !!form.nationality }
   );

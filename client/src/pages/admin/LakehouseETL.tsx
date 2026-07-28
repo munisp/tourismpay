@@ -7,9 +7,9 @@ import { Database, Play, CheckCircle, XCircle, Clock, RefreshCw } from "lucide-r
 
 export default function LakehouseETL() {
   const { data: runs, isLoading, refetch } = trpc.lakehouseEtl.listRuns.useQuery({ limit: 20 });
-  const { data: stats } = trpc.lakehouseEtl.getStats.useQuery({});
+  const { data: stats } = trpc.lakehouseEtl.jobStats.useQuery({});
 
-  const triggerMut = trpc.lakehouseEtl.triggerRun.useMutation({
+  const triggerMut = trpc.lakehouseEtl.triggerJob.useMutation({
     onSuccess: (d) => { toast.success("ETL Run Triggered", { description: d.message }); refetch(); },
     onError: (e) => toast.error("Failed to trigger run", { description: e.message }),
   });

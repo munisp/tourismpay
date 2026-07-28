@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Bot, Send, User, Sparkles, MapPin, Calendar, DollarSign } from "lucide-react";
+import { Bot, Send, User, Sparkles } from "lucide-react";
 
 export default function AITravelAgent() {
   const { user } = useAuth();
@@ -13,15 +13,20 @@ export default function AITravelAgent() {
     { role: "assistant", content: "Hello! I'm your TourismPay AI Travel Agent. I can help you plan your Nigeria trip, find the best hotels, suggest local experiences, and handle your payments. What would you like to explore?" }
   ]);
   const [input, setInput] = useState("");
+  const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { data: sessions } = trpc.agenticAI.listSessions.useQuery(
-    { userId: user?.id ?? "" },
-    { enabled: !!user?.id }
-  );
+  const { data: sessions } = trpc.agenticAI.mySessions.useQuery(undefined, { enabled: !!user?.id });
+
+  useEffect(() => {
+    if (sessions && sessions.length > 0 && !sessionId) {
+      setSessionId(sessions[0].id);
+    }
+  }, [sessions]);
 
   const chatMut = trpc.agenticAI.chat.useMutation({
     onSuccess: (data) => {
+      setSessionId(data.sessionId);
       setMessages(prev => [...prev, { role: "assistant", content: data.response }]);
     },
     onError: (e) => {
@@ -37,7 +42,7 @@ export default function AITravelAgent() {
     const userMessage = input.trim();
     setMessages(prev => [...prev, { role: "user", content: userMessage }]);
     setInput("");
-    chatMut.mutate({ userId: user?.id ?? "", message: userMessage, sessionId: sessions?.[0]?.id });
+    chatMut.mutate({ message: userMessage, sessionId });
   };
 
   const suggestions = [
@@ -83,7 +88,7 @@ export default function AITravelAgent() {
         {messages.length === 1 && (
           <div className="px-4 pb-2 grid grid-cols-2 gap-2">
             {suggestions.map((s, i) => (
-              <button key={i} onClick={() => { setInput(s); }} className="text-left text-xs p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors">{s}</button>
+              <button key={i} onClick={() => setInput(s)} className="text-left text-xs p-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors">{s}</button>
             ))}
           </div>
         )}

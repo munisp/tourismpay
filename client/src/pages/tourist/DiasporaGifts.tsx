@@ -8,27 +8,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Gift, Heart, Send, CheckCircle } from "lucide-react";
+import { Gift, Heart, Send } from "lucide-react";
 
 export default function DiasporaGifts() {
   const { user } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
   const [showRedeem, setShowRedeem] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");
-  const [form, setForm] = useState({ recipient_name: "", recipient_email: "", hotel_id: "", gift_type: "hotel_credit", amount: "", currency: "USD", message: "", occasion: "general" });
+  const [form, setForm] = useState({ recipientEmail: "", giftType: "hotel_stay" as "hotel_stay"|"dining"|"experience"|"wallet_credit", amountNgn: "", senderCurrency: "USD", message: "" });
 
-  const { data: gifts, isLoading, refetch } = trpc.diasporaGifts.listSentGifts.useQuery(
-    { senderId: user?.id ?? "" },
+  const { data: gifts, isLoading, refetch } = trpc.diasporaGifts.mySentGifts.useQuery(
+    undefined,
     { enabled: !!user?.id }
   );
 
-  const { data: stats } = trpc.diasporaGifts.getStats.useQuery(
-    { senderId: user?.id ?? "" },
-    { enabled: !!user?.id }
-  );
+  const { data: analytics } = trpc.diasporaGifts.giftAnalytics.useQuery(undefined, { enabled: !!user?.id });
 
-  const createMut = trpc.diasporaGifts.createGift.useMutation({
-    onSuccess: (d) => { toast.success("Gift Sent!", { description: `Redemption code: ${d.redemption_code}` }); setShowCreate(false); refetch(); },
+  const createMut = trpc.diasporaGifts.sendGift.useMutation({
+    onSuccess: (d) => { toast.success("Gift Sent!", { description: `Redemption code: ${d.redemptionCode}` }); setShowCreate(false); refetch(); },
     onError: (e) => toast.error("Failed", { description: e.message }),
   });
 
@@ -37,7 +34,8 @@ export default function DiasporaGifts() {
     onError: (e) => toast.error("Redemption failed", { description: e.message }),
   });
 
-  const statusColor = (s: string) => s === "redeemed" ? "bg-green-100 text-green-800" : s === "pending" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-800";
+  const statusColor = (s: string) => s === "redeemed" ? "bg-green-100 text-green-800" : s === "sent" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-800";
+  const RATE = 1550;
 
   return (
     <div className="p-6 space-y-6">
@@ -49,9 +47,9 @@ export default function DiasporaGifts() {
         </div>
       </div>
 
-      {stats && (
+      {analytics && (
         <div className="grid grid-cols-3 gap-4">
-          {[["Total Gifts", stats.total_gifts],["Redeemed", stats.redeemed],["Total Value", `USD ${Number(stats.total_value_usd).toLocaleString()}`]].map(([label, value]) => (
+          {[["Total Gifts", analytics.totalGifts],["Redeemed", analytics.totalRedeemed],["Total Value", `NGN ${Number(analytics.totalValueNgn).toLocaleString()}`]].map(([label, value]) => (
             <Card key={label as string}><CardContent className="p-4 text-center"><p className="text-2xl font-bold">{value}</p><p className="text-sm text-gray-500">{label}</p></CardContent></Card>
           ))}
         </div>
@@ -61,8 +59,8 @@ export default function DiasporaGifts() {
         <Card>
           <CardHeader><CardTitle>Redeem a Gift</CardTitle></CardHeader>
           <CardContent className="flex gap-3">
-            <Input value={redeemCode} onChange={e => setRedeemCode(e.target.value)} placeholder="Enter redemption code (e.g. A1B2C3D4)" className="flex-1" />
-            <Button onClick={() => redeemMut.mutate({ code: redeemCode, touristId: user?.id ?? "" })} disabled={redeemMut.isPending}>{redeemMut.isPending ? "Redeeming..." : "Redeem"}</Button>
+            <Input value={redeemCode} onChange={e => setRedeemCode(e.target.value)} placeholder="Enter redemption code" className="flex-1" />
+            <Button onClick={() => redeemMut.mutate({ redemptionCode: redeemCode })} disabled={redeemMut.isPending}>{redeemMut.isPending ? "Redeeming..." : "Redeem"}</Button>
           </CardContent>
         </Card>
       )}
@@ -72,26 +70,24 @@ export default function DiasporaGifts() {
           <CardHeader><CardTitle>Send a Gift</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div><Label>Recipient Name</Label><Input value={form.recipient_name} onChange={e => setForm(f => ({...f, recipient_name: e.target.value}))} placeholder="Amara Diallo" /></div>
-              <div><Label>Recipient Email</Label><Input type="email" value={form.recipient_email} onChange={e => setForm(f => ({...f, recipient_email: e.target.value}))} placeholder="amara@email.com" /></div>
+              <div><Label>Recipient Email</Label><Input type="email" value={form.recipientEmail} onChange={e => setForm(f => ({...f, recipientEmail: e.target.value}))} placeholder="amara@email.com" /></div>
               <div><Label>Gift Type</Label>
-                <Select value={form.gift_type} onValueChange={v => setForm(f => ({...f, gift_type: v}))}>
+                <Select value={form.giftType} onValueChange={v => setForm(f => ({...f, giftType: v as any}))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{[["hotel_credit","Hotel Credit"],["restaurant_voucher","Restaurant Voucher"],["spa_voucher","Spa Voucher"],["tour_package","Tour Package"]].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+                  <SelectContent>{[["hotel_stay","Hotel Stay"],["dining","Restaurant Voucher"],["experience","Experience"],["wallet_credit","Wallet Credit"]].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Amount (USD)</Label><Input type="number" value={form.amount} onChange={e => setForm(f => ({...f, amount: e.target.value}))} placeholder="100" /></div>
-              <div><Label>Occasion</Label>
-                <Select value={form.occasion} onValueChange={v => setForm(f => ({...f, occasion: v}))}>
+              <div><Label>Amount (NGN)</Label><Input type="number" value={form.amountNgn} onChange={e => setForm(f => ({...f, amountNgn: e.target.value}))} placeholder="50000" /></div>
+              <div><Label>Your Currency</Label>
+                <Select value={form.senderCurrency} onValueChange={v => setForm(f => ({...f, senderCurrency: v}))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{[["general","General"],["birthday","Birthday"],["anniversary","Anniversary"],["holiday","Holiday"],["wedding","Wedding"]].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+                  <SelectContent>{["USD","GBP","EUR","CAD"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div><Label>Hotel ID (optional)</Label><Input value={form.hotel_id} onChange={e => setForm(f => ({...f, hotel_id: e.target.value}))} placeholder="hotel_123" /></div>
             </div>
             <div><Label>Personal Message</Label><Input value={form.message} onChange={e => setForm(f => ({...f, message: e.target.value}))} placeholder="Enjoy your stay in Nigeria!" /></div>
             <div className="flex gap-2">
-              <Button onClick={() => createMut.mutate({ senderId: user?.id ?? "", ...form, amount: parseFloat(form.amount) })} disabled={createMut.isPending}>{createMut.isPending ? "Sending..." : "Send Gift"}</Button>
+              <Button onClick={() => createMut.mutate({ recipientEmail: form.recipientEmail, giftType: form.giftType, amountNgn: parseFloat(form.amountNgn), amountSenderCurrency: parseFloat(form.amountNgn) / RATE, senderCurrency: form.senderCurrency, exchangeRate: RATE, message: form.message })} disabled={createMut.isPending}>{createMut.isPending ? "Sending..." : "Send Gift"}</Button>
               <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
             </div>
           </CardContent>
@@ -106,11 +102,11 @@ export default function DiasporaGifts() {
           <Card key={g.id}>
             <CardContent className="p-4 flex items-center justify-between">
               <div>
-                <p className="font-medium">{g.recipient_name || g.recipient_email}</p>
-                <p className="text-sm text-gray-500 capitalize">{g.gift_type.replace("_"," ")} · {g.occasion} · Code: <span className="font-mono font-bold">{g.redemption_code}</span></p>
+                <p className="font-medium">{g.recipientEmail || g.recipientPhone}</p>
+                <p className="text-sm text-gray-500 capitalize">{g.giftType?.replace("_"," ")} · Code: <span className="font-mono font-bold">{g.redemptionCode}</span></p>
               </div>
               <div className="text-right">
-                <p className="font-medium">{g.currency} {Number(g.amount).toLocaleString()}</p>
+                <p className="font-medium">NGN {Number(g.amountNgn).toLocaleString()}</p>
                 <Badge className={statusColor(g.status)}>{g.status}</Badge>
               </div>
             </CardContent>
