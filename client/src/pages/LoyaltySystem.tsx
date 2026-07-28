@@ -1,5 +1,5 @@
 /**
- * 54Link — Agent Loyalty Points System
+ * TourismPay — Agent Loyalty Points System
  * Design: Bloomberg Terminal dark — near-black bg, gold/amber primary for rewards
  * Features: Points dashboard, tier progression, transaction multipliers,
  *           rewards catalogue, leaderboard, milestone badges, redemption flow,
@@ -246,7 +246,7 @@ const REWARDS: Reward[] = [
   {
     id: "r8",
     name: "Thermal Paper (10 rolls)",
-    description: "Compatible with all 54Link terminals",
+    description: "Compatible with all TourismPay terminals",
     cost: 200,
     category: "device",
     icon: "🖨",
@@ -692,7 +692,7 @@ export default function LoyaltySystem({ onBack }: { onBack?: () => void }) {
             Loyalty Rewards
           </div>
           <div className="text-xs text-gray-500">
-            54Link Agent Rewards Program
+            TourismPay Agent Rewards Program
           </div>
         </div>
         <div

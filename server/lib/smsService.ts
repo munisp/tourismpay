@@ -22,9 +22,9 @@
  *   TWILIO_FROM_NUMBER     — Twilio sender number (+1234567890)
  *   AT_API_KEY             — Africa's Talking API key
  *   AT_USERNAME            — Africa's Talking username
- *   AT_SENDER_ID           — Africa's Talking sender ID (e.g. "54Link")
+ *   AT_SENDER_ID           — Africa's Talking sender ID (e.g. "TourismPay")
  *   TERMII_API_KEY         — Termii API key (existing)
- *   TERMII_SENDER_ID       — Termii sender ID (default: "54Link")
+ *   TERMII_SENDER_ID       — Termii sender ID (default: "TourismPay")
  */
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -209,7 +209,7 @@ async function sendViaAfricasTalking(
 ): Promise<{ messageId: string; cost?: number }> {
   const apiKey = process.env.AT_API_KEY!;
   const username = process.env.AT_USERNAME!;
-  const senderId = process.env.AT_SENDER_ID ?? "54Link";
+  const senderId = process.env.AT_SENDER_ID ?? "TourismPay";
 
   const params = new URLSearchParams({
     username,
@@ -261,7 +261,7 @@ async function sendViaAfricasTalking(
 
 async function sendViaTermii(msg: SmsMessage): Promise<{ messageId: string }> {
   const apiKey = process.env.TERMII_API_KEY!;
-  const senderId = process.env.TERMII_SENDER_ID ?? "54Link";
+  const senderId = process.env.TERMII_SENDER_ID ?? "TourismPay";
 
   const body = {
     to: normalizePhone(msg.to).replace("+", ""),
@@ -531,7 +531,7 @@ export function buildRateAlertSms(opts: {
   const verb = opts.direction === "above" ? "risen above" : "fallen below";
   return {
     to: "",
-    body: `54Link Alert: ${opts.baseCurrency}/${opts.targetCurrency} has ${verb} your target of ${opts.targetRate}. Current rate: ${opts.currentRate}. Log in to manage your alerts.`,
+    body: `TourismPay Alert: ${opts.baseCurrency}/${opts.targetCurrency} has ${verb} your target of ${opts.targetRate}. Current rate: ${opts.currentRate}. Log in to manage your alerts.`,
   };
 }
 
@@ -544,7 +544,7 @@ export function buildFraudAlertSms(opts: {
 }): SmsMessage {
   return {
     to: "",
-    body: `54Link FRAUD ALERT [${opts.severity.toUpperCase()}]: ${opts.type} detected. Amount: ${opts.currency} ${opts.amount.toLocaleString()}. Agent: ${opts.agentName}. Take immediate action.`,
+    body: `TourismPay FRAUD ALERT [${opts.severity.toUpperCase()}]: ${opts.type} detected. Amount: ${opts.currency} ${opts.amount.toLocaleString()}. Agent: ${opts.agentName}. Take immediate action.`,
   };
 }
 
@@ -557,7 +557,7 @@ export function buildTransactionConfirmSms(opts: {
 }): SmsMessage {
   return {
     to: "",
-    body: `54Link: ${opts.type} of ${opts.currency} ${opts.amount.toLocaleString()} confirmed. Ref: ${opts.ref}${opts.customerName ? `. Customer: ${opts.customerName}` : ""}. Thank you.`,
+    body: `TourismPay: ${opts.type} of ${opts.currency} ${opts.amount.toLocaleString()} confirmed. Ref: ${opts.ref}${opts.customerName ? `. Customer: ${opts.customerName}` : ""}. Thank you.`,
   };
 }
 
@@ -567,7 +567,7 @@ export function buildOtpSms(opts: {
 }): SmsMessage {
   return {
     to: "",
-    body: `Your 54Link verification code is: ${opts.otp}. Valid for ${opts.expiresInMinutes} minutes. Do not share this code.`,
+    body: `Your TourismPay verification code is: ${opts.otp}. Valid for ${opts.expiresInMinutes} minutes. Do not share this code.`,
   };
 }
 
@@ -580,6 +580,6 @@ export function buildSettlementSms(opts: {
 }): SmsMessage {
   return {
     to: "",
-    body: `54Link Daily Settlement: ${opts.agentName}, ${opts.txCount} transactions processed. Volume: ${opts.currency} ${opts.totalVolume.toLocaleString()}. Commission: ${opts.currency} ${opts.commission.toLocaleString()}.`,
+    body: `TourismPay Daily Settlement: ${opts.agentName}, ${opts.txCount} transactions processed. Volume: ${opts.currency} ${opts.totalVolume.toLocaleString()}. Commission: ${opts.currency} ${opts.commission.toLocaleString()}.`,
   };
 }

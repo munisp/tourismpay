@@ -1,5 +1,5 @@
 /**
- * Payment Success Callback Page — 54Link POS Shell
+ * Payment Success Callback Page — TourismPay Platform
  * Displays confirmation after successful Stripe checkout.
  */
 import { useMemo } from "react";

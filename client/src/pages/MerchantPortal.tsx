@@ -1,5 +1,5 @@
 /**
- * 54Link Agency Banking Platform — Merchant Portal
+ * TourismPay Platform — Merchant Portal
  * Full CRUD interface for merchant profile, transactions, settlements, and disputes.
  * Includes a multi-step self-service onboarding wizard for new merchants.
  */
@@ -89,7 +89,7 @@ function PortalGate({
         <div className="text-2xl font-black text-white">Merchant Portal</div>
         <div className="text-sm text-gray-400 text-center max-w-sm">
           Manage your business transactions, settlements, and disputes on the
-          54Link Agency Banking Network.
+          TourismPay Agent Network Network.
         </div>
       </div>
       <div className="flex flex-col gap-3 w-full max-w-xs">
@@ -670,7 +670,7 @@ function OnboardingWizard({
                     Privacy Policy
                   </a>
                 </Link>{" "}
-                and the 54Link Merchant Terms of Service.
+                and the TourismPay Merchant Terms of Service.
               </label>
             </div>
             <div className="flex gap-2">
@@ -1329,7 +1329,7 @@ export default function MerchantPortal() {
           </a>
         </Link>
         <span>·</span>
-        <span>© 2026 54Link Agency Banking</span>
+        <span>© 2026 TourismPay Agent Network</span>
       </div>
     </div>
   );

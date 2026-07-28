@@ -1,7 +1,7 @@
 // TypeScript enabled — Sprint 96 security audit
 import { ENV } from "./_core/env";
 /**
- * termii.ts — Shared Termii SMS helper for the 54Link platform.
+ * termii.ts — Shared Termii SMS helper for the TourismPay platform.
  *
  * All SMS-sending logic is centralised here so every router (transactions,
  * pinReset, settlement, smsReceipt, disputes) uses the same API client and
@@ -42,7 +42,7 @@ export async function sendSms(to: string, message: string): Promise<SmsResult> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         to,
-        from: "54Link",
+        from: "TourismPay",
         sms: message,
         type: "plain",
         channel: "generic",
@@ -92,7 +92,7 @@ export function buildConfirmationSms(data: {
     minute: "2-digit",
   });
   const lines = [
-    `54Link Agency Banking`,
+    `TourismPay Agent Network`,
     `Ref: ${data.ref}`,
     `Type: ${data.type}`,
     `Amount: NGN ${data.amount.toLocaleString("en-NG", { minimumFractionDigits: 2 })}`,
@@ -117,7 +117,7 @@ export function buildReceiptSms(data: {
   customerName?: string | null;
 }): string {
   const lines = [
-    `54Link Receipt`,
+    `TourismPay Receipt`,
     `Ref: ${data.ref}`,
     `Type: ${data.type}`,
     `Amount: NGN ${data.amount.toLocaleString("en-NG", { minimumFractionDigits: 2 })}`,
@@ -128,6 +128,6 @@ export function buildReceiptSms(data: {
   lines.push(
     `Time: ${new Date().toLocaleString("en-NG", { timeZone: "Africa/Lagos" })}`
   );
-  lines.push(`Powered by 54Link Agency Banking`);
+  lines.push(`Powered by TourismPay Agent Network`);
   return lines.join("\n");
 }

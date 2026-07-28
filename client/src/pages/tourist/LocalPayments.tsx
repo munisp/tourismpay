@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 
 // ─── Bill Payment Tab ──────────────────────────────────────────────────────
 
@@ -91,12 +92,26 @@ function BillPaymentTab() {
     internet: "Account number",
   };
 
+  const payBillMutation = trpc.billPayments.payBill.useMutation({
+    onSuccess: () => {
+      toast.success(`${categories.find(c => c.id === category)?.name} payment of ₦${parseFloat(amount || "0").toLocaleString()} submitted!`);
+      setAccountNumber(""); setAmount(""); setSelectedPlan("");
+    },
+    onError: (err) => toast.error(err.message ?? "Payment failed"),
+  });
+
   const handlePay = () => {
     if (!provider || !accountNumber || (!amount && category !== "data")) {
       toast.error("Please fill all fields");
       return;
     }
-    toast.success(`${categories.find(c => c.id === category)?.name} payment of ₦${parseFloat(amount || "0").toLocaleString()} submitted!`);
+    payBillMutation.mutate({
+      billerId: provider,
+      customerIdentifier: accountNumber,
+      amount: parseFloat(amount || "0"),
+      currency: "NGN",
+      narration: `${categories.find(c => c.id === category)?.name} - ${provider}`,
+    });
   };
 
   return (
@@ -181,7 +196,7 @@ function BillPaymentTab() {
         </div>
       )}
 
-      <Button onClick={handlePay} className="w-full" size="lg" disabled={!provider || !accountNumber}>
+      <Button onClick={handlePay} className="w-full" size="lg" disabled={!provider || !accountNumber || payBillMutation.isPending}>
         <Send className="w-4 h-4 mr-2" />
         Pay {amount ? `₦${parseFloat(amount).toLocaleString()}` : ""}
       </Button>
@@ -598,10 +613,19 @@ function SplitBillTab() {
     setParticipants(updated);
   };
 
+  const createSplitMutation = trpc.splitPayments.createSplit.useMutation({
+    onSuccess: () => toast.success(`Bill split created! Each person owes ₦${(parseFloat(totalAmount) / participants.length).toLocaleString()}`),
+    onError: (err) => toast.error(err.message ?? "Failed to create split"),
+  });
+
   const handleSplit = () => {
     if (!totalAmount || !description) { toast.error("Fill total and description"); return; }
-    const perPerson = parseFloat(totalAmount) / participants.length;
-    toast.success(`Bill split! Each person owes ₦${perPerson.toLocaleString()}`);
+    createSplitMutation.mutate({
+      amount: parseFloat(totalAmount),
+      method: "transfer",
+      recipientPhone: participants[0]?.phone ?? undefined,
+      recipientName: participants[0]?.name ?? undefined,
+    });
   };
 
   return (

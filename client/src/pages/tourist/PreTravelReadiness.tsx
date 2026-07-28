@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
 import {
   Plane, Shield, Wifi, CreditCard, AlertTriangle, CheckCircle2,
   MapPin, Globe, Building2, ClipboardCheck, TrendingUp,
@@ -24,6 +25,14 @@ function ChecklistTab() {
     completion_percent: number;
     ready_to_travel: boolean;
   } | null>(null);
+
+  const generateMutation = trpc.travelReadiness.checklist.generate.useMutation({
+    onSuccess: (data) => {
+      if (data) setChecklist(data as any);
+      toast.success("Travel checklist generated!");
+    },
+    onError: (err) => toast.error(err.message ?? "Failed to generate checklist"),
+  });
 
   const handleGenerate = () => {
     if (!destination || !departureDate) {
@@ -48,7 +57,7 @@ function ChecklistTab() {
       completion_percent: 9.1,
       ready_to_travel: false,
     });
-    toast.success(`Checklist generated for ${destination}`);
+    generateMutation.mutate({ destinationCountry: destination, departureDate });
   };
 
   const statusIcon = (status: string) => {

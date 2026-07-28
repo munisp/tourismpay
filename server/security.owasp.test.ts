@@ -1,5 +1,5 @@
 /**
- * 54Link POS Shell — OWASP Top 10 Security Test Suite
+ * TourismPay Platform — OWASP Top 10 Security Test Suite
  *
  * Tests for:
  *   A01: Broken Access Control

@@ -1,5 +1,5 @@
 /**
- * Stripe Webhook Handler — 54Link POS Shell
+ * Stripe Webhook Handler — TourismPay Platform
  *
  * Handles incoming Stripe webhook events for payment confirmations,
  * subscription updates, invoice processing, dunning workflows,

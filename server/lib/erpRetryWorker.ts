@@ -98,7 +98,7 @@ async function runRetryBatch(): Promise<void> {
           "Content-Type": "application/json",
           Authorization: `Bearer ${cfg.apiKey ?? ""}`,
           "X-ERP-Type": cfg.erpType ?? "custom",
-          "X-54Link-Retry": String(record.retryCount + 1),
+          "X-TourismPay-Retry": String(record.retryCount + 1),
         },
         body: JSON.stringify({
           entityType: record.entityType,

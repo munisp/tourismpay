@@ -284,7 +284,7 @@ const messageTemplates: MessageTemplate[] = [
     id: "tpl-welcome",
     name: "Welcome Message",
     content:
-      "Welcome to 54Link Support, {{customer_name}}! I'm {{agent_name}}, and I'll be assisting you today. How can I help?",
+      "Welcome to TourismPay Support, {{customer_name}}! I'm {{agent_name}}, and I'll be assisting you today. How can I help?",
     variables: ["{{customer_name}}", "{{agent_name}}"],
     category: "greeting",
     language: "en",
@@ -324,7 +324,7 @@ const messageTemplates: MessageTemplate[] = [
     id: "tpl-closing",
     name: "Closing Message",
     content:
-      "Thank you for contacting 54Link support, {{customer_name}}! If you have any more questions, feel free to reach out. Have a wonderful day!",
+      "Thank you for contacting TourismPay support, {{customer_name}}! If you have any more questions, feel free to reach out. Have a wonderful day!",
     variables: ["{{customer_name}}"],
     category: "closing",
     language: "en",
@@ -335,7 +335,7 @@ const messageTemplates: MessageTemplate[] = [
     id: "tpl-welcome-fr",
     name: "Message de bienvenue",
     content:
-      "Bienvenue au support 54Link, {{customer_name}} ! Je suis {{agent_name}}, et je vais vous assister aujourd'hui. Comment puis-je vous aider ?",
+      "Bienvenue au support TourismPay, {{customer_name}} ! Je suis {{agent_name}}, et je vais vous assister aujourd'hui. Comment puis-je vous aider ?",
     variables: ["{{customer_name}}", "{{agent_name}}"],
     category: "greeting",
     language: "fr",
@@ -345,7 +345,7 @@ const messageTemplates: MessageTemplate[] = [
     id: "tpl-closing-fr",
     name: "Message de clôture",
     content:
-      "Merci d'avoir contacté le support 54Link, {{customer_name}} ! Si vous avez d'autres questions, n'hésitez pas à nous contacter. Bonne journée !",
+      "Merci d'avoir contacté le support TourismPay, {{customer_name}} ! Si vous avez d'autres questions, n'hésitez pas à nous contacter. Bonne journée !",
     variables: ["{{customer_name}}"],
     category: "closing",
     language: "fr",
@@ -356,7 +356,7 @@ const messageTemplates: MessageTemplate[] = [
     id: "tpl-welcome-ha",
     name: "Sakon Maraba",
     content:
-      "Barka da zuwa goyon bayan 54Link, {{customer_name}}! Ni ne {{agent_name}}, kuma zan taimake ku yau. Ta yaya zan iya taimaka?",
+      "Barka da zuwa goyon bayan TourismPay, {{customer_name}}! Ni ne {{agent_name}}, kuma zan taimake ku yau. Ta yaya zan iya taimaka?",
     variables: ["{{customer_name}}", "{{agent_name}}"],
     category: "greeting",
     language: "ha",
@@ -367,7 +367,7 @@ const messageTemplates: MessageTemplate[] = [
     id: "tpl-welcome-yo",
     name: "Ifiranṣẹ Kaabo",
     content:
-      "Kaabo si atilẹyin 54Link, {{customer_name}}! Mo jẹ {{agent_name}}, ati pe emi yoo ṣe iranlọwọ fun yin loni. Bawo ni mo ṣe le ṣe iranlọwọ?",
+      "Kaabo si atilẹyin TourismPay, {{customer_name}}! Mo jẹ {{agent_name}}, ati pe emi yoo ṣe iranlọwọ fun yin loni. Bawo ni mo ṣe le ṣe iranlọwọ?",
     variables: ["{{customer_name}}", "{{agent_name}}"],
     category: "greeting",
     language: "yo",

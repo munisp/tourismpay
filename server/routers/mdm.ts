@@ -1,5 +1,5 @@
 /**
- * MDM Router — Mobile Device Management for 54Link POS terminals
+ * MDM Router — Mobile Device Management for TourismPay POS terminals
  *
  * Provides admin-only procedures for:
  *   - Device registry (enroll, list, get, update status)

@@ -1,5 +1,5 @@
 /**
- * UserGuide — Comprehensive multi-section user guide for the 54Link POS Shell
+ * UserGuide — Comprehensive multi-section user guide for the TourismPay Platform
  *
  * Sections:
  * 1. Getting Started
@@ -81,13 +81,13 @@ const guideSections: GuideSection[] = [
     id: "getting-started",
     title: "Getting Started",
     icon: Zap,
-    description: "Everything you need to begin using the 54Link POS platform",
+    description: "Everything you need to begin using the TourismPay POS platform",
     subsections: [
       {
         id: "overview",
         title: "Platform Overview",
         content:
-          "The 54Link Agent Banking Platform is a comprehensive POS (Point of Sale) system designed for agent banking operations in Nigeria. It enables agents to process financial transactions including cash-in, cash-out, transfers, bill payments, and airtime purchases on behalf of customers.\n\nThe platform includes multiple portals for different user roles: Agent Portal for field agents, Customer Portal for end-users, Merchant Portal for business partners, Developer Portal for API integrations, and Admin/Supervisor dashboards for management oversight.",
+          "The TourismPay Agent Banking Platform is a comprehensive POS (Point of Sale) system designed for agent banking operations in Nigeria. It enables agents to process financial transactions including cash-in, cash-out, transfers, bill payments, and airtime purchases on behalf of customers.\n\nThe platform includes multiple portals for different user roles: Agent Portal for field agents, Customer Portal for end-users, Merchant Portal for business partners, Developer Portal for API integrations, and Admin/Supervisor dashboards for management oversight.",
         tags: ["introduction", "overview", "platform"],
       },
       {

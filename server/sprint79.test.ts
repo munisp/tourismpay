@@ -579,7 +579,7 @@ describe("Sprint 79: Real-Time Billing Engine", () => {
     it("financial model v4 HTML file exists with Live Data tab", async () => {
       const fs = await import("fs");
       const filePath =
-        "/home/ubuntu/tourismpay-financial-model/54Link_Financial_Model_v4_OFFLINE.html";
+        "/home/ubuntu/tourismpay-financial-model/TourismPay_Financial_Model_v4_OFFLINE.html";
       expect(fs.existsSync(filePath)).toBe(true);
 
       const content = fs.readFileSync(filePath, "utf-8");
@@ -595,7 +595,7 @@ describe("Sprint 79: Real-Time Billing Engine", () => {
     it("financial model retains all original tabs", async () => {
       const fs = await import("fs");
       const content = fs.readFileSync(
-        "/home/ubuntu/tourismpay-financial-model/54Link_Financial_Model_v4_OFFLINE.html",
+        "/home/ubuntu/tourismpay-financial-model/TourismPay_Financial_Model_v4_OFFLINE.html",
         "utf-8"
       );
       const tabs = [
@@ -617,7 +617,7 @@ describe("Sprint 79: Real-Time Billing Engine", () => {
     it("financial model has embedded Chart.js for offline operation", async () => {
       const fs = await import("fs");
       const content = fs.readFileSync(
-        "/home/ubuntu/tourismpay-financial-model/54Link_Financial_Model_v4_OFFLINE.html",
+        "/home/ubuntu/tourismpay-financial-model/TourismPay_Financial_Model_v4_OFFLINE.html",
         "utf-8"
       );
       expect(content).toContain("Chart.js v4.4.1");

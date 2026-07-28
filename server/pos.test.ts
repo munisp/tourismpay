@@ -1,5 +1,5 @@
 /**
- * 54Link POS Shell — Production Readiness Tests
+ * TourismPay Platform — Production Readiness Tests
  * Tests: agent auth, transaction creation, loyalty, fraud, chat, audit log
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";

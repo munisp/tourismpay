@@ -41,13 +41,13 @@ interface AgentSettlement {
 
 function buildSettlementSms(data: AgentSettlement): string {
   return (
-    `54Link Daily Settlement - ${new Date().toLocaleDateString("en-NG")}\n` +
+    `TourismPay Daily Settlement - ${new Date().toLocaleDateString("en-NG")}\n` +
     `Agent: ${data.agentCode}\n` +
     `Transactions: ${data.txCount}\n` +
     `Volume: ₦${data.totalVolume.toLocaleString("en-NG", { minimumFractionDigits: 2 })}\n` +
     `Commission: ₦${data.totalCommission.toLocaleString("en-NG", { minimumFractionDigits: 2 })}\n` +
     `Float Balance: ₦${data.floatBalance.toLocaleString("en-NG", { minimumFractionDigits: 2 })}\n` +
-    `Thank you for using 54Link.`
+    `Thank you for using TourismPay.`
   );
 }
 
@@ -515,7 +515,7 @@ export async function runDeadLetterDigest(): Promise<void> {
         dateStyle: "full",
       });
       await notifyOwner({
-        title: `[54Link POS] Auto-retried ${requeued} ERP dead-letter item(s)`,
+        title: `[TourismPay POS] Auto-retried ${requeued} ERP dead-letter item(s)`,
         content: [
           `Dead-Letter Auto-Retry — ${today}`,
           ``,
@@ -563,7 +563,7 @@ export async function runDeadLetterDigest(): Promise<void> {
     ].join("\n");
 
     await notifyOwner({
-      title: `[54Link POS] ${failedItems.length} ERP dead-letter item(s) require attention`,
+      title: `[TourismPay POS] ${failedItems.length} ERP dead-letter item(s) require attention`,
       content,
     });
 
@@ -685,7 +685,7 @@ export async function runWeeklyConnectivitySlaReport(): Promise<void> {
     ].join("\n");
 
     await notifyOwner({
-      title: `[54Link POS] Weekly Connectivity SLA — ${ranked.length} agents, ${belowSla.length} below SLA`,
+      title: `[TourismPay POS] Weekly Connectivity SLA — ${ranked.length} agents, ${belowSla.length} below SLA`,
       content,
     });
     console.log(

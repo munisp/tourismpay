@@ -1850,7 +1850,7 @@ export const managementRouter = router({
   // ── Settings ─────────────────────────────────────────────────────
   settings: router({
     get: adminProcedure.query(() => ({
-      platformName: "54Link Agency Banking",
+      platformName: "TourismPay Agent Network",
       defaultCurrency: "NGN",
       defaultCountry: "NGA",
       maxTransactionAmount: 500000,

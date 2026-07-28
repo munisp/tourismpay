@@ -1,5 +1,5 @@
 /**
- * SystemHealth — 54Link Agency Banking Platform
+ * SystemHealth — TourismPay Platform
  *
  * Real-time infrastructure health dashboard. Polls /api/health every 15 seconds
  * and displays the status of all critical services: database, Keycloak, TigerBeetle,
@@ -133,7 +133,7 @@ export default function SystemHealth() {
           <div>
             <h1 className="text-3xl font-bold text-white">System Health</h1>
             <p className="text-slate-400 mt-1">
-              54Link Agency Banking Platform — Infrastructure Status
+              TourismPay Platform — Infrastructure Status
             </p>
           </div>
           <div className="flex items-center gap-4">

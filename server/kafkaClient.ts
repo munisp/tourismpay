@@ -1,6 +1,6 @@
 // TypeScript enabled — Sprint 96 security audit
 /**
- * kafkaClient.ts — Kafka integration for 54Link POS Shell
+ * kafkaClient.ts — Kafka integration for TourismPay Platform
  * ─────────────────────────────────────────────────────────────────────────────
  * Provides a thin wrapper for publishing domain events to Kafka topics.
  * Two modes:

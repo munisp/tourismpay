@@ -26,11 +26,11 @@ const LOCALES = [
 const MENU_ITEMS = [
   {
     key: "welcome",
-    en: "Welcome to 54Link POS",
-    fr: "Bienvenue chez 54Link POS",
-    sw: "Karibu 54Link POS",
-    ha: "Barka da zuwa 54Link POS",
-    yo: "Kaabo si 54Link POS",
+    en: "Welcome to TourismPay POS",
+    fr: "Bienvenue chez TourismPay POS",
+    sw: "Karibu TourismPay POS",
+    ha: "Barka da zuwa TourismPay POS",
+    yo: "Kaabo si TourismPay POS",
   },
   {
     key: "cash_in",

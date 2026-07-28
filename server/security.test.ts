@@ -279,7 +279,7 @@ function buildSmsMessage(input: SmsInput): string {
   });
   const customer = input.customerName ? ` for ${input.customerName}` : "";
   return (
-    `54Link POS: ${input.type}${customer} of ${amountStr} processed at ${timeStr}. ` +
+    `TourismPay POS: ${input.type}${customer} of ${amountStr} processed at ${timeStr}. ` +
     `Ref: ${input.ref}. Agent: ${input.agentCode} (${input.agentName}). ` +
     `If you did not authorise this, call 0800-54LINK immediately.`
   );

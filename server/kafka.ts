@@ -2,7 +2,7 @@
 /**
  * Kafka Event Bus Integration
  *
- * Provides a KafkaJS producer and consumer for the 54Link platform.
+ * Provides a KafkaJS producer and consumer for the TourismPay platform.
  * All transaction, fraud, settlement, and SIM failover events are published
  * to Kafka topics for downstream processing.
  *

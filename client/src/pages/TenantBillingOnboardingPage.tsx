@@ -32,7 +32,7 @@ export default function TenantBillingOnboardingPage() {
   const provisionedTenants = [
     {
       id: 1,
-      name: "54Link Nigeria",
+      name: "TourismPay Nigeria",
       model: "revenue_share",
       status: "active",
       provisionedAt: "2025-11-15",

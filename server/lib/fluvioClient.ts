@@ -1,9 +1,9 @@
 // TypeScript enabled — Sprint 96 security audit
 /**
- * 54Link POS Shell — Fluvio Streaming Client
+ * TourismPay Platform — Fluvio Streaming Client
  *
  * Fluvio is a cloud-native, Rust-based event streaming platform used by the
- * 54Link platform for:
+ * TourismPay platform for:
  *   • Real-time transaction event streaming (pos.transactions.created)
  *   • Fraud alert fan-out (fraud-alerts)
  *   • Float balance change events (float-events)

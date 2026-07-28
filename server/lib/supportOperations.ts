@@ -363,7 +363,7 @@ const cannedResponses: CannedResponse[] = [
     id: "cr-001",
     title: "Greeting",
     content:
-      "Hello {{customer_name}}! Thank you for contacting 54Link support. My name is {{agent_name}} and I'll be happy to assist you today. How can I help?",
+      "Hello {{customer_name}}! Thank you for contacting TourismPay support. My name is {{agent_name}} and I'll be happy to assist you today. How can I help?",
     category: "General",
     variables: ["{{customer_name}}", "{{agent_name}}"],
     usageCount: 450,
@@ -423,7 +423,7 @@ const cannedResponses: CannedResponse[] = [
     id: "cr-006",
     title: "Closing",
     content:
-      "Thank you for contacting 54Link support, {{customer_name}}. If you need further assistance, don't hesitate to reach out. Have a great day!",
+      "Thank you for contacting TourismPay support, {{customer_name}}. If you need further assistance, don't hesitate to reach out. Have a great day!",
     category: "General",
     variables: ["{{customer_name}}"],
     usageCount: 400,

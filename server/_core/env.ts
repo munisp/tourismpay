@@ -7,8 +7,10 @@ export const ENV = {
   oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
   ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
   isProduction: process.env.NODE_ENV === "production",
-  forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
-  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  // BUILT_IN_FORGE_API_KEY is the Manus-injected LLM key. Fall back to OPENAI_API_KEY
+  // so the AI Co-Pilot works when deployed with a standard OpenAI-compatible key.
+  forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? process.env.OPENAI_API_BASE ?? "https://api.openai.com/v1",
+  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? process.env.OPENAI_API_KEY ?? "",
   // Self-hosted MinIO (S3-compatible object storage) for file uploads (KYB
   // documents, merchant product images, reports, etc.)
   minioEndpoint: process.env.MINIO_ENDPOINT ?? "http://localhost:9000",

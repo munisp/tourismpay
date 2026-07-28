@@ -17,7 +17,7 @@ describe("AI Chat Support Router", () => {
       id: "msg-1",
       sessionId: session.id,
       role: "assistant",
-      content: "Hello! I'm the 54Link AI Support Assistant.",
+      content: "Hello! I'm the TourismPay AI Support Assistant.",
       timestamp: new Date().toISOString(),
     };
     session.messages.push(welcomeMsg as any);

@@ -1,5 +1,5 @@
 /**
- * 54Link POS — Temporal Workflow Definitions
+ * TourismPay POS — Temporal Workflow Definitions
  * These run inside the Temporal sandbox (no direct I/O).
  * All I/O is delegated to activities.
  */

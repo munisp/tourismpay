@@ -1,5 +1,5 @@
 /**
- * 54Link POS — Temporal Activities
+ * TourismPay POS — Temporal Activities
  * All activities run in the worker process with full access to DB, Redis, and external APIs.
  */
 import { getDb } from "./db";

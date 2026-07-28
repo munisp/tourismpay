@@ -1,6 +1,6 @@
 // TypeScript enabled — Sprint 96 security audit
 /**
- * Security Hardening Module — 54Link Agency Banking Platform
+ * Security Hardening Module — TourismPay Platform
  *
  * Implements:
  * - Cryptographically secure CSRF token generation

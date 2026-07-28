@@ -410,7 +410,7 @@ export const billingInvoiceRouter = router({
             period_end: input.periodEnd,
             user_id: String(ctx.user.id),
           },
-          description: `54Link billing for period ${input.periodStart} to ${input.periodEnd}`,
+          description: `TourismPay billing for period ${input.periodStart} to ${input.periodEnd}`,
         });
         for (const item of input.lineItems) {
           await getStripe().invoiceItems.create({
@@ -519,7 +519,7 @@ export const billingInvoiceRouter = router({
               price_data: {
                 currency: input.currency,
                 product_data: {
-                  name: `54Link Invoice: ${input.invoiceId}`,
+                  name: `TourismPay Invoice: ${input.invoiceId}`,
                   description: input.description,
                 },
                 unit_amount: input.amount,

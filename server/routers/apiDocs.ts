@@ -8,11 +8,11 @@ import { TRPCError } from "@trpc/server";
 const API_SPEC = {
   openapi: "3.1.0",
   info: {
-    title: "54Link Agency Banking Platform API",
+    title: "TourismPay Platform API",
     version: "1.0.0",
     description:
       "Comprehensive API for agency banking operations including KYC/KYB, transactions, settlements, and compliance.",
-    contact: { name: "54Link Engineering", email: "engineering@tourismpay.com" },
+    contact: { name: "TourismPay Engineering", email: "engineering@tourismpay.com" },
     license: { name: "Proprietary" },
   },
   servers: [

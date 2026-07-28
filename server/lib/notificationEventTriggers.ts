@@ -1,6 +1,6 @@
 // TypeScript enabled — Sprint 96 security audit
 /**
- * Notification Event Triggers — 54Link Agent Banking Platform
+ * Notification Event Triggers — TourismPay Agent Banking Platform
  *
  * Automatically publishes real-time notifications for critical system events.
  * Integrates with the existing publishNotification / notifyUser / broadcastNotification

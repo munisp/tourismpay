@@ -1,5 +1,5 @@
 /**
- * lakehouse.ts — tRPC router for the 54Link Data Lakehouse
+ * lakehouse.ts — tRPC router for the TourismPay Data Lakehouse
  *
  * Exposes:
  *  - snapshot management  (upload, list, presigned download URL, stats)

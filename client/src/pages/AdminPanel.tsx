@@ -1,5 +1,5 @@
 /**
- * AdminPanel — 54Link Supervisor / Back-Office Dashboard
+ * AdminPanel — TourismPay Supervisor / Back-Office Dashboard
  * Route: /admin  (protected — requires agent.role === "admin" OR Manus OAuth admin role)
  *
  * Sections:
@@ -1573,7 +1573,7 @@ export default function AdminPanel() {
               className="text-sm font-black text-white"
               style={{ fontFamily: DISP }}
             >
-              54Link Admin
+              TourismPay Admin
             </div>
             <div className="text-xs text-gray-500" style={{ fontFamily: MONO }}>
               Supervisor Dashboard

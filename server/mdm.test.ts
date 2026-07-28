@@ -1,5 +1,5 @@
 /**
- * 54Link MDM Router — Comprehensive Unit Tests
+ * TourismPay MDM Router — Comprehensive Unit Tests
  *
  * Tests: heartbeat auto-enrollment, compliance policy evaluation, geofence
  * violation detection, kill-switch audit logging, OTA lifecycle, enrollment

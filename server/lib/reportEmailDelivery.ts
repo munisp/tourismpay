@@ -1,6 +1,6 @@
 // TypeScript enabled — Sprint 96 security audit
 /**
- * Report Email Delivery — 54Link Agency Banking Platform
+ * Report Email Delivery — TourismPay Platform
  *
  * Sends comparison PDF reports via email after scheduled load tests.
  * Uses the existing emailService infrastructure.

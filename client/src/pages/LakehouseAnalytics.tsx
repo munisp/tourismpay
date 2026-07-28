@@ -1,7 +1,7 @@
 /**
  * LakehouseAnalytics.tsx
  *
- * Production-grade Data Lakehouse dashboard for the 54Link POS Shell.
+ * Production-grade Data Lakehouse dashboard for the TourismPay Platform.
  * Covers:
  *  1. Snapshot Browser  — list/download MinIO snapshots per bucket
  *  2. Spatial Heatmap   — transaction density map (Sedona-style grid)

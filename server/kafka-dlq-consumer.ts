@@ -1,6 +1,6 @@
 // TypeScript enabled — Sprint 96 security audit
 /**
- * 54Link — Kafka Dead-Letter Queue (DLQ) Consumer
+ * TourismPay — Kafka Dead-Letter Queue (DLQ) Consumer
  *
  * Subscribes to all DLQ topics and:
  *   1. Logs the failed message with full context

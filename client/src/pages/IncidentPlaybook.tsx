@@ -1,152 +1,156 @@
-import { trpc } from "@/lib/trpc";
+/**
+ * Incident Playbook — N-06
+ * NOC runbooks for handling platform incidents.
+ */
 import { useState } from "react";
-import { AlertTriangle } from "lucide-react";
-import { secureRandom } from "@/lib/secureRandom";
+import { trpc } from "@/lib/trpc";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import PageHeader from "@/components/shared/PageHeader";
+import StatCard from "@/components/shared/StatCard";
+import { BookOpen, AlertTriangle, CheckCircle, Clock, Search, RefreshCw, Play } from "lucide-react";
+import { toast } from "sonner";
 
-// Incident Playbook — Automated runbook for security incidents
-// Sprint 42: Final Production Features
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: "bg-red-500/10 text-red-400 border-red-500/30",
+  high: "bg-orange-500/10 text-orange-400 border-orange-500/30",
+  medium: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+  low: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+};
+
+// Built-in playbooks for common TourismPay incidents
+const BUILTIN_PLAYBOOKS = [
+  { id: "pb-001", title: "Payment Gateway Outage", severity: "critical", category: "Payments", steps: ["Activate fallback gateway", "Notify merchants via SMS", "Monitor transaction queue", "Escalate to payment team", "Post incident report"], estimatedTime: "15 min" },
+  { id: "pb-002", title: "Settlement Batch Failure", severity: "high", category: "Settlement", steps: ["Identify failed batch IDs", "Check TigerBeetle ledger", "Retry failed transfers", "Notify settlement officer", "Reconcile discrepancies"], estimatedTime: "30 min" },
+  { id: "pb-003", title: "Fraud Alert Spike", severity: "high", category: "Security", steps: ["Review alert dashboard", "Activate kill switch if needed", "Notify compliance team", "Block suspicious accounts", "Document incident"], estimatedTime: "20 min" },
+  { id: "pb-004", title: "Database Connection Pool Exhausted", severity: "critical", category: "Infrastructure", steps: ["Check active connections", "Kill idle connections", "Scale connection pool", "Restart affected services", "Monitor recovery"], estimatedTime: "10 min" },
+  { id: "pb-005", title: "BIS Investigation System Down", severity: "medium", category: "Compliance", steps: ["Check BIS service health", "Notify BIS analysts", "Enable manual investigation mode", "Restore service", "Verify data integrity"], estimatedTime: "25 min" },
+  { id: "pb-006", title: "eNaira Gateway Timeout", severity: "medium", category: "Payments", steps: ["Check CBN API status", "Enable offline mode", "Queue pending transactions", "Monitor CBN status page", "Process queued transactions on recovery"], estimatedTime: "45 min" },
+];
 
 export default function IncidentPlaybook() {
-  // @ts-ignore Sprint 85 — Sprint 85: pre-existing type mismatch from router/page interface
-  const { data: liveData, isLoading } = trpc.incidentPlaybook.list.useQuery(
-    undefined,
-    { retry: 1 }
-  );
-  const data = liveData?.items ?? liveData ?? [];
+  const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<
-    "overview" | "details" | "history" | "settings"
-  >("overview");
+  const [selectedPlaybook, setSelectedPlaybook] = useState<typeof BUILTIN_PLAYBOOKS[0] | null>(null);
+  const [activeSteps, setActiveSteps] = useState<Set<number>>(new Set());
 
-  const kpis = [
-    { label: "Active Incidents", value: "2" },
-    { label: "Playbooks", value: "15" },
-    { label: "Avg MTTR", value: "23 min" },
-    { label: "Resolved Today", value: "7" },
-  ];
+  const { data: liveData, isLoading, isFetched } =
+    trpc.incidentPlaybook.list.useQuery(undefined, { retry: 1, refetchInterval: 60_000 });
 
-  const columns = ["Incident", "Severity", "Playbook", "Status", "Duration"];
+  const dbPlaybooks: any[] = liveData?.items ?? [];
 
-  const filtered = data.filter(
-    // @ts-ignore Sprint 85 — Sprint 85: pre-existing type mismatch from router/page interface
-    r =>
-      r.col1.toLowerCase().includes(search.toLowerCase()) ||
-      r.col2.toLowerCase().includes(search.toLowerCase())
+  const filtered = BUILTIN_PLAYBOOKS.filter(
+    (p) => !search || p.title.toLowerCase().includes(search.toLowerCase()) || p.category.toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleRunPlaybook = (pb: typeof BUILTIN_PLAYBOOKS[0]) => {
+    setSelectedPlaybook(pb);
+    setActiveSteps(new Set());
+    toast.info(`Playbook started: ${pb.title}`);
+  };
+
+  const toggleStep = (idx: number) => {
+    setActiveSteps(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
+  const allStepsComplete = selectedPlaybook && activeSteps.size === selectedPlaybook.steps.length;
 
   return (
-    <div className="min-h-screen bg-[#0a0e17] text-white p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <AlertTriangle className="w-6 h-6 text-blue-400" />
-              Incident Playbook
-            </h1>
-            <p className="text-gray-400 text-sm mt-1">
-              Automated runbook for security incidents
-            </p>
+    <div className="p-6 space-y-6">
+      <PageHeader title="Incident Playbook" subtitle="NOC runbooks for handling platform incidents" icon={<BookOpen className="w-6 h-6" />}>
+        <Button onClick={() => utils.incidentPlaybook.list.invalidate()} variant="outline" size="sm" className="gap-2">
+          <RefreshCw className="w-4 h-4" />Refresh
+        </Button>
+      </PageHeader>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard title="Total Playbooks" value={String(BUILTIN_PLAYBOOKS.length)} icon={<BookOpen className="w-5 h-5 text-blue-500" />} trend="available runbooks" />
+        <StatCard title="Critical" value={String(BUILTIN_PLAYBOOKS.filter(p => p.severity === "critical").length)} icon={<AlertTriangle className="w-5 h-5 text-red-500" />} trend="severity level" />
+        <StatCard title="High" value={String(BUILTIN_PLAYBOOKS.filter(p => p.severity === "high").length)} icon={<AlertTriangle className="w-5 h-5 text-orange-500" />} trend="severity level" />
+        <StatCard title="DB Records" value={isFetched ? String(dbPlaybooks.length) : "—"} icon={<Clock className="w-5 h-5 text-purple-500" />} trend="incident history" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Playbook List */}
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Search playbooks..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
           </div>
-          <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors">
-            New Entry
-          </button>
-        </div>
-
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {kpis.map((kpi, i) => (
-            <div
-              key={i}
-              className="bg-[#141a2a] border border-gray-800 rounded-lg p-4"
-            >
-              <p className="text-gray-400 text-xs uppercase tracking-wider">
-                {kpi.label}
-              </p>
-              <p className="text-2xl font-bold mt-1 text-white">{kpi.value}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 mb-4">
-          {(["overview", "details", "history", "settings"] as const).map(
-            (tab: any) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeTab === tab
-                    ? "bg-blue-600 text-white"
-                    : "bg-[#141a2a] text-gray-400 hover:text-white"
-                }`}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            )
-          )}
-        </div>
-
-        {/* Search */}
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="Search records..."
-            value={search}
-            onChange={(e: any) => setSearch(e.target.value)}
-            className="w-full max-w-md px-4 py-2 bg-[#141a2a] border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-          />
-        </div>
-
-        {/* Records Table */}
-        <div className="bg-[#141a2a] border border-gray-800 rounded-lg overflow-hidden">
-          <div className="p-4 border-b border-gray-800">
-            <h3 className="font-semibold">Records ({filtered.length})</h3>
+          <div className="space-y-3">
+            {filtered.map((pb) => (
+              <Card key={pb.id} className={`cursor-pointer transition-all ${selectedPlaybook?.id === pb.id ? "ring-2 ring-primary" : "hover:bg-muted/30"}`} onClick={() => handleRunPlaybook(pb)}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{pb.title}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{pb.category} · {pb.estimatedTime}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge className={SEVERITY_COLORS[pb.severity] ?? ""}>{pb.severity}</Badge>
+                      <Button size="sm" variant="outline" className="gap-1 h-7 text-xs" onClick={(e) => { e.stopPropagation(); handleRunPlaybook(pb); }}>
+                        <Play className="w-3 h-3" />Run
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-800">
-                  {columns.map((col: string, i: number) => (
-                    <th
-                      key={i}
-                      className="text-left p-3 text-gray-400 font-medium"
-                    >
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((row: any) => (
-                  <tr
-                    key={row.id}
-                    className="border-b border-gray-800/50 hover:bg-[#1a2035] transition-colors"
-                  >
-                    <td className="p-3 font-mono text-blue-400">{row.col1}</td>
-                    <td className="p-3">{row.col2}</td>
-                    <td className="p-3">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          row.col3 === "active"
-                            ? "bg-green-500/20 text-green-400"
-                            : row.col3 === "pending"
-                              ? "bg-yellow-500/20 text-yellow-400"
-                              : row.col3 === "warning"
-                                ? "bg-red-500/20 text-red-400"
-                                : "bg-blue-500/20 text-blue-400"
-                        }`}
-                      >
-                        {row.col3}
-                      </span>
-                    </td>
-                    <td className="p-3">{row.col4}</td>
-                    <td className="p-3 text-gray-400">{row.col5}</td>
-                  </tr>
+        </div>
+
+        {/* Active Playbook Runner */}
+        <div>
+          {selectedPlaybook ? (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">{selectedPlaybook.title}</CardTitle>
+                  <Badge className={SEVERITY_COLORS[selectedPlaybook.severity] ?? ""}>{selectedPlaybook.severity}</Badge>
+                </div>
+                <CardDescription>{selectedPlaybook.category} · Est. {selectedPlaybook.estimatedTime}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">Check off each step as you complete it:</p>
+                {selectedPlaybook.steps.map((step, idx) => (
+                  <div key={idx} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${activeSteps.has(idx) ? "bg-emerald-500/10 border-emerald-500/30" : "border-border hover:bg-muted/30"}`} onClick={() => toggleStep(idx)}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${activeSteps.has(idx) ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground"}`}>
+                      {activeSteps.has(idx) ? <CheckCircle className="w-4 h-4" /> : idx + 1}
+                    </div>
+                    <span className={`text-sm ${activeSteps.has(idx) ? "line-through text-muted-foreground" : ""}`}>{step}</span>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+                <div className="pt-2">
+                  <div className="flex items-center justify-between text-sm mb-2">
+                    <span className="text-muted-foreground">Progress</span>
+                    <span>{activeSteps.size}/{selectedPlaybook.steps.length} steps</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div className="bg-primary rounded-full h-2 transition-all" style={{ width: `${(activeSteps.size / selectedPlaybook.steps.length) * 100}%` }} />
+                  </div>
+                </div>
+                {allStepsComplete && (
+                  <Button className="w-full gap-2" onClick={() => { toast.success("Incident resolved and logged"); setSelectedPlaybook(null); setActiveSteps(new Set()); }}>
+                    <CheckCircle className="w-4 h-4" />Mark Incident Resolved
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="h-full flex items-center justify-center">
+              <CardContent className="text-center py-12">
+                <BookOpen className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                <p className="text-muted-foreground">Select a playbook to start the incident response workflow</p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

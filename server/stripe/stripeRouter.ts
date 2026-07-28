@@ -1,5 +1,5 @@
 /**
- * Stripe Integration Router — 54Link POS Shell
+ * Stripe Integration Router — TourismPay Platform
  *
  * Full Stripe integration: checkout sessions, subscription management,
  * payment history, customer creation, and user linking.

@@ -1,5 +1,5 @@
 /**
- * transactions router — all transaction operations for the 54Link POS platform.
+ * transactions router — all transaction operations for the TourismPay POS platform.
  *
  * Security controls (Phase 44-49):
  *  1. Float lock enforcement — rejects if agent.floatLocked = true

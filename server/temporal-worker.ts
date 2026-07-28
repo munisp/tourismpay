@@ -1,6 +1,6 @@
 // TypeScript enabled — Sprint 96 security audit
 /**
- * 54Link POS — Temporal Worker Process
+ * TourismPay POS — Temporal Worker Process
  * Run: npx tsx server/temporal-worker.ts
  * Or via Docker: CMD ["node", "dist/temporal-worker.js"]
  *

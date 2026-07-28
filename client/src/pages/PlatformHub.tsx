@@ -1,5 +1,5 @@
 /**
- * PlatformHub.tsx — Central navigation hub for the 54Link Agency Banking Platform.
+ * PlatformHub.tsx — Central navigation hub for the TourismPay Platform.
  *
  * Displays all available portals with role-based visibility:
  *   - All agents: POS Shell, Agent Banking Portal
@@ -219,7 +219,7 @@ export default function PlatformHub() {
             <span className="text-2xl">🏦</span>
             <div>
               <h1 className="text-lg font-bold text-foreground leading-tight">
-                54Link POS Shell
+                TourismPay Platform
               </h1>
               <p className="text-xs text-muted-foreground">
                 Agency Banking Platform

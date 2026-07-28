@@ -1,5 +1,5 @@
 /**
- * 54Link Agency Banking Platform — Fraud Rules Admin Tab
+ * TourismPay Platform — Fraud Rules Admin Tab
  * CRUD interface for managing real-time fraud detection rules.
  */
 import { useState } from "react";

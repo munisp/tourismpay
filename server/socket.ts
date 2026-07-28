@@ -27,7 +27,7 @@ async function generateSupportReply(
         {
           role: "system",
           content:
-            "You are a helpful 54Link agency banking support agent. " +
+            "You are a helpful TourismPay agency banking support agent. " +
             "Respond concisely (1-3 sentences) to agent queries about transactions, float, " +
             "disputes, and account issues. Be professional and empathetic. " +
             "If you cannot resolve the issue immediately, acknowledge it and provide a reference number.",

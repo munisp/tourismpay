@@ -1,6 +1,6 @@
 // SECURITY: SQL template literals in this file are for display/mock purposes only. All actual DB queries use parameterized Drizzle ORM.
 /**
- * 54Link POS — Bloomberg Terminal meets Modern Fintech (Dark Professional)
+ * TourismPay POS — Bloomberg Terminal meets Modern Fintech (Dark Professional)
  * Features: Fraud Detection Dashboard, Live Chat Support, Loyalty Points System
  * Design: near-black (#0a0e1a), electric blue primary, emerald for positive values
  * Font: Space Grotesk (display) + Inter (body) + JetBrains Mono (financial data)
@@ -1124,7 +1124,7 @@ function ReceiptModal({
             54LINK AGENCY BANKING
           </div>
           <div className="text-center text-xs mb-1">
-            Powered by 54Link Platform
+            Powered by TourismPay Platform
           </div>
           <div className="text-center mb-3">{"─".repeat(32)}</div>
           <div className="flex justify-between">
@@ -2609,7 +2609,7 @@ function QRPaymentScreen({ onBack }: { onBack: () => void }) {
           if (code?.data) {
             stopCamera();
             setScanResult(code.data);
-            // If it's a 54Link QR, validate TTL and auto-process the payment
+            // If it's a TourismPay QR, validate TTL and auto-process the payment
             if (code.data.startsWith("54LINK:")) {
               const parts = code.data.split(":");
               // parts: ["54LINK", ref, amount, agentCode, expiresAt_sec?]
@@ -2874,7 +2874,7 @@ function QRPaymentScreen({ onBack }: { onBack: () => void }) {
             className="text-xs text-gray-500 text-center"
             style={{ fontFamily: DISP }}
           >
-            Supports NIP QR · NIBSS QR · Masterpass · Visa QR · 54Link QR
+            Supports NIP QR · NIBSS QR · Masterpass · Visa QR · TourismPay QR
           </div>
 
           {/* USSD Offline Fallback */}
@@ -2996,7 +2996,7 @@ function QRPaymentScreen({ onBack }: { onBack: () => void }) {
                 className="text-xs text-gray-400 text-center"
                 style={{ fontFamily: MONO }}
               >
-                54Link QR · {fmt(num)}
+                TourismPay QR · {fmt(num)}
               </div>
               <div
                 className="text-xs text-gray-600 text-center break-all px-2"
@@ -3474,7 +3474,7 @@ function QRPaymentScreen({ onBack }: { onBack: () => void }) {
                       const _serialNo = TERMINAL.serialNo;
                       const _printDate = new Date().toLocaleString("en-NG");
                       printWin.document.write(
-                        `<!DOCTYPE html><html><head><title>54Link Batch QR — ${_agentCode}</title><style>@page{size:A4;margin:12mm}body{font-family:'Courier New',monospace;background:#fff;color:#000}h1{font-size:13px;margin:0 0 4px;font-weight:bold}.meta{font-size:9px;color:#555;margin-bottom:10px;line-height:1.6}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.qr-cell{border:1px solid #bbb;border-radius:6px;padding:8px;text-align:center;page-break-inside:avoid}.amount{font-size:13px;font-weight:bold;margin-bottom:4px;color:#000}.label{font-size:8px;color:#666;margin-top:3px;word-break:break-all}.ttl{font-size:8px;color:#999;margin-top:2px}.agent-footer{font-size:8px;color:#aaa;margin-top:3px;border-top:1px dashed #ddd;padding-top:3px}img{display:block;margin:0 auto}.watermark{position:fixed;bottom:8mm;right:10mm;font-size:8px;color:#ccc;text-align:right}@media print{.watermark{position:fixed}}</style></head><body><h1>54Link Agent Banking — QR Payment Sheet</h1><div class="meta">Agent: <strong>${_agentName}</strong> &nbsp;|&nbsp; Code: <strong>${_agentCode}</strong> &nbsp;|&nbsp; Terminal: <strong>${_serialNo}</strong><br/>Printed: ${_printDate} &nbsp;|&nbsp; ${activeQRs.length} code(s) &nbsp;|&nbsp; Codes expire 15 min after generation</div><div class="grid">${rows}</div><div class="watermark">54Link Agent Banking<br/>${_agentCode} | ${_serialNo}<br/>Printed ${_printDate}</div></body></html>`
+                        `<!DOCTYPE html><html><head><title>TourismPay Batch QR — ${_agentCode}</title><style>@page{size:A4;margin:12mm}body{font-family:'Courier New',monospace;background:#fff;color:#000}h1{font-size:13px;margin:0 0 4px;font-weight:bold}.meta{font-size:9px;color:#555;margin-bottom:10px;line-height:1.6}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.qr-cell{border:1px solid #bbb;border-radius:6px;padding:8px;text-align:center;page-break-inside:avoid}.amount{font-size:13px;font-weight:bold;margin-bottom:4px;color:#000}.label{font-size:8px;color:#666;margin-top:3px;word-break:break-all}.ttl{font-size:8px;color:#999;margin-top:2px}.agent-footer{font-size:8px;color:#aaa;margin-top:3px;border-top:1px dashed #ddd;padding-top:3px}img{display:block;margin:0 auto}.watermark{position:fixed;bottom:8mm;right:10mm;font-size:8px;color:#ccc;text-align:right}@media print{.watermark{position:fixed}}</style></head><body><h1>TourismPay Agent Banking — QR Payment Sheet</h1><div class="meta">Agent: <strong>${_agentName}</strong> &nbsp;|&nbsp; Code: <strong>${_agentCode}</strong> &nbsp;|&nbsp; Terminal: <strong>${_serialNo}</strong><br/>Printed: ${_printDate} &nbsp;|&nbsp; ${activeQRs.length} code(s) &nbsp;|&nbsp; Codes expire 15 min after generation</div><div class="grid">${rows}</div><div class="watermark">TourismPay Agent Banking<br/>${_agentCode} | ${_serialNo}<br/>Printed ${_printDate}</div></body></html>`
                       );
                       printWin.document.close();
                       printWin.focus();
@@ -7219,7 +7219,7 @@ function TerminalConfigScreen({ onBack }: { onBack: () => void }) {
             ["Agent Code", TERMINAL.agentCode],
             ["Firmware", "v4.2.1-NG"],
             ["OS", "PAXBiz 3.1"],
-            ["App Version", "54Link v14.0.0"],
+            ["App Version", "TourismPay v14.0.0"],
           ].map(([k, v]) => (
             <div
               key={k}
@@ -11372,7 +11372,7 @@ function OfflineResilienceScreen({ onBack }: { onBack: () => void }) {
                   }
                   const now = new Date();
                   printWin.document.write(`<!DOCTYPE html>
-<html><head><title>54Link USSD Receipt</title>
+<html><head><title>TourismPay USSD Receipt</title>
 <style>
   @page { size: 80mm auto; margin: 4mm; }
   * { box-sizing: border-box; }
@@ -12226,7 +12226,7 @@ export default function POSShell() {
             className="text-xs font-bold"
             style={{ color: BLUE, fontFamily: DISP }}
           >
-            54Link
+            TourismPay
           </span>
           <span className="text-xs text-gray-500" style={{ fontFamily: MONO }}>
             ·
@@ -13143,7 +13143,7 @@ export function ReceiptPrinterModal({
             Scan to verify transaction
           </div>
           <div className="text-center text-gray-500 mt-3">
-            Thank you for using 54Link
+            Thank you for using TourismPay
           </div>
         </div>
 
@@ -13756,7 +13756,7 @@ export function USSDSimulator({ onClose }: { onClose: () => void }) {
   > = {
     main: {
       title:
-        "Welcome to 54Link\nEnter *347# to start\n\n1. Cash In\n2. Cash Out\n3. Transfer\n4. Check Balance\n5. Airtime\n0. Exit",
+        "Welcome to TourismPay\nEnter *347# to start\n\n1. Cash In\n2. Cash Out\n3. Transfer\n4. Check Balance\n5. Airtime\n0. Exit",
       options: [
         { key: "1", label: "Cash In", next: "cashin" },
         { key: "2", label: "Cash Out", next: "cashout" },
@@ -13775,7 +13775,7 @@ export function USSDSimulator({ onClose }: { onClose: () => void }) {
     },
     transfer: {
       title:
-        "TRANSFER\n\n1. Bank Transfer\n2. Mobile Money\n3. 54Link Wallet\n\n0. Back",
+        "TRANSFER\n\n1. Bank Transfer\n2. Mobile Money\n3. TourismPay Wallet\n\n0. Back",
       options: [
         { key: "1", label: "Bank Transfer", next: "bank_transfer" },
         { key: "0", label: "Back", next: "main" },
@@ -14896,7 +14896,7 @@ export function ArchitecturePanel({ onClose }: { onClose: () => void }) {
               className="text-base font-bold text-white"
               style={{ fontFamily: DISP }}
             >
-              54Link Platform Architecture
+              TourismPay Platform Architecture
             </div>
             <div className="text-xs text-gray-500">v14 · Production Ready</div>
           </div>

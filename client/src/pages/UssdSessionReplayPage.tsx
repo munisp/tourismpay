@@ -68,7 +68,7 @@ export default function UssdSessionReplayPage() {
       {
         input: "*384#",
         screen:
-          "Welcome to 54Link\n1. Cash In\n2. Cash Out\n3. Transfer\n4. Balance",
+          "Welcome to TourismPay\n1. Cash In\n2. Cash Out\n3. Transfer\n4. Balance",
         ms: 450,
       },
       { input: "1", screen: "Cash In\nEnter Amount:", ms: 320 },
@@ -87,7 +87,7 @@ export default function UssdSessionReplayPage() {
       {
         input: "*384#",
         screen:
-          "Welcome to 54Link\n1. Cash In\n2. Cash Out\n3. Transfer\n4. Balance",
+          "Welcome to TourismPay\n1. Cash In\n2. Cash Out\n3. Transfer\n4. Balance",
         ms: 450,
       },
       { input: "2", screen: "Cash Out\nEnter Amount:", ms: 380 },

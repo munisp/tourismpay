@@ -1,5 +1,5 @@
 /**
- * Sprint 89 Tests — 54Link POS Shell
+ * Sprint 89 Tests — TourismPay Platform
  *
  * Covers:
  *   - webhookHandler: test event detection, calculateNextRetry, publishBillingEvent

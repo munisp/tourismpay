@@ -1,5 +1,5 @@
 /**
- * Admin Dashboard Router — 54Link POS Shell (Sprint 89)
+ * Admin Dashboard Router — TourismPay Platform (Sprint 89)
  *
  * Role-gated admin procedures for user management, system statistics,
  * audit log viewing, and platform health monitoring.

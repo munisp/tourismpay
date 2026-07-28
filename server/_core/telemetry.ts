@@ -1,5 +1,5 @@
 /**
- * telemetry.ts — OpenTelemetry distributed tracing for 54Link POS Shell
+ * telemetry.ts — OpenTelemetry distributed tracing for TourismPay Platform
  *
  * Instruments:
  *  - HTTP requests (Express)
