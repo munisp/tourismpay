@@ -290,6 +290,27 @@ function MoreNavigator() {
       <MoreStack.Screen name="Analytics" component={AnalyticsScreen} options={{ title: "Analytics" }} />
       <MoreStack.Screen name="Security" component={SecurityHome} options={{ title: "Security" }} />
       <MoreStack.Screen name="Settings" component={SettingsHome} options={{ title: "Settings" }} />
+      {/* ─── Journey V2 Screens ─────────────────────────────────────────── */}
+      <MoreStack.Screen name="J01BnplHotelBooking" component={BnplHotelBookingScreen} options={{ title: "BNPL Hotel Booking" }} />
+      <MoreStack.Screen name="J02AiTripInsurance" component={AiTripInsuranceScreen} options={{ title: "AI Trip + Insurance" }} />
+      <MoreStack.Screen name="J03DiasporaGiftRedemption" component={DiasporaGiftRedemptionScreen} options={{ title: "Gift Redemption" }} />
+      <MoreStack.Screen name="J04OpenBankingTopUp" component={OpenBankingTopUpScreen} options={{ title: "Open Banking Top-Up" }} />
+      <MoreStack.Screen name="J05EVisaBookingBundle" component={EVisaBookingBundleScreen} options={{ title: "eVisa + Hotel Bundle" }} />
+      <MoreStack.Screen name="J06GroupMiceBnpl" component={GroupMiceBnplScreen} options={{ title: "Group MICE BNPL" }} />
+      <MoreStack.Screen name="J07DccPosPayment" component={DccPosPaymentScreen} options={{ title: "DCC POS Payment" }} />
+      <MoreStack.Screen name="J08RevenuePmsSync" component={RevenuePmsSyncScreen} options={{ title: "Revenue PMS Sync" }} />
+      <MoreStack.Screen name="J09TourismIntelligence" component={TourismIntelligenceReportScreen} options={{ title: "Tourism Intelligence" }} />
+      <MoreStack.Screen name="J10GeospatialZone" component={GeospatialLoyaltyZoneScreen} options={{ title: "Loyalty Zones" }} />
+      <MoreStack.Screen name="J11WhiteLabelOnboarding" component={WhiteLabelOnboardingV2Screen} options={{ title: "WL Onboarding" }} />
+      <MoreStack.Screen name="J12LakehouseEtl" component={LakehouseEtlRefreshScreen} options={{ title: "Lakehouse ETL" }} />
+      <MoreStack.Screen name="J13InsuranceClaim" component={InsuranceClaimBisScreen} options={{ title: "Insurance Claim" }} />
+      <MoreStack.Screen name="J14AiRevenue" component={AiRevenueRecommendationScreen} options={{ title: "AI Revenue" }} />
+      <MoreStack.Screen name="J15OpenBankingPayout" component={OpenBankingPayoutScreen} options={{ title: "OB Payout" }} />
+      <MoreStack.Screen name="J16GroupCancellation" component={GroupTravelCancellationScreen} options={{ title: "Group Cancellation" }} />
+      <MoreStack.Screen name="J17AgentTerritory" component={AgentTerritoryAssignmentScreen} options={{ title: "Agent Territory" }} />
+      <MoreStack.Screen name="J18WhiteLabelSettlement" component={WhiteLabelSettlementScreen} options={{ title: "WL Settlement" }} />
+      <MoreStack.Screen name="J19AiFraudBis" component={AiFraudBisEscalationScreen} options={{ title: "Fraud + BIS" }} />
+      <MoreStack.Screen name="J20FullLifecycle" component={FullTouristLifecycleScreen} options={{ title: "Full Lifecycle" }} />
     </MoreStack.Navigator>
   );
 }
@@ -335,6 +356,27 @@ import TourismIntelligenceScreen from "../screens/admin/TourismIntelligence";
 import GeospatialAnalyticsScreen from "../screens/admin/GeospatialAnalytics";
 import LakehouseETLScreen from "../screens/admin/LakehouseETL";
 import WhiteLabelScreen from "../screens/admin/WhiteLabel";
+// ─── Journey V2 Screen Imports ────────────────────────────────────────────────
+import BnplHotelBookingScreen from "../screens/tourist/BnplHotelBooking";
+import AiTripInsuranceScreen from "../screens/tourist/AiTripInsurance";
+import DiasporaGiftRedemptionScreen from "../screens/tourist/DiasporaGiftRedemption";
+import OpenBankingTopUpScreen from "../screens/tourist/OpenBankingTopUp";
+import EVisaBookingBundleScreen from "../screens/tourist/EVisaBookingBundle";
+import InsuranceClaimBisScreen from "../screens/tourist/InsuranceClaimBis";
+import GroupTravelCancellationScreen from "../screens/tourist/GroupTravelCancellation";
+import FullTouristLifecycleScreen from "../screens/tourist/FullTouristLifecycle";
+import GroupMiceBnplScreen from "../screens/merchant/GroupMiceBnpl";
+import DccPosPaymentScreen from "../screens/merchant/DccPosPayment";
+import RevenuePmsSyncScreen from "../screens/merchant/RevenuePmsSync";
+import AiRevenueRecommendationScreen from "../screens/merchant/AiRevenueRecommendation";
+import OpenBankingPayoutScreen from "../screens/merchant/OpenBankingPayout";
+import TourismIntelligenceReportScreen from "../screens/admin/TourismIntelligenceReport";
+import GeospatialLoyaltyZoneScreen from "../screens/admin/GeospatialLoyaltyZone";
+import WhiteLabelOnboardingV2Screen from "../screens/admin/WhiteLabelOnboardingV2";
+import LakehouseEtlRefreshScreen from "../screens/admin/LakehouseEtlRefresh";
+import AgentTerritoryAssignmentScreen from "../screens/admin/AgentTerritoryAssignment";
+import WhiteLabelSettlementScreen from "../screens/admin/WhiteLabelSettlement";
+import AiFraudBisEscalationScreen from "../screens/admin/AiFraudBisEscalation";
 
 // ─── Bottom Tab Navigator ────────────────────────────────────────────────────
 

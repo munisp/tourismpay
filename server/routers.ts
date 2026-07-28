@@ -676,6 +676,7 @@ import { diasporaGiftsRouter } from "./routers/diasporaGifts";
 import { geospatialAnalyticsRouter } from "./routers/geospatialAnalytics";
 import { lakehouseEtlRouter as lakehouseEtlGapRouter } from "./routers/lakehouseEtl";
 import { whiteLabelRouter } from "./routers/whiteLabel";
+import { journeyV2OrchestratorRouter } from "./routers/journeyV2Orchestrator";
 import {
   rateAlertsRouter,
   twoFactorRouter,
@@ -1523,6 +1524,8 @@ adminDashboard: adminDashboardRouter,
   geospatialAnalytics: geospatialAnalyticsRouter,
   whiteLabel: whiteLabelRouter,
   lakehouseEtlGap: lakehouseEtlGapRouter,
+  // ─── Journey V2 (20 new stakeholder journeys) ──────────────────────────────
+  journeyV2: journeyV2OrchestratorRouter,
 });
 
 

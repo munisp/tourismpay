@@ -480,6 +480,25 @@ services:
     command: ["curl -sf http://ollama:11434/api/pull -d '{\"name\":\"qwen2.5:7b\"}' && curl -sf http://ollama:11434/api/pull -d '{\"name\":\"nomic-embed-text\"}'"]
     restart: "no"
 
+  # ─── Journey Analytics Service ─────────────────────────────────────────────
+  journey-analytics:
+    build:
+      context: ./services/journey-analytics
+      dockerfile: Dockerfile
+    ports:
+      - "8105:8105"
+    environment:
+      HTTP_PORT: "8105"
+      PG_DSN: postgresql://tourismpay_user:${POSTGRES_PASSWORD:-testpass123}@postgres:5432/tourismpay
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8105/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
   # ─── Prometheus ─────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.51.2

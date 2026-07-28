@@ -129,6 +129,27 @@ import DiasporaGifts from "@/pages/tourist/DiasporaGifts";
 import WhiteLabel from "@/pages/admin/WhiteLabel";
 import GeospatialAnalytics from "@/pages/admin/GeospatialAnalytics";
 import LakehouseETL from "@/pages/admin/LakehouseETL";
+// ─── Journey V2 Page Imports ────────────────────────────────────────────────────
+import BnplHotelBooking from "@/pages/tourist/BnplHotelBooking";
+import AiTripInsurance from "@/pages/tourist/AiTripInsurance";
+import DiasporaGiftRedemption from "@/pages/tourist/DiasporaGiftRedemption";
+import OpenBankingTopUp from "@/pages/tourist/OpenBankingTopUp";
+import EVisaBookingBundle from "@/pages/tourist/EVisaBookingBundle";
+import InsuranceClaimBis from "@/pages/tourist/InsuranceClaimBis";
+import GroupTravelCancellation from "@/pages/tourist/GroupTravelCancellation";
+import FullTouristLifecycle from "@/pages/tourist/FullTouristLifecycle";
+import GroupMiceBnpl from "@/pages/merchant/GroupMiceBnpl";
+import DccPosPayment from "@/pages/merchant/DccPosPayment";
+import RevenuePmsSync from "@/pages/merchant/RevenuePmsSync";
+import AiRevenueRecommendation from "@/pages/merchant/AiRevenueRecommendation";
+import OpenBankingPayout from "@/pages/merchant/OpenBankingPayout";
+import TourismIntelligenceReport from "@/pages/admin/TourismIntelligenceReport";
+import GeospatialLoyaltyZone from "@/pages/admin/GeospatialLoyaltyZone";
+import WhiteLabelOnboardingV2 from "@/pages/admin/WhiteLabelOnboardingV2";
+import LakehouseEtlRefresh from "@/pages/admin/LakehouseEtlRefresh";
+import AgentTerritoryAssignment from "@/pages/admin/AgentTerritoryAssignment";
+import WhiteLabelSettlement from "@/pages/admin/WhiteLabelSettlement";
+import AiFraudBisEscalation from "@/pages/admin/AiFraudBisEscalation";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -269,6 +290,27 @@ function Router() {
             <Route path="/admin/white-label">{() => <ProtectedRoute roles={["admin"]}><WhiteLabel /></ProtectedRoute>}</Route>
             <Route path="/admin/geospatial">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><GeospatialAnalytics /></ProtectedRoute>}</Route>
             <Route path="/admin/lakehouse">{() => <ProtectedRoute roles={["admin"]}><LakehouseETL /></ProtectedRoute>}</Route>
+            {/* ─── Journey V2 Routes ──────────────────────────────────────────────────── */}
+            <Route path="/tourist/bnpl-hotel">{() => <ProtectedRoute roles={["tourist", "admin"]}><BnplHotelBooking /></ProtectedRoute>}</Route>
+            <Route path="/tourist/ai-trip-insurance">{() => <ProtectedRoute roles={["tourist", "admin"]}><AiTripInsurance /></ProtectedRoute>}</Route>
+            <Route path="/tourist/gift-redemption">{() => <ProtectedRoute roles={["tourist", "admin"]}><DiasporaGiftRedemption /></ProtectedRoute>}</Route>
+            <Route path="/tourist/ob-topup">{() => <ProtectedRoute roles={["tourist", "admin"]}><OpenBankingTopUp /></ProtectedRoute>}</Route>
+            <Route path="/tourist/evisa-bundle">{() => <ProtectedRoute roles={["tourist", "admin"]}><EVisaBookingBundle /></ProtectedRoute>}</Route>
+            <Route path="/tourist/insurance-claim">{() => <ProtectedRoute roles={["tourist", "admin"]}><InsuranceClaimBis /></ProtectedRoute>}</Route>
+            <Route path="/tourist/group-cancellation">{() => <ProtectedRoute roles={["tourist", "admin"]}><GroupTravelCancellation /></ProtectedRoute>}</Route>
+            <Route path="/tourist/lifecycle">{() => <ProtectedRoute roles={["tourist", "admin"]}><FullTouristLifecycle /></ProtectedRoute>}</Route>
+            <Route path="/merchant/group-mice-bnpl">{() => <ProtectedRoute roles={["merchant", "admin"]}><GroupMiceBnpl /></ProtectedRoute>}</Route>
+            <Route path="/merchant/dcc-pos">{() => <ProtectedRoute roles={["merchant", "admin"]}><DccPosPayment /></ProtectedRoute>}</Route>
+            <Route path="/merchant/revenue-pms-sync">{() => <ProtectedRoute roles={["merchant", "admin"]}><RevenuePmsSync /></ProtectedRoute>}</Route>
+            <Route path="/merchant/ai-revenue">{() => <ProtectedRoute roles={["merchant", "admin"]}><AiRevenueRecommendation /></ProtectedRoute>}</Route>
+            <Route path="/merchant/ob-payout">{() => <ProtectedRoute roles={["merchant", "admin"]}><OpenBankingPayout /></ProtectedRoute>}</Route>
+            <Route path="/admin/tourism-intelligence-report">{() => <ProtectedRoute roles={["admin", "compliance_officer"]}><TourismIntelligenceReport /></ProtectedRoute>}</Route>
+            <Route path="/admin/geo-loyalty-zone">{() => <ProtectedRoute roles={["admin"]}><GeospatialLoyaltyZone /></ProtectedRoute>}</Route>
+            <Route path="/admin/white-label-onboarding-v2">{() => <ProtectedRoute roles={["admin"]}><WhiteLabelOnboardingV2 /></ProtectedRoute>}</Route>
+            <Route path="/admin/lakehouse-etl-refresh">{() => <ProtectedRoute roles={["admin"]}><LakehouseEtlRefresh /></ProtectedRoute>}</Route>
+            <Route path="/admin/agent-territory">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><AgentTerritoryAssignment /></ProtectedRoute>}</Route>
+            <Route path="/admin/white-label-settlement">{() => <ProtectedRoute roles={["admin", "settlement_officer"]}><WhiteLabelSettlement /></ProtectedRoute>}</Route>
+            <Route path="/admin/fraud-bis-escalation">{() => <ProtectedRoute roles={["admin", "compliance_officer"]}><AiFraudBisEscalation /></ProtectedRoute>}</Route>
           </Switch>
         </AppShell>
       </Route>
