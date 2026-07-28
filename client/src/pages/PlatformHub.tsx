@@ -9,7 +9,6 @@
  */
 
 import { useLocation } from "wouter";
-import { usePosStore } from "@/store/posStore";
 import {
   Card,
   CardContent,
@@ -201,7 +200,7 @@ const PORTALS: PortalCard[] = [
 
 export default function PlatformHub() {
   const [, navigate] = useLocation();
-  const agent = usePosStore(s => s.agent);
+  // Agent portal links removed (agent banking is admin-only via direct URL)
   const role = agent?.role ?? "agent";
 
   const visiblePortals = PORTALS.filter(
