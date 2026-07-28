@@ -21,7 +21,8 @@ export function ServiceHealth() {
     switch (status) { case "healthy": return "#22c55e"; case "degraded": return "#f59e0b"; case "down": return "#ef4444"; default: return "#888"; }
   };
 
-  if (loading) return <View style={[s.container, { justifyContent: "center", alignItems: "center" }]}><ActivityIndicator size="large" color="#6c63ff" /></View>;
+  if (loading && !error) return <View style={[s.container, { justifyContent: "center", alignItems: "center" }]}><ActivityIndicator size="large" color="#6c63ff" /></View>;
+  if (error) return <View style={[s.container, { justifyContent: "center", alignItems: "center" }]}><Text style={{color:"#ef4444",textAlign:"center",padding:16}}>{error}</Text></View>;
 
   const healthy = services.filter(s => s.status === "healthy").length;
   const degraded = services.filter(s => s.status === "degraded").length;

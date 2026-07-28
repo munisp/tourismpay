@@ -6,9 +6,11 @@ import { secureStorage } from "./secureStorage";
 
 declare const __DEV__: boolean;
 
+// Production server URL — update this when deploying to a new environment
+const PRODUCTION_API_URL = "https://tourismpay.servers.upi.dev/api/trpc";
 const API_BASE = __DEV__
   ? "http://localhost:5000/api/trpc"
-  : "https://api.tourismpay.com/api/trpc";
+  : PRODUCTION_API_URL;
 
 interface RequestOptions {
   method?: "GET" | "POST";

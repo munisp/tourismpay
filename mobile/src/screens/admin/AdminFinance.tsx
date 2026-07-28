@@ -11,7 +11,8 @@ export function AdminFinance({ navigation }: any) {
     defaultValue: { revenue: 0, expenses: 0, netProfit: 0, pendingPayouts: 0, currency: "NGN" },
   });
 
-  if (loading) return <View style={s.loadingContainer}><ActivityIndicator size="large" color="#6366f1" /></View>;
+  if (loading && !error) return <View style={s.loadingContainer}><ActivityIndicator size="large" color="#6366f1" /></View>;
+  if (error) return <View style={s.loadingContainer}><Text style={{color:"#ef4444",textAlign:"center",padding:16}}>{error}</Text></View>;
 
   return (
     <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#6366f1" />}>

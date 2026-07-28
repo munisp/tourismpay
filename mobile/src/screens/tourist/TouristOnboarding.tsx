@@ -11,7 +11,8 @@ export function TouristOnboarding({ navigation }: any) {
     defaultValue: { step: 0, totalSteps: 5, completed: false, kycStatus: "pending" },
   });
 
-  if (loading) return <View style={s.loadingContainer}><ActivityIndicator size="large" color="#6366f1" /></View>;
+  if (loading && !error) return <View style={s.loadingContainer}><ActivityIndicator size="large" color="#6366f1" /></View>;
+  if (error) return <View style={s.loadingContainer}><Text style={{color:"#ef4444",textAlign:"center",padding:16}}>{error}</Text></View>;
 
   return (
     <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#6366f1" />}>

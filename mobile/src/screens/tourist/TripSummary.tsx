@@ -18,7 +18,8 @@ export function TripSummary({ route }: any) {
   useEffect(() => { loadData(); }, [loadData]);
   const onRefresh = async () => { setRefreshing(true); await loadData(); setRefreshing(false); };
 
-  if (loading) return <View style={[s.container, { justifyContent: "center", alignItems: "center" }]}><ActivityIndicator size="large" color="#6c63ff" /></View>;
+  if (loading && !error) return <View style={[s.container, { justifyContent: "center", alignItems: "center" }]}><ActivityIndicator size="large" color="#6c63ff" /></View>;
+  if (error) return <View style={[s.container, { justifyContent: "center", alignItems: "center" }]}><Text style={{color:"#ef4444",textAlign:"center",padding:16}}>{error}</Text></View>;
   if (!summary) return <View style={s.container}><Text style={s.emptyText}>No trip data</Text></View>;
 
   return (

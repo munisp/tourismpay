@@ -11,7 +11,8 @@ export function AdminPanel({ navigation }: any) {
     defaultValue: { totalUsers: 0, activeUsers: 0, totalTransactions: 0, pendingKYB: 0, revenue: 0 },
   });
 
-  if (loading) return <View style={s.loadingContainer}><ActivityIndicator size="large" color="#6366f1" /></View>;
+  if (loading && !error) return <View style={s.loadingContainer}><ActivityIndicator size="large" color="#6366f1" /></View>;
+  if (error) return <View style={s.loadingContainer}><Text style={{color:"#ef4444",textAlign:"center",padding:16}}>{error}</Text></View>;
 
   return (
     <ScrollView style={s.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#6366f1" />}>

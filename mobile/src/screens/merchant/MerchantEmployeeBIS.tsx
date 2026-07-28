@@ -11,7 +11,8 @@ export function MerchantEmployeeBIS({ navigation }: any) {
     defaultValue: { employees: [] },
   });
 
-  if (loading) return <View style={s.loadingContainer}><ActivityIndicator size="large" color="#6366f1" /></View>;
+  if (loading && !error) return <View style={s.loadingContainer}><ActivityIndicator size="large" color="#6366f1" /></View>;
+  if (error) return <View style={s.loadingContainer}><Text style={{color:"#ef4444",textAlign:"center",padding:16}}>{error}</Text></View>;
 
   const items = data?.employees || [];
 
