@@ -28,6 +28,8 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
       { label: "Stablecoin Swap", screen: "StablecoinSwap", icon: "🔄", roles: ["tourist", "admin"] },
       { label: "Tipping & Tax", screen: "TippingTax", icon: "💰", roles: ["tourist", "merchant", "admin"] },
       { label: "AI Co-Pilot", screen: "Copilot", icon: "🤖", roles: ["tourist", "admin"] },
+      { label: "AR Tourism", screen: "ARTourism", icon: "🥽", roles: ["tourist", "admin"] },
+      { label: "Wallet Tools", screen: "WalletExtras", icon: "🔧", roles: ["tourist", "admin"] },
     ],
   },
   {

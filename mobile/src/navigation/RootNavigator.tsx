@@ -315,6 +315,8 @@ import { LoyaltyAdmin } from "../screens/admin/LoyaltyAdmin";
 import { ProviderOnboarding } from "../screens/admin/ProviderOnboarding";
 import { KYBDocuments } from "../screens/admin/KYBDocuments";
 
+import { ARTourism } from "../screens/tourist/ARTourism";
+import { WalletExtras } from "../screens/finance/WalletExtras";
 import { MoreHomeScreen } from "../screens/MoreHomeScreen";
 import { SecurityHome } from "../screens/security/SecurityHome";
 import { SettingsHome } from "../screens/settings/SettingsHome";

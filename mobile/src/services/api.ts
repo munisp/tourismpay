@@ -131,6 +131,38 @@ export const walletAPI = {
     request<{ paymentUrl: string; txId: string }>("wallet.topUp", { method: "POST", body: data }),
 
   getSpendingLimits: () => request<SpendingLimits>("wallet.getSpendingLimits"),
+  setSpendingLimit: (data: { currency: string; amount: number; period: "daily" | "monthly" }) =>
+    request<void>("wallet.setSpendingLimit", { method: "POST", body: data }),
+  toggleSpendingLimit: (id: number) =>
+    request<void>("wallet.toggleSpendingLimit", { method: "POST", body: { id } }),
+  deleteSpendingLimit: (id: number) =>
+    request<void>("wallet.deleteSpendingLimit", { method: "POST", body: { id } }),
+  getBalanceAlerts: () => request<any>("wallet.getBalanceAlerts"),
+  setBalanceAlert: (data: { currency: string; threshold: number; type: "below" | "above" }) =>
+    request<void>("wallet.setBalanceAlert", { method: "POST", body: data }),
+  toggleBalanceAlert: (id: number) =>
+    request<void>("wallet.toggleBalanceAlert", { method: "POST", body: { id } }),
+  deleteBalanceAlert: (id: number) =>
+    request<void>("wallet.deleteBalanceAlert", { method: "POST", body: { id } }),
+  getScheduledPayments: () => request<any>("wallet.getScheduledPayments"),
+  schedulePayment: (data: { to: string; amount: number; currency: string; scheduledAt: string }) =>
+    request<void>("wallet.schedulePayment", { method: "POST", body: data }),
+  cancelScheduledPayment: (id: number) =>
+    request<void>("wallet.cancelScheduledPayment", { method: "POST", body: { id } }),
+  getRecurringPayments: () => request<any>("wallet.getRecurringPayments"),
+  createRecurringPayment: (data: { to: string; amount: number; currency: string; frequency: "weekly" | "monthly" }) =>
+    request<void>("wallet.createRecurringPayment", { method: "POST", body: data }),
+  deleteRecurringPayment: (id: number) =>
+    request<void>("wallet.deleteRecurringPayment", { method: "POST", body: { id } }),
+  spendingAnalytics: () => request<any>("wallet.spendingAnalytics"),
+  exportTransactions: (params: { format: "csv" | "pdf" }) =>
+    request<any>("wallet.exportTransactions", { method: "POST", body: params }),
+  exportStatementPdf: (params: object) =>
+    request<any>("wallet.exportStatementPdf", { method: "POST", body: params }),
+  getTransactionReceipt: (txId: string) =>
+    request<any>("wallet.getTransactionReceipt", { method: "POST", body: { txId } }),
+  searchTransactions: (params: { query: string; limit?: number }) =>
+    request<any>("wallet.searchTransactions", { method: "POST", body: params }),
 };
 
 // ─── Merchant API ────────────────────────────────────────────────────────────
@@ -270,6 +302,24 @@ export const adminAPI = {
 
   killSwitch: (data: { entityType: string; entityId: string; reason: string }) =>
     request<void>("admin.killSwitch", { method: "POST", body: data }),
+  getKYBStats: () => request<any>("kybApplications.stats"),
+  getAuditLog: (params?: { limit?: number }) => request<any>("auditLogs.list", { method: "POST", body: params ?? { limit: 20 } }),
+  getPendingKYB: (params?: { status?: string; limit?: number }) => request<any>("kybApplications.listAll", { method: "POST", body: params ?? { status: "submitted", limit: 5 } }),
+  getComplianceScoreDistribution: () => request<any>("kybApplications.complianceScoreDistribution"),
+  generateCompliancePDF: () => request<any>("pythonServices.pdfComplianceReport", { method: "POST", body: {} }),
+  reviewKYBApplication: (data: { id: number; action: "approve" | "reject" }) => request<any>("kybApplications.review", { method: "POST", body: data }),
+  reviewKYBDocument: (data: { documentId: number; action: "approve" | "reject"; notes?: string }) => request<any>("kybDocuments.review", { method: "POST", body: data }),
+  bulkReviewKYBDocuments: (data: { ids: number[]; action: "approve" | "reject" }) => request<any>("kybDocuments.bulkReview", { method: "POST", body: data }),
+  getAnalytics: () => request<any>("analytics.crossPlatform"),
+  getPlatformHealth: () => request<any>("analytics.platformHealth"),
+  getDAUByRole: () => request<any>("analytics.dauByRole"),
+  checkRateDeviation: (data: { pair: string; proposedRate: number }) => request<any>("exchangeRates.checkDeviation", { method: "POST", body: data }),
+  upsertExchangeRateOverride: (data: { id?: number; pair: string; rate: number; spread?: number }) => request<any>("exchangeRateOverrides.upsert", { method: "POST", body: data }),
+  deactivateExchangeRateOverride: (data: { id: number }) => request<any>("exchangeRateOverrides.deactivate", { method: "POST", body: data }),
+  deleteExchangeRateOverride: (data: { id: number }) => request<any>("exchangeRateOverrides.delete", { method: "POST", body: data }),
+  createLoyaltyProgram: (data: any) => request<any>("loyaltyAdmin.createProgram", { method: "POST", body: data }),
+  updateLoyaltyProgram: (data: any) => request<any>("loyaltyAdmin.updateProgram", { method: "POST", body: data }),
+  deactivateLoyaltyProgram: (data: { id: number }) => request<any>("loyaltyAdmin.deactivateProgram", { method: "POST", body: data }),
 };
 
 // ─── Loyalty API ─────────────────────────────────────────────────────────────
@@ -288,6 +338,27 @@ export const loyaltyAPI = {
     }),
 
   getReferralCode: () => request<{ code: string; uses: number }>("loyalty.getReferralCode"),
+  account: () => request<any>("loyalty.account"),
+  transactions: (params?: { limit?: number; offset?: number }) =>
+    request<any>("loyalty.transactions", { method: "POST", body: params ?? { limit: 20 } }),
+  rewards: () => request<any[]>("loyalty.rewards"),
+  redeem: (data: { rewardId: number }) =>
+    request<any>("loyalty.redeem", { method: "POST", body: data }),
+  earn: (data: { establishmentId: number; amount: number }) =>
+    request<any>("loyalty.earn", { method: "POST", body: data }),
+  getPartners: () => request<any[]>("loyalty.getPartners"),
+  earnWithPartner: (data: { partnerId: number; amount: number }) =>
+    request<any>("loyalty.earnWithPartner", { method: "POST", body: data }),
+  createReferralCode: () => request<any>("loyalty.createReferralCode", { method: "POST", body: {} }),
+  applyReferral: (data: { code: string }) =>
+    request<any>("loyalty.applyReferral", { method: "POST", body: data }),
+  getReferrals: () => request<any>("loyalty.getReferrals"),
+  getLeaderboard: (params?: { limit?: number }) =>
+    request<any>("loyalty.getLeaderboard", { method: "POST", body: params ?? { limit: 10 } }),
+  getExpiringRewards: () => request<any>("loyalty.getExpiringRewards"),
+  getExpiringPoints: () => request<any>("loyalty.getExpiringPoints"),
+  getTripSummaries: () => request<any>("tripSummary.list"),
+  generateTripSummary: () => request<any>("tripSummary.generate", { method: "POST", body: {} }),
 };
 
 // ─── Payment Switch API ──────────────────────────────────────────────────────
