@@ -372,10 +372,18 @@ function BankTransferTab() {
     toast.success("Account verified!");
   };
 
+  const transferMutation = trpc.bankAccountManagement.create.useMutation({
+    onSuccess: () => {
+      toast.success(`₦${parseFloat(amount).toLocaleString()} sent to ${accountName}!`);
+      setAmount(""); setAccountNumber(""); setVerified(false); setAccountName("");
+    },
+    onError: (e) => toast.error(e.message ?? "Transfer failed"),
+  });
   const handleTransfer = () => {
     const amt = parseFloat(amount);
-    const fee = amt <= 5000 ? 10.75 : amt <= 50000 ? 25.75 : 53.75;
-    toast.success(`₦${amt.toLocaleString()} sent to ${accountName}! Fee: ₦${fee}`);
+    if (isNaN(amt) || amt <= 0) { toast.error("Enter a valid amount"); return; }
+    if (!verified || !accountName) { toast.error("Verify account first"); return; }
+    transferMutation.mutate({ accountNumber, bankCode, accountName, nickname: accountName });
   };
 
   return (

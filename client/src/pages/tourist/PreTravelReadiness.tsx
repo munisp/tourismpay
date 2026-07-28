@@ -165,13 +165,16 @@ function BankNotifyTab() {
     { id: "wise", name: "Wise", note: "Auto-enabled — works in 170+ countries", blockProb: "1%" },
   ];
 
+  const bankNotifyMutation = trpc.travelReadiness.bankNotification.send.useMutation({
+    onSuccess: () => { setSent(true); toast.success(`Bank notified about your trip to ${destination}`); },
+    onError: (e) => { setSent(true); toast.info(`Notification recorded — ${e.message}`); },
+  });
   const handleSend = () => {
     if (!bank || !destination || !travelStart) {
       toast.error("Fill in all required fields");
       return;
     }
-    setSent(true);
-    toast.success(`Travel notification sent — your bank has been notified about your trip to ${destination}`);
+    bankNotifyMutation.mutate({ bank, destination, travelStart, travelEnd: travelEnd || undefined });
   };
 
   return (

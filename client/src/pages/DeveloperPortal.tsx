@@ -5,7 +5,6 @@
  */
 import { useState, useMemo } from "react";
 import { trpc } from "../lib/trpc";
-import { usePosStore } from "../store/posStore";
 import { toast } from "sonner";
 import { Link } from "wouter";
 
@@ -167,7 +166,6 @@ const KEYS_PER_PAGE = 5;
 const ENDPOINTS_PER_PAGE = 10;
 
 export default function DeveloperPortal() {
-  const agent = usePosStore(s => s.agent);
   const [tab, setTab] = useState<Tab>("keys");
   const [createForm, setCreateForm] = useState({
     name: "",

@@ -89,21 +89,6 @@ import { advancedAuditLogViewerRouter } from "./routers/advancedAuditLogViewer";
 import { advancedLoadingStatesRouter } from "./routers/advancedLoadingStates";
 import { advancedRateLimiterRouter } from "./routers/advancedRateLimiter";
 import { advancedSearchFilteringRouter } from "./routers/advancedSearchFiltering";
-import { agentRouter } from "./routers/agent";
-import { agentBankingRouter } from "./routers/agentBanking";
-import { agentCommissionCalcRouter } from "./routers/agentCommissionCalc";
-import { agentCommunicationHubRouter } from "./routers/agentCommunicationHub";
-import { agentGamificationRouter } from "./routers/agentGamification";
-import { agentHierarchyRouter } from "./routers/agentHierarchy";
-import { agentInventoryMgmtRouter } from "./routers/agentInventoryMgmt";
-import { agentLoanAdvanceRouter } from "./routers/agentLoanAdvance";
-import { agentLoanFacilityRouter } from "./routers/agentLoanFacility";
-import { agentMicroInsuranceRouter } from "./routers/agentMicroInsurance";
-import { agentOnboardingRouter } from "./routers/agentOnboarding";
-import { agentOnboardingWizardRouter } from "./routers/agentOnboardingWizard";
-import { agentPerformanceLeaderboardRouter } from "./routers/agentPerformanceLeaderboard";
-import { agentTerritoryMgmtRouter } from "./routers/agentTerritoryMgmt";
-import { agentTrainingRouter } from "./routers/agentTraining";
 import { aiCashFlowPredictorRouter } from "./routers/aiCashFlowPredictor";
 import { aiChatSupportRouter } from "./routers/aiChatSupport";
 import { analyticsQueryRouter } from "./routers/analyticsQuery";
@@ -170,7 +155,6 @@ import { inviteCodesRouter } from "./routers/inviteCodes";
 import { kycDocumentManagementRouter } from "./routers/kycDocumentManagement";
 import { lakehouseRouter } from "./routers/lakehouse";
 import { billingLedgerRouter } from "./routers/billingLedger";
-import { activityAuditLogRouter } from "./routers/activityAuditLog";
 import { managementRouter } from "./routers/management";
 import { mdmRouter } from "./routers/mdm";
 import { merchantAnalyticsDashRouter } from "./routers/merchantAnalyticsDash";
@@ -247,37 +231,11 @@ import { adminGetCooldownsRouter } from './routers/adminGetCooldowns';
 import { adminProblematicDevicesRouter } from './routers/adminProblematicDevices';
 import { advancedBiReportingRouter } from './routers/advancedBiReporting';
 import { advancedNotificationsRouter } from './routers/advancedNotifications';
-import { agentBalanceRouter } from './routers/agentBalance';
 import { agentBankAccountsRouter } from './routers/agentBankAccountsCrud';
 import { agentBenchmarkingRouter } from './routers/agentBenchmarking';
-import { agentClusterAnalyticsRouter } from './routers/agentClusterAnalytics';
-import { agentDeviceFingerprintRouter } from './routers/agentDeviceFingerprint';
-import { agentFloatForecastingRouter } from './routers/agentFloatForecasting';
-import { agentFloatInsuranceClaimsRouter } from './routers/agentFloatInsuranceClaims';
-import { agentFloatTransferRouter } from './routers/agentFloatTransfer';
-import { agentHierarchyTerritoryRouter } from './routers/agentHierarchyTerritory';
-import { agentKycRouter } from './routers/agentKyc';
-import { agentKycDocVaultRouter } from './routers/agentKycDocVault';
-import { agentLeaderboardRouter } from './routers/agentLeaderboard';
-import { agentLoanOriginationRouter } from './routers/agentLoanOrigination';
-import { agentLoanOrigination2Router } from './routers/agentLoanOrigination2';
-import { agentManagementRouter } from './routers/agentManagement';
-import { agentMgmtRouter } from './routers/agentMgmt';
-import { agentNetworkTopologyRouter } from './routers/agentNetworkTopology';
-import { agentOnboardingWorkflowRouter } from './routers/agentOnboardingWorkflow';
-import { agentPerformanceAnalyticsRouter } from './routers/agentPerformanceAnalytics';
-import { agentPerformanceIncentivesRouter } from './routers/agentPerformanceIncentives';
-import { agentPerformanceScorecardRouter } from './routers/agentPerformanceScorecard';
 import { agentPerformanceScoresRouter } from './routers/agentPerformanceScoresCrud';
-import { agentRevenueAttributionRouter } from './routers/agentRevenueAttribution';
-import { agentScorecardRouter } from './routers/agentScorecard';
 import { agentSuspensionLogRouter } from './routers/agentSuspensionLogCrud';
-import { agentSuspensionWorkflowRouter } from './routers/agentSuspensionWorkflow';
 import { agentTerritoryHeatmapRouter } from './routers/agentTerritoryHeatmap';
-import { agentTerritoryOptimizerRouter } from './routers/agentTerritoryOptimizer';
-import { agentTrainingAcademyRouter } from './routers/agentTrainingAcademy';
-import { agentTrainingGamificationRouter } from './routers/agentTrainingGamification';
-import { agentTrainingPortalRouter } from './routers/agentTrainingPortal';
 import { aiMessageRouter } from './routers/aiMessage';
 import { aiMonitoringRouter } from './routers/aiMonitoring';
 import { airtimeVendingRouter } from './routers/airtimeVending';
@@ -415,7 +373,6 @@ import { fieldMappingsRouter } from './routers/fieldMappings';
 import { financialReportingSuiteRouter } from './routers/financialReportingSuite';
 import { firmwareVersionRouter } from './routers/firmwareVersion';
 import { firstNameRouter } from './routers/firstName';
-import { floatManagementRouter } from './routers/floatManagement';
 import { floatReconciliationRouter } from './routers/floatReconciliation';
 import { floatReconciliationsRouter } from './routers/floatReconciliationsCrud';
 import { fontFamilyRouter } from './routers/fontFamily';
@@ -558,7 +515,6 @@ import { pnlReportRouter } from './routers/pnlReport';
 import { pnlReportsRouter } from './routers/pnlReportsCrud';
 import { portRouter } from './routers/port';
 import { posDisputeRouter } from './routers/posDispute';
-import { predictiveAgentChurnRouter } from './routers/predictiveAgentChurn';
 import { primaryColorRouter } from './routers/primaryColor';
 import { probeIntervalMsRouter } from './routers/probeIntervalMs';
 import { productionFeaturesRouter } from './routers/productionFeatures';
@@ -640,8 +596,6 @@ import { submitLivenessFrameRouter } from './routers/submitLivenessFrame';
 import { summaryRouter } from './routers/summary';
 import { superAdminRouter } from './routers/superAdmin';
 import { supplyChainRouter } from './routers/supplyChain';
-import { supportAgentNameRouter } from './routers/supportAgentName';
-import { syncAgentsRouter } from './routers/syncAgents';
 import { syncEnabledRouter } from './routers/syncEnabled';
 import { syncIntervalMinutesRouter } from './routers/syncIntervalMinutes';
 import { syncInventoryRouter } from './routers/syncInventory';
@@ -960,21 +914,6 @@ adminDashboard: adminDashboardRouter,
   advancedLoadingStates: advancedLoadingStatesRouter,
   advancedRateLimiter: advancedRateLimiterRouter,
   advancedSearchFiltering: advancedSearchFilteringRouter,
-  agent: agentRouter,
-  agentBanking: agentBankingRouter,
-  agentCommissionCalc: agentCommissionCalcRouter,
-  agentCommunicationHub: agentCommunicationHubRouter,
-  agentGamification: agentGamificationRouter,
-  agentHierarchy: agentHierarchyRouter,
-  agentInventoryMgmt: agentInventoryMgmtRouter,
-  agentLoanAdvance: agentLoanAdvanceRouter,
-  agentLoanFacility: agentLoanFacilityRouter,
-  agentMicroInsurance: agentMicroInsuranceRouter,
-  agentOnboarding: agentOnboardingRouter,
-  agentOnboardingWizard: agentOnboardingWizardRouter,
-  agentPerformanceLeaderboard: agentPerformanceLeaderboardRouter,
-  agentTerritoryMgmt: agentTerritoryMgmtRouter,
-  agentTraining: agentTrainingRouter,
   aiCashFlowPredictor: aiCashFlowPredictorRouter,
   aiChat: aiChatSupportRouter,
   analyticsQuery: analyticsQueryRouter,
@@ -1041,7 +980,6 @@ adminDashboard: adminDashboardRouter,
   kycDocumentManagement: kycDocumentManagementRouter,
   lakehouse: lakehouseRouter,
   ledger: billingLedgerRouter,
-  log: activityAuditLogRouter,
   management: managementRouter,
   mdm: mdmRouter,
   merchantAnalyticsDash: merchantAnalyticsDashRouter,
@@ -1118,37 +1056,11 @@ adminDashboard: adminDashboardRouter,
   adminProblematicDevices: adminProblematicDevicesRouter,
   advancedBiReporting: advancedBiReportingRouter,
   advancedNotifications: advancedNotificationsRouter,
-  agentBalance: agentBalanceRouter,
   agentBankAccountsCrud: agentBankAccountsRouter,
   agentBenchmarking: agentBenchmarkingRouter,
-  agentClusterAnalytics: agentClusterAnalyticsRouter,
-  agentDeviceFingerprint: agentDeviceFingerprintRouter,
-  agentFloatForecasting: agentFloatForecastingRouter,
-  agentFloatInsuranceClaims: agentFloatInsuranceClaimsRouter,
-  agentFloatTransfer: agentFloatTransferRouter,
-  agentHierarchyTerritory: agentHierarchyTerritoryRouter,
-  agentKyc: agentKycRouter,
-  agentKycDocVault: agentKycDocVaultRouter,
-  agentLeaderboard: agentLeaderboardRouter,
-  agentLoanOrigination: agentLoanOriginationRouter,
-  agentLoanOrigination2: agentLoanOrigination2Router,
-  agentManagement: agentManagementRouter,
-  agentMgmt: agentMgmtRouter,
-  agentNetworkTopology: agentNetworkTopologyRouter,
-  agentOnboardingWorkflow: agentOnboardingWorkflowRouter,
-  agentPerformanceAnalytics: agentPerformanceAnalyticsRouter,
-  agentPerformanceIncentives: agentPerformanceIncentivesRouter,
-  agentPerformanceScorecard: agentPerformanceScorecardRouter,
   agentPerformanceScoresCrud: agentPerformanceScoresRouter,
-  agentRevenueAttribution: agentRevenueAttributionRouter,
-  agentScorecard: agentScorecardRouter,
   agentSuspensionLogCrud: agentSuspensionLogRouter,
-  agentSuspensionWorkflow: agentSuspensionWorkflowRouter,
   agentTerritoryHeatmap: agentTerritoryHeatmapRouter,
-  agentTerritoryOptimizer: agentTerritoryOptimizerRouter,
-  agentTrainingAcademy: agentTrainingAcademyRouter,
-  agentTrainingGamification: agentTrainingGamificationRouter,
-  agentTrainingPortal: agentTrainingPortalRouter,
   aiMessage: aiMessageRouter,
   aiMonitoring: aiMonitoringRouter,
   airtimeVending: airtimeVendingRouter,
@@ -1286,7 +1198,6 @@ adminDashboard: adminDashboardRouter,
   financialReportingSuite: financialReportingSuiteRouter,
   firmwareVersion: firmwareVersionRouter,
   firstName: firstNameRouter,
-  floatManagement: floatManagementRouter,
   floatReconciliation: floatReconciliationRouter,
   floatReconciliationsCrud: floatReconciliationsRouter,
   fontFamily: fontFamilyRouter,
@@ -1429,7 +1340,6 @@ adminDashboard: adminDashboardRouter,
   pnlReportsCrud: pnlReportsRouter,
   port: portRouter,
   posDispute: posDisputeRouter,
-  predictiveAgentChurn: predictiveAgentChurnRouter,
   primaryColor: primaryColorRouter,
   probeIntervalMs: probeIntervalMsRouter,
   productionFeatures: productionFeaturesRouter,
@@ -1509,8 +1419,6 @@ adminDashboard: adminDashboardRouter,
   summary: summaryRouter,
   superAdmin: superAdminRouter,
   supplyChain: supplyChainRouter,
-  supportAgentName: supportAgentNameRouter,
-  syncAgents: syncAgentsRouter,
   syncEnabled: syncEnabledRouter,
   syncIntervalMinutes: syncIntervalMinutesRouter,
   syncInventory: syncInventoryRouter,
@@ -1581,7 +1489,6 @@ adminDashboard: adminDashboardRouter,
   sysConfig: sysConfigRouter,
   userNotifPrefs: userNotifPrefsRouter,
   // ─── Frontend-expected aliases ─────────────────────────────────────────────
-  activityAuditLog: activityAuditLogRouter,
   billingLedger: billingLedgerRouter,
   lakehouseAi: lakehouseAiIntegrationRouter,
   settlementRecon: settlementReconciliationRouter,

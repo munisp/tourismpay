@@ -245,7 +245,20 @@ const CATEGORY_FILTERS: { id: CategoryFilter; label: string }[] = [
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function ApiHealthDashboard() {
+  const healthQuery = trpc.serviceProxy.getServiceHealth.useQuery(undefined, {
+    refetchInterval: 30000,
+    onError: () => {},
+  });
   const [endpoints, setEndpoints] = useState<ServiceEndpoint[]>(generateEndpoints);
+  // Use live data when available, fall back to generated mock
+  const liveEndpoints = healthQuery.data?.services
+    ? healthQuery.data.services.map((s: any) => ({
+        ...generateEndpoints().find(e => e.id === s.id) ?? generateEndpoints()[0],
+        id: s.id, name: s.name, status: s.status ?? "unknown",
+        latencyMs: s.latencyMs ?? 0, uptimePercent: s.uptimePercent ?? 100,
+        errorRate: s.errorRate ?? 0, lastChecked: new Date(s.lastChecked ?? Date.now()),
+      }))
+    : endpoints;
   const [filter, setFilter] = useState<CategoryFilter>("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -268,13 +281,13 @@ export default function ApiHealthDashboard() {
     }, 800);
   };
 
-  const filtered = filter === "all" ? endpoints : endpoints.filter(e => e.category === filter);
-  const healthyCount = endpoints.filter(e => e.status === "healthy").length;
-  const degradedCount = endpoints.filter(e => e.status === "degraded").length;
-  const downCount = endpoints.filter(e => e.status === "down").length;
+  const filtered = filter === "all" ? endpoints : liveEndpoints.filter(e => e.category === filter);
+  const healthyCount = liveEndpoints.filter(e => e.status === "healthy").length;
+  const degradedCount = liveEndpoints.filter(e => e.status === "degraded").length;
+  const downCount = liveEndpoints.filter(e => e.status === "down").length;
   const avgLatency = Math.round(endpoints.reduce((sum, e) => sum + e.latencyMs, 0) / endpoints.length);
   const avgUptime = (endpoints.reduce((sum, e) => sum + e.uptimePercent, 0) / endpoints.length).toFixed(2);
-  const openCircuitBreakers = endpoints.filter(e => e.circuitBreaker === "open").length;
+  const openCircuitBreakers = liveEndpoints.filter(e => e.circuitBreaker === "open").length;
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto">

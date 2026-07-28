@@ -9,7 +9,6 @@ import { secureRandom } from "@/lib/secureRandom";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { useFraudSocket } from "../hooks/useSocket";
-import { usePosStore } from "../store/posStore";
 import { trpc } from "../lib/trpc";
 import {
   AreaChart,
@@ -479,7 +478,6 @@ export default function FraudDashboard() {
   }, [dbAlerts]);
 
   // ── Real-time Socket.IO fraud feed ──────────────────────────────────────────
-  const storeEvents = usePosStore(s => s.fraudEvents);
   useFraudSocket(); // connects to /fraud namespace and pushes events into store
 
   // Merge store (socket) events into local display state

@@ -9,7 +9,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
-import { usePosStore } from "../store/posStore";
 import {
   AreaChart,
   Area,
@@ -584,8 +583,6 @@ export default function LoyaltySystem({ onBack }: { onBack?: () => void }) {
   const redeemRewardMutation = trpc.loyalty.redeemReward.useMutation({
     onSuccess: () => refetch(),
   });
-  const storeAgent = usePosStore(s => s.agent);
-  const updateLoyaltyPoints = usePosStore(s => s.updateLoyaltyPoints);
 
   // Use live points if available, fall back to store agent, then to mock
   const [points, setPoints] = useState(8_450);

@@ -10,7 +10,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { useChatSocket } from "../hooks/useSocket";
-import { usePosStore } from "../store/posStore";
 import { secureRandom } from "@/lib/secureRandom";
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
@@ -278,7 +277,6 @@ export default function LiveChatSupport({ onBack }: { onBack?: () => void }) {
   const sendMessageMutation = trpc.chat.sendMessage.useMutation();
 
   // ── Socket.IO real-time chat ────────────────────────────────────────────────
-  const storeMessages = usePosStore(s => s.chatMessages);
   const {
     sendMessage: socketSend,
     sendTyping,

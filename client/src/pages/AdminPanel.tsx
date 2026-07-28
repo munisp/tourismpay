@@ -11,7 +11,6 @@
  */
 import { useState, useEffect, useRef } from "react";
 import { trpc } from "../lib/trpc";
-import { usePosStore } from "../store/posStore";
 import { toast } from "sonner";
 import {
   AreaChart,
@@ -118,7 +117,6 @@ function KpiCard({
 
 // ─── Fraud Feed Tab ───────────────────────────────────────────────────────────
 function FraudFeedTab() {
-  const fraudEvents = usePosStore(s => s.fraudEvents);
   const updateStatus = trpc.fraud.updateStatus.useMutation({
     onSuccess: () => toast.success("Status updated"),
     onError: (e: any) => toast.error(e.message),
@@ -1404,10 +1402,6 @@ export default function AdminPanel() {
     | "mqtt"
     | "coverage"
   >(initialTab);
-  const agent = usePosStore(s => s.agent);
-  const fraudEvents = usePosStore(s => s.fraudEvents);
-  const unreadFraud = usePosStore(s => s.unreadFraudCount);
-  const clearFraudCount = usePosStore(s => s.clearFraudCount);
 
   // Connect to Socket.IO for live fraud events
   useFraudSocket();

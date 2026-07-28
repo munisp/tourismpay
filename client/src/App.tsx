@@ -92,8 +92,6 @@ import PaymentReceipt from "@/pages/tourist/PaymentReceipt";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { OfflinePaymentBanner } from "@/components/OfflinePaymentBanner";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
-import AgentBenchmarking from "./pages/AgentBenchmarking";
-import AgentLoanOriginationV2 from "./pages/AgentLoanOriginationV2";
 import AgentTerritoryHeatmap from "./pages/AgentTerritoryHeatmap";
 import BulkTransactionProcessor from "./pages/BulkTransactionProcessor";
 import ComplianceCertManager from "./pages/ComplianceCertManager";
@@ -213,8 +211,6 @@ function Router() {
             {/* Tourist order confirmation screen */}
             <Route path="/pay/:token" component={TouristOrderConfirm} />
                         {/* Feature Pages — Admin/NOC */}
-            <Route path="/admin/agent-benchmarking">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><AgentBenchmarking /></ProtectedRoute>}</Route>
-            <Route path="/admin/agent-loans">{() => <ProtectedRoute roles={["admin", "settlement_officer"]}><AgentLoanOriginationV2 /></ProtectedRoute>}</Route>
             <Route path="/admin/territory-heatmap">{() => <ProtectedRoute roles={["admin", "noc_operator"]}><AgentTerritoryHeatmap /></ProtectedRoute>}</Route>
             <Route path="/admin/bulk-transactions">{() => <ProtectedRoute roles={["admin", "settlement_officer"]}><BulkTransactionProcessor /></ProtectedRoute>}</Route>
             <Route path="/admin/compliance-certs">{() => <ProtectedRoute roles={["admin", "compliance_officer"]}><ComplianceCertManager /></ProtectedRoute>}</Route>
