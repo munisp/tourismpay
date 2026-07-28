@@ -1,6 +1,6 @@
 // P3-D: FIDO2 / WebAuthn Biometric Authentication Microservice (Go)
 //
-// 54Link POS FIDO2 Service
+// TourismPay POS FIDO2 Service
 //
 // This service handles the WebAuthn/FIDO2 ceremony for passkey-based
 // authentication of agents and admin users. It is intentionally a
@@ -22,7 +22,7 @@
 //   PORT              — HTTP listen port (default: 8083)
 //   FIDO2_RP_ID       — Relying Party ID (e.g. "tourismpay.ng")
 //   FIDO2_RP_ORIGIN   — Relying Party origin (e.g. "https://app.tourismpay.ng")
-//   FIDO2_RP_NAME     — Relying Party display name (default: "54Link POS")
+//   FIDO2_RP_NAME     — Relying Party display name (default: "TourismPay POS")
 //   FIDO2_ADMIN_KEY   — Shared secret for admin endpoints
 
 package main
@@ -98,7 +98,7 @@ func initWebAuthn() error {
 	}
 	rpName := os.Getenv("FIDO2_RP_NAME")
 	if rpName == "" {
-		rpName = "54Link POS"
+		rpName = "TourismPay POS"
 	}
 
 	var err error
@@ -637,7 +637,7 @@ func main() {
 		port = "8083"
 	}
 
-	log.Printf("[FIDO2] 54Link FIDO2 Service starting on :%s", port)
+	log.Printf("[FIDO2] TourismPay FIDO2 Service starting on :%s", port)
 	log.Printf("[FIDO2] RP ID: %s | Origin: %s", os.Getenv("FIDO2_RP_ID"), os.Getenv("FIDO2_RP_ORIGIN"))
 
 	srv := &http.Server{

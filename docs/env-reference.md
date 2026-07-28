@@ -1,4 +1,4 @@
-# 54Link POS Shell — Environment Variables Reference
+# TourismPay POS Shell — Environment Variables Reference
 
 Copy and rename this file to `.env` for your environment. Never commit `.env` to version control.
 
@@ -8,7 +8,7 @@ Copy and rename this file to `.env` for your environment. Never commit `.env` to
 | ---------- | ----------------------- | ---------------- |
 | `NODE_ENV` | `production`            | Node environment |
 | `PORT`     | `3000`                  | HTTP server port |
-| `APP_URL`  | `https://pos.54link.ng` | Public URL       |
+| `APP_URL`  | `https://pos.tourismpay.ng` | Public URL       |
 
 ## Database
 
@@ -35,7 +35,7 @@ Copy and rename this file to `.env` for your environment. Never commit `.env` to
 | Variable             | Default                | Description         |
 | -------------------- | ---------------------- | ------------------- |
 | `KEYCLOAK_URL`       | `http://keycloak:8080` | Keycloak server URL |
-| `KEYCLOAK_REALM`     | `54link`               | Realm name          |
+| `KEYCLOAK_REALM`     | `tourismpay`               | Realm name          |
 | `KEYCLOAK_CLIENT_ID` | `pos-shell`            | Client ID           |
 
 ## MinIO / S3 Object Storage
@@ -45,7 +45,7 @@ Copy and rename this file to `.env` for your environment. Never commit `.env` to
 | `MINIO_ENDPOINT`   | `http://minio:9000` | MinIO endpoint |
 | `MINIO_ACCESS_KEY` | `minioadmin`        | Access key     |
 | `MINIO_SECRET_KEY` | `minioadmin123`     | Secret key     |
-| `MINIO_BUCKET`     | `54link-pos-shell`  | Default bucket |
+| `MINIO_BUCKET`     | `tourismpay-pos-shell`  | Default bucket |
 
 ## Kafka / Redpanda
 
@@ -77,7 +77,7 @@ Copy and rename this file to `.env` for your environment. Never commit `.env` to
 | ----------- | ------------------- | ------------ |
 | `SMTP_HOST` | `mailhog`           | SMTP host    |
 | `SMTP_PORT` | `1025`              | SMTP port    |
-| `SMTP_FROM` | `noreply@54link.ng` | From address |
+| `SMTP_FROM` | `noreply@tourismpay.ng` | From address |
 
 ## VAPID Push Notifications
 
@@ -87,7 +87,7 @@ Generate keys with: `npx web-push generate-vapid-keys`
 | ------------------- | ------------------------ | ----------------- |
 | `VAPID_PUBLIC_KEY`  | _(must generate)_        | VAPID public key  |
 | `VAPID_PRIVATE_KEY` | _(must generate)_        | VAPID private key |
-| `VAPID_SUBJECT`     | `mailto:admin@54link.ng` | VAPID subject     |
+| `VAPID_SUBJECT`     | `mailto:admin@tourismpay.ng` | VAPID subject     |
 
 ## Webhook Delivery
 
@@ -125,7 +125,7 @@ Generate keys with: `npx web-push generate-vapid-keys`
 | `CBN_SINGLE_TX_LIMIT_TIER3` | `200000`    | Tier 3 single tx limit (NGN)  |
 | `CBN_CTR_THRESHOLD`         | `5000000`   | CTR reporting threshold (NGN) |
 | `CBN_SAR_THRESHOLD`         | `10000000`  | SAR reporting threshold (NGN) |
-| `CBN_INSTITUTION_CODE`      | `54LINK001` | CBN institution code          |
+| `CBN_INSTITUTION_CODE`      | `TOURISMPAY001` | CBN institution code          |
 
 ## Float Management
 
@@ -158,7 +158,7 @@ Generate keys with: `npx web-push generate-vapid-keys`
 | Variable           | Default                 | Description            |
 | ------------------ | ----------------------- | ---------------------- |
 | `BCRYPT_ROUNDS`    | `12`                    | bcrypt hash rounds     |
-| `CORS_ORIGIN`      | `https://pos.54link.ng` | CORS allowed origin    |
+| `CORS_ORIGIN`      | `https://pos.tourismpay.ng` | CORS allowed origin    |
 | `COOKIE_SECURE`    | `true`                  | Secure cookie flag     |
 | `COOKIE_SAME_SITE` | `strict`                | SameSite cookie policy |
 

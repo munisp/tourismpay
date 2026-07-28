@@ -1,7 +1,7 @@
 # Snyk CVE Scanning — Setup Guide
 
 This guide explains how to activate the `snyk-scan` CI job in `.github/workflows/ci.yml`
-for the 54Link POS Shell platform.
+for the TourismPay POS Shell platform.
 
 ---
 

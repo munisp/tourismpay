@@ -1,6 +1,6 @@
 // P2-C: OTA Firmware Update Pipeline (Go)
 //
-// 54Link POS OTA Microservice
+// TourismPay POS OTA Microservice
 //
 // Endpoints:
 //   GET  /health                  — liveness probe
@@ -576,7 +576,7 @@ func main() {
 
 	handler := newRouter()
 
-	log.Printf("[OTA] 54Link OTA Microservice starting on :%s", port)
+	log.Printf("[OTA] TourismPay OTA Microservice starting on :%s", port)
 	log.Printf("[OTA] Endpoints: GET /health, GET /api/v1/ota/latest, GET /api/v1/ota/download/:id")
 	log.Printf("[OTA] Admin endpoints: GET /api/v1/ota/list, POST /api/v1/ota/upload, PUT /api/v1/ota/:id/rollout")
 

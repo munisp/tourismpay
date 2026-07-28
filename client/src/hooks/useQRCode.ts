@@ -6,7 +6,7 @@
  *  2. Scan QR codes via device camera using jsQR (works offline — no cloud OCR)
  *  3. Persist generated QR codes in IndexedDB so they survive page reloads
  *  4. Sync IndexedDB-persisted QR codes to the server when connectivity is restored
- *  5. Parse TourismPay QR payload format: 54LINK:{ref}:{amount}:{agentCode}
+ *  5. Parse TourismPay QR payload format: TOURISMPAY:{ref}:{amount}:{agentCode}
  *
  * Offline strategy:
  *  - QR generation: fully offline — canvas rendering is pure client-side
@@ -32,7 +32,7 @@ export interface OfflineQRRecord {
   amount: number;
   agentCode: string;
   label: string;
-  payload: string; // 54LINK:{ref}:{amount}:{agentCode}
+  payload: string; // TOURISMPAY:{ref}:{amount}:{agentCode}
   createdAt: string;
   synced: boolean;
 }
@@ -139,8 +139,8 @@ export interface ParsedQRPayload {
 }
 
 export function parseQRPayload(raw: string): ParsedQRPayload {
-  // TourismPay format: 54LINK:{ref}:{amount}:{agentCode}
-  if (raw.startsWith("54LINK:")) {
+  // TourismPay format: TOURISMPAY:{ref}:{amount}:{agentCode}
+  if (raw.startsWith("TOURISMPAY:")) {
     const parts = raw.split(":");
     if (parts.length >= 4) {
       const amount = parseFloat(parts[2]);
@@ -179,7 +179,7 @@ export function buildTourismPayQRPayload(
   amount: number,
   agentCode: string
 ): string {
-  return `54LINK:${ref}:${amount}:${agentCode}`;
+  return `TOURISMPAY:${ref}:${amount}:${agentCode}`;
 }
 
 // ── Camera QR scanner ─────────────────────────────────────────────────────────

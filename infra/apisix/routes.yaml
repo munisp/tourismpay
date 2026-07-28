@@ -1,10 +1,10 @@
-# ─── 54Link APISIX Declarative Routes ────────────────────────────────────────
+# ─── TourismPay APISIX Declarative Routes ────────────────────────────────────────
 # These routes are loaded at startup via apisix.yaml (standalone mode)
 # Rate limits: api_general=60/min, api_auth=10/min, api_tx=30/min
 
 routes:
-  # ── Main POS Shell App ─────────────────────────────────────────────────────
-  - id: pos-shell-api
+  # ── Main TourismPay App ─────────────────────────────────────────────────────
+  - id: tourismpay-api
     uri: /api/*
     upstream_id: pos-shell
     plugins:
@@ -18,7 +18,7 @@ routes:
         include_in_response: true
       prometheus: {}
 
-  - id: pos-shell-trpc
+  - id: tourismpay-trpc
     uri: /api/trpc/*
     upstream_id: pos-shell
     plugins:
@@ -31,7 +31,7 @@ routes:
       prometheus: {}
 
   # ── Auth endpoints (stricter rate limiting) ────────────────────────────────
-  - id: pos-shell-auth
+  - id: tourismpay-auth
     uri: /api/oauth/*
     upstream_id: pos-shell
     plugins:
@@ -389,13 +389,13 @@ global_rules:
             X-Frame-Options: "DENY"
             X-XSS-Protection: "1; mode=block"
             Referrer-Policy: "strict-origin-when-cross-origin"
-            X-Powered-By: "54Link"
+            X-Powered-By: "TourismPay"
 
 plugin_configs:
   - id: cors-config
     plugins:
       cors:
-        allow_origins: "https://54link.io,https://app.54link.io,https://admin.54link.io,https://merchant.54link.io"
+        allow_origins: "https://tourismpay.io,https://app.tourismpay.io,https://admin.tourismpay.io,https://merchant.tourismpay.io"
         allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
         allow_headers: "Content-Type,Authorization,X-Request-ID,X-Device-ID,X-Agent-ID"
         expose_headers: "X-Request-ID,X-RateLimit-Limit,X-RateLimit-Remaining"

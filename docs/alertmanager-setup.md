@@ -1,6 +1,6 @@
-# Alertmanager Setup Guide — 54Link POS Shell
+# Alertmanager Setup Guide — TourismPay POS Shell
 
-This document covers deploying and configuring the full open-source alerting stack for the 54Link POS Shell. The stack uses **Grafana OnCall** as the on-call rotation and escalation engine (replacing commercial tools like PagerDuty), **Alertmanager** for alert routing, and **Slack** for team notifications.
+This document covers deploying and configuring the full open-source alerting stack for the TourismPay POS Shell. The stack uses **Grafana OnCall** as the on-call rotation and escalation engine (replacing commercial tools like PagerDuty), **Alertmanager** for alert routing, and **Slack** for team notifications.
 
 ---
 

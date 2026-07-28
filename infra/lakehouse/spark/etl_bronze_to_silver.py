@@ -1,5 +1,5 @@
 """
-54Link Data Lakehouse: Bronze → Silver ETL Pipeline
+TourismPay Data Lakehouse: Bronze → Silver ETL Pipeline
 Runs as a Spark Structured Streaming job reading from Kafka,
 writing to Iceberg Silver layer on MinIO.
 

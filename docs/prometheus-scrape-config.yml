@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Prometheus Scrape Configuration — 54Link POS Shell
+# Prometheus Scrape Configuration — TourismPay POS Shell
 # ─────────────────────────────────────────────────────────────────────────────
 # Add this job to your existing prometheus.yml under the `scrape_configs:` key.
 #
@@ -30,7 +30,7 @@ scrape_configs:
     scheme: https                  # Use http for local dev
     static_configs:
       - targets:
-          - "pos-shell.54link.internal:443"   # Replace with your actual host
+          - "pos-shell.tourismpay.internal:443"   # Replace with your actual host
         labels:
           environment: "production"
           service: "pos-shell"

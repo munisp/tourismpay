@@ -1,6 +1,6 @@
 {
-  "title": "54Link POS — Infrastructure Health",
-  "uid": "54link-infra",
+  "title": "TourismPay POS — Infrastructure Health",
+  "uid": "tourismpay-infra",
   "version": 1,
   "schemaVersion": 38,
   "refresh": "30s",

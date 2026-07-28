@@ -1,4 +1,4 @@
-# ─── 54Link Promtail Log Shipper Configuration ───────────────────────────────
+# ─── TourismPay Promtail Log Shipper Configuration ───────────────────────────────
 server:
   http_listen_port: 9080
   grpc_listen_port: 0
@@ -8,7 +8,7 @@ positions:
 
 clients:
   - url: http://loki:3100/loki/api/v1/push
-    tenant_id: 54link
+    tenant_id: tourismpay
 
 scrape_configs:
   # ── Docker container logs ──────────────────────────────────────────────────

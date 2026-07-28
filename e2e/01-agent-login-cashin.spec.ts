@@ -10,7 +10,7 @@ test.describe("Agent Login and Cash-In Flow", () => {
   }) => {
     // ── 1. Navigate to POS Shell ─────────────────────────────────────────────
     await page.goto("/");
-    await expect(page.locator("text=54Link POS")).toBeVisible({
+    await expect(page.locator("text=TourismPay POS")).toBeVisible({
       timeout: 10_000,
     });
 
@@ -74,7 +74,7 @@ test.describe("Agent Login and Cash-In Flow", () => {
       .first();
     if (await logoutBtn.isVisible()) {
       await logoutBtn.click();
-      await expect(page.locator("text=54Link POS")).toBeVisible({
+      await expect(page.locator("text=TourismPay POS")).toBeVisible({
         timeout: 5_000,
       });
     }

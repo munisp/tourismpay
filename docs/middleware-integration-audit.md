@@ -1,14 +1,14 @@
-# 54Link POS Shell — Middleware Integration Audit
+# TourismPay POS Shell — Middleware Integration Audit
 
 **Date:** 30 March 2026  
 **Author:** Manus AI  
-**Scope:** All middleware layers between the 54Link POS Shell Node.js server and the canonical platform infrastructure
+**Scope:** All middleware layers between the TourismPay POS Shell Node.js server and the canonical platform infrastructure
 
 ---
 
 ## Executive Summary
 
-The 54Link Agency Banking Platform comprises a React/Node.js POS Shell (`pos-shell-demo`) that sits in front of a rich platform monorepo (`/home/ubuntu/platform/`). The platform monorepo contains production-ready implementations of every major middleware component — Kafka, Dapr, Fluvio, Temporal, Redis, APISix, TigerBeetle, and a Delta Lake-based data lakehouse. The POS Shell currently integrates with these layers through a **thin HTTP proxy pattern** (`server/_core/platformClient.ts`), with graceful local-PostgreSQL fallbacks for every call. This document maps the current integration status, identifies gaps, and prescribes the remaining work to achieve full middleware connectivity.
+The TourismPay Agency Banking Platform comprises a React/Node.js POS Shell (`pos-shell-demo`) that sits in front of a rich platform monorepo (`/home/ubuntu/platform/`). The platform monorepo contains production-ready implementations of every major middleware component — Kafka, Dapr, Fluvio, Temporal, Redis, APISix, TigerBeetle, and a Delta Lake-based data lakehouse. The POS Shell currently integrates with these layers through a **thin HTTP proxy pattern** (`server/_core/platformClient.ts`), with graceful local-PostgreSQL fallbacks for every call. This document maps the current integration status, identifies gaps, and prescribes the remaining work to achieve full middleware connectivity.
 
 ---
 
@@ -16,7 +16,7 @@ The 54Link Agency Banking Platform comprises a React/Node.js POS Shell (`pos-she
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│                  54Link POS Shell (Node.js / tRPC)                 │
+│                  TourismPay POS Shell (Node.js / tRPC)                 │
 │                                                                    │
 │  ┌──────────────────────────────────────────────────────────────┐ │
 │  │  platformClient.ts  (thin HTTP proxy, fail-open, 3s timeout) │ │
@@ -266,7 +266,7 @@ The following environment variables must be set in production to activate all pl
 | `PLATFORM_ANALYTICS_URL`    | `http://localhost:8109` | analytics-service                               |
 | `PLATFORM_NOTIFICATION_URL` | `http://localhost:8110` | notification-service                            |
 | `KEYCLOAK_URL`              | `http://localhost:8080` | Keycloak OIDC server                            |
-| `KEYCLOAK_REALM`            | `54link`                | Keycloak realm name                             |
+| `KEYCLOAK_REALM`            | `tourismpay`                | Keycloak realm name                             |
 | `KEYCLOAK_CLIENT_ID`        | `pos-shell`             | Keycloak client ID                              |
 | `KEYCLOAK_CLIENT_SECRET`    | _(required)_            | Keycloak client secret                          |
 | `TERMII_API_KEY`            | _(optional)_            | SMS delivery (graceful fallback to console.log) |

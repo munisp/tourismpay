@@ -1,4 +1,4 @@
-//! POS-54Link Connection Pool Manager — Manages connection pools for all
+//! POS-TourismPay Connection Pool Manager — Manages connection pools for all
 //! middleware backends (PostgreSQL, Redis, OpenSearch, Kafka) with health
 //! monitoring, automatic reconnection, and connection draining.
 
@@ -265,7 +265,7 @@ impl PoolManager {
 }
 
 fn main() {
-    println!("=== POS-54Link Connection Pool Manager ===\n");
+    println!("=== POS-TourismPay Connection Pool Manager ===\n");
 
     let manager = PoolManager::new();
 

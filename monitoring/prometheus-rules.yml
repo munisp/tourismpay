@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Prometheus Alerting Rules — 54Link POS Shell
+# Prometheus Alerting Rules — TourismPay POS Shell
 # ─────────────────────────────────────────────────────────────────────────────
 # Load this file in prometheus.yml under rule_files:
 #   rule_files:
@@ -31,7 +31,7 @@ groups:
             {{ printf "%.0f" $value }} ms (threshold: 500 ms).
             This breaches the agent SLA. Investigate DB query times,
             platform service timeouts, and float lock contention.
-          runbook: "https://wiki.54link.io/runbooks/pos-shell#high-latency"
+          runbook: "https://wiki.tourismpay.io/runbooks/pos-shell#high-latency"
 
       # Transaction error rate > 5% over 5 min window
       - alert: POSShellHighTransactionErrorRate
@@ -51,7 +51,7 @@ groups:
             Transaction error rate is {{ printf "%.1f" (mul $value 100) }}%
             over the last 5 minutes. Check platform service connectivity,
             float balance levels, and DB connection pool health.
-          runbook: "https://wiki.54link.io/runbooks/pos-shell#transaction-errors"
+          runbook: "https://wiki.tourismpay.io/runbooks/pos-shell#transaction-errors"
 
       # Transaction volume drops to zero (possible outage)
       - alert: POSShellNoTransactions
@@ -89,7 +89,7 @@ groups:
             (threshold: 10/min). Possible coordinated attack or
             compromised agent terminals. Review the fraud dashboard
             immediately.
-          runbook: "https://wiki.54link.io/runbooks/pos-shell#fraud-spike"
+          runbook: "https://wiki.tourismpay.io/runbooks/pos-shell#fraud-spike"
 
   # ── Float Management ─────────────────────────────────────────────────────────
   - name: pos_shell_float
@@ -137,7 +137,7 @@ groups:
             {{ $labels.platform_service }}.
             POS Shell is operating in fail-open fallback mode.
             Check platform service health dashboards.
-          runbook: "https://wiki.54link.io/runbooks/pos-shell#platform-degradation"
+          runbook: "https://wiki.tourismpay.io/runbooks/pos-shell#platform-degradation"
 
   # ── Node.js Process Health ───────────────────────────────────────────────────
   - name: pos_shell_process

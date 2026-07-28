@@ -1,4 +1,4 @@
-/// # 54Link MDM Heartbeat Parser SmartModule
+/// # TourismPay MDM Heartbeat Parser SmartModule
 ///
 /// Fluvio filter+map SmartModule that:
 /// 1. Validates incoming MDM heartbeat payloads (required fields, ranges)

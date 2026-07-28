@@ -17,7 +17,7 @@ const SECTIONS = [
   },
   {
     title: "2. Data Controller Information",
-    content: `TourismPay Financial Services Limited is the data controller for personal data processed through this platform. Our registered address is: 1, Broad Street, Lagos Island, Lagos State, Nigeria. Data Protection Officer: dpo@tourismpay.ng | +234 (0) 800 54LINK.`,
+    content: `TourismPay Financial Services Limited is the data controller for personal data processed through this platform. Our registered address is: 1, Broad Street, Lagos Island, Lagos State, Nigeria. Data Protection Officer: dpo@tourismpay.ng | +234 (0) 800 TOURISMPAY.`,
   },
   {
     title: "3. Categories of Personal Data Collected",
@@ -65,7 +65,7 @@ const SECTIONS = [
   },
   {
     title: "14. Contact Us",
-    content: `For privacy-related enquiries, data rights requests, or to report a data breach:\n\nData Protection Officer: dpo@tourismpay.ng\nPrivacy Team: privacy@tourismpay.ng\nPhone: +234 (0) 800 54LINK (548465)\nAddress: 1, Broad Street, Lagos Island, Lagos State, Nigeria\n\nYou also have the right to lodge a complaint with the Nigeria Data Protection Commission (NDPC) at ndpc.gov.ng.`,
+    content: `For privacy-related enquiries, data rights requests, or to report a data breach:\n\nData Protection Officer: dpo@tourismpay.ng\nPrivacy Team: privacy@tourismpay.ng\nPhone: +234 (0) 800 TOURISMPAY (548465)\nAddress: 1, Broad Street, Lagos Island, Lagos State, Nigeria\n\nYou also have the right to lodge a complaint with the Nigeria Data Protection Commission (NDPC) at ndpc.gov.ng.`,
   },
 ];
 

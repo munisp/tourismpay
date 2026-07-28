@@ -2,23 +2,23 @@
 
 ## Overview
 
-Mutual TLS (mTLS) ensures that both the POS Shell server and each downstream microservice authenticate each other before any data is exchanged. This document describes the certificate authority (CA) hierarchy, certificate issuance workflow, and per-service configuration for all 54Link platform microservices.
+Mutual TLS (mTLS) ensures that both the POS Shell server and each downstream microservice authenticate each other before any data is exchanged. This document describes the certificate authority (CA) hierarchy, certificate issuance workflow, and per-service configuration for all TourismPay platform microservices.
 
 ---
 
 ## Certificate Authority Hierarchy
 
 ```
-54Link Root CA  (offline, HSM-protected)
-└── 54Link Intermediate CA  (online, rotated every 90 days)
-    ├── pos-shell.svc.54link.internal
-    ├── kyc-service.svc.54link.internal
-    ├── fraud-service.svc.54link.internal
-    ├── settlement-service.svc.54link.internal
-    ├── float-service.svc.54link.internal
-    ├── analytics-service.svc.54link.internal
-    ├── geofencing-service.svc.54link.internal
-    └── tigerbeetle-sidecar.svc.54link.internal
+TourismPay Root CA  (offline, HSM-protected)
+└── TourismPay Intermediate CA  (online, rotated every 90 days)
+    ├── pos-shell.svc.tourismpay.internal
+    ├── kyc-service.svc.tourismpay.internal
+    ├── fraud-service.svc.tourismpay.internal
+    ├── settlement-service.svc.tourismpay.internal
+    ├── float-service.svc.tourismpay.internal
+    ├── analytics-service.svc.tourismpay.internal
+    ├── geofencing-service.svc.tourismpay.internal
+    └── tigerbeetle-sidecar.svc.tourismpay.internal
 ```
 
 All leaf certificates have a 30-day validity period and are automatically rotated via cert-manager (Kubernetes) or Vault PKI (bare-metal).
@@ -33,19 +33,19 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: pos-shell-mtls
-  namespace: 54link
+  namespace: tourismpay
 spec:
   secretName: pos-shell-mtls-tls
   duration: 720h # 30 days
   renewBefore: 168h # Renew 7 days before expiry
   subject:
-    organizations: ["54Link"]
-  commonName: pos-shell.svc.54link.internal
+    organizations: ["TourismPay"]
+  commonName: pos-shell.svc.tourismpay.internal
   dnsNames:
-    - pos-shell.svc.54link.internal
-    - pos-shell.54link.svc.cluster.local
+    - pos-shell.svc.tourismpay.internal
+    - pos-shell.tourismpay.svc.cluster.local
   issuerRef:
-    name: 54link-intermediate-ca
+    name: tourismpay-intermediate-ca
     kind: ClusterIssuer
 ```
 
@@ -61,7 +61,7 @@ import https from "https";
 import fs from "fs";
 import path from "path";
 
-const CERT_DIR = process.env.MTLS_CERT_DIR ?? "/etc/54link/certs";
+const CERT_DIR = process.env.MTLS_CERT_DIR ?? "/etc/tourismpay/certs";
 
 let _agent: https.Agent | null = null;
 
@@ -130,15 +130,15 @@ export async function callPlatformService(
 
 | Service                      | Internal DNS                              | Port | Protocol          | Notes                    |
 | ---------------------------- | ----------------------------------------- | ---- | ----------------- | ------------------------ |
-| KYC Service (Python FastAPI) | `kyc-service.svc.54link.internal`         | 8443 | mTLS              | Liveness + OCR endpoints |
-| Fraud Service (Go)           | `fraud-service.svc.54link.internal`       | 8443 | mTLS              | Real-time scoring        |
-| Settlement Service (Rust)    | `settlement-service.svc.54link.internal`  | 8443 | mTLS              | ISO 8583 bridge          |
-| Float Service (Go)           | `float-service.svc.54link.internal`       | 8443 | mTLS              | Balance + history        |
-| Analytics Service (Python)   | `analytics-service.svc.54link.internal`   | 8443 | mTLS              | Metrics aggregation      |
-| Geofencing Service (Go)      | `geofencing-service.svc.54link.internal`  | 8443 | mTLS              | Polygon enforcement      |
-| TigerBeetle Sidecar          | `tigerbeetle-sidecar.svc.54link.internal` | 3001 | mTLS              | Offline-first ledger     |
-| Keycloak                     | `keycloak.svc.54link.internal`            | 8443 | TLS (server-only) | OIDC discovery           |
-| APISix Gateway               | `apisix.svc.54link.internal`              | 9443 | mTLS              | Upstream auth            |
+| KYC Service (Python FastAPI) | `kyc-service.svc.tourismpay.internal`         | 8443 | mTLS              | Liveness + OCR endpoints |
+| Fraud Service (Go)           | `fraud-service.svc.tourismpay.internal`       | 8443 | mTLS              | Real-time scoring        |
+| Settlement Service (Rust)    | `settlement-service.svc.tourismpay.internal`  | 8443 | mTLS              | ISO 8583 bridge          |
+| Float Service (Go)           | `float-service.svc.tourismpay.internal`       | 8443 | mTLS              | Balance + history        |
+| Analytics Service (Python)   | `analytics-service.svc.tourismpay.internal`   | 8443 | mTLS              | Metrics aggregation      |
+| Geofencing Service (Go)      | `geofencing-service.svc.tourismpay.internal`  | 8443 | mTLS              | Polygon enforcement      |
+| TigerBeetle Sidecar          | `tigerbeetle-sidecar.svc.tourismpay.internal` | 3001 | mTLS              | Offline-first ledger     |
+| Keycloak                     | `keycloak.svc.tourismpay.internal`            | 8443 | TLS (server-only) | OIDC discovery           |
+| APISix Gateway               | `apisix.svc.tourismpay.internal`              | 9443 | mTLS              | Upstream auth            |
 
 ---
 
@@ -192,14 +192,14 @@ process.on("SIGHUP", () => {
 ```bash
 # Verify POS Shell certificate
 openssl s_client \
-  -connect pos-shell.svc.54link.internal:8443 \
-  -cert /etc/54link/certs/tls.crt \
-  -key  /etc/54link/certs/tls.key \
-  -CAfile /etc/54link/certs/ca.crt \
+  -connect pos-shell.svc.tourismpay.internal:8443 \
+  -cert /etc/tourismpay/certs/tls.crt \
+  -key  /etc/tourismpay/certs/tls.key \
+  -CAfile /etc/tourismpay/certs/ca.crt \
   -verify_return_error
 
 # Check certificate expiry
-openssl x509 -in /etc/54link/certs/tls.crt -noout -dates
+openssl x509 -in /etc/tourismpay/certs/tls.crt -noout -dates
 
 # Verify Dapr mTLS
 dapr mtls status -k
@@ -211,7 +211,7 @@ dapr mtls status -k
 
 | Variable                  | Default                 | Description                                         |
 | ------------------------- | ----------------------- | --------------------------------------------------- |
-| `MTLS_CERT_DIR`           | `/etc/54link/certs`     | Directory containing `tls.crt`, `tls.key`, `ca.crt` |
+| `MTLS_CERT_DIR`           | `/etc/tourismpay/certs`     | Directory containing `tls.crt`, `tls.key`, `ca.crt` |
 | `MTLS_ENABLED`            | `true` in production    | Set to `false` to bypass mTLS (dev/test only)       |
 | `PLATFORM_KYC_URL`        | —                       | Full URL of KYC service including scheme and port   |
 | `PLATFORM_FRAUD_URL`      | —                       | Full URL of Fraud service                           |

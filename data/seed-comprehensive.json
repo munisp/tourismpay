@@ -2,7 +2,7 @@
   "tenants": [
     {
       "id": "a7af2da3-0e6d-4ba5-821f-06ff00aa5440",
-      "name": "54Link Default",
+      "name": "TourismPay Default",
       "slug": "tourismpay",
       "status": "active",
       "plan": "enterprise",
@@ -49,7 +49,7 @@
   "inviteCodes": [
     {
       "id": "a71202b9-c87f-4688-bbf1-0301b34cd40b",
-      "code": "INV-54LINK-TWPPN9",
+      "code": "INV-TOURISMPAY-TWPPN9",
       "tenantId": "a7af2da3-0e6d-4ba5-821f-06ff00aa5440",
       "type": "multi_use",
       "maxUses": 50,
@@ -32292,7 +32292,7 @@
     {
       "id": "e7c01ed1-c7b7-4867-8158-b0374b9f6be0",
       "tenantId": "a7af2da3-0e6d-4ba5-821f-06ff00aa5440",
-      "name": "54Link Default Production Key",
+      "name": "TourismPay Default Production Key",
       "keyPrefix": "pk_live_0u0h2l4w",
       "hashedKey": "28ae9c142c8960bb07fe8fd35d7262d33025e48c7528fb27a14c1517c6e91800",
       "permissions": [

@@ -127,7 +127,7 @@ export const cbnReportingRouter = router({
       z.object({
         year: z.number().int().min(2020).max(2100),
         month: z.number().int().min(1).max(12),
-        institutionCode: z.string().default("54LINK001"),
+        institutionCode: z.string().default("TOURISMPAY001"),
         institutionName: z.string().default("TourismPay Platform"),
       })
     )
@@ -171,7 +171,7 @@ export const cbnReportingRouter = router({
       z.object({
         year: z.number().int().min(2020).max(2100),
         quarter: z.number().int().min(1).max(4),
-        institutionCode: z.string().default("54LINK001"),
+        institutionCode: z.string().default("TOURISMPAY001"),
       })
     )
     .mutation(async ({ input }) => {

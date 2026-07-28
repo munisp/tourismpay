@@ -1,5 +1,5 @@
 """
-pos-ml-engine — Python sidecar for 54Link POS Shell
+pos-ml-engine — Python sidecar for TourismPay POS Shell
 
 Provides:
 1. ML-based anomaly detection (transaction patterns, velocity checks)

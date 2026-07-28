@@ -1,7 +1,7 @@
 # GitHub Advanced Security — Setup Guide
 
 This guide explains how to enable and configure GitHub Advanced Security (GHAS) for the
-54Link POS Shell repository to activate CodeQL SAST, secret scanning, and Dependabot security alerts.
+TourismPay POS Shell repository to activate CodeQL SAST, secret scanning, and Dependabot security alerts.
 
 ---
 

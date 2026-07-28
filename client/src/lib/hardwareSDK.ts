@@ -77,7 +77,7 @@ export const printer = {
       </head>
       <body>
         <div class="center">
-          <div class="logo">54LINK</div>
+          <div class="logo">TOURISMPAY</div>
           <div>Agency Banking Terminal</div>
           <div class="divider"></div>
         </div>

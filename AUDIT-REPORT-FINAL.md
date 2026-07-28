@@ -5,7 +5,7 @@ A comprehensive end-to-end audit and implementation pass has been successfully c
 
 ## 1. Infrastructure Integrations (100% Complete)
 All 12 required core infrastructure services have been properly integrated into the unified `docker-compose.yml` and wired to the backend:
-- **Keycloak**: Fixed realm mismatch (changed from `54link` to `tourismpay`) and created proper realm JSON with all required roles.
+- **Keycloak**: Fixed realm mismatch (changed from `tourismpay` to `tourismpay`) and created proper realm JSON with all required roles.
 - **TigerBeetle**: Replaced mock references with real `createLedgerTransfer` double-entry accounting calls.
 - **PostgreSQL**: Fixed all circular dependencies in schema generation and optimized indexes.
 - **APISIX**: Validated route registry integration.

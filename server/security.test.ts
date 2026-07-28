@@ -281,7 +281,7 @@ function buildSmsMessage(input: SmsInput): string {
   return (
     `TourismPay POS: ${input.type}${customer} of ${amountStr} processed at ${timeStr}. ` +
     `Ref: ${input.ref}. Agent: ${input.agentCode} (${input.agentName}). ` +
-    `If you did not authorise this, call 0800-54LINK immediately.`
+    `If you did not authorise this, call 0800-TOURISMPAY immediately.`
   );
 }
 

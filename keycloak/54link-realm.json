@@ -1,6 +1,6 @@
 {
-  "realm": "54link",
-  "displayName": "54Link Agency Banking",
+  "realm": "tourismpay",
+  "displayName": "TourismPay Agency Banking",
   "enabled": true,
   "sslRequired": "external",
   "registrationAllowed": false,
@@ -29,11 +29,11 @@
     "realm": [
       {
         "name": "admin",
-        "description": "54Link platform administrator"
+        "description": "TourismPay platform administrator"
       },
       {
         "name": "supervisor",
-        "description": "54Link agent supervisor"
+        "description": "TourismPay agent supervisor"
       },
       {
         "name": "user",
@@ -64,17 +64,17 @@
   "clients": [
     {
       "clientId": "pos-shell",
-      "name": "54Link POS Shell",
-      "description": "54Link Agency Banking POS Shell web application",
+      "name": "TourismPay POS Shell",
+      "description": "TourismPay Agency Banking POS Shell web application",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "https://pos.54link.io/api/auth/callback",
+        "https://pos.tourismpay.io/api/auth/callback",
         "http://localhost:3000/api/auth/callback"
       ],
-      "webOrigins": ["https://pos.54link.io", "http://localhost:3000"],
+      "webOrigins": ["https://pos.tourismpay.io", "http://localhost:3000"],
       "postLogoutRedirectUris": [
-        "https://pos.54link.io/",
+        "https://pos.tourismpay.io/",
         "http://localhost:3000/"
       ],
       "standardFlowEnabled": true,
@@ -89,7 +89,7 @@
         "client.session.idle.timeout": "1800",
         "client.session.max.lifespan": "36000",
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://pos.54link.io/++"
+        "post.logout.redirect.uris": "https://pos.tourismpay.io/++"
       },
       "protocolMappers": [
         {
@@ -143,7 +143,7 @@
   "otpSupportedApplications": ["FreeOTP", "Google Authenticator", "Microsoft Authenticator"],
   "authenticationFlows": [
     {
-      "alias": "54link-browser-mfa",
+      "alias": "tourismpay-browser-mfa",
       "description": "Browser flow with mandatory TOTP for financial operations",
       "providerId": "basic-flow",
       "topLevel": true,
@@ -160,14 +160,14 @@
           "priority": 20
         },
         {
-          "flowAlias": "54link-mfa-forms",
+          "flowAlias": "tourismpay-mfa-forms",
           "requirement": "ALTERNATIVE",
           "priority": 30
         }
       ]
     },
     {
-      "alias": "54link-mfa-forms",
+      "alias": "tourismpay-mfa-forms",
       "description": "Username/password + OTP",
       "providerId": "basic-flow",
       "topLevel": false,
@@ -198,16 +198,16 @@
   ],
   "passwordPolicy": "length(12) and upperCase(1) and lowerCase(1) and digits(1) and specialChars(1) and notUsername(undefined) and passwordHistory(3)",
   "smtpServer": {
-    "replyToDisplayName": "54Link Support",
+    "replyToDisplayName": "TourismPay Support",
     "port": "587",
     "host": "",
-    "replyTo": "support@54link.com",
-    "from": "noreply@54link.com",
-    "fromDisplayName": "54Link Agency Banking",
+    "replyTo": "support@tourismpay.com",
+    "from": "noreply@tourismpay.com",
+    "fromDisplayName": "TourismPay Agency Banking",
     "ssl": "false",
     "starttls": "true"
   },
-  "browserFlow": "54link-browser-mfa",
+  "browserFlow": "tourismpay-browser-mfa",
   "loginTheme": "keycloak",
   "accountTheme": "keycloak.v3",
   "adminTheme": "keycloak.v2",

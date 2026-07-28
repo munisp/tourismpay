@@ -1,4 +1,4 @@
-// resilience-agent — 54Link Nigeria Connectivity Resilience Service
+// resilience-agent — TourismPay Nigeria Connectivity Resilience Service
 //
 // Exposes a lightweight HTTP API on :8031 that the Node.js POS server
 // consults for real-time connectivity intelligence:

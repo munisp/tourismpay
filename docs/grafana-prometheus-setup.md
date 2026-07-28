@@ -2,7 +2,7 @@
 
 ## Overview
 
-The 54Link POS Shell exposes a Prometheus-compatible metrics endpoint at `GET /api/metrics`. This guide walks through connecting it to a Prometheus scraper and importing the pre-built Grafana dashboard.
+The TourismPay POS Shell exposes a Prometheus-compatible metrics endpoint at `GET /api/metrics`. This guide walks through connecting it to a Prometheus scraper and importing the pre-built Grafana dashboard.
 
 ---
 
@@ -19,7 +19,7 @@ scrape_configs:
     scheme: https
     static_configs:
       - targets:
-          - "pos-shell.54link.internal:443"
+          - "pos-shell.tourismpay.internal:443"
         labels:
           environment: "production"
           service: "pos-shell"
@@ -143,7 +143,7 @@ export K6_CLOUD_PROJECT_ID="your-project-id"
 
 # Run with cloud output
 k6 run --out cloud tests/load/transaction-throughput.js \
-  -e BASE_URL=https://pos-shell.54link.internal \
+  -e BASE_URL=https://pos-shell.tourismpay.internal \
   -e AGENT_CODE=AGT001 \
   -e AGENT_PIN=1234
 ```

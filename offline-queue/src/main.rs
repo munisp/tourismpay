@@ -1,5 +1,5 @@
 /*!
- * offline-queue — 54Link Nigeria Offline Transaction Queue & USSD Encoder
+ * offline-queue — TourismPay Nigeria Offline Transaction Queue & USSD Encoder
  *
  * HTTP API (port 8032):
  *   POST /queue/enqueue          — add a transaction to the offline queue
@@ -152,7 +152,7 @@ fn encode_ussd(req: &UssdEncodeRequest) -> UssdResponse {
             }
         }
         "Bill Payment" => {
-            let ussd = format!("*322*{}*54LINK#", amount_str);
+            let ussd = format!("*322*{}*TOURISMPAY#", amount_str);
             UssdResponse {
                 ussd_string: ussd.clone(),
                 instructions: format!("Dial {} to pay \u{20a6}{} via NIBSS eBills Pay.", ussd, amount_str),
@@ -239,7 +239,7 @@ async fn health(State(db): State<Db>) -> Json<HealthResponse> {
 #[tokio::main]
 async fn main() {
     let port = env::var("OFFLINE_QUEUE_PORT").unwrap_or_else(|_| "8032".to_string());
-    let db_path = env::var("OFFLINE_QUEUE_DB").unwrap_or_else(|_| "/tmp/54link-offline-queue.sqlite".to_string());
+    let db_path = env::var("OFFLINE_QUEUE_DB").unwrap_or_else(|_| "/tmp/tourismpay-offline-queue.sqlite".to_string());
     let conn = init_db(&db_path);
     let db: Db = Arc::new(Mutex::new(conn));
     let app = Router::new()

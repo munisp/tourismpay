@@ -2,7 +2,7 @@
 
 ## Overview
 
-The **54Link TB Sidecar** is a Go process that runs on every POS terminal alongside the Node.js server. It provides:
+The **TourismPay TB Sidecar** is a Go process that runs on every POS terminal alongside the Node.js server. It provides:
 
 | Capability                            | Detail                                                                                  |
 | ------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -40,21 +40,21 @@ sudo bash tb-sidecar/scripts/install-sidecar.sh
 
 The installer performs these steps automatically:
 
-1. Creates the `54link` system user and `/var/lib/54link/tb-data`, `/var/log/54link`, `/etc/54link` directories
+1. Creates the `tourismpay` system user and `/var/lib/tourismpay/tb-data`, `/var/log/tourismpay`, `/etc/tourismpay` directories
 2. Downloads and installs TigerBeetle v0.16.78 to `/usr/local/bin/tigerbeetle`
-3. Installs the sidecar binary to `/usr/local/bin/54link-tb-sidecar`
-4. Creates the environment file at `/etc/54link/sidecar.env`
-5. Registers and starts the `54link-tb-sidecar` systemd service
+3. Installs the sidecar binary to `/usr/local/bin/tourismpay-tb-sidecar`
+4. Creates the environment file at `/etc/tourismpay/sidecar.env`
+5. Registers and starts the `tourismpay-tb-sidecar` systemd service
 
 ---
 
 ## Configuration
 
-Edit `/etc/54link/sidecar.env` after installation:
+Edit `/etc/tourismpay/sidecar.env` after installation:
 
 ```bash
 # PostgreSQL connection string for metadata sync
-POSTGRES_URL=postgresql://posadmin:pos54link2026@db.54link.internal:5432/pos54link
+POSTGRES_URL=postgresql://posadmin:postourismpay2026@db.tourismpay.internal:5432/postourismpay
 
 # TigerBeetle cluster replica address (if running on a separate host)
 # TB_REPLICA_ADDR=3000
@@ -72,16 +72,16 @@ The Node.js server reads `TB_SIDECAR_URL` (default: `http://localhost:7070`). Se
 
 ```bash
 # Check service status
-systemctl status 54link-tb-sidecar
+systemctl status tourismpay-tb-sidecar
 
 # View live logs
-journalctl -u 54link-tb-sidecar -f
+journalctl -u tourismpay-tb-sidecar -f
 
 # Restart after config change
-sudo systemctl restart 54link-tb-sidecar
+sudo systemctl restart tourismpay-tb-sidecar
 
 # Stop the service
-sudo systemctl stop 54link-tb-sidecar
+sudo systemctl stop tourismpay-tb-sidecar
 ```
 
 ---
@@ -184,8 +184,8 @@ The correct startup order for a POS terminal is:
 
 ```
 1. PostgreSQL (or confirm remote DB is reachable)
-2. 54link-tb-sidecar  (systemd: After=network.target)
-3. 54link-pos-shell   (Node.js server, reads TB_SIDECAR_URL)
+2. tourismpay-tb-sidecar  (systemd: After=network.target)
+3. tourismpay-pos-shell   (Node.js server, reads TB_SIDECAR_URL)
 ```
 
 The Node.js server starts successfully even if the sidecar is offline — all `tbClient.*` calls return `null` and the server falls back to direct PostgreSQL writes. The sidecar is an enhancement, not a hard dependency.
@@ -196,11 +196,11 @@ The Node.js server starts successfully even if the sidecar is offline — all `t
 
 | Symptom                                        | Cause                                    | Fix                                                                                    |
 | ---------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------- |
-| `tbSidecar: "offline"` in `/api/health`        | Sidecar not running or wrong port        | `systemctl status 54link-tb-sidecar`; check `SIDECAR_PORT`                             |
-| `sync/status` shows `postgres: "disconnected"` | PG unreachable from terminal             | Check `POSTGRES_URL` in `/etc/54link/sidecar.env`                                      |
-| `sync/status` shows `failed > 0`               | Transfers failed to sync after 3 retries | `journalctl -u 54link-tb-sidecar -n 100` for error details                             |
+| `tbSidecar: "offline"` in `/api/health`        | Sidecar not running or wrong port        | `systemctl status tourismpay-tb-sidecar`; check `SIDECAR_PORT`                             |
+| `sync/status` shows `postgres: "disconnected"` | PG unreachable from terminal             | Check `POSTGRES_URL` in `/etc/tourismpay/sidecar.env`                                      |
+| `sync/status` shows `failed > 0`               | Transfers failed to sync after 3 retries | `journalctl -u tourismpay-tb-sidecar -n 100` for error details                             |
 | TigerBeetle binary not found                   | Installer skipped step 2                 | `sudo bash tb-sidecar/scripts/install-sidecar.sh` again                                |
-| Port 7070 already in use                       | Another process on the port              | Change `SIDECAR_PORT` in `/etc/54link/sidecar.env` and `TB_SIDECAR_URL` in Node.js env |
+| Port 7070 already in use                       | Another process on the port              | Change `SIDECAR_PORT` in `/etc/tourismpay/sidecar.env` and `TB_SIDECAR_URL` in Node.js env |
 
 ---
 

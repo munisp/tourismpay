@@ -33,7 +33,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: app
-          image: registry.54link.com/pos-shell-demo:latest
+          image: registry.tourismpay.com/pos-shell-demo:latest
           ports:
             - containerPort: 3000
               protocol: TCP
@@ -140,10 +140,10 @@ metadata:
 spec:
   tls:
     - hosts:
-        - app.54link.com
+        - app.tourismpay.com
       secretName: pos-shell-demo-tls
   rules:
-    - host: app.54link.com
+    - host: app.tourismpay.com
       http:
         paths:
           - path: /

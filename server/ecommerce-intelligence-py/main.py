@@ -1,5 +1,5 @@
 """
-POS-54Link E-Commerce Intelligence Service (Python)
+POS-TourismPay E-Commerce Intelligence Service (Python)
 - Product recommendations (collaborative filtering)
 - Dynamic pricing engine (demand/inventory/competitor-aware)
 - Sales analytics and forecasting

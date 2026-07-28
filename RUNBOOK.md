@@ -1,6 +1,6 @@
-# 54Link Agency Banking Platform — Production Runbook
+# TourismPay Agency Banking Platform — Production Runbook
 
-**Version:** Phase 161 | **Last Updated:** April 2026 | **Owner:** 54Link SRE Team
+**Version:** Phase 161 | **Last Updated:** April 2026 | **Owner:** TourismPay SRE Team
 
 ---
 
@@ -56,7 +56,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/54link/pos-shell-demo.git
+git clone https://github.com/tourismpay/pos-shell-demo.git
 cd pos-shell-demo
 
 # Run the full bootstrap (creates network, volumes, starts all services)
@@ -65,7 +65,7 @@ bash scripts/bootstrap-production.sh
 
 The bootstrap script performs the following steps in order:
 
-1. Creates the `54link-net` Docker network
+1. Creates the `tourismpay-net` Docker network
 2. Initialises TigerBeetle 3-node cluster data files
 3. Starts infrastructure services (Postgres, Redis, Kafka, MinIO, Vault, Keycloak)
 4. Waits for all health checks to pass
@@ -80,7 +80,7 @@ The bootstrap script performs the following steps in order:
 
 ```bash
 # 1. Create Docker network
-docker network create 54link-net
+docker network create tourismpay-net
 
 # 2. Initialise TigerBeetle cluster
 bash infra/tigerbeetle/init-cluster.sh
@@ -90,7 +90,7 @@ docker compose -f docker-compose.production.yml up -d \
   postgres redis kafka minio vault keycloak
 
 # 4. Wait for Postgres
-until docker exec pos-postgres pg_isready -U 54link; do sleep 2; done
+until docker exec pos-postgres pg_isready -U tourismpay; do sleep 2; done
 
 # 5. Run migrations
 pnpm db:push
@@ -170,7 +170,7 @@ pnpm db:push
 curl -sf http://localhost:3000/api/health | jq .
 
 # 2. Check database connectivity
-docker exec pos-postgres pg_isready -U 54link
+docker exec pos-postgres pg_isready -U tourismpay
 
 # 3. Check TigerBeetle cluster
 for i in 0 1 2; do
@@ -236,7 +236,7 @@ curl -X POST http://localhost:8095/api/v1/reports/generate \
   -d '{"reportType": "monthly_activity", "month": "2026-03"}'
 
 # Verify report was created
-mc ls myminio/54link-reports/54LINK001/monthly_activity/2026/03/
+mc ls myminio/tourismpay-reports/TOURISMPAY001/monthly_activity/2026/03/
 ```
 
 ### P1: Temporal Worker Down
@@ -311,15 +311,15 @@ docker exec pos-kafka kafka-topics.sh \
 
 ```bash
 # Daily backup
-docker exec pos-postgres pg_dump -U 54link 54link | \
-  gzip > /backups/postgres/54link_$(date +%Y%m%d_%H%M%S).sql.gz
+docker exec pos-postgres pg_dump -U tourismpay tourismpay | \
+  gzip > /backups/postgres/tourismpay_$(date +%Y%m%d_%H%M%S).sql.gz
 
 # Upload to MinIO
-mc cp /backups/postgres/*.sql.gz myminio/54link-lakehouse/backups/postgres/
+mc cp /backups/postgres/*.sql.gz myminio/tourismpay-lakehouse/backups/postgres/
 
 # Restore from backup
-gunzip -c /backups/postgres/54link_20260401_000000.sql.gz | \
-  docker exec -i pos-postgres psql -U 54link 54link
+gunzip -c /backups/postgres/tourismpay_20260401_000000.sql.gz | \
+  docker exec -i pos-postgres psql -U tourismpay tourismpay
 ```
 
 ### 6.2 TigerBeetle Backup
@@ -353,7 +353,7 @@ docker compose -f docker-compose.production.yml start tigerbeetle-0 tigerbeetle-
 NEW_SECRET=$(openssl rand -base64 64)
 
 # 2. Update in Vault
-docker exec pos-vault vault kv put secret/54link/jwt JWT_SECRET="$NEW_SECRET"
+docker exec pos-vault vault kv put secret/tourismpay/jwt JWT_SECRET="$NEW_SECRET"
 
 # 3. Update .env.production
 sed -i "s/JWT_SECRET=.*/JWT_SECRET=$NEW_SECRET/" .env.production
@@ -371,7 +371,7 @@ NEW_PASS=$(openssl rand -base64 32)
 
 # 2. Update in PostgreSQL
 docker exec pos-postgres psql -U postgres -c \
-  "ALTER USER 54link PASSWORD '$NEW_PASS';"
+  "ALTER USER tourismpay PASSWORD '$NEW_PASS';"
 
 # 3. Update .env.production and restart services
 sed -i "s/POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$NEW_PASS/" .env.production
@@ -472,10 +472,10 @@ curl -X POST http://localhost:3000/api/trpc/mdm.pushCommand \
 
 | Dashboard      | URL                                     | Purpose                                  |
 | -------------- | --------------------------------------- | ---------------------------------------- |
-| Main Overview  | http://localhost:3001/d/54link-overview | Transaction volume, error rates, latency |
+| Main Overview  | http://localhost:3001/d/tourismpay-overview | Transaction volume, error rates, latency |
 | MDM Fleet      | http://localhost:3001/d/mdm-fleet       | Device health, compliance, heartbeats    |
 | CBN Compliance | http://localhost:3001/d/cbn-compliance  | Daily limits, KYC rates, report status   |
-| Infrastructure | http://localhost:3001/d/54link-infra    | CPU, memory, disk, network               |
+| Infrastructure | http://localhost:3001/d/tourismpay-infra    | CPU, memory, disk, network               |
 | Kafka          | http://localhost:3001/d/kafka           | Consumer lag, throughput, partitions     |
 
 ### 10.2 Critical Alert Thresholds
@@ -520,8 +520,8 @@ rate(ota_download_total[5m])
 
 | Role                 | Contact              |
 | -------------------- | -------------------- |
-| Platform Engineering | platform@54link.ng   |
-| Database             | dba@54link.ng        |
-| Security             | security@54link.ng   |
-| CBN Compliance       | compliance@54link.ng |
-| On-Call              | +234-800-54LINK      |
+| Platform Engineering | platform@tourismpay.ng   |
+| Database             | dba@tourismpay.ng        |
+| Security             | security@tourismpay.ng   |
+| CBN Compliance       | compliance@tourismpay.ng |
+| On-Call              | +234-800-TOURISMPAY      |

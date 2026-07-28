@@ -1,4 +1,4 @@
-// pos-ledger-sync — Go sidecar for 54Link POS Shell
+// pos-ledger-sync — Go sidecar for TourismPay POS Shell
 //
 // Provides:
 // 1. TigerBeetle ledger sync (double-entry accounting)

@@ -189,8 +189,8 @@ describe("carrierCost router", () => {
 // ── USSD Receipt Router Tests ──
 describe("ussdReceipt router", () => {
   it("should generate receipt content", () => {
-    const receipt = "54LINK POS SERVICES";
-    expect(receipt).toContain("54LINK");
+    const receipt = "TOURISMPAY POS SERVICES";
+    expect(receipt).toContain("TOURISMPAY");
   });
   it("should support 5 locales", () => {
     const locales = ["en", "fr", "sw", "ha", "yo"];

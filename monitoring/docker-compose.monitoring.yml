@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# docker-compose.monitoring.yml — 54Link POS Shell Observability Stack
+# docker-compose.monitoring.yml — TourismPay POS Shell Observability Stack
 # ─────────────────────────────────────────────────────────────────────────────
 # Full open-source monitoring stack:
 #   - Prometheus       — metrics scraping + alerting

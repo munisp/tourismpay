@@ -1,6 +1,6 @@
 {
-  "title": "54Link POS — SIM Network Quality",
-  "uid": "54link-sim-network",
+  "title": "TourismPay POS — SIM Network Quality",
+  "uid": "tourismpay-sim-network",
   "version": 1,
   "schemaVersion": 38,
   "refresh": "15s",

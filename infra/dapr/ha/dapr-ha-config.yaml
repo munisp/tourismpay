@@ -1,11 +1,11 @@
 ###############################################################################
-# Dapr HA Configuration — POS-54Link Production
+# Dapr HA Configuration — TourismPay Production
 # Sidecar injection, mTLS, distributed tracing, resiliency policies
 ###############################################################################
 apiVersion: dapr.io/v1alpha1
 kind: Configuration
 metadata:
-  name: pos54-dapr-config
+  name: tourismpay-dapr-config
 spec:
   # ── mTLS ────────────────────────────────────────────────────────────────────
   mtls:

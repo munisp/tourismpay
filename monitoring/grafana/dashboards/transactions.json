@@ -1,6 +1,6 @@
 {
-  "title": "54Link POS — Transactions Overview",
-  "uid": "54link-transactions",
+  "title": "TourismPay POS — Transactions Overview",
+  "uid": "tourismpay-transactions",
   "version": 1,
   "schemaVersion": 38,
   "refresh": "30s",

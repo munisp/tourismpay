@@ -1,4 +1,4 @@
-# 54Link Workspace Redundancy Audit
+# TourismPay Workspace Redundancy Audit
 
 **Date:** 30 March 2026  
 **Scope:** `/home/ubuntu/` workspace — all directories  
@@ -99,13 +99,13 @@ The following directories/files are stale and can be safely deleted to reclaim ~
 
 | Path                                                          | Size   | Reason for Deletion                  |
 | ------------------------------------------------------------- | ------ | ------------------------------------ |
-| `/home/ubuntu/.archived-stale/54link-phases-65-70/`           | ~30 MB | Superseded by current implementation |
-| `/home/ubuntu/.archived-stale/54link-phases-65-70.zip`        | ~15 MB | Same content as directory            |
-| `/home/ubuntu/.archived-stale/54link-production-overhaul/`    | ~20 MB | Superseded by pos-shell-demo         |
-| `/home/ubuntu/.archived-stale/54link-production-overhaul.zip` | ~10 MB | Same content as directory            |
+| `/home/ubuntu/.archived-stale/tourismpay-phases-65-70/`           | ~30 MB | Superseded by current implementation |
+| `/home/ubuntu/.archived-stale/tourismpay-phases-65-70.zip`        | ~15 MB | Same content as directory            |
+| `/home/ubuntu/.archived-stale/tourismpay-production-overhaul/`    | ~20 MB | Superseded by pos-shell-demo         |
+| `/home/ubuntu/.archived-stale/tourismpay-production-overhaul.zip` | ~10 MB | Same content as directory            |
 | `/home/ubuntu/.archived-stale/pos-demo/`                      | ~5 MB  | Early prototype, superseded          |
 
-**Retained:** `/home/ubuntu/.archived-stale/54link-pos-shell-complete.zip` and `/home/ubuntu/.archived-stale/54link-pos-source.zip` — these are the most recent pre-overhaul snapshots and should be kept as rollback references.
+**Retained:** `/home/ubuntu/.archived-stale/tourismpay-pos-shell-complete.zip` and `/home/ubuntu/.archived-stale/tourismpay-pos-source.zip` — these are the most recent pre-overhaul snapshots and should be kept as rollback references.
 
 ---
 

@@ -1,4 +1,4 @@
-# 54Link POS Shell — Production Deployment Guide
+# TourismPay POS Shell — Production Deployment Guide
 
 **Version:** Phase 136  
 **Target:** Ubuntu 22.04 LTS, Docker 24+, 8 vCPU / 32 GB RAM minimum
@@ -57,7 +57,7 @@ sudo apt-get install -y certbot
 ## Step 1: Clone and Configure
 
 ```bash
-git clone https://github.com/54link/pos-shell-demo.git
+git clone https://github.com/tourismpay/pos-shell-demo.git
 cd pos-shell-demo
 
 # Copy environment template
@@ -79,14 +79,14 @@ nano .env.production
 | `KEYCLOAK_ADMIN_PASSWORD` | Keycloak admin console password              |
 | `VAULT_ROOT_TOKEN`        | Initial Vault root token (change after init) |
 | `MINIO_ROOT_PASSWORD`     | MinIO admin password                         |
-| `DOMAIN`                  | Your production domain (e.g., pos.54link.io) |
+| `DOMAIN`                  | Your production domain (e.g., pos.tourismpay.io) |
 
 ---
 
 ## Step 2: TLS Certificates
 
 ```bash
-make -f Makefile.production cert-init DOMAIN=pos.54link.io
+make -f Makefile.production cert-init DOMAIN=pos.tourismpay.io
 ```
 
 This runs certbot in standalone mode. Ensure port 80 is open and DNS is pointed to your server.
@@ -206,7 +206,7 @@ Expected output:
 
 1. Navigate to `https://your-domain/auth/admin`
 2. Login with `admin` / `$KEYCLOAK_ADMIN_PASSWORD`
-3. The `54link` realm is pre-imported from `infra/keycloak/realm-54link.json`
+3. The `tourismpay` realm is pre-imported from `infra/keycloak/realm-tourismpay.json`
 4. Configure SMTP: Realm Settings → Email
 5. Create supervisor users and assign the `supervisor` role
 
@@ -238,7 +238,7 @@ The `deploy` target runs `docker compose pull` then `docker compose up -d --buil
 ```bash
 # Rollback to previous image tag
 docker compose -f docker-compose.production.yml up -d --no-deps pos-shell \
-  --image ghcr.io/54link/pos-shell:previous-tag
+  --image ghcr.io/tourismpay/pos-shell:previous-tag
 ```
 
 ---
@@ -262,7 +262,7 @@ docker compose -f docker-compose.production.yml exec postgres \
   pg_dump -U postgres pos_shell > backup-$(date +%Y%m%d).sql
 
 # MinIO backup (sync to S3)
-mc mirror minio/54link-transactions s3/54link-backup/transactions/
+mc mirror minio/tourismpay-transactions s3/tourismpay-backup/transactions/
 
 # Redis backup (RDB snapshot)
 docker compose -f docker-compose.production.yml exec redis \
@@ -278,8 +278,8 @@ The TB sidecar runs as a systemd service on the PAX terminal:
 ```bash
 # On the PAX A920 terminal
 scp tb-sidecar/tb-sidecar root@pax-terminal:/usr/local/bin/
-scp tb-sidecar/54link-tb-sidecar.service root@pax-terminal:/etc/systemd/system/
-ssh root@pax-terminal "systemctl enable --now 54link-tb-sidecar"
+scp tb-sidecar/tourismpay-tb-sidecar.service root@pax-terminal:/etc/systemd/system/
+ssh root@pax-terminal "systemctl enable --now tourismpay-tb-sidecar"
 ```
 
 ---

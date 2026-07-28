@@ -100,7 +100,7 @@ export function buildConfirmationSms(data: {
   if (data.customerName) lines.push(`Customer: ${data.customerName}`);
   lines.push(`Agent: ${data.agentName} (${data.agentCode})`);
   lines.push(`Time: ${ts}`);
-  lines.push(`To dispute, call 0700-54LINK or reply DISPUTE to this number.`);
+  lines.push(`To dispute, call 0700-TOURISMPAY or reply DISPUTE to this number.`);
   return lines.join("\n");
 }
 
