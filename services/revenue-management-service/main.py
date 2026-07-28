@@ -1,172 +1,217 @@
-#!/usr/bin/env python3
 """
-services/revenue-management-service/main.py
-TourismPay AI Revenue Management — Python FastAPI microservice
-
-AI-powered hotel pricing recommendations and demand forecasting
-
-HTTP endpoints (port 8097):
-  GET /revenue/recommendations/{hotel_id} — Get AI pricing recommendations
-  GET /revenue/forecast/{hotel_id} — Get demand forecast
-  GET /revenue/competitors/{hotel_id} — Get competitor rate analysis
-  POST /revenue/apply/{hotel_id} — Apply recommended pricing
-  GET /revenue/performance/{hotel_id} — Get RevPAR performance metrics
-
-Middleware: Dapr pub/sub, Redis cache, PostgreSQL, OpenSearch
+TourismPay Revenue Management Service
+Real-time AI-powered room rate optimization for hotels
+Port: 8097
 """
-import asyncio
-import json
-import logging
 import os
-import time
-from contextlib import asynccontextmanager
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-
-import asyncpg
-import httpx
-from fastapi import FastAPI, HTTPException, Request
+import json
+import math
+from datetime import datetime, timedelta
+from typing import Optional, List
+import psycopg2
+import psycopg2.extras
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-from starlette.responses import Response
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [revenue-management-service] %(message)s")
-logger = logging.getLogger(__name__)
+app = FastAPI(title="TourismPay Revenue Management Service", version="1.0.0")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# ─── Config ──────────────────────────────────────────────────────────────────
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/tourismpay")
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-DAPR_PORT = os.getenv("DAPR_HTTP_PORT", "3500")
-PORT = int(os.getenv("PORT", "8097"))
+DATABASE_URL = os.getenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/tourismpay")
 
-# ─── Metrics ─────────────────────────────────────────────────────────────────
-requests_total = Counter("revenue_management_service_requests_total", "Total requests", ["method", "path", "status"])
-request_duration = Histogram("revenue_management_service_request_duration_seconds", "Request duration", ["method", "path"])
+def get_db():
+    conn = psycopg2.connect(DATABASE_URL)
+    conn.autocommit = False
+    return conn
 
-# ─── App Lifecycle ────────────────────────────────────────────────────────────
-db_pool: Optional[asyncpg.Pool] = None
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global db_pool
+def ensure_tables():
     try:
-        db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
-        logger.info("Connected to PostgreSQL")
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS revenue_recommendations (
+                id VARCHAR(64) PRIMARY KEY,
+                hotel_id VARCHAR(64) NOT NULL,
+                room_type VARCHAR(100),
+                current_rate DECIMAL(10,2) NOT NULL,
+                recommended_rate DECIMAL(10,2) NOT NULL,
+                currency VARCHAR(3) NOT NULL DEFAULT 'NGN',
+                occupancy_pct DECIMAL(5,2),
+                demand_score DECIMAL(5,2),
+                competitor_avg DECIMAL(10,2),
+                reason TEXT,
+                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                applied_at TIMESTAMP,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS rev_rec_hotel_idx ON revenue_recommendations(hotel_id);
+            CREATE TABLE IF NOT EXISTS rate_history (
+                id SERIAL PRIMARY KEY,
+                hotel_id VARCHAR(64) NOT NULL,
+                room_type VARCHAR(100),
+                rate DECIMAL(10,2) NOT NULL,
+                currency VARCHAR(3) NOT NULL DEFAULT 'NGN',
+                occupancy_pct DECIMAL(5,2),
+                recorded_at TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+            CREATE INDEX IF NOT EXISTS rate_hist_hotel_idx ON rate_history(hotel_id);
+        """)
+        conn.commit()
+        cur.close()
+        conn.close()
     except Exception as e:
-        logger.warning(f"Could not connect to PostgreSQL: {e}")
-    yield
-    if db_pool:
-        await db_pool.close()
+        print(f"WARN: ensure_tables: {e}")
 
-app = FastAPI(
-    title="TourismPay AI Revenue Management",
-    description="AI-powered hotel pricing recommendations and demand forecasting",
-    version="1.0.0",
-    lifespan=lifespan,
-)
+ensure_tables()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+class RateRecommendationRequest(BaseModel):
+    hotel_id: str
+    room_type: str
+    current_rate: float
+    currency: str = "NGN"
+    occupancy_pct: float = 60.0
+    check_in_date: str = ""
+    days_ahead: int = 7
 
-# ─── Middleware ───────────────────────────────────────────────────────────────
-@app.middleware("http")
-async def metrics_middleware(request: Request, call_next):
-    start = time.time()
-    response = await call_next(request)
-    duration = time.time() - start
-    requests_total.labels(request.method, request.url.path, response.status_code).inc()
-    request_duration.labels(request.method, request.url.path).observe(duration)
-    return response
+def calculate_recommended_rate(current_rate: float, occupancy_pct: float, days_ahead: int) -> tuple:
+    """Simple revenue management algorithm based on occupancy and lead time."""
+    # Base adjustment from occupancy
+    if occupancy_pct >= 90:
+        occ_multiplier = 1.25
+        reason = "High occupancy ({}%) — increase rate to maximize revenue".format(occupancy_pct)
+    elif occupancy_pct >= 75:
+        occ_multiplier = 1.10
+        reason = "Good occupancy ({}%) — slight rate increase recommended".format(occupancy_pct)
+    elif occupancy_pct >= 50:
+        occ_multiplier = 1.0
+        reason = "Moderate occupancy ({}%) — maintain current rate".format(occupancy_pct)
+    elif occupancy_pct >= 30:
+        occ_multiplier = 0.90
+        reason = "Low occupancy ({}%) — reduce rate to stimulate demand".format(occupancy_pct)
+    else:
+        occ_multiplier = 0.80
+        reason = "Very low occupancy ({}%) — significant discount recommended".format(occupancy_pct)
 
-# ─── Health & Metrics ─────────────────────────────────────────────────────────
+    # Lead time adjustment
+    if days_ahead <= 1:
+        lead_multiplier = 0.85  # Last-minute discount
+        reason += ". Last-minute booking discount applied."
+    elif days_ahead <= 3:
+        lead_multiplier = 0.95
+    elif days_ahead >= 30:
+        lead_multiplier = 1.05  # Advance booking premium
+    else:
+        lead_multiplier = 1.0
+
+    recommended = round(current_rate * occ_multiplier * lead_multiplier, 2)
+    demand_score = min(100.0, occupancy_pct * occ_multiplier)
+    return recommended, demand_score, reason
+
 @app.get("/health")
-async def health():
-    return {"status": "healthy", "service": "revenue-management-service", "version": "1.0.0", "timestamp": datetime.utcnow().isoformat()}
-
-@app.get("/metrics")
-async def metrics():
-    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
-# ─── Dapr pub/sub ─────────────────────────────────────────────────────────────
-async def publish_event(topic: str, data: dict):
+def health():
     try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            await client.post(
-                f"http://localhost:{DAPR_PORT}/v1.0/publish/tourismpay-pubsub/{topic}",
-                json={"data": data, "datacontenttype": "application/json"},
-            )
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        cur.close()
+        conn.close()
+        return {"status": "healthy", "service": "revenue-management-service", "version": "1.0.0"}
     except Exception as e:
-        logger.warning(f"Dapr publish failed topic={topic}: {e}")
+        return {"status": "unhealthy", "error": str(e)}
 
-# ─── Route Handlers ───────────────────────────────────────────────────────────
-@app.get("/revenue/recommendations/{hotel_id}")
-async def handle_recommendations(request: Request):
-    """
-    Get AI pricing recommendations
-    """
+@app.post("/recommendations")
+def create_recommendation(req: RateRecommendationRequest):
+    recommended_rate, demand_score, reason = calculate_recommended_rate(
+        req.current_rate, req.occupancy_pct, req.days_ahead
+    )
+    rec_id = f"REC-{int(datetime.now().timestamp() * 1000) % 999999999999:012X}"
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO revenue_recommendations
+            (id, hotel_id, room_type, current_rate, recommended_rate, currency,
+             occupancy_pct, demand_score, reason, status, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending', NOW())
+        """, (rec_id, req.hotel_id, req.room_type, req.current_rate, recommended_rate,
+              req.currency, req.occupancy_pct, demand_score, reason))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     return {
-        "service": "revenue-management-service",
-        "endpoint": "/revenue/recommendations/{hotel_id}",
-        "status": "ok",
-        "timestamp": datetime.utcnow().isoformat(),
+        "recommendation_id": rec_id,
+        "current_rate": req.current_rate,
+        "recommended_rate": recommended_rate,
+        "currency": req.currency,
+        "demand_score": round(demand_score, 1),
+        "reason": reason,
+        "expected_revpar_change": f"+{round((recommended_rate/req.current_rate - 1)*100, 1)}%"
     }
 
-@app.get("/revenue/forecast/{hotel_id}")
-async def handle_forecast(request: Request):
-    """
-    Get demand forecast
-    """
-    return {
-        "service": "revenue-management-service",
-        "endpoint": "/revenue/forecast/{hotel_id}",
-        "status": "ok",
-        "timestamp": datetime.utcnow().isoformat(),
-    }
+@app.get("/recommendations")
+def list_recommendations(hotel_id: str = Query(...), status: Optional[str] = None, limit: int = 50):
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        if status:
+            cur.execute("SELECT id,hotel_id,room_type,current_rate,recommended_rate,currency,occupancy_pct,demand_score,reason,status,created_at::text FROM revenue_recommendations WHERE hotel_id=%s AND status=%s ORDER BY created_at DESC LIMIT %s", (hotel_id, status, limit))
+        else:
+            cur.execute("SELECT id,hotel_id,room_type,current_rate,recommended_rate,currency,occupancy_pct,demand_score,reason,status,created_at::text FROM revenue_recommendations WHERE hotel_id=%s ORDER BY created_at DESC LIMIT %s", (hotel_id, limit))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/revenue/competitors/{hotel_id}")
-async def handle_competitors(request: Request):
-    """
-    Get competitor rate analysis
-    """
-    return {
-        "service": "revenue-management-service",
-        "endpoint": "/revenue/competitors/{hotel_id}",
-        "status": "ok",
-        "timestamp": datetime.utcnow().isoformat(),
-    }
+@app.post("/recommendations/{rec_id}/apply")
+def apply_recommendation(rec_id: str):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("UPDATE revenue_recommendations SET status='applied', applied_at=NOW() WHERE id=%s AND status='pending'", (rec_id,))
+        if cur.rowcount == 0:
+            cur.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail="Recommendation not found or already applied")
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"success": True, "message": "Rate recommendation applied"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/revenue/apply/{hotel_id}")
-async def handle_apply_pricing(request: Request):
-    """
-    Apply recommended pricing
-    """
-    return {
-        "service": "revenue-management-service",
-        "endpoint": "/revenue/apply/{hotel_id}",
-        "status": "ok",
-        "timestamp": datetime.utcnow().isoformat(),
-    }
+@app.post("/rate-history")
+def record_rate(hotel_id: str, room_type: str, rate: float, currency: str = "NGN", occupancy_pct: float = 0.0):
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("INSERT INTO rate_history (hotel_id, room_type, rate, currency, occupancy_pct, recorded_at) VALUES (%s, %s, %s, %s, %s, NOW())", (hotel_id, room_type, rate, currency, occupancy_pct))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return {"success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/revenue/performance/{hotel_id}")
-async def handle_performance(request: Request):
-    """
-    Get RevPAR performance metrics
-    """
-    return {
-        "service": "revenue-management-service",
-        "endpoint": "/revenue/performance/{hotel_id}",
-        "status": "ok",
-        "timestamp": datetime.utcnow().isoformat(),
-    }
+@app.get("/rate-history/{hotel_id}")
+def get_rate_history(hotel_id: str, days: int = 30):
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT room_type, rate, currency, occupancy_pct, recorded_at::text FROM rate_history WHERE hotel_id=%s AND recorded_at > NOW() - INTERVAL '%s days' ORDER BY recorded_at DESC LIMIT 200", (hotel_id, days))
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-
-# ─── Entry Point ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=False, log_level="info")
+    port = int(os.getenv("PORT", "8097"))
+    uvicorn.run(app, host="0.0.0.0", port=port)

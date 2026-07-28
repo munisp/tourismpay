@@ -1,84 +1,132 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Landmark } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { Building2, Link, Unlink, Plus, RefreshCw } from "lucide-react";
 
 export default function OpenBanking() {
-  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const [showLink, setShowLink] = useState(false);
+  const [showTopup, setShowTopup] = useState<string | null>(null);
+  const [linkForm, setLinkForm] = useState({ provider: "mono", auth_code: "" });
+  const [topupAmount, setTopupAmount] = useState("");
+
+  const { data: connections, isLoading, refetch } = trpc.openBanking.listConnections.useQuery(
+    { userId: user?.id ?? "" },
+    { enabled: !!user?.id }
+  );
+
+  const { data: topups } = trpc.openBanking.listTopups.useQuery(
+    { userId: user?.id ?? "" },
+    { enabled: !!user?.id }
+  );
+
+  const linkMut = trpc.openBanking.linkAccount.useMutation({
+    onSuccess: (d) => { toast.success("Bank Linked", { description: d.message }); setShowLink(false); refetch(); },
+    onError: (e) => toast.error("Link failed", { description: e.message }),
+  });
+
+  const disconnectMut = trpc.openBanking.disconnect.useMutation({
+    onSuccess: () => { toast.success("Bank disconnected"); refetch(); },
+    onError: (e) => toast.error("Disconnect failed", { description: e.message }),
+  });
+
+  const topupMut = trpc.openBanking.initiateTopup.useMutation({
+    onSuccess: (d) => { toast.success("Top-up initiated", { description: d.message }); setShowTopup(null); setTopupAmount(""); refetch(); },
+    onError: (e) => toast.error("Top-up failed", { description: e.message }),
+  });
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-cyan-100 dark:bg-cyan-900/30">
-            <Landmark className="h-6 w-6 text-cyan-600 dark:text-cyan-400" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Open Banking</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Connect your Nigerian bank account for instant top-ups</p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Open Banking</h1>
+          <p className="text-gray-500 mt-1">Link your Nigerian bank account for instant wallet top-ups</p>
         </div>
-        <Badge variant="outline" className="text-cyan-600 border-cyan-200">
-          Active
-        </Badge>
+        <Button onClick={() => setShowLink(!showLink)} className="flex items-center gap-2">
+          <Link className="w-4 h-4" /> Link Bank Account
+        </Button>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { label: "Total", value: "—", sub: "Loading..." },
-          { label: "Active", value: "—", sub: "Loading..." },
-          { label: "Revenue", value: "—", sub: "Loading..." },
-        ].map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{stat.label}</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{stat.sub}</p>
+      {showLink && (
+        <Card>
+          <CardHeader><CardTitle>Link Bank Account</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Provider</Label>
+                <Select value={linkForm.provider} onValueChange={v => setLinkForm(f => ({...f, provider: v}))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mono">Mono</SelectItem>
+                    <SelectItem value="okra">Okra</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label>Auth Code (from widget)</Label><Input value={linkForm.auth_code} onChange={e => setLinkForm(f => ({...f, auth_code: e.target.value}))} placeholder="code_abc123" /></div>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => linkMut.mutate({ userId: user?.id ?? "", provider: linkForm.provider, authCode: linkForm.auth_code })} disabled={linkMut.isPending}>{linkMut.isPending ? "Linking..." : "Link Account"}</Button>
+              <Button variant="outline" onClick={() => setShowLink(false)}>Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="space-y-3">
+        <h2 className="font-semibold">Linked Accounts</h2>
+        {isLoading ? <div className="h-20 bg-gray-100 rounded animate-pulse" /> : !connections?.length ? (
+          <Card><CardContent className="py-8 text-center text-gray-500"><Building2 className="w-10 h-10 mx-auto mb-2 opacity-30" /><p>No bank accounts linked yet</p></CardContent></Card>
+        ) : connections.map((c: any) => (
+          <Card key={c.id}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Building2 className="w-8 h-8 text-blue-600" />
+                  <div>
+                    <p className="font-medium">{c.bank_name}</p>
+                    <p className="text-sm text-gray-500">{c.account_name} · ****{c.account_number.slice(-4)} · {c.provider.toUpperCase()}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className={c.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>{c.status}</Badge>
+                  {c.status === "active" && (
+                    <>
+                      <Button size="sm" onClick={() => setShowTopup(c.id)} className="flex items-center gap-1"><Plus className="w-3 h-3" />Top Up</Button>
+                      <Button size="sm" variant="outline" onClick={() => disconnectMut.mutate({ connectionId: c.id, userId: user?.id ?? "" })}><Unlink className="w-3 h-3" /></Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              {showTopup === c.id && (
+                <div className="mt-3 flex gap-2">
+                  <Input type="number" placeholder="Amount (NGN)" value={topupAmount} onChange={e => setTopupAmount(e.target.value)} className="w-40" />
+                  <Button size="sm" onClick={() => topupMut.mutate({ connectionId: c.id, userId: user?.id ?? "", amount: parseFloat(topupAmount), currency: "NGN" })} disabled={topupMut.isPending}>{topupMut.isPending ? "Processing..." : "Top Up"}</Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowTopup(null)}>Cancel</Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Main Content */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Landmark className="h-5 w-5 text-cyan-500" />
-            Open Banking Dashboard
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="p-4 rounded-full bg-cyan-50 dark:bg-cyan-900/20 mb-4">
-              <Landmark className="h-12 w-12 text-cyan-400" />
+      {topups && topups.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="font-semibold">Recent Top-ups</h2>
+          {topups.slice(0, 5).map((t: any) => (
+            <div key={t.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div><p className="text-sm font-medium">{t.bank_name} · ****{t.account_number?.slice(-4)}</p><p className="text-xs text-gray-500">{new Date(t.created_at).toLocaleDateString()}</p></div>
+              <div className="text-right"><p className="font-medium">{t.currency} {Number(t.amount).toLocaleString()}</p><Badge className={t.status === "completed" ? "bg-green-100 text-green-800 text-xs" : "bg-yellow-100 text-yellow-800 text-xs"}>{t.status}</Badge></div>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Open Banking
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mb-6">
-              Connect your Nigerian bank account for instant top-ups. Connect to the microservice API to load live data.
-            </p>
-            <Button
-              onClick={() => {
-                setLoading(true);
-                setTimeout(() => {
-                  setLoading(false);
-                  toast.success("Open Banking loaded successfully");
-                }, 1000);
-              }}
-              disabled={loading}
-              className="bg-cyan-600 hover:bg-cyan-700 text-white"
-            >
-              {loading ? "Loading..." : "Load Open Banking Data"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

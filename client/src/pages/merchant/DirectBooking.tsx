@@ -1,84 +1,86 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Hotel } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { BookOpen, Calendar, Users, DollarSign, CheckCircle, XCircle } from "lucide-react";
 
 export default function DirectBooking() {
-  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const { data: bookings, isLoading, refetch } = trpc.directBooking.listHotelBookings.useQuery(
+    { hotelId: user?.id ?? "", status: statusFilter === "all" ? undefined : statusFilter },
+    { enabled: !!user?.id }
+  );
+
+  const confirmMut = trpc.directBooking.confirmBooking.useMutation({
+    onSuccess: () => { toast.success("Booking confirmed"); refetch(); },
+    onError: (e) => toast.error("Failed", { description: e.message }),
+  });
+
+  const cancelMut = trpc.directBooking.cancelBooking.useMutation({
+    onSuccess: () => { toast.success("Booking cancelled"); refetch(); },
+    onError: (e) => toast.error("Failed", { description: e.message }),
+  });
+
+  const statusColor = (s: string) => ({ confirmed: "bg-green-100 text-green-800", pending: "bg-yellow-100 text-yellow-800", cancelled: "bg-red-100 text-red-800", checked_in: "bg-blue-100 text-blue-800" }[s] ?? "bg-gray-100 text-gray-800");
+
+  const totalRevenue = bookings?.filter((b: any) => b.status === "confirmed").reduce((sum: number, b: any) => sum + Number(b.total_amount), 0) ?? 0;
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-            <Hotel className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Direct Booking Engine</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">White-label hotel booking page management</p>
-          </div>
-        </div>
-        <Badge variant="outline" className="text-purple-600 border-purple-200">
-          Active
-        </Badge>
+        <div><h1 className="text-2xl font-bold text-gray-900">Direct Bookings</h1><p className="text-gray-500 mt-1">Manage bookings made directly through your TourismPay page</p></div>
+        <Card className="border-green-200 bg-green-50"><CardContent className="p-3 text-center"><p className="text-lg font-bold text-green-900">NGN {totalRevenue.toLocaleString()}</p><p className="text-xs text-green-700">Confirmed Revenue</p></CardContent></Card>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { label: "Total", value: "—", sub: "Loading..." },
-          { label: "Active", value: "—", sub: "Loading..." },
-          { label: "Revenue", value: "—", sub: "Loading..." },
-        ].map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{stat.label}</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{stat.sub}</p>
-            </CardContent>
-          </Card>
+      <div className="flex gap-2">
+        {["all","pending","confirmed","cancelled"].map(s => (
+          <Button key={s} size="sm" variant={statusFilter === s ? "default" : "outline"} onClick={() => setStatusFilter(s)} className="capitalize">{s}</Button>
         ))}
       </div>
 
-      {/* Main Content */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Hotel className="h-5 w-5 text-purple-500" />
-            Direct Booking Engine Dashboard
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="p-4 rounded-full bg-purple-50 dark:bg-purple-900/20 mb-4">
-              <Hotel className="h-12 w-12 text-purple-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Direct Booking Engine
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mb-6">
-              White-label hotel booking page management. Connect to the microservice API to load live data.
-            </p>
-            <Button
-              onClick={() => {
-                setLoading(true);
-                setTimeout(() => {
-                  setLoading(false);
-                  toast.success("Direct Booking Engine loaded successfully");
-                }, 1000);
-              }}
-              disabled={loading}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
-            >
-              {loading ? "Loading..." : "Load Direct Booking Engine Data"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {isLoading ? (
+        <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-20 bg-gray-100 rounded animate-pulse" />)}</div>
+      ) : !bookings?.length ? (
+        <Card><CardContent className="py-12 text-center text-gray-500"><BookOpen className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>No bookings found</p></CardContent></Card>
+      ) : (
+        <div className="space-y-3">
+          {bookings.map((b: any) => (
+            <Card key={b.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <p className="font-semibold">{b.guest_name}</p>
+                    <p className="text-sm text-gray-500">{b.guest_email} · Code: <span className="font-mono font-bold">{b.confirmation_code}</span></p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className={statusColor(b.status)}>{b.status}</Badge>
+                    {b.status === "pending" && (
+                      <>
+                        <Button size="sm" onClick={() => confirmMut.mutate({ bookingId: b.id })} disabled={confirmMut.isPending}><CheckCircle className="w-3 h-3 mr-1" />Confirm</Button>
+                        <Button size="sm" variant="outline" onClick={() => cancelMut.mutate({ bookingId: b.id })}><XCircle className="w-3 h-3 mr-1" />Cancel</Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-3 text-sm">
+                  <div><p className="text-gray-500">Room</p><p className="font-medium">{b.room_type}</p></div>
+                  <div><p className="text-gray-500">Check-in</p><p className="font-medium">{new Date(b.check_in).toLocaleDateString()}</p></div>
+                  <div><p className="text-gray-500">Nights</p><p className="font-medium">{b.nights}</p></div>
+                  <div><p className="text-gray-500">Total</p><p className="font-medium">{b.currency} {Number(b.total_amount).toLocaleString()}</p></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

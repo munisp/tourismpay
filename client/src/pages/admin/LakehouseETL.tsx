@@ -1,81 +1,83 @@
-import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Database } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { Database, Play, CheckCircle, XCircle, Clock, RefreshCw } from "lucide-react";
 
 export default function LakehouseETL() {
-  const [loading, setLoading] = useState(false);
+  const { data: runs, isLoading, refetch } = trpc.lakehouseEtl.listRuns.useQuery({ limit: 20 });
+  const { data: stats } = trpc.lakehouseEtl.getStats.useQuery({});
+
+  const triggerMut = trpc.lakehouseEtl.triggerRun.useMutation({
+    onSuccess: (d) => { toast.success("ETL Run Triggered", { description: d.message }); refetch(); },
+    onError: (e) => toast.error("Failed to trigger run", { description: e.message }),
+  });
+
+  const statusColor = (s: string) => ({ completed: "bg-green-100 text-green-800", running: "bg-blue-100 text-blue-800", failed: "bg-red-100 text-red-800", pending: "bg-yellow-100 text-yellow-800" }[s] ?? "bg-gray-100 text-gray-800");
+  const StatusIcon = ({ status }: { status: string }) => status === "completed" ? <CheckCircle className="w-4 h-4 text-green-600" /> : status === "failed" ? <XCircle className="w-4 h-4 text-red-600" /> : status === "running" ? <RefreshCw className="w-4 h-4 text-blue-600 animate-spin" /> : <Clock className="w-4 h-4 text-yellow-600" />;
+
+  const pipelines = ["tourist_transactions","merchant_revenue","bis_investigations","kyb_compliance","loyalty_activity","fx_rates","establishment_registry"];
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-900/30">
-            <Database className="h-6 w-6 text-gray-600 dark:text-gray-400" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Lakehouse ETL</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Apache Iceberg data pipeline management</p>
-          </div>
+        <div><h1 className="text-2xl font-bold text-gray-900">Lakehouse ETL</h1><p className="text-gray-500 mt-1">Apache Iceberg data pipelines — Bronze / Silver / Gold layers</p></div>
+        <div className="flex gap-2">
+          {pipelines.slice(0,3).map(p => (
+            <Button key={p} size="sm" variant="outline" onClick={() => triggerMut.mutate({ pipeline: p })} disabled={triggerMut.isPending} className="flex items-center gap-1"><Play className="w-3 h-3" />{p.split("_")[0]}</Button>
+          ))}
         </div>
-        <Badge variant="outline" className="text-gray-600 border-gray-200">
-          Active
-        </Badge>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[
-          { label: "Total", value: "—", sub: "Loading..." },
-          { label: "Active", value: "—", sub: "Loading..." },
-          { label: "Revenue", value: "—", sub: "Loading..." },
-        ].map((stat) => (
-          <Card key={stat.label}>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{stat.label}</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{stat.sub}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {stats && (
+        <div className="grid grid-cols-4 gap-4">
+          {[["Total Runs", stats.total_runs],["Completed", stats.completed],["Failed", stats.failed],["Avg Duration", `${stats.avg_duration_s}s`]].map(([label, value]) => (
+            <Card key={label as string}><CardContent className="p-4 text-center"><p className="text-2xl font-bold">{value}</p><p className="text-sm text-gray-500">{label}</p></CardContent></Card>
+          ))}
+        </div>
+      )}
 
-      {/* Main Content */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-gray-500" />
-            Lakehouse ETL Dashboard
-          </CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Database className="w-5 h-5" />ETL Run History</CardTitle></CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="p-4 rounded-full bg-gray-50 dark:bg-gray-900/20 mb-4">
-              <Database className="h-12 w-12 text-gray-400" />
+          {isLoading ? (
+            <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-12 bg-gray-100 rounded animate-pulse" />)}</div>
+          ) : !runs?.length ? (
+            <p className="text-center text-gray-500 py-8">No ETL runs yet. Trigger a pipeline to start.</p>
+          ) : (
+            <div className="space-y-2">
+              {runs.map((r: any) => (
+                <div key={r.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <StatusIcon status={r.status} />
+                    <div>
+                      <p className="font-medium capitalize">{r.pipeline_name.replace(/_/g," ")}</p>
+                      <p className="text-xs text-gray-500">{new Date(r.started_at).toLocaleString()} · {r.layer} layer</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    {r.rows_processed > 0 && <span className="text-gray-600">{r.rows_processed.toLocaleString()} rows</span>}
+                    {r.duration_seconds > 0 && <span className="text-gray-600">{r.duration_seconds}s</span>}
+                    <Badge className={statusColor(r.status)}>{r.status}</Badge>
+                  </div>
+                </div>
+              ))}
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              Lakehouse ETL
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mb-6">
-              Apache Iceberg data pipeline management. Connect to the microservice API to load live data.
-            </p>
-            <Button
-              onClick={() => {
-                setLoading(true);
-                setTimeout(() => {
-                  setLoading(false);
-                  toast.success("Lakehouse ETL loaded successfully");
-                }, 1000);
-              }}
-              disabled={loading}
-              className="bg-gray-600 hover:bg-gray-700 text-white"
-            >
-              {loading ? "Loading..." : "Load Lakehouse ETL Data"}
-            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Available Pipelines</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3">
+            {pipelines.map(p => (
+              <div key={p} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div><p className="font-medium capitalize">{p.replace(/_/g," ")}</p><p className="text-xs text-gray-500">Bronze → Silver → Gold</p></div>
+                <Button size="sm" onClick={() => triggerMut.mutate({ pipeline: p })} disabled={triggerMut.isPending}><Play className="w-3 h-3" /></Button>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
