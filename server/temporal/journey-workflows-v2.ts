@@ -49,6 +49,8 @@ import {
 } from "./journey-activities-v2";
 import { getDb } from "../db";
 import { sql } from "drizzle-orm";
+import { atomicDebitWallet, atomicCreditWallet, safeDebitWithCompensation, recordDoubleEntry, startDurableJourneyWorkflow, emitDurableEvent, idemKey } from "../_core/flow-of-funds";
+import { TRANSFER_CODES } from "../_core/tigerbeetle";
 
 const db = () => getDb();
 const wfId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -89,7 +91,7 @@ export async function bnplHotelBookingWorkflow(params: {
     ON CONFLICT (id) DO NOTHING
   `);
 
-  await walletActivities.debitWallet({
+  await atomicDebitWallet({
     userId: params.touristId,
     amountNgn: instalmentAmount,
     description: `BNPL first instalment for booking ${bookingRef}`,
@@ -152,7 +154,7 @@ export async function aiTripWithInsuranceWorkflow(params: {
     ON CONFLICT (policy_number) DO NOTHING
   `);
 
-  await walletActivities.debitWallet({
+  await atomicDebitWallet({
     userId: params.touristId, amountNgn: params.premiumNgn,
     description: `Travel insurance premium for ${params.destination}`, reference: policyId,
   });
@@ -202,7 +204,7 @@ export async function diasporaGiftRedemptionWorkflow(params: {
     WHERE id = ${params.giftId}
   `);
 
-  await walletActivities.creditWallet({
+  await atomicCreditWallet({
     userId: params.recipientId, amountNgn: params.amountNgn,
     description: `Diaspora gift redemption at ${params.establishmentId}`, reference: redemptionRef,
   });
@@ -264,7 +266,7 @@ export async function openBankingTopUpWorkflow(params: {
     WHERE id = ${params.bankConnectionId} AND user_id = ${params.touristId}
   `);
 
-  const { newBalance } = await walletActivities.creditWallet({
+  const { newBalance } = await atomicCreditWallet({
     userId: params.touristId, amountNgn: params.amountNgn,
     description: `Open Banking top-up from ${params.bankCode}`, reference: topupRef,
   });
@@ -329,7 +331,7 @@ export async function eVisaDirectBookingWorkflow(params: {
     ON CONFLICT (id) DO NOTHING
   `);
 
-  await walletActivities.debitWallet({
+  await atomicDebitWallet({
     userId: params.touristId, amountNgn: total,
     description: `e-Visa (${visaRef}) + Hotel (${bookingRef}) bundle`, reference: workflowId,
   });
@@ -398,7 +400,7 @@ export async function groupMiceBnplWorkflow(params: {
     ON CONFLICT (id) DO NOTHING
   `);
 
-  await walletActivities.debitWallet({
+  await atomicDebitWallet({
     userId: params.merchantId, amountNgn: depositAmount,
     description: `Group booking deposit for ${params.groupName} (${groupBookingId})`,
     reference: `${groupBookingId}-deposit`,
@@ -443,7 +445,7 @@ export async function dccPosPaymentWorkflow(params: {
   const receiptId = `RCP-${Date.now().toString(36).toUpperCase()}`;
   const spreadNgn = params.amountNgn * 0.025;
 
-  await walletActivities.debitWallet({
+  await atomicDebitWallet({
     userId: params.touristId, amountNgn: params.amountNgn,
     description: `DCC payment at ${params.establishmentId} (${params.homeAmount} ${params.homeCurrency})`,
     reference: txRef,
@@ -459,7 +461,7 @@ export async function dccPosPaymentWorkflow(params: {
     ON CONFLICT (id) DO NOTHING
   `);
 
-  await walletActivities.creditWallet({
+  await atomicCreditWallet({
     userId: params.merchantId, amountNgn: params.amountNgn * 0.965,
     description: `DCC payment received (${txRef})`, reference: txRef,
   });
@@ -770,7 +772,7 @@ export async function insuranceClaimBisWorkflow(params: {
 
   if (bisCheckPassed) {
     payoutRef = `PAY-${Date.now().toString(36).toUpperCase()}`;
-    await walletActivities.creditWallet({
+    await atomicCreditWallet({
       userId: params.touristId, amountNgn: params.claimAmountNgn,
       description: `Insurance claim payout for ${claimId}`, reference: payoutRef,
     });
@@ -867,7 +869,7 @@ export async function openBankingMerchantPayoutWorkflow(params: {
   const balance = await walletActivities.getBalance(params.merchantId);
   if (balance < params.amountNgn) throw new Error(`Insufficient balance: have ₦${balance}, need ₦${params.amountNgn}`);
 
-  await walletActivities.debitWallet({
+  await atomicDebitWallet({
     userId: params.merchantId, amountNgn: params.amountNgn,
     description: `Open Banking payout to ${params.bankCode} ${params.bankAccountNumber}`,
     reference: payoutRef,
@@ -1022,7 +1024,7 @@ export async function whiteLabelSettlementWorkflow(params: {
   const platformFeeNgn = params.revenueNgn * (params.platformFeePercent / 100);
   const netPayoutNgn = params.revenueNgn - platformFeeNgn;
 
-  await walletActivities.debitWallet({
+  await atomicDebitWallet({
     userId: params.tenantId, amountNgn: platformFeeNgn,
     description: `Platform fee for period ${params.periodStart} to ${params.periodEnd}`,
     reference: settlementRef,
@@ -1140,7 +1142,7 @@ export async function fullTouristLifecycleWorkflow(params: {
       'tourist', 30, 15000, 'NGN', 15000, 'paid', ${visaRef}, NOW())
     ON CONFLICT (idempotency_key) DO NOTHING
   `);
-  await walletActivities.debitWallet({
+  await atomicDebitWallet({
     userId: params.touristId, amountNgn: 15000, description: "e-Visa fee", reference: visaRef,
   });
 
@@ -1155,7 +1157,7 @@ export async function fullTouristLifecycleWorkflow(params: {
       NOW())
     ON CONFLICT (policy_number) DO NOTHING
   `);
-  await walletActivities.debitWallet({
+  await atomicDebitWallet({
     userId: params.touristId, amountNgn: 5000,
     description: "Travel insurance premium", reference: policyId,
   });
@@ -1180,7 +1182,7 @@ export async function fullTouristLifecycleWorkflow(params: {
       ${bookingAmount}, 'NGN', 'confirmed', 'direct', ${bookingRef}, NOW())
     ON CONFLICT (id) DO NOTHING
   `);
-  await walletActivities.debitWallet({
+  await atomicDebitWallet({
     userId: params.touristId, amountNgn: bookingAmount,
     description: `Hotel booking ${bookingRef}`, reference: bookingRef,
   });

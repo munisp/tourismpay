@@ -80,24 +80,81 @@ export const walletActivities = {
     reference: string;
   }): Promise<{ transactionId: string; newBalance: number }> {
     const currency = params.currency ?? "NGN";
-    // Check balance first
-    const balRows = await db().execute(sql`SELECT balance FROM wallet_balances WHERE user_id = ${params.userId} AND currency = ${currency} LIMIT 1`);
-    const balance = (balRows as any[])[0]?.balance ?? 0;
-    if (balance < params.amountNgn) {
-      throw new Error(`INSUFFICIENT_BALANCE: Available ₦${balance.toLocaleString()}, required ₦${params.amountNgn.toLocaleString()}`);
+    const userId = String(params.userId);
+
+    // ── Idempotency: if this reference was already processed, return original result ──
+    const existingTx = await db().execute(sql`
+      SELECT id FROM wallet_transactions WHERE reference = ${params.reference} AND status = 'completed' LIMIT 1
+    `);
+    if ((existingTx as any[]).length > 0) {
+      const rows = await db().execute(sql`SELECT balance FROM wallet_balances WHERE user_id = ${userId} AND currency = ${currency} LIMIT 1`);
+      return { transactionId: (existingTx as any[])[0].id, newBalance: Number((rows as any[])[0]?.balance ?? 0) };
     }
-    const txId = crypto.randomUUID();
-    await db().execute(sql`
-      UPDATE wallet_balances SET balance = balance - ${params.amountNgn}, updated_at = ${now()}
-      WHERE user_id = ${params.userId} AND currency = ${currency}
-    `);
-    await db().execute(sql`
-      INSERT INTO wallet_transactions (id, user_id, type, amount, currency, description, reference, status, created_at)
-      VALUES (${txId}, ${params.userId}, 'debit', ${params.amountNgn}, ${currency}, ${params.description}, ${params.reference}, 'completed', ${now()})
-      ON CONFLICT DO NOTHING
-    `);
-    const rows = await db().execute(sql`SELECT balance FROM wallet_balances WHERE user_id = ${params.userId} AND currency = ${currency} LIMIT 1`);
-    return { transactionId: txId, newBalance: (rows as any[])[0]?.balance ?? 0 };
+
+    // ── Redis distributed lock: prevents concurrent debits from same wallet ──
+    const { getRedis } = await import('../_core/redis');
+    const redis = getRedis();
+    const lockKey = `wallet:lock:${userId}`;
+    const lockToken = crypto.randomUUID();
+    let lockAcquired = false;
+    if (redis) {
+      const result = await redis.set(lockKey, lockToken, 'NX', 'PX', 10000);
+      if (result !== 'OK') {
+        throw new Error(`WALLET_LOCKED: Concurrent operation on wallet ${userId}. Retry in a moment.`);
+      }
+      lockAcquired = true;
+    }
+
+    try {
+      const txId = crypto.randomUUID();
+      // ── Atomic CTE: SELECT FOR UPDATE + balance check + debit in one round-trip ──
+      const result = await db().execute(sql`
+        WITH locked AS (
+          SELECT balance FROM wallet_balances
+          WHERE user_id = ${userId} AND currency = ${currency}
+          FOR UPDATE
+        ),
+        debit AS (
+          UPDATE wallet_balances
+          SET balance = balance - ${params.amountNgn}, updated_at = ${now()}
+          WHERE user_id = ${userId} AND currency = ${currency}
+            AND balance >= ${params.amountNgn}
+          RETURNING balance AS new_balance
+        ),
+        tx AS (
+          INSERT INTO wallet_transactions (id, user_id, type, amount, currency, description, reference, status, created_at)
+          SELECT ${txId}, ${userId}, 'debit', ${params.amountNgn}, ${currency},
+                 ${params.description}, ${params.reference}, 'completed', ${now()}
+          WHERE EXISTS (SELECT 1 FROM debit)
+          ON CONFLICT (reference) DO NOTHING
+          RETURNING id
+        )
+        SELECT d.new_balance FROM debit d
+      `);
+
+      const row = (result as any[])[0];
+      if (!row) {
+        // Re-check idempotency before throwing
+        const retry = await db().execute(sql`SELECT id FROM wallet_transactions WHERE reference = ${params.reference} AND status = 'completed' LIMIT 1`);
+        if ((retry as any[]).length > 0) {
+          const rows = await db().execute(sql`SELECT balance FROM wallet_balances WHERE user_id = ${userId} AND currency = ${currency} LIMIT 1`);
+          return { transactionId: (retry as any[])[0].id, newBalance: Number((rows as any[])[0]?.balance ?? 0) };
+        }
+        const balRows = await db().execute(sql`SELECT balance FROM wallet_balances WHERE user_id = ${userId} AND currency = ${currency} LIMIT 1`);
+        const bal = Number((balRows as any[])[0]?.balance ?? 0);
+        throw new Error(`INSUFFICIENT_BALANCE: Available ₦${bal.toLocaleString()}, required ₦${params.amountNgn.toLocaleString()}`);
+      }
+
+      return { transactionId: txId, newBalance: Number(row.new_balance) };
+    } finally {
+      // ── Release Redis lock ──
+      if (redis && lockAcquired) {
+        await redis.eval(
+          `if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end`,
+          1, lockKey, lockToken
+        ).catch(() => {});
+      }
+    }
   },
 
   async provisionWallet(userId: number | string, currencies: string[]): Promise<void> {

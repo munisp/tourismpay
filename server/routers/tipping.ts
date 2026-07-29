@@ -277,21 +277,35 @@ export const tippingRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: `Minimum tip in ${config.name} is ${(minTip * 0.1).toFixed(2)} ${input.currency}` });
       }
 
-      // Check sender wallet balance
-      const walletRows = await db.execute(
-        sql`SELECT balance FROM wallet_balances WHERE user_id = ${ctx.user.id} AND currency = ${input.currency} LIMIT 1`
-      );
-      const walletBalance = (walletRows as any[])[0]?.balance;
-      if (!walletBalance || parseFloat(walletBalance) < tipAmount) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: `Insufficient ${input.currency} balance for tip. Available: ${walletBalance ?? 0}, Required: ${tipAmount}` });
+      // ── Atomic debit: SELECT FOR UPDATE + balance check + debit in one CTE (no TOCTOU) ──
+      const tipId = crypto.randomUUID();
+      const now = Date.now();
+      const debitResult = await db.execute(sql`
+        WITH locked AS (
+          SELECT balance FROM wallet_balances
+          WHERE user_id = ${ctx.user.id} AND currency = ${input.currency}
+          FOR UPDATE
+        ),
+        debit AS (
+          UPDATE wallet_balances
+          SET balance = balance - ${tipAmount}, updated_at = ${now}
+          WHERE user_id = ${ctx.user.id} AND currency = ${input.currency}
+            AND CAST(balance AS NUMERIC) >= ${tipAmount}
+          RETURNING balance AS new_balance
+        )
+        SELECT d.new_balance FROM debit d
+      `);
+      if (!(debitResult as any[]).length) {
+        const walletRows = await db.execute(sql`SELECT balance FROM wallet_balances WHERE user_id = ${ctx.user.id} AND currency = ${input.currency} LIMIT 1`);
+        const walletBalance = (walletRows as any[])[0]?.balance ?? 0;
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Insufficient ${input.currency} balance for tip. Available: ${walletBalance}, Required: ${tipAmount}` });
       }
 
       // Record tip transaction
-      const tipId = crypto.randomUUID();
-      const now = Date.now();
       await db.execute(sql`
         INSERT INTO tip_transactions (id, payer_id, recipient_id, establishment_id, transaction_ref, bill_amount, tip_amount, tip_type, tip_percentage, tax_on_tip, net_tip, currency, jurisdiction_code, distribution_type, message, status, created_at)
         VALUES (${tipId}, ${String(ctx.user.id)}, ${String(input.recipientUserId ?? input.establishmentId ?? 0)}, ${input.establishmentId ?? null}, ${input.transactionId ?? null}, ${input.billAmount}, ${tipAmount}, ${input.tipType}, ${input.tipType === "percentage" ? input.tipValue : 0}, ${taxOnTip}, ${netTip}, ${input.currency}, ${input.jurisdictionCode.toUpperCase()}, ${config.distribution}, ${input.message ?? null}, 'completed', ${now})
+        ON CONFLICT DO NOTHING
       `);
 
       // Record distribution splits
@@ -299,13 +313,9 @@ export const tippingRouter = router({
         await db.execute(sql`
           INSERT INTO tip_distribution_log (id, tip_id, role, amount, percentage, created_at)
           VALUES (${crypto.randomUUID()}, ${tipId}, ${split.role}, ${split.amount}, ${split.percentage}, ${now})
+          ON CONFLICT DO NOTHING
         `);
       }
-
-      // Deduct from sender wallet
-      await db.execute(sql`
-        UPDATE wallet_balances SET balance = balance - ${tipAmount}, updated_at = ${now} WHERE user_id = ${ctx.user.id} AND currency = ${input.currency}
-      `);
 
       // Notify recipient
       if (input.recipientUserId) {

@@ -66,6 +66,7 @@ import {
 import { logger } from "../_core/logger";
 import { getDb } from "../db";
 import { sql } from "drizzle-orm";
+import { atomicDebitWallet, atomicCreditWallet, safeDebitWithCompensation, idemKey } from "../_core/flow-of-funds";
 
 // ─── Helper: generate workflow ID ────────────────────────────────────────────
 
@@ -95,7 +96,7 @@ export async function startWalletTopupWorkflow(params: {
   const targetAmountNgn = (params.sourceAmount * fxRate) - fxFeeNgn;
 
   // Credit wallet
-  const { transactionId } = await walletActivities.creditWallet({
+  const { transactionId } = await atomicCreditWallet({
     userId: params.userId,
     amountNgn: targetAmountNgn,
     description: `Wallet top-up: ${params.sourceAmount} ${params.sourceCurrency}`,
@@ -240,7 +241,7 @@ export async function startTouristPaymentWorkflow(params: {
   const totalNgn = taxes.total + tip;
 
   // Debit tourist wallet
-  const { transactionId: debitTxId } = await walletActivities.debitWallet({
+  const { transactionId: debitTxId } = await atomicDebitWallet({
     userId: params.userId,
     amountNgn: totalNgn,
     description: `Payment: ${params.description}`,
@@ -249,7 +250,7 @@ export async function startTouristPaymentWorkflow(params: {
 
   // Credit merchant wallet (net of platform fee)
   const netToMerchant = taxes.total - taxes.platformFee;
-  await walletActivities.creditWallet({
+  await atomicCreditWallet({
     userId: params.merchantId,
     amountNgn: netToMerchant,
     description: `Payment received: ${params.description}`,
@@ -382,7 +383,7 @@ export async function startAirportArrivalWorkflow(params: {
   const simOrderId = crypto.randomUUID();
 
   // Record airport transfer booking
-  const { transactionId: transferTxId } = await walletActivities.debitWallet({
+  const { transactionId: transferTxId } = await atomicDebitWallet({
     userId: params.userId,
     amountNgn: 35000, // standard airport transfer rate
     description: `Airport transfer from ${params.arrivalAirport}`,
@@ -390,7 +391,7 @@ export async function startAirportArrivalWorkflow(params: {
   });
 
   // Record SIM card order
-  const { transactionId: simTxId } = await walletActivities.debitWallet({
+  const { transactionId: simTxId } = await atomicDebitWallet({
     userId: params.userId,
     amountNgn: 5000, // tourist SIM package
     description: `Tourist SIM card (${params.simProvider ?? "MTN"} 30-day package)`,
@@ -598,7 +599,7 @@ export async function startGroupBookingWorkflow(params: {
 
   // Organizer pays their share immediately
   if (params.splitMethod === "equal") {
-    await walletActivities.debitWallet({
+    await atomicDebitWallet({
       userId: params.organizerUserId,
       amountNgn: shareAmountNgn,
       description: `Group booking organizer share: ${params.groupName}`,
@@ -1039,7 +1040,7 @@ export async function startStablecoinConversionWorkflow(params: {
     onChainTxHash: params.onChainTxHash,
   });
 
-  await walletActivities.creditWallet({
+  await atomicCreditWallet({
     userId: params.userId,
     amountNgn: ngnAmount,
     description: `${params.tokenSymbol} conversion: ${params.tokenAmount} → ₦${ngnAmount.toFixed(2)}`,
