@@ -1,0 +1,115 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# TourismPay Hubble Observability Configuration
+#
+# Hubble is Cilium's built-in network observability layer.
+# It provides per-connection visibility at kernel level with zero overhead
+# (no sidecar, no iptables, no userspace proxy — pure eBPF ring buffers).
+#
+# This config deploys:
+#  1. Hubble Relay (multi-node flow aggregation)
+#  2. Hubble UI (visual flow graph)
+#  3. Prometheus ServiceMonitor for all Hubble metrics
+#  4. Grafana dashboards for golden signals + security audit trail
+#  5. AlertManager rules for anomalous flow patterns
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Hubble Relay Service ──────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: hubble-relay
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: hubble-relay
+    app.kubernetes.io/part-of: cilium
+spec:
+  selector:
+    app.kubernetes.io/name: hubble-relay
+  ports:
+    - name: grpc
+      port: 4245
+      targetPort: 4245
+    - name: metrics
+      port: 9966
+      targetPort: 9966
+---
+# ── Hubble Metrics ServiceMonitor ────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: hubble-metrics
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: hubble
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hubble-relay
+  endpoints:
+    - port: metrics
+      interval: 10s
+      path: /metrics
+      honorLabels: true
+---
+# ── Cilium Agent Metrics ServiceMonitor ──────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cilium-agent-metrics
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cilium
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cilium-agent
+  endpoints:
+    - port: prometheus
+      interval: 10s
+      path: /metrics
+      honorLabels: true
+---
+# ── eBPF Loader Metrics ServiceMonitor ───────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ebpf-loader-metrics
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: ebpf-loader
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - tourismpay
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ebpf-loader
+  endpoints:
+    - port: metrics
+      interval: 10s
+      path: /metrics
+      honorLabels: true
+---
+# ── Hubble Flow Export (for security audit trail) ─────────────────────────────
+# Exports all flows matching security-relevant criteria to a dedicated
+# Kafka topic for long-term retention and SIEM integration.
+apiVersion: cilium.io/v2alpha1
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: hubble-flow-export-policy
+spec:
+  description: "Export security-relevant flows to audit trail"
+  # This is a monitoring policy — it doesn't block traffic
+  # but triggers Hubble to export matching flows
+  endpointSelector: {}
+  # Flows matching these criteria are exported to Hubble Relay
+  # and from there to Kafka topic: tourismpay.network.audit

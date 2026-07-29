@@ -1,0 +1,181 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# TourismPay eBPF Loader DaemonSet
+#
+# Runs on every node to:
+#  1. Load XDP program onto the node's NIC (DDoS protection)
+#  2. Load TC programs onto server pod interfaces (rate limiting + fraud)
+#  3. Forward fraud signals from kernel to fraud-ml-service
+#  4. Expose eBPF map metrics to Prometheus
+#
+# Requires privileged access (CAP_BPF, CAP_NET_ADMIN, CAP_SYS_ADMIN)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ebpf-loader
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: ebpf-loader
+    app.kubernetes.io/part-of: tourismpay-security
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ebpf-loader
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ebpf-loader
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9099"
+        prometheus.io/path: "/metrics"
+    spec:
+      hostNetwork: true
+      hostPID: true
+      tolerations:
+        - operator: Exists                # Run on all nodes including masters
+      priorityClassName: system-node-critical
+      serviceAccountName: ebpf-loader
+      initContainers:
+        # Mount BPF filesystem if not already mounted
+        - name: mount-bpf-fs
+          image: busybox:1.36
+          command:
+            - /bin/sh
+            - -c
+            - |
+              mount | grep -q /sys/fs/bpf || mount -t bpf bpf /sys/fs/bpf
+              mkdir -p /sys/fs/bpf/tourismpay
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: bpf-fs
+              mountPath: /sys/fs/bpf
+              mountPropagation: Bidirectional
+      containers:
+        - name: ebpf-loader
+          image: tourismpay/ebpf-loader:latest
+          imagePullPolicy: Always
+          args:
+            - --iface=$(NODE_IFACE)
+            - --fraud-endpoint=http://fraud-ml-service.tourismpay.svc.cluster.local:8080
+            - --metrics-addr=:9099
+            - --bpf-fs=/sys/fs/bpf/tourismpay
+          env:
+            - name: NODE_IFACE
+              value: "eth0"             # Override per node if needed
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          ports:
+            - name: metrics
+              containerPort: 9099
+              protocol: TCP
+          securityContext:
+            privileged: true            # Required for eBPF + XDP
+            capabilities:
+              add:
+                - BPF
+                - NET_ADMIN
+                - SYS_ADMIN
+                - SYS_RESOURCE
+                - NET_RAW
+          volumeMounts:
+            - name: bpf-fs
+              mountPath: /sys/fs/bpf
+              mountPropagation: Bidirectional
+            - name: host-proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: host-sys
+              mountPath: /host/sys
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9099
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9099
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: bpf-fs
+          hostPath:
+            path: /sys/fs/bpf
+            type: DirectoryOrCreate
+        - name: host-proc
+          hostPath:
+            path: /proc
+        - name: host-sys
+          hostPath:
+            path: /sys
+---
+# ── ServiceAccount for eBPF loader ───────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ebpf-loader
+  namespace: tourismpay
+---
+# ── ClusterRole for eBPF loader ───────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ebpf-loader
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods", "services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ebpf-loader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ebpf-loader
+subjects:
+  - kind: ServiceAccount
+    name: ebpf-loader
+    namespace: tourismpay
+---
+# ── Service for Prometheus scraping ──────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: ebpf-loader-metrics
+  namespace: tourismpay
+  labels:
+    app.kubernetes.io/name: ebpf-loader
+spec:
+  selector:
+    app.kubernetes.io/name: ebpf-loader
+  ports:
+    - name: metrics
+      port: 9099
+      targetPort: 9099
+  clusterIP: None                       # Headless service for per-node scraping

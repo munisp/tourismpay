@@ -1,0 +1,26 @@
+# TourismPay Cilium/eBPF Kustomization
+# Apply with: kubectl apply -k infra/cilium/
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: tourismpay
+
+resources:
+  - ebpf-loader-daemonset.yaml
+  - policies/tourismpay-network-policies.yaml
+  - policies/service-mesh-mtls.yaml
+  - hubble/hubble-config.yaml
+  - monitoring/alerting-rules.yaml
+
+configMapGenerator:
+  - name: tourismpay-cilium-dashboard
+    namespace: monitoring
+    files:
+      - hubble/grafana-dashboard-network.json
+    options:
+      labels:
+        grafana_dashboard: "1"
+
+images:
+  - name: tourismpay/ebpf-loader
+    newTag: latest

@@ -1,0 +1,249 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# TourismPay Cilium/eBPF AlertManager Rules
+#
+# Fires alerts for:
+#  1. Network policy violations (unexpected traffic drops)
+#  2. DDoS attack detection (XDP rate limiter firing at scale)
+#  3. eBPF fraud signals (kernel-level anomalies)
+#  4. Lateral movement detection (server connecting to unknown IPs)
+#  5. Wallet API abuse (rate limit sustained breach)
+#  6. TigerBeetle/Temporal connectivity loss
+# ─────────────────────────────────────────────────────────────────────────────
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tourismpay-cilium-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: tourismpay
+    release: prometheus
+spec:
+  groups:
+    # ── DDoS & Rate Limiting ────────────────────────────────────────────────
+    - name: tourismpay.ddos
+      interval: 30s
+      rules:
+        - alert: TourismPayDDoSAttackDetected
+          expr: |
+            rate(tourismpay_ebpf_packets_total{action="total"}[1m]) > 100000
+            AND
+            rate(tourismpay_ebpf_rate_limited_requests_total[1m]) > 1000
+          for: 30s
+          labels:
+            severity: critical
+            team: platform
+            category: security
+          annotations:
+            summary: "DDoS attack detected on TourismPay"
+            description: >
+              XDP is processing >100k packets/s and dropping >1000 req/s.
+              Possible DDoS attack in progress.
+              Blacklisted IPs: {{ $labels.blacklisted_ips }}
+            runbook: "https://wiki.tourismpay.com/runbooks/ddos-response"
+
+        - alert: TourismPayHighRateLimiting
+          expr: |
+            rate(tourismpay_ebpf_rate_limited_requests_total[5m]) > 100
+          for: 2m
+          labels:
+            severity: warning
+            team: platform
+            category: security
+          annotations:
+            summary: "High rate limiting on TourismPay wallet API"
+            description: >
+              eBPF rate limiter is dropping >100 requests/5m.
+              This may indicate a bot attack or misconfigured client.
+
+        - alert: TourismPayIPBlacklistGrowing
+          expr: |
+            tourismpay_ebpf_blacklisted_ips > 50
+          for: 5m
+          labels:
+            severity: warning
+            team: security
+            category: security
+          annotations:
+            summary: "Large number of IPs blacklisted by eBPF"
+            description: >
+              {{ $value }} IPs are currently blacklisted by the eBPF XDP program.
+              This may indicate a coordinated attack from multiple sources.
+
+    # ── Fraud Signals ────────────────────────────────────────────────────────
+    - name: tourismpay.fraud_signals
+      interval: 30s
+      rules:
+        - alert: TourismPayKernelFraudSignalCritical
+          expr: |
+            sum(rate(tourismpay_ebpf_fraud_signals_total{severity="4"}[5m])) > 0
+          for: 0s
+          labels:
+            severity: critical
+            team: fraud
+            category: security
+          annotations:
+            summary: "Critical fraud signal detected at kernel level"
+            description: >
+              eBPF fraud detector has emitted a critical (severity=4) signal.
+              Signal type: {{ $labels.signal_type }}
+              This requires immediate investigation.
+            runbook: "https://wiki.tourismpay.com/runbooks/fraud-response"
+
+        - alert: TourismPayLateralMovementDetected
+          expr: |
+            sum(rate(tourismpay_ebpf_fraud_signals_total{signal_type="lateral_movement"}[5m])) > 0
+          for: 0s
+          labels:
+            severity: critical
+            team: security
+            category: security
+          annotations:
+            summary: "Lateral movement detected in TourismPay cluster"
+            description: >
+              A server pod is connecting to an unexpected internal IP.
+              This may indicate a compromised container or supply chain attack.
+              Immediate investigation required.
+
+        - alert: TourismPayDataExfiltrationDetected
+          expr: |
+            sum(rate(tourismpay_ebpf_fraud_signals_total{signal_type="data_exfiltration"}[5m])) > 0
+          for: 0s
+          labels:
+            severity: critical
+            team: security
+            category: security
+          annotations:
+            summary: "Potential data exfiltration detected"
+            description: >
+              eBPF detected >1MB egress from a server pod in <1 second.
+              This may indicate data exfiltration or a misconfigured service.
+
+        - alert: TourismPayPortScanDetected
+          expr: |
+            sum(rate(tourismpay_ebpf_fraud_signals_total{signal_type="port_scan"}[5m])) > 0
+          for: 1m
+          labels:
+            severity: high
+            team: security
+            category: security
+          annotations:
+            summary: "Port scan detected"
+            description: >
+              eBPF detected connections to >10 unique ports from a single source IP.
+              This is a strong indicator of reconnaissance activity.
+
+    # ── Network Policy Violations ────────────────────────────────────────────
+    - name: tourismpay.network_policy
+      interval: 30s
+      rules:
+        - alert: TourismPayNetworkPolicyViolationHigh
+          expr: |
+            sum(rate(hubble_drop_total{namespace="tourismpay"}[5m])) > 10
+          for: 2m
+          labels:
+            severity: warning
+            team: platform
+            category: security
+          annotations:
+            summary: "High network policy violation rate in tourismpay namespace"
+            description: >
+              Cilium is dropping >10 packets/5m due to network policy violations.
+              Drop reason: {{ $labels.reason }}
+              This may indicate a misconfigured service or an attack.
+
+        - alert: TourismPayUnauthorizedDatabaseAccess
+          expr: |
+            sum(rate(hubble_drop_total{
+              namespace="tourismpay",
+              destination_workload=~"postgres|redis|tigerbeetle.*"
+            }[5m])) > 0
+          for: 1m
+          labels:
+            severity: critical
+            team: security
+            category: security
+          annotations:
+            summary: "Unauthorized database access attempt blocked by Cilium"
+            description: >
+              Cilium blocked an unauthorized connection attempt to a database service.
+              Destination: {{ $labels.destination_workload }}
+              Source: {{ $labels.source_workload }}
+              This is a critical security event.
+
+        - alert: TourismPayKafkaUnauthorizedProducer
+          expr: |
+            sum(rate(hubble_drop_total{
+              namespace="tourismpay",
+              destination_workload="kafka"
+            }[5m])) > 0
+          for: 1m
+          labels:
+            severity: high
+            team: security
+            category: security
+          annotations:
+            summary: "Unauthorized Kafka producer blocked by Cilium L7 policy"
+            description: >
+              Cilium's L7 Kafka policy blocked an unauthorized producer.
+              A service is attempting to produce to a topic it is not authorized for.
+
+    # ── Service Connectivity ─────────────────────────────────────────────────
+    - name: tourismpay.connectivity
+      interval: 30s
+      rules:
+        - alert: TourismPayTigerBeetleConnectivityLoss
+          expr: |
+            sum(rate(hubble_flows_processed_total{
+              namespace="tourismpay",
+              destination_workload="tigerbeetle-sidecar",
+              verdict="FORWARDED"
+            }[5m])) == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+            category: availability
+          annotations:
+            summary: "No traffic to TigerBeetle — ledger may be unavailable"
+            description: >
+              Hubble shows zero forwarded flows to tigerbeetle-sidecar for 2 minutes.
+              This means the double-entry ledger is not receiving any transfers.
+              All wallet operations may be failing silently.
+
+        - alert: TourismPayTemporalConnectivityLoss
+          expr: |
+            sum(rate(hubble_flows_processed_total{
+              namespace="tourismpay",
+              destination_workload="temporal",
+              verdict="FORWARDED"
+            }[5m])) == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+            category: availability
+          annotations:
+            summary: "No traffic to Temporal — workflow orchestration may be down"
+            description: >
+              Hubble shows zero forwarded flows to Temporal for 2 minutes.
+              All journey workflows (J01-J62) may be failing to start or progress.
+
+    # ── WireGuard Encryption ─────────────────────────────────────────────────
+    - name: tourismpay.encryption
+      interval: 60s
+      rules:
+        - alert: TourismPayUnencryptedInterNodeTraffic
+          expr: |
+            sum(rate(cilium_node_connectivity_status{status="error"}[5m])) > 0
+          for: 5m
+          labels:
+            severity: high
+            team: security
+            category: security
+          annotations:
+            summary: "WireGuard encryption error between nodes"
+            description: >
+              Cilium WireGuard encryption is reporting errors between nodes.
+              Inter-node traffic may be unencrypted.
+              This violates PCI-DSS and CBN data security requirements.

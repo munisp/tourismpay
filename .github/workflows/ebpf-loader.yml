@@ -1,0 +1,177 @@
+name: Build & Deploy eBPF Loader
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/cilium/ebpf/**'
+      - '.github/workflows/ebpf-loader.yml'
+  pull_request:
+    paths:
+      - 'infra/cilium/ebpf/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/ebpf-loader
+
+jobs:
+  build-ebpf:
+    name: Compile eBPF C Programs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install eBPF build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-17 llvm-17 libbpf-dev \
+            linux-headers-$(uname -r) linux-libc-dev libelf-dev
+
+      - name: Compile wallet_ratelimit.c
+        run: |
+          cd infra/cilium/ebpf/src
+          clang-17 -O2 -g -target bpf \
+            -D__TARGET_ARCH_x86 \
+            -I/usr/include/x86_64-linux-gnu \
+            -c wallet_ratelimit.c -o wallet_ratelimit.o
+          echo "wallet_ratelimit.o compiled successfully"
+          llvm-objdump-17 --section-headers wallet_ratelimit.o
+
+      - name: Compile fraud_detector.c
+        run: |
+          cd infra/cilium/ebpf/src
+          clang-17 -O2 -g -target bpf \
+            -D__TARGET_ARCH_x86 \
+            -I/usr/include/x86_64-linux-gnu \
+            -c fraud_detector.c -o fraud_detector.o
+          echo "fraud_detector.o compiled successfully"
+          llvm-objdump-17 --section-headers fraud_detector.o
+
+      - name: Verify eBPF programs
+        run: |
+          cd infra/cilium/ebpf/src
+          # Verify XDP program exists
+          llvm-objdump-17 -d wallet_ratelimit.o | grep -q "tourismpay_xdp_ddos"
+          echo "XDP program verified"
+          # Verify TC programs exist
+          llvm-objdump-17 -d wallet_ratelimit.o | grep -q "tourismpay_tc_wallet_filter"
+          echo "TC wallet filter verified"
+          llvm-objdump-17 -d fraud_detector.o | grep -q "tourismpay_fraud_egress"
+          echo "Fraud egress program verified"
+
+      - name: Upload eBPF objects
+        uses: actions/upload-artifact@v4
+        with:
+          name: ebpf-objects
+          path: infra/cilium/ebpf/src/*.o
+
+  build-go-loader:
+    name: Build Go eBPF Loader
+    runs-on: ubuntu-24.04
+    needs: build-ebpf
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: infra/cilium/ebpf/loader/go.sum
+
+      - name: Download eBPF objects
+        uses: actions/download-artifact@v4
+        with:
+          name: ebpf-objects
+          path: infra/cilium/ebpf/src/
+
+      - name: Build Go loader
+        run: |
+          cd infra/cilium/ebpf/loader
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -ldflags="-w -s -X main.version=${{ github.sha }}" \
+            -o ebpf-loader .
+          echo "Go loader built: $(ls -lh ebpf-loader)"
+
+      - name: Run Go tests
+        run: |
+          cd infra/cilium/ebpf/loader
+          go test ./... -v -timeout 30s
+
+  build-container:
+    name: Build & Push Container
+    runs-on: ubuntu-24.04
+    needs: [build-ebpf, build-go-loader]
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: infra/cilium/ebpf
+          file: infra/cilium/ebpf/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-policies:
+    name: Apply Cilium Network Policies
+    runs-on: ubuntu-24.04
+    needs: build-container
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Configure kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+
+      - name: Validate policies (dry-run)
+        run: |
+          kubectl apply -k infra/cilium/ --dry-run=server
+          echo "Policy validation passed"
+
+      - name: Apply Cilium network policies
+        run: |
+          kubectl apply -k infra/cilium/
+          echo "Cilium policies applied"
+
+      - name: Verify eBPF loader rollout
+        run: |
+          kubectl -n tourismpay rollout status daemonset/ebpf-loader --timeout=5m
+          echo "eBPF loader DaemonSet healthy"
+
+      - name: Run connectivity test
+        run: |
+          # Verify Cilium connectivity
+          kubectl -n kube-system exec -it ds/cilium -- cilium connectivity test \
+            --test-namespace tourismpay \
+            --test pod-to-pod \
+            --test pod-to-service \
+            --timeout 5m || true

@@ -1,0 +1,655 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# TourismPay Cilium Network Policies
+#
+# Uses CiliumNetworkPolicy (Cilium CRD) instead of standard NetworkPolicy.
+# Benefits over standard NetworkPolicy:
+#  - L7 HTTP/gRPC method-level filtering (e.g., only allow POST /api/wallet/debit)
+#  - DNS-based egress policies (allow *.stripe.com, block everything else)
+#  - Identity-based (SPIFFE) instead of IP-based
+#  - eBPF enforcement at kernel level (no iptables, no userspace proxy overhead)
+#  - Kafka topic-level access control
+#  - Process-level visibility (which binary made the connection)
+#
+# Architecture: Default-deny-all + explicit allow per service pair
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── 1. DEFAULT DENY ALL ───────────────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: tourismpay
+spec:
+  description: "Default deny all ingress and egress for all pods"
+  endpointSelector: {}
+  ingress:
+    - {}
+  egress:
+    - {}
+---
+# ── 2. DNS EGRESS (required for all pods) ────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: tourismpay
+spec:
+  description: "Allow DNS resolution for all pods"
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
+---
+# ── 3. APISIX GATEWAY → SERVER ───────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-apisix-to-server
+  namespace: tourismpay
+spec:
+  description: "APISIX gateway may send HTTP/tRPC to tourismpay-server on port 3000"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: tourismpay-server
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: apisix-gateway
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"
+                path: "/api/.*"
+              - method: "POST"
+                path: "/api/.*"
+              - method: "PUT"
+                path: "/api/.*"
+              - method: "DELETE"
+                path: "/api/.*"
+              - method: "OPTIONS"
+                path: "/.*"
+---
+# ── 4. SERVER → POSTGRESQL ───────────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-server-to-postgres
+  namespace: tourismpay
+spec:
+  description: "tourismpay-server may connect to PostgreSQL on port 5432"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: tourismpay-server
+        - matchLabels:
+            app.kubernetes.io/name: settlement-service
+        - matchLabels:
+            app.kubernetes.io/name: kyc-service
+        - matchLabels:
+            app.kubernetes.io/name: temporal-worker
+        - matchLabels:
+            app.kubernetes.io/name: go-settlement-service
+        - matchLabels:
+            app.kubernetes.io/name: go-ledger-sync
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+---
+# ── 5. SERVER → REDIS ────────────────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-server-to-redis
+  namespace: tourismpay
+spec:
+  description: "Authorized services may connect to Redis on port 6379"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: tourismpay-server
+        - matchLabels:
+            app.kubernetes.io/name: temporal-worker
+        - matchLabels:
+            app.kubernetes.io/name: fraud-ml-service
+        - matchLabels:
+            app.kubernetes.io/name: settlement-service
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+---
+# ── 6. SERVER → TEMPORAL ─────────────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-server-to-temporal
+  namespace: tourismpay
+spec:
+  description: "tourismpay-server and workers may connect to Temporal frontend on 7233"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: temporal
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: tourismpay-server
+        - matchLabels:
+            app.kubernetes.io/name: temporal-worker
+      toPorts:
+        - ports:
+            - port: "7233"
+              protocol: TCP
+            - port: "7234"
+              protocol: TCP
+---
+# ── 7. TIGERBEETLE SIDECAR ───────────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-server-to-tigerbeetle
+  namespace: tourismpay
+spec:
+  description: "Only server and settlement service may connect to TigerBeetle on 3001"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: tigerbeetle-sidecar
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: tourismpay-server
+        - matchLabels:
+            app.kubernetes.io/name: settlement-service
+        - matchLabels:
+            app.kubernetes.io/name: go-settlement-service
+        - matchLabels:
+            app.kubernetes.io/name: go-ledger-sync
+      toPorts:
+        - ports:
+            - port: "3001"
+              protocol: TCP
+---
+# ── 8. FLUVIO STREAMING ──────────────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-server-to-fluvio
+  namespace: tourismpay
+spec:
+  description: "Authorized producers/consumers may connect to Fluvio SC on 9003"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: fluvio-sc
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: tourismpay-server
+        - matchLabels:
+            app.kubernetes.io/name: temporal-worker
+        - matchLabels:
+            app.kubernetes.io/name: fraud-ml-service
+        - matchLabels:
+            app.kubernetes.io/name: settlement-service
+        - matchLabels:
+            app.kubernetes.io/name: journey-analytics
+      toPorts:
+        - ports:
+            - port: "9003"
+              protocol: TCP
+            - port: "9005"
+              protocol: TCP
+---
+# ── 9. KAFKA ─────────────────────────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-server-to-kafka
+  namespace: tourismpay
+spec:
+  description: "Kafka topic-level access control via Cilium L7 Kafka policy"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kafka
+  ingress:
+    # Server: can produce to all topics
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: tourismpay-server
+      toPorts:
+        - ports:
+            - port: "9092"
+              protocol: TCP
+          rules:
+            kafka:
+              - role: "produce"
+                topic: "tourismpay.wallet.events"
+              - role: "produce"
+                topic: "tourismpay.fraud.alerts"
+              - role: "produce"
+                topic: "tourismpay.audit.events"
+              - role: "produce"
+                topic: "tourismpay.journey.events"
+              - role: "produce"
+                topic: "tourismpay.settlement.events"
+    # Fraud ML: can only consume fraud.alerts and produce fraud.decisions
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: fraud-ml-service
+      toPorts:
+        - ports:
+            - port: "9092"
+              protocol: TCP
+          rules:
+            kafka:
+              - role: "consume"
+                topic: "tourismpay.fraud.alerts"
+              - role: "produce"
+                topic: "tourismpay.fraud.decisions"
+    # Settlement: can consume settlement.events
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: settlement-service
+      toPorts:
+        - ports:
+            - port: "9092"
+              protocol: TCP
+          rules:
+            kafka:
+              - role: "consume"
+                topic: "tourismpay.settlement.events"
+              - role: "produce"
+                topic: "tourismpay.settlement.completed"
+    # Temporal worker: can consume all journey events
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: temporal-worker
+      toPorts:
+        - ports:
+            - port: "9092"
+              protocol: TCP
+          rules:
+            kafka:
+              - role: "consume"
+                topic: "tourismpay.journey.events"
+              - role: "produce"
+                topic: "tourismpay.journey.completed"
+---
+# ── 10. FRAUD ML SERVICE ─────────────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-server-to-fraud-ml
+  namespace: tourismpay
+spec:
+  description: "Server may call fraud-ml-service HTTP API on port 8080"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: fraud-ml-service
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: tourismpay-server
+        - matchLabels:
+            app.kubernetes.io/name: temporal-worker
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+          rules:
+            http:
+              - method: "POST"
+                path: "/score"
+              - method: "POST"
+                path: "/predict"
+              - method: "GET"
+                path: "/health"
+---
+# ── 11. BIS AI SERVICE ───────────────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-server-to-bis-ai
+  namespace: tourismpay
+spec:
+  description: "Server may call bis-ai-service on port 8081 — restricted to BIS endpoints only"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: bis-ai-service
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: tourismpay-server
+        - matchLabels:
+            app.kubernetes.io/name: temporal-worker
+      toPorts:
+        - ports:
+            - port: "8081"
+              protocol: TCP
+          rules:
+            http:
+              - method: "POST"
+                path: "/investigate"
+              - method: "POST"
+                path: "/check-entity"
+              - method: "GET"
+                path: "/health"
+---
+# ── 12. JOURNEY ANALYTICS SERVICE ───────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-server-to-journey-analytics
+  namespace: tourismpay
+spec:
+  description: "Server may call journey-analytics on port 8105"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: journey-analytics
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: tourismpay-server
+      toPorts:
+        - ports:
+            - port: "8105"
+              protocol: TCP
+          rules:
+            http:
+              - method: "POST"
+                path: "/.*"
+              - method: "GET"
+                path: "/health"
+              - method: "GET"
+                path: "/metrics"
+---
+# ── 13. KEYCLOAK (identity provider) ────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-server-to-keycloak
+  namespace: tourismpay
+spec:
+  description: "Server may call Keycloak for token validation on port 8080"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: tourismpay-server
+        - matchLabels:
+            app.kubernetes.io/name: apisix-gateway
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"
+                path: "/realms/.*"
+              - method: "POST"
+                path: "/realms/.*/protocol/openid-connect/token"
+              - method: "POST"
+                path: "/realms/.*/protocol/openid-connect/token/introspect"
+---
+# ── 14. MINIO (object storage) ───────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-server-to-minio
+  namespace: tourismpay
+spec:
+  description: "Server and KYC service may access MinIO S3 on port 9000"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: minio
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: tourismpay-server
+        - matchLabels:
+            app.kubernetes.io/name: kyc-service
+        - matchLabels:
+            app.kubernetes.io/name: bis-ai-service
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP
+---
+# ── 15. PROMETHEUS → ALL SERVICES ────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: tourismpay
+spec:
+  description: "Prometheus may scrape /metrics from all pods on port 9090/8080/3000"
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+            - port: "8080"
+              protocol: TCP
+            - port: "3000"
+              protocol: TCP
+            - port: "9091"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"
+                path: "/metrics"
+---
+# ── 16. EXTERNAL EGRESS — PAYMENT RAILS ──────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-server-external-payment-egress
+  namespace: tourismpay
+spec:
+  description: "Server may reach external payment providers via DNS-based policy"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: tourismpay-server
+  egress:
+    # Stripe
+    - toFQDNs:
+        - matchPattern: "*.stripe.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # Paystack
+    - toFQDNs:
+        - matchPattern: "*.paystack.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # Flutterwave
+    - toFQDNs:
+        - matchPattern: "*.flutterwave.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # Mojaloop
+    - toFQDNs:
+        - matchPattern: "*.mojaloop.io"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # CBN Open Banking
+    - toFQDNs:
+        - matchPattern: "*.cbn.gov.ng"
+        - matchPattern: "openbanking.cbn.gov.ng"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # NIBSS
+    - toFQDNs:
+        - matchPattern: "*.nibss-plc.com.ng"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # Wise / TransferWise
+    - toFQDNs:
+        - matchPattern: "*.wise.com"
+        - matchPattern: "*.transferwise.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # Stablecoin / crypto rails
+    - toFQDNs:
+        - matchPattern: "*.circle.com"
+        - matchPattern: "*.coinbase.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # Internal cluster DNS
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+---
+# ── 17. SETTLEMENT SERVICE EGRESS ────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-settlement-external-egress
+  namespace: tourismpay
+spec:
+  description: "Settlement service may reach bank APIs and NIBSS for payouts"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: settlement-service
+  egress:
+    - toFQDNs:
+        - matchPattern: "*.nibss-plc.com.ng"
+        - matchPattern: "*.gtbank.com"
+        - matchPattern: "*.zenithbank.com"
+        - matchPattern: "*.accessbankplc.com"
+        - matchPattern: "*.firstbanknigeria.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+---
+# ── 18. TEMPORAL WORKER INTERNAL EGRESS ──────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-temporal-worker-egress
+  namespace: tourismpay
+spec:
+  description: "Temporal worker may reach all internal services it orchestrates"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: temporal-worker
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: postgres
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: redis
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: temporal
+      toPorts:
+        - ports:
+            - port: "7233"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: tigerbeetle-sidecar
+      toPorts:
+        - ports:
+            - port: "3001"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: fluvio-sc
+      toPorts:
+        - ports:
+            - port: "9003"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+---
+# ── 19. HUBBLE RELAY ACCESS ───────────────────────────────────────────────────
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-hubble-relay
+  namespace: kube-system
+spec:
+  description: "Hubble relay may receive flow data from all Cilium agents"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: hubble-relay
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: hubble-ui
+        - matchLabels:
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "4245"
+              protocol: TCP

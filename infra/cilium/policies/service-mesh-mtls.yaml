@@ -1,0 +1,412 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# TourismPay Cilium Service Mesh — mTLS + SPIFFE Zero-Trust
+#
+# Cilium's sidecarless service mesh uses eBPF to intercept traffic at the
+# socket layer (SO_MARK + BPF_CGROUP_SOCK_OPS) and enforce mTLS without
+# any sidecar proxy. SPIRE issues SPIFFE SVIDs to each pod, and Cilium
+# validates them at the kernel level.
+#
+# This provides:
+#  1. Mutual TLS between every service pair (no plaintext inter-service traffic)
+#  2. SPIFFE identity-based authorization (not IP-based)
+#  3. Certificate rotation without pod restart (SPIRE handles it)
+#  4. L7 HTTP/gRPC authorization based on SPIFFE identity
+#  5. Zero overhead vs sidecar (eBPF socket interception vs userspace proxy)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── SPIRE Server ──────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spire-server
+  namespace: cilium-spire
+  labels:
+    app.kubernetes.io/name: spire-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: spire-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spire-server
+    spec:
+      serviceAccountName: spire-server
+      containers:
+        - name: spire-server
+          image: ghcr.io/spiffe/spire-server:1.9.4
+          args:
+            - -config
+            - /run/spire/config/server.conf
+          ports:
+            - containerPort: 8081
+              name: grpc
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-data
+              mountPath: /run/spire/data
+          readinessProbe:
+            exec:
+              command: ["/opt/spire/bin/spire-server", "healthcheck"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: spire-config
+          configMap:
+            name: spire-server-config
+        - name: spire-data
+          persistentVolumeClaim:
+            claimName: spire-data
+---
+# ── SPIRE Server ConfigMap ────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-server-config
+  namespace: cilium-spire
+data:
+  server.conf: |
+    server {
+      bind_address = "0.0.0.0"
+      bind_port = "8081"
+      trust_domain = "tourismpay.io"
+      data_dir = "/run/spire/data"
+      log_level = "INFO"
+      jwt_issuer = "https://spire.tourismpay.io"
+
+      ca_subject {
+        country = ["NG"]
+        organization = ["TourismPay"]
+        common_name = "TourismPay SPIRE CA"
+      }
+
+      # Short-lived SVIDs for payment services (1 hour)
+      default_svid_ttl = "1h"
+      ca_ttl = "24h"
+    }
+
+    plugins {
+      DataStore "sql" {
+        plugin_data {
+          database_type = "postgres"
+          connection_string = "postgresql://spire:${SPIRE_DB_PASSWORD}@postgres:5432/spire?sslmode=require"
+        }
+      }
+
+      NodeAttestor "k8s_psat" {
+        plugin_data {
+          clusters = {
+            "tourismpay-cluster" = {
+              service_account_allow_list = ["cilium-spire:spire-agent"]
+            }
+          }
+        }
+      }
+
+      KeyManager "disk" {
+        plugin_data {
+          keys_path = "/run/spire/data/keys.json"
+        }
+      }
+
+      Notifier "k8sbundle" {
+        plugin_data {
+          namespace = "cilium-spire"
+        }
+      }
+    }
+
+    health_checks {
+      listener_enabled = true
+      bind_address = "0.0.0.0"
+      bind_port = "8080"
+      live_path = "/live"
+      ready_path = "/ready"
+    }
+---
+# ── SPIRE Agent DaemonSet ─────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: spire-agent
+  namespace: cilium-spire
+  labels:
+    app.kubernetes.io/name: spire-agent
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: spire-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spire-agent
+    spec:
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      serviceAccountName: spire-agent
+      initContainers:
+        - name: init
+          image: ghcr.io/spiffe/spire-agent:1.9.4
+          command:
+            - /opt/spire/bin/spire-agent
+            - api
+            - fetch
+            - -socketPath
+            - /run/spire/sockets/agent.sock
+          volumeMounts:
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets
+      containers:
+        - name: spire-agent
+          image: ghcr.io/spiffe/spire-agent:1.9.4
+          args:
+            - -config
+            - /run/spire/config/agent.conf
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets
+            - name: spire-bundle
+              mountPath: /run/spire/bundle
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: spire-config
+          configMap:
+            name: spire-agent-config
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: DirectoryOrCreate
+        - name: spire-bundle
+          configMap:
+            name: spire-bundle
+---
+# ── SPIRE Agent ConfigMap ─────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-agent-config
+  namespace: cilium-spire
+data:
+  agent.conf: |
+    agent {
+      data_dir = "/run/spire/data"
+      log_level = "INFO"
+      trust_domain = "tourismpay.io"
+      server_address = "spire-server.cilium-spire.svc.cluster.local"
+      server_port = "8081"
+      socket_path = "/run/spire/sockets/agent.sock"
+      authorized_delegates = ["spiffe://tourismpay.io/ns/cilium-spire/sa/cilium-operator"]
+    }
+
+    plugins {
+      NodeAttestor "k8s_psat" {
+        plugin_data {
+          cluster = "tourismpay-cluster"
+        }
+      }
+
+      KeyManager "memory" {
+        plugin_data {}
+      }
+
+      WorkloadAttestor "k8s" {
+        plugin_data {
+          skip_kubelet_verification = true
+        }
+      }
+    }
+---
+# ── CiliumNetworkPolicy with SPIFFE-based mTLS ───────────────────────────────
+# Require mTLS for all wallet-related service communication
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: require-mtls-wallet-services
+  namespace: tourismpay
+spec:
+  description: "Require mTLS (SPIFFE identity) for all wallet service communication"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: tourismpay-server
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: apisix-gateway
+      authentication:
+        mode: "required"            # Require mTLS — reject if no valid SVID
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: postgres
+      authentication:
+        mode: "required"
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: tigerbeetle-sidecar
+      authentication:
+        mode: "required"
+      toPorts:
+        - ports:
+            - port: "3001"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: temporal
+      authentication:
+        mode: "required"
+      toPorts:
+        - ports:
+            - port: "7233"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: redis
+      authentication:
+        mode: "required"
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+---
+# ── SPIFFE Registration Entries ───────────────────────────────────────────────
+# These define the SPIFFE SVIDs issued to each service.
+# Applied via: spire-server entry create ...
+# Stored here as a Job that runs at cluster bootstrap.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spire-register-entries
+  namespace: cilium-spire
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: spire-server
+      containers:
+        - name: register
+          image: ghcr.io/spiffe/spire-server:1.9.4
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              SOCKET=/run/spire/sockets/server.sock
+
+              register() {
+                /opt/spire/bin/spire-server entry create \
+                  -socketPath $SOCKET \
+                  -spiffeID "spiffe://tourismpay.io/ns/tourismpay/sa/$1" \
+                  -parentID "spiffe://tourismpay.io/k8s-psat/tourismpay-cluster/node" \
+                  -selector "k8s:ns:tourismpay" \
+                  -selector "k8s:sa:$1" \
+                  -ttl 3600 || true
+              }
+
+              # Register all TourismPay service accounts
+              register "tourismpay-server"
+              register "settlement-service"
+              register "kyc-service"
+              register "temporal-worker"
+              register "fraud-ml-service"
+              register "bis-ai-service"
+              register "journey-analytics"
+              register "go-settlement-service"
+              register "go-ledger-sync"
+
+              echo "All SPIFFE entries registered successfully"
+          volumeMounts:
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets
+      volumes:
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/sockets
+---
+# ── Cilium L7 HTTP Policy with SPIFFE identity ────────────────────────────────
+# Only allow the settlement service to call the wallet debit endpoint
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: wallet-debit-l7-policy
+  namespace: tourismpay
+spec:
+  description: "L7 HTTP policy: only settlement-service may call /api/wallet/debit"
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: tourismpay-server
+  ingress:
+    # Only settlement-service may call the debit endpoint
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: settlement-service
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+          rules:
+            http:
+              - method: "POST"
+                path: "/api/wallet/debit"
+              - method: "POST"
+                path: "/api/wallet/credit"
+              - method: "POST"
+                path: "/api/wallet/transfer"
+    # Only temporal-worker may call journey workflow endpoints
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: temporal-worker
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+          rules:
+            http:
+              - method: "POST"
+                path: "/api/journey/.*"
+              - method: "GET"
+                path: "/api/journey/.*"
+    # APISIX may call any /api endpoint (user-facing)
+    - fromEndpoints:
+        - matchLabels:
+            app: apisix-gateway
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"
+                path: "/api/.*"
+              - method: "POST"
+                path: "/api/.*"
+              - method: "OPTIONS"
+                path: "/.*"

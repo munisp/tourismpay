@@ -1,0 +1,156 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Cilium Helm Values — TourismPay Production Configuration
+#
+# Cilium replaces kube-proxy entirely and provides:
+#  1. eBPF-based networking (XDP, TC hooks) — 10x faster than iptables
+#  2. L3/L4/L7 network policies with identity-based enforcement
+#  3. Transparent mTLS via WireGuard encryption in-kernel
+#  4. Hubble real-time flow observability (per-connection metrics)
+#  5. Kernel-level rate limiting and DDoS protection via XDP
+#  6. Service mesh without sidecar overhead (eBPF replaces Envoy for L4)
+#
+# Install: helm install cilium cilium/cilium --version 1.15.6 \
+#            --namespace kube-system -f values.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Core eBPF dataplane ──────────────────────────────────────────────────────
+kubeProxyReplacement: true          # Full kube-proxy replacement via eBPF
+bpf:
+  masquerade: true                  # eBPF-based masquerade (no iptables MASQUERADE)
+  tproxy: true                      # Transparent proxy for L7 policies
+  lbExternalClusterIP: true         # Load-balance external ClusterIPs via eBPF
+  hostLegacyRouting: false          # Pure eBPF routing (no legacy kernel path)
+  preallocateMaps: true             # Pre-allocate eBPF maps at startup for perf
+  mapDynamicSizeRatio: 0.0025       # 0.25% of total memory for eBPF maps
+  monitorAggregation: maximum       # Aggregate flow events (reduce Hubble overhead)
+  monitorInterval: "5s"
+  monitorFlags: "all"
+
+# ── XDP acceleration (kernel bypass for ingress) ────────────────────────────
+loadBalancer:
+  algorithm: maglev                 # Consistent hashing (no connection resets on scale)
+  mode: dsr                         # Direct Server Return — avoids double NAT
+  acceleration: native              # XDP native mode (requires NIC driver support)
+  l7:
+    backend: envoy                  # L7 proxy for HTTP/gRPC policies
+
+# ── WireGuard transparent encryption ────────────────────────────────────────
+encryption:
+  enabled: true
+  type: wireguard                   # In-kernel WireGuard (no userspace overhead)
+  wireguard:
+    userspaceFallback: false        # Require kernel WireGuard (5.6+)
+    persistentKeepalive: 25         # Keep tunnels alive through NAT
+
+# ── Identity-based security ──────────────────────────────────────────────────
+policyEnforcementMode: default      # Enforce policies by default
+enableIPv4: true
+enableIPv6: false
+ipam:
+  mode: kubernetes                  # Use k8s IPAM (compatible with all CNI)
+
+# ── Hubble observability ─────────────────────────────────────────────────────
+hubble:
+  enabled: true
+  metrics:
+    enabled:
+      - dns:query;ignoreAAAA
+      - drop
+      - tcp
+      - flow
+      - icmp
+      - http
+      - kafka:labelsContext=source_namespace,source_workload,destination_namespace,destination_workload
+      - "policy:sourceContext=app|workload-name|pod;destinationContext=app|workload-name|pod"
+    serviceMonitor:
+      enabled: true                 # Prometheus ServiceMonitor for Hubble metrics
+    dashboards:
+      enabled: true                 # Grafana dashboards
+      namespace: monitoring
+  relay:
+    enabled: true                   # Hubble Relay for multi-node flow aggregation
+    replicas: 2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+  ui:
+    enabled: true                   # Hubble UI for visual flow inspection
+    replicas: 1
+    ingress:
+      enabled: true
+      className: apisix
+      hosts:
+        - hubble.tourismpay.internal
+  tls:
+    enabled: true
+    auto:
+      method: certmanager
+      certManagerIssuerRef:
+        name: letsencrypt-prod
+        kind: ClusterIssuer
+
+# ── Service mesh (sidecarless via eBPF) ─────────────────────────────────────
+envoy:
+  enabled: true                     # Cilium-managed Envoy for L7 policies
+  securityContext:
+    capabilities:
+      keepCapNetBindService: true
+
+# ── Mutual authentication (SPIFFE/SPIRE integration) ────────────────────────
+authentication:
+  mutual:
+    spire:
+      enabled: true                 # SPIRE for SPIFFE identity issuance
+      install:
+        enabled: true
+        namespace: cilium-spire
+        server:
+          replicas: 1
+          dataStorage:
+            storageClass: standard
+            size: 1Gi
+
+# ── Cluster mesh (multi-cluster for global deployments) ─────────────────────
+clustermesh:
+  useAPIServer: true
+  apiserver:
+    replicas: 2
+    tls:
+      auto:
+        method: certmanager
+
+# ── Performance tuning ───────────────────────────────────────────────────────
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 4000m
+    memory: 4Gi
+
+operator:
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# ── Prometheus integration ───────────────────────────────────────────────────
+prometheus:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 10s
+
+# ── Debug (disable in production) ───────────────────────────────────────────
+debug:
+  enabled: false
+  verbose: ""
