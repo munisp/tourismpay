@@ -1,0 +1,10 @@
+[package]
+name = "tourismpay-platform-tests"
+version = "1.0.0"
+edition = "2021"
+
+[[test]]
+name = "platform_tests"
+path = "platform_tests.rs"
+
+[dependencies]

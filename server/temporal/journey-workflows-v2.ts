@@ -158,6 +158,10 @@ export async function aiTripWithInsuranceWorkflow(params: {
     userId: params.touristId, amountNgn: params.premiumNgn,
     description: `Travel insurance premium for ${params.destination}`, reference: policyId,
   });
+  await journeyTbActivities.recordTransfer({
+    fromAccountId: BigInt(8001), toAccountId: BigInt(8005),
+    amountKobo: BigInt(Math.round(params.premiumNgn * 100)), reference: policyId,
+  });
 
   await loyaltyActivities.earnPoints({
     userId: params.touristId, merchantId: "TOURISMPAY-INSURANCE",
@@ -334,6 +338,10 @@ export async function eVisaDirectBookingWorkflow(params: {
   await atomicDebitWallet({
     userId: params.touristId, amountNgn: total,
     description: `e-Visa (${visaRef}) + Hotel (${bookingRef}) bundle`, reference: workflowId,
+  });
+  await journeyTbActivities.recordTransfer({
+    fromAccountId: BigInt(8001), toAccountId: BigInt(8002),
+    amountKobo: BigInt(Math.round(total * 100)), reference: workflowId,
   });
 
   await loyaltyActivities.earnPoints({
@@ -776,6 +784,10 @@ export async function insuranceClaimBisWorkflow(params: {
       userId: params.touristId, amountNgn: params.claimAmountNgn,
       description: `Insurance claim payout for ${claimId}`, reference: payoutRef,
     });
+    await journeyTbActivities.recordTransfer({
+      fromAccountId: BigInt(8005), toAccountId: BigInt(8001),
+      amountKobo: BigInt(Math.round(params.claimAmountNgn * 100)), reference: payoutRef!,
+    });
     await db().execute(sql`
       UPDATE insurance_claims SET status = 'approved', approved_amount = ${params.claimAmountNgn},
         processed_at = NOW() WHERE claim_reference = ${claimId}
@@ -1145,6 +1157,10 @@ export async function fullTouristLifecycleWorkflow(params: {
   await atomicDebitWallet({
     userId: params.touristId, amountNgn: 15000, description: "e-Visa fee", reference: visaRef,
   });
+  await journeyTbActivities.recordTransfer({
+    fromAccountId: BigInt(8001), toAccountId: BigInt(8006),
+    amountKobo: BigInt(1_500_000), reference: visaRef,
+  });
 
   // ARRIVE: Insurance
   const policyId = `POL-${Date.now().toString(36).toUpperCase()}`;
@@ -1160,6 +1176,10 @@ export async function fullTouristLifecycleWorkflow(params: {
   await atomicDebitWallet({
     userId: params.touristId, amountNgn: 5000,
     description: "Travel insurance premium", reference: policyId,
+  });
+  await journeyTbActivities.recordTransfer({
+    fromAccountId: BigInt(8001), toAccountId: BigInt(8005),
+    amountKobo: BigInt(500_000), reference: policyId,
   });
 
   // ARRIVE: AI itinerary
@@ -1185,6 +1205,10 @@ export async function fullTouristLifecycleWorkflow(params: {
   await atomicDebitWallet({
     userId: params.touristId, amountNgn: bookingAmount,
     description: `Hotel booking ${bookingRef}`, reference: bookingRef,
+  });
+  await journeyTbActivities.recordTransfer({
+    fromAccountId: BigInt(8001), toAccountId: BigInt(8002),
+    amountKobo: BigInt(Math.round(bookingAmount * 100)), reference: bookingRef,
   });
 
   // PAY: Earn loyalty
