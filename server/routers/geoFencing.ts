@@ -5,7 +5,7 @@ import { eq, count, and, sql } from "drizzle-orm";
 import { geofenceZones } from "../../drizzle/schema";
 import { TRPCError } from "@trpc/server";
 
-export const geoFencingRouter = router({
+export const geofencingRouter = router({
   list: protectedProcedure
     .input(z.object({ limit: z.number().default(20) }))
     .query(async ({ input }) => {

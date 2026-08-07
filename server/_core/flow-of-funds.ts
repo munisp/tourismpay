@@ -42,7 +42,7 @@
 import { getDb } from "../db";
 import { sql } from "drizzle-orm";
 import { getRedis } from "./redis";
-import { postLedgerTransfer, getOrCreateAccount, LEDGER_CODES, CURRENCY_CODES } from "./tigerbeetle";
+import { createLedgerTransfer, getOrCreateAccount, LEDGER_CODES, CURRENCY_CODES } from "./tigerbeetle";
 import { startWorkflow, isTemporalEnabled } from "./temporal-integration";
 import { logger } from "./logger";
 import crypto from "crypto";
@@ -262,7 +262,7 @@ export async function recordDoubleEntry(params: {
       LEDGER_CODES.PLATFORM_FEE,
       CURRENCY_CODES.NGN,
     );
-    const transferId = await postLedgerTransfer({
+    const transferId = await createLedgerTransfer({
       debitAccountId: fromAccountId,
       creditAccountId: toAccountId,
       amount: BigInt(Math.round(params.amountNgn * 100)), // kobo

@@ -10,7 +10,7 @@
 
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
-import { db } from "../_core/db";
+import { db } from '../db';
 import { establishments, walletTransactions } from "../../drizzle/schema";
 import { and, sql, gte, lte, desc } from "drizzle-orm";
 
