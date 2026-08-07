@@ -500,6 +500,23 @@ services:
     restart: unless-stopped
 
   # ─── Prometheus ─────────────────────────────────────────────────────────────
+
+  sar-processor:
+    build:
+      context: ./services/sar-processor
+      dockerfile: Dockerfile
+    ports:
+      - "8106:8106"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/tourismpay
+      NFIU_API_URL: https://api.nfiu.gov.ng/v1
+      NFIU_API_KEY: ${NFIU_API_KEY:-}
+      PORT: "8106"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - tourismpay-network
   prometheus:
     image: prom/prometheus:v2.51.2
     ports:

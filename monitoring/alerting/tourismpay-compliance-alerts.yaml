@@ -1,0 +1,282 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# TourismPay Compliance + SAR + Zero-Trust AlertManager Rules
+# Tasks: 20 (Prometheus alerts for zero-trust), 31 (SAR DLQ alerts)
+# ─────────────────────────────────────────────────────────────────────────────
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tourismpay-compliance-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: tourismpay
+    release: prometheus
+spec:
+  groups:
+
+    # ── SAR Filing Alerts ────────────────────────────────────────────────────
+    - name: tourismpay.sar
+      interval: 60s
+      rules:
+        - alert: TourismPaySARDeadLetterQueueHigh
+          expr: |
+            tourismpay_sar_dead_letter_queue_total > 10
+          for: 5m
+          labels:
+            severity: critical
+            team: compliance
+            category: regulatory
+          annotations:
+            summary: "SAR dead-letter queue has >10 failed filings"
+            description: >
+              {{ $value }} SARs are in the dead-letter queue and have not been
+              filed with NFIU. This may violate CBN/NFIU reporting requirements
+              (24-hour filing deadline under MLPA 2022).
+            runbook: "https://wiki.tourismpay.com/runbooks/sar-dlq-response"
+
+        - alert: TourismPaySARFilingFailureRate
+          expr: |
+            rate(tourismpay_sar_filed_total{status!="success"}[15m]) /
+            rate(tourismpay_sar_filed_total[15m]) > 0.1
+          for: 10m
+          labels:
+            severity: high
+            team: compliance
+            category: regulatory
+          annotations:
+            summary: "SAR filing failure rate >10% in last 15 minutes"
+            description: >
+              NFIU API is experiencing elevated failure rates.
+              Check NFIU API status and network connectivity.
+
+        - alert: TourismPayNFIUAPIDown
+          expr: |
+            rate(tourismpay_nfiu_api_latency_seconds_count[5m]) == 0
+            AND
+            tourismpay_sar_pending_count > 0
+          for: 5m
+          labels:
+            severity: critical
+            team: compliance
+            category: availability
+          annotations:
+            summary: "NFIU API appears to be down with pending SARs"
+            description: >
+              No NFIU API calls in 5 minutes but {{ $value }} SARs are pending.
+              The retry queue will continue attempting. Manual intervention may be required.
+
+        - alert: TourismPayPEPCriticalRisk
+          expr: |
+            rate(tourismpay_pep_risk_score_bucket{le="100"}[5m]) -
+            rate(tourismpay_pep_risk_score_bucket{le="79"}[5m]) > 0
+          for: 0s
+          labels:
+            severity: critical
+            team: compliance
+            category: aml
+          annotations:
+            summary: "Critical PEP risk score detected"
+            description: >
+              A transaction with critical PEP risk score (≥80) has been detected.
+              Auto-SAR has been filed. MLCO review required immediately.
+
+    # ── Zero-Trust Security Alerts ───────────────────────────────────────────
+    - name: tourismpay.zero_trust
+      interval: 30s
+      rules:
+        - alert: TourismPayUnauthorizedAPIAccess
+          expr: |
+            sum(rate(http_requests_total{status="403",job="tourismpay-server"}[5m])) > 10
+          for: 2m
+          labels:
+            severity: high
+            team: security
+            category: zero_trust
+          annotations:
+            summary: "High rate of 403 Forbidden responses on TourismPay API"
+            description: >
+              >10 unauthorized access attempts/5m on the TourismPay API.
+              This may indicate a brute-force attack or misconfigured client.
+
+        - alert: TourismPayJWTValidationFailures
+          expr: |
+            sum(rate(http_requests_total{status="401",job="tourismpay-server"}[5m])) > 50
+          for: 2m
+          labels:
+            severity: high
+            team: security
+            category: zero_trust
+          annotations:
+            summary: "High JWT validation failure rate"
+            description: >
+              >50 JWT validation failures/5m. Possible token replay attack or
+              Keycloak connectivity issue.
+
+        - alert: TourismPayCrossTenantAccessAttempt
+          expr: |
+            sum(rate(tourismpay_permify_check_total{result="denied",resource_type=~"wallet|bnpl_plan|insurance_policy"}[5m])) > 5
+          for: 1m
+          labels:
+            severity: critical
+            team: security
+            category: zero_trust
+          annotations:
+            summary: "Cross-tenant resource access attempts detected"
+            description: >
+              Permify is denying cross-tenant access attempts at rate >5/5m.
+              This may indicate a tenant isolation breach attempt.
+              Immediate investigation required.
+
+    # ── Wallet Flow-of-Funds Alerts ──────────────────────────────────────────
+    - name: tourismpay.wallet
+      interval: 30s
+      rules:
+        - alert: TourismPayWalletDebitFailureHigh
+          expr: |
+            rate(tourismpay_wallet_debit_failures_total[5m]) > 10
+          for: 2m
+          labels:
+            severity: high
+            team: platform
+            category: financial
+          annotations:
+            summary: "High wallet debit failure rate"
+            description: >
+              >10 wallet debit failures/5m. This may indicate:
+              - Insufficient balance (normal)
+              - Redis lock contention (investigate)
+              - PostgreSQL connectivity issue (critical)
+
+        - alert: TourismPayLedgerImbalance
+          expr: |
+            abs(tourismpay_ledger_debit_total - tourismpay_ledger_credit_total) > 0
+          for: 5m
+          labels:
+            severity: critical
+            team: platform
+            category: financial
+          annotations:
+            summary: "TigerBeetle ledger imbalance detected"
+            description: >
+              Debit total does not equal credit total in the TigerBeetle ledger.
+              This is a critical financial integrity issue.
+              Immediate investigation and potential rollback required.
+            runbook: "https://wiki.tourismpay.com/runbooks/ledger-imbalance"
+
+        - alert: TourismPayIdempotencyKeyConflict
+          expr: |
+            rate(tourismpay_idempotency_conflicts_total[5m]) > 0
+          for: 0s
+          labels:
+            severity: high
+            team: platform
+            category: financial
+          annotations:
+            summary: "Idempotency key conflict detected"
+            description: >
+              A duplicate transaction was attempted with the same idempotency key.
+              The PostgreSQL fallback prevented double-charge.
+              This may indicate a retry storm or client bug.
+
+    # ── Node.js Performance Alerts ───────────────────────────────────────────
+    - name: tourismpay.nodejs_performance
+      interval: 30s
+      rules:
+        - alert: TourismPayGCPauseSpike
+          expr: |
+            nodejs_gc_duration_seconds{quantile="0.99"} * 1000 > 37.5
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+            category: performance
+          annotations:
+            summary: "Node.js GC pause spike >37.5ms (Task 39)"
+            description: >
+              V8 garbage collector p99 pause is {{ $value | humanizeDuration }}.
+              Apply recommended NODE_OPTIONS:
+              NODE_OPTIONS="--max-old-space-size=2048 --max-semi-space-size=64 --gc-interval=100"
+            runbook: "https://wiki.tourismpay.com/runbooks/gc-tuning"
+
+        - alert: TourismPayHighMemoryUsage
+          expr: |
+            nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes > 0.85
+          for: 5m
+          labels:
+            severity: warning
+            team: platform
+            category: performance
+          annotations:
+            summary: "Node.js heap usage >85%"
+            description: >
+              Node.js heap is {{ $value | humanizePercentage }} full.
+              Consider increasing --max-old-space-size or enabling object pooling.
+
+    # ── Temporal Workflow Alerts ─────────────────────────────────────────────
+    - name: tourismpay.temporal
+      interval: 60s
+      rules:
+        - alert: TourismPayTemporalWorkflowFailureHigh
+          expr: |
+            rate(temporal_workflow_failed_total[5m]) > 5
+          for: 5m
+          labels:
+            severity: high
+            team: platform
+            category: availability
+          annotations:
+            summary: "High Temporal workflow failure rate"
+            description: >
+              >5 Temporal workflow failures/5m. This may indicate:
+              - Activity timeout (check external API availability)
+              - PostgreSQL connectivity issue
+              - Insufficient wallet balance (expected)
+
+        - alert: TourismPayTemporalWorkerDown
+          expr: |
+            up{job="temporal-worker"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+            category: availability
+          annotations:
+            summary: "Temporal worker is down"
+            description: >
+              The Temporal worker has been unreachable for 2 minutes.
+              All journey workflows (J01-J62) are paused.
+              Immediate restart required.
+
+    # ── Replication Lag Alerts ───────────────────────────────────────────────
+    - name: tourismpay.replication
+      interval: 30s
+      rules:
+        - alert: TourismPayReplicationLagHigh
+          expr: |
+            pg_replication_lag_seconds > 0.5
+          for: 2m
+          labels:
+            severity: warning
+            team: platform
+            category: availability
+          annotations:
+            summary: "PostgreSQL replication lag >500ms"
+            description: >
+              Replication lag between Lagos primary and London replica is
+              {{ $value | humanizeDuration }}.
+              This may impact read consistency in the London region.
+
+        - alert: TourismPayReplicationLagCritical
+          expr: |
+            pg_replication_lag_seconds > 5
+          for: 1m
+          labels:
+            severity: critical
+            team: platform
+            category: availability
+          annotations:
+            summary: "PostgreSQL replication lag >5s — DR failover risk"
+            description: >
+              Replication lag is {{ $value | humanizeDuration }}.
+              If primary fails now, up to {{ $value }}s of data may be lost.
+              Investigate network connectivity between regions.
